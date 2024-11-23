@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Tethys.API.Endpoints;
-using Tethys.Data;
-using Tethys.Data.Services;
+using Tethys.Infrastructure;
+using Tethys.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 

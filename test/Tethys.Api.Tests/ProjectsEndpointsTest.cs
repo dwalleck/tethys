@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Moq;
 using Tethys.API.Endpoints;
-using Tethys.Data.Models.Responses;
-using Tethys.Data.Models.Requests;
-using Tethys.Data.Services;
+using Tethys.Infrastructure.Models.Responses;
+using Tethys.Infrastructure.Models.Requests;
+using Tethys.Infrastructure.Services;
 using Xunit;
 
 namespace Tethys.API.Tests.Endpoints

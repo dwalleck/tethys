@@ -1,12 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Tethys.Data.Models.Requests;
-public class CreateProjectRequest
+namespace Tethys.Infrastructure.Models.Responses;
+
+public class TestEnvironment
 {
+    public Guid Id { get; set; }
+    [Required]
     public string Name { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
 }

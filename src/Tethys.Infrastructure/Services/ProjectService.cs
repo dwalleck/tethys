@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Tethys.Data.Models.Responses;
+using Tethys.Infrastructure.Models.Responses;
 
-namespace Tethys.Data.Services;
+namespace Tethys.Infrastructure.Services;
 public class ProjectService : IProjectService
 {
     private readonly TethysContext _dbContext;

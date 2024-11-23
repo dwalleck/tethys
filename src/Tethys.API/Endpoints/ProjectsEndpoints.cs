@@ -3,9 +3,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
-using Tethys.Data.Models.Requests;
-using Tethys.Data.Models.Responses;
-using Tethys.Data.Services;
+using Tethys.Infrastructure.Models.Requests;
+using Tethys.Infrastructure.Models.Responses;
+using Tethys.Infrastructure.Services;
 
 namespace Tethys.API.Endpoints;
 
