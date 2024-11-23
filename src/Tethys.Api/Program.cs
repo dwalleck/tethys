@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using Tethys.API.Endpoints;
+using Tethys.Api.Endpoints;
 using Tethys.Infrastructure;
 using Tethys.Infrastructure.Services;
 

@@ -6,7 +6,7 @@ using Tethys.Infrastructure.Models.Requests;
 using Tethys.Infrastructure.Services;
 using Xunit;
 
-namespace Tethys.API.Tests.Endpoints
+namespace Tethys.Api.Tests.Endpoints
 {
     public class ProjectsEndpointsTest
     {

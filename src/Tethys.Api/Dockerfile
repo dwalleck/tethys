@@ -12,19 +12,19 @@ EXPOSE 8081
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["src/Tethys.API/Tethys.API.csproj", "src/Tethys.API/"]
-RUN dotnet restore "./src/Tethys.API/Tethys.API.csproj"
+COPY ["src/Tethys.Api/Tethys.Api.csproj", "src/Tethys.Api/"]
+RUN dotnet restore "./src/Tethys.Api/Tethys.Api.csproj"
 COPY . .
-WORKDIR "/src/src/Tethys.API"
-RUN dotnet build "./Tethys.API.csproj" -c $BUILD_CONFIGURATION -o /app/build
+WORKDIR "/src/src/Tethys.Api"
+RUN dotnet build "./Tethys.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # This stage is used to publish the service project to be copied to the final stage
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "./Tethys.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "./Tethys.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 # This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-ENTRYPOINT ["dotnet", "Tethys.API.dll"]
+ENTRYPOINT ["dotnet", "Tethys.Api.dll"]

@@ -1,6 +1,6 @@
-@Tethys.API_HostAddress = http://localhost:5172
+@Tethys.Api_HostAddress = http://localhost:5172
 
-GET {{Tethys.API_HostAddress}}/weatherforecast/
+GET {{Tethys.Api_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
