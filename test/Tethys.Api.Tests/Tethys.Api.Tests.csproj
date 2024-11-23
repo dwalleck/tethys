@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Tethys.API\Tethys.API.csproj" />
+    <ProjectReference Include="..\..\src\Tethys.API\Tethys.Api.csproj" />
     <ProjectReference Include="..\..\src\Tethys.Infrastructure\Tethys.Infrastructure.csproj" />
   </ItemGroup>
 

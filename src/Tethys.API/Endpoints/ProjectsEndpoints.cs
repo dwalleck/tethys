@@ -1,13 +1,9 @@
-﻿using System.Security.Cryptography.X509Certificates;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Http.HttpResults;
 using Tethys.Infrastructure.Models.Requests;
 using Tethys.Infrastructure.Models.Responses;
 using Tethys.Infrastructure.Services;
 
-namespace Tethys.API.Endpoints;
+namespace Tethys.Api.Endpoints;
 
 public static class ProjectsEndpoints
 {

@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tethys.AppHost", "src\Tethy
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tethys.ServiceDefaults", "src\Tethys.ServiceDefaults\Tethys.ServiceDefaults.csproj", "{F9101C75-048D-4CD2-8522-CB346B37985A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tethys.API", "src\Tethys.API\Tethys.API.csproj", "{D4065D0D-B1B6-4E60-9BEE-52D3B6ABCB30}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tethys.Api", "src\Tethys.Api\Tethys.Api.csproj", "{D4065D0D-B1B6-4E60-9BEE-52D3B6ABCB30}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{83FAFC58-2073-43CC-820B-8CF6F37115A3}"
 EndProject

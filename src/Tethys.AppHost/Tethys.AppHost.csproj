@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Tethys.API\Tethys.API.csproj" />
+    <ProjectReference Include="..\Tethys.Api\Tethys.Api.csproj" />
   </ItemGroup>
 
 </Project>

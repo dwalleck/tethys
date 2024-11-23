@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Moq;
-using Tethys.API.Endpoints;
+using Tethys.Api.Endpoints;
 using Tethys.Infrastructure.Models.Responses;
 using Tethys.Infrastructure.Models.Requests;
 using Tethys.Infrastructure.Services;
