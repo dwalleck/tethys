@@ -9,6 +9,6 @@ public class TethysContext : DbContext
     public TethysContext(DbContextOptions<TethysContext> options) : base(options) { }
 
     public DbSet<Project> Projects => Set<Project>();
-    public DbSet<TestEnvironment> => Set<TestEnvironment>();
+    public DbSet<TestEnvironment> TestEnvironments => Set<TestEnvironment>();
 }
 
