@@ -1,5 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
-using System.Collections.Generic;
+using Microsoft.EntityFrameworkCore;
 using Tethys.Infrastructure.Models.Responses;
 
 namespace Tethys.Infrastructure;

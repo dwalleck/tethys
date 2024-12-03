@@ -19,7 +19,6 @@ builder.Services.AddScoped<IProjectService, ProjectService>();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-
 var app = builder.Build();
 app.UseCors();
 app.MapDefaultEndpoints();
