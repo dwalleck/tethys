@@ -74,7 +74,7 @@ public class ProjectsEndpointsTest
         var result = await ProjectsEndpoints.CreateProjectAsync(mockProjectService.Object, request).ConfigureAwait(false);
 
         // Assert
-        var createdResult = Assert.IsType<Created<Project>>(result);
+        var createdResult = Assert.IsType<Created>(result);
         Assert.Equal($"/projects/{project.Id}", createdResult.Location);
     }
 
