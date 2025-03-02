@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
     <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="9.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
@@ -22,6 +23,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Tethys.ServiceDefaults\Tethys.ServiceDefaults.csproj" />
     <ProjectReference Include="..\Tethys.Infrastructure\Tethys.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Features/Environments/" />
   </ItemGroup>
 
 </Project>
