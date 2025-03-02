@@ -25,8 +25,4 @@
     <ProjectReference Include="..\Tethys.Infrastructure\Tethys.Infrastructure.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Features/Environments/" />
-  </ItemGroup>
-
 </Project>

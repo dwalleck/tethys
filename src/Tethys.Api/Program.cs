@@ -6,6 +6,9 @@ using Tethys.Api.Endpoints;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddEndpoints();
+
 builder.Services.AddCors();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
