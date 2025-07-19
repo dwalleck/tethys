@@ -1,5 +1,74 @@
 # CLAUDE.md
 
+## ⚠️ CRITICAL: Before Making ANY Code Changes
+
+**MANDATORY**: Always consult project guidelines before:
+- Writing any code
+- Making any modifications
+- Implementing any features
+- Creating any tests
+
+Key guidelines to follow:
+- Required Test-Driven Development workflow
+- Documentation standards
+- Code quality requirements
+- Step-by-step implementation process
+- Verification checklists
+
+**SPECIAL ATTENTION**: If working as part of a multi-agent team:
+1. You MUST follow parallel development workflows
+2. You MUST create branches and show ALL command outputs
+3. You MUST run verification scripts and show their output
+4. You MUST create progress tracking files
+
+**NEVER** proceed with implementation without following established guidelines.
+
+## ⚠️ CRITICAL: MCP Tool Usage
+
+**MANDATORY**: When working with external packages or encountering compilation errors:
+
+1. **ALWAYS use context7 MCP** for NuGet package documentation
+2. **NEVER guess** at API signatures or method names
+3. **IMMEDIATELY check** context7 when you see "method not found" or "cannot convert type" errors
+4. **READ MCP-USAGE-GUIDE.md** for detailed instructions
+
+Example workflow:
+```
+Compilation error → Is it package-related? → Use context7 MCP
+Need to use FluentValidation? → Check context7 FIRST
+Unsure about TUnit syntax? → Use context7 for current docs
+```
+
+## Overview
+
+Tethys Minimal Endpoints is a lightweight, source generator-powered framework for building vertical slice architecture APIs in ASP.NET Core. The framework uses compile-time source generation to automatically discover and register endpoints, eliminating runtime reflection and providing zero-overhead endpoint registration. It enables developers to organize their APIs using the REPR (Request-Endpoint-Response) pattern, keeping all related code (request models, response models, validation, business logic) in a single location rather than scattered across multiple layers.
+
+**Primary Implementation**: Source generators automatically generate the `MapEndpoint` implementation for classes decorated with `[Endpoint]` attributes, making manual endpoint registration unnecessary.
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Framework Philosophy
+
+### SPARC Methodology Integration
+- **Simplicity**: Prioritize clear, maintainable solutions over unnecessary complexity
+- **Iteration**: Enhance existing systems through continuous improvement cycles
+- **Focus**: Maintain strict adherence to defined objectives and scope
+- **Quality**: Deliver clean, tested, documented, and secure outcomes
+- **Collaboration**: Foster effective partnerships between human engineers and AI agents
+
+### SPARC Methodology & Workflow
+- **Structured Workflow**: Follow clear phases from specification through deployment
+- **Flexibility**: Adapt processes to diverse project sizes and complexity levels
+- **Intelligent Evolution**: Continuously improve codebase using advanced symbolic reasoning and adaptive complexity management
+- **Conscious Integration**: Incorporate reflective awareness at each development stage
+
+### Engineering Excellence
+- **Systematic Approach**: Apply methodical problem-solving and debugging practices
+- **Architectural Thinking**: Design scalable, maintainable systems with proper separation of concerns
+- **Quality Assurance**: Implement comprehensive testing, validation, and quality gates
+- **Context Preservation**: Maintain decision history and knowledge across development lifecycle
+- **Continuous Learning**: Adapt and improve through experience and feedback
+
 ## Workspace-specific rules
 
 ### General Guidelines for Programming Languages
@@ -61,6 +130,15 @@
 
 8. Standard Check-in
    - Example: "Confirming understanding: Reviewed [context], goal is [goal], proceeding with [step]."
+
+### Context Preservation During Development
+
+- Persistent Context
+  - Continuously retain relevant context across development stages to ensure coherent long-term planning and decision-making.
+- Reference Prior Decisions
+  - Regularly review past decisions stored in memory to maintain consistency and reduce redundancy.
+- Adaptive Learning
+  - Utilize historical data and previous solutions to adaptively refine new implementations.
 
 ### Advanced Coding Capabilities
 
@@ -147,6 +225,72 @@
    - Use differential debugging: compare working vs non-working states to identify differences.
    - Use state snapshot analysis for intermittent issues that are difficult to reproduce.
 
+### MCP (Model Context Protocol) Tools Usage
+
+**CRITICAL**: Always use MCP tools when available for enhanced capabilities. These tools provide superior functionality compared to built-in tools.
+
+#### Available MCP Tools
+
+1. **context7** - Library Documentation & Code Examples
+   - **ALWAYS USE FOR**: NuGet package documentation, API references, method signatures
+   - **When to use**:
+     - Compilation errors with external packages
+     - Unsure about method parameters or return types
+     - Need current documentation for any library
+     - Looking for code examples or best practices
+   - **Usage pattern**:
+     ```
+     1. First call: mcp__context7__resolve-library-id with package name
+     2. Then call: mcp__context7__get-library-docs with the returned library ID
+     ```
+
+2. **github** - GitHub Repository Operations
+   - **When to use**: Creating issues, PRs, managing repositories
+   - **Preferred over**: Manual GitHub operations
+
+3. **fetch** - Enhanced Web Content Retrieval
+   - **When to use**: Fetching web documentation or resources
+   - **Preferred over**: WebFetch tool
+
+4. **desktop-commander** - Advanced File/Process Operations
+   - **When to use**: Complex file operations, process management
+   - **Preferred over**: Basic Read/Write/Bash tools for complex operations
+
+#### MCP Usage Guidelines
+
+1. **Package/Library Issues**:
+   - **FIRST ACTION**: Use context7 to get current documentation
+   - Never guess at API signatures or parameters
+   - Always verify package methods exist before using them
+   - Check for breaking changes between versions
+
+2. **Compilation Errors**:
+   - If error involves external package: Use context7 immediately
+   - Get exact method signatures and parameter types
+   - Verify namespace and using statements
+
+3. **Implementation Uncertainty**:
+   - Before implementing with unfamiliar packages: Check context7
+   - Look for official examples and patterns
+   - Verify best practices for the specific version
+
+4. **Common Scenarios**:
+   ```
+   Scenario: "Method not found" error
+   Action: Use context7 to verify exact method name and parameters
+   
+   Scenario: "Cannot convert type" error with package types
+   Action: Use context7 to check type definitions and conversions
+   
+   Scenario: Implementing new feature with NuGet package
+   Action: First check context7 for examples and patterns
+   ```
+
+5. **Integration Workflow**:
+   - Start task → Check if external packages involved → Use context7 first
+   - Hit compilation error → Is it package-related? → Use context7
+   - Unsure about implementation → Check context7 for examples
+
 ### Security
 
 1. Server-Side Authority
@@ -166,12 +310,32 @@
 
 1. Git Hygiene
    - Commit frequently with clear and descriptive messages.
+   - Never commit directly to main branch
+   - Always work on feature branches
 
 2. Branching Strategy
-   - Adhere strictly to defined branching guidelines.
+   - **Feature Branches**: Create a new branch for each task/issue
+     - Format: `task-XXX-brief-description` (e.g., `task-001-fix-constructor-order`)
+     - Branch from latest main: `git checkout main && git pull && git checkout -b task-XXX-description`
+   - **Commit Messages**: Use conventional commits
+     - `fix:` for bug fixes
+     - `feat:` for new features
+     - `test:` for test additions/changes
+     - `docs:` for documentation
+     - `refactor:` for code refactoring
+   - **Pull Request Workflow**:
+     - Complete all acceptance criteria for the task
+     - Ensure all tests pass and coverage ≥ 80%
+     - Push feature branch: `git push origin task-XXX-description`
+     - Create pull request via GitHub UI or CLI: `gh pr create`
+     - Link to the issue: "Closes #XXX" in PR description
+     - Request review if working with team
+     - Merge only after approval and passing CI
 
 3. Environment Management
    - Ensure code consistency and compatibility across all environments.
+   - Test locally before pushing
+   - Verify CI/CD passes before marking task complete
 
 4. Server Management
    - Systematically restart servers following updates or configuration changes.
@@ -210,14 +374,46 @@
    - Apply strangler fig pattern: gradually replace legacy components by intercepting calls.
    - Implement anti-corruption layers between new and legacy systems for clean boundaries.
 
+## Methodical Problem-Solving & Debugging
+
+### Debugging Process
+1. **Reproduce Issues**: Create reliable, minimal test cases
+2. **Gather Information**: Collect logs, traces, and system state data
+3. **Analyze Patterns**: Review data to understand behavior and anomalies
+4. **Form Hypotheses**: Develop theories prioritized by likelihood and impact
+5. **Test Systematically**: Execute tests to confirm or eliminate hypotheses
+6. **Implement & Verify**: Apply fixes and validate across multiple scenarios
+7. **Document Findings**: Record issues, causes, and solutions for future reference
+
+### Advanced Techniques
+- **Binary Search Debugging**: Systematically eliminate problem space
+- **Root Cause Analysis**: Look beyond symptoms to fundamental issues
+- **State Snapshot Analysis**: Capture system state for intermittent issues
+- **Differential Debugging**: Compare working vs. non-working states
+
+## Quality Assurance Framework
+
+### Three-Layer Validation
+
+**Layer 1: Pre-Development**
+- [ ] Requirements clearly understood and documented
+- [ ] Architecture approach validated and approved
+- [ ] Potential risks and issues identified
+- [ ] Success criteria and acceptance tests defined
+
+**Layer 2: During Development**
+- [ ] Code quality standards maintained
+- [ ] Comprehensive test coverage implemented
+- [ ] Security and performance considerations addressed
+- [ ] Regular validation checkpoints completed
+
+**Layer 3: Post-Development**
+- [ ] All tests passing and quality gates met
+- [ ] Security review and vulnerability assessment completed
+- [ ] Performance benchmarks validated
+- [ ] Documentation updated and knowledge preserved
+
 ## Project-specific rules
-
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Project Overview
-
-Tethys is a .NET 9.0 cloud-native API for test environment management, built using ASP.NET Core with .NET Aspire orchestration. The project follows a vertical slice architecture pattern.
 
 ## Key Commands
 
@@ -226,32 +422,35 @@ Tethys is a .NET 9.0 cloud-native API for test environment management, built usi
 # Build the solution
 dotnet build
 
-# Run tests
+# Run tests (IMPORTANT: Never use --no-build)
 dotnet test
 
 # Run a single test
 dotnet test --filter "FullyQualifiedName~TestClassName.TestMethodName"
 
-# Run the API directly
+# Run the example API
 dotnet run --project src/Tethys.Api/Tethys.Api.csproj
 
 # Run with .NET Aspire orchestration (recommended for development)
 dotnet run --project src/Tethys.AppHost/Tethys.AppHost.csproj
 
-# Build Docker image
-docker build -f src/Tethys.Api/Dockerfile -t tethys-api .
+# Pack NuGet packages
+dotnet pack -c Release
 ```
 
 ### Development
 ```bash
-# Watch mode for the API
+# Watch mode for the example API
 dotnet watch --project src/Tethys.Api/Tethys.Api.csproj
 
 # Format code
 dotnet format
 
-# Add a new migration (when using real database)
-dotnet ef migrations add MigrationName --project src/Tethys.Api
+# Run source generator tests with snapshot verification
+dotnet test test/Tethys.ImprovedSourceGenerators.SnapshotTests/
+
+# Run all tests
+dotnet test
 ```
 
 ## Architecture
@@ -265,33 +464,225 @@ Structure:
 - Endpoints are registered via the `IEndpoint` interface pattern
 
 ### Project Structure
-- **Tethys.Api**: Main API project with feature slices
+- **Tethys.MinimalEndpoints**: Core library with base interfaces and attributes
+- **Tethys.MinimalEndpoints.ImprovedSourceGenerators**: Source generators for compile-time code generation
+- **Tethys.Api**: Example API demonstrating vertical slice architecture usage
 - **Tethys.AppHost**: .NET Aspire orchestration for local development
 - **Tethys.ServiceDefaults**: Shared configuration for observability, health checks, and resilience
-- **Tethys.Infrastructure**: Legacy shared code (being phased out during vertical slice migration)
+- **Tethys.Infrastructure**: Legacy shared code (being phased out)
 
 ### Key Patterns
-1. **Endpoint Registration**: All endpoints implement `IEndpoint` and are auto-registered
-2. **Validation**: FluentValidation for request validation
-3. **Database**: Entity Framework Core with InMemory provider (development) and PostgreSQL support
-4. **Observability**: OpenTelemetry integration via .NET Aspire
-5. **Reusable Patterns**: The `Tethys.MinimalEndpoints` project contains reusable abstractions:
-   - `IEndpoint` - Base interface for all endpoints
-   - `EndpointExtensions` - Auto-registration helpers
-   - `EndpointBase<TRequest, TResponse>` - Base class for endpoints with request/response
-   - `ValidatedEndpointBase<TRequest, TResponse>` - Base class with built-in validation
-   - `SliceEndpoint` - Simplified base class with helper methods
+1. **Source Generator-Based Registration**: 
+   - Classes with `[Endpoint]` attribute are discovered at compile-time
+   - Source generator creates `IEndpoint` implementation automatically
+   - No runtime reflection or manual registration needed
+   - Generated code handles route mapping and metadata application
 
-### Adding New Features
+2. **Attribute-Driven Development**:
+   - `[Endpoint(HttpMethod.Get, "/api/products")]` - Define route and HTTP method
+   - `[Handler]` - Mark the method that processes requests
+   - `[EndpointMetadata]` - Configure OpenAPI, authorization, tags, etc.
+
+3. **Compile-Time Safety**:
+   - Route patterns validated during compilation
+   - Type-safe parameter binding
+   - Early detection of configuration errors
+
+4. **Zero-Overhead Abstraction**:
+   - All endpoint discovery happens at compile-time
+   - Generated code is as efficient as hand-written code
+   - No runtime performance penalty
+
+5. **Reusable Patterns**: The `Tethys.MinimalEndpoints` project contains:
+   - Attribute definitions for endpoint configuration
+   - Base classes for common endpoint patterns
+   - Extension methods for endpoint registration
+   - Source generator that creates the implementation
+
+### Key Components
+
+#### Attributes
+- **`[Endpoint(HttpMethod, pattern)]`**: Defines HTTP method and route pattern
+- **`[Handler]`**: Marks the method that handles requests
+- **`[EndpointMetadata]`**: Provides OpenAPI metadata, authorization policies, etc.
+
+#### Base Classes
+- **`IEndpoint`**: Base interface for all endpoints
+- **`EndpointBase<TRequest, TResponse>`**: Base class for endpoints with request/response
+- **`ValidatedEndpointBase<TRequest, TResponse>`**: Base class with built-in validation
+- **`SliceEndpoint`**: Simplified base class with helper methods
+
+### How Source Generation Works
+
+1. **Define an endpoint class**:
+   ```csharp
+   [Endpoint(HttpMethod.Get, "/api/products/{id}")]
+   [EndpointMetadata(Tags = ["Products"], Summary = "Get product by ID")]
+   public partial class GetProductEndpoint
+   {
+       [Handler]
+       public async Task<IResult> Handle(int id, IProductService service)
+       {
+           var product = await service.GetByIdAsync(id);
+           return product is not null ? Results.Ok(product) : Results.NotFound();
+       }
+   }
+   ```
+
+2. **Source generator creates** (at compile-time):
+   ```csharp
+   partial class GetProductEndpoint : IEndpoint
+   {
+       public void MapEndpoint(IEndpointRouteBuilder app)
+       {
+           app.MapGet("/api/products/{id}", Handle)
+              .WithTags("Products")
+              .WithSummary("Get product by ID")
+              .WithOpenApi();
+       }
+   }
+   ```
+
+3. **Runtime registration** (one line in Program.cs):
+   ```csharp
+   // The MapEndpoints() extension method calls MapEndpoint() on all generated IEndpoint implementations
+   app.MapEndpoints();
+   ```
+
+### Adding New Features (Example API)
 1. Create a new folder under `src/Tethys.Api/Features/{FeatureName}`
-2. Implement endpoints using the `IEndpoint` interface
-3. Add models, validators, and any feature-specific services in the same folder
-4. Endpoints are automatically discovered and registered
-
-### Database Context
-The main DbContext is `TethysDbContext` located in `src/Tethys.Api/Database/`. Current entities:
-- Project
-- Environment (associated with Projects)
+2. Create an endpoint class with `[Endpoint]` attribute
+3. Add `[Handler]` attribute to the handling method
+4. Build the project - source generator creates the IEndpoint implementation
+5. The generated code is automatically included in compilation - no manual registration needed
 
 ### Testing
-Tests are located in `test/Tethys.Api.Tests/`. The project uses xUnit as the testing framework.
+- **Unit Tests**: `test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/` - TUnit framework
+- **Snapshot Tests**: `test/Tethys.ImprovedSourceGenerators.SnapshotTests/` - Verify.TUnit
+- **Integration Tests**: `test/Tethys.ImprovedSourceGenerators.IntegrationTests/`
+- **Example API Tests**: `test/Tethys.Api.Tests/` - xUnit framework
+
+## Core Engineering Principles
+
+### Comprehensive Software Engineering Best Practices
+- **Separation of Concerns**: Divide systems into distinct, focused components
+- **Single Responsibility**: Each component has one clear reason to change
+- **DRY (Don't Repeat Yourself)**: Eliminate duplication through abstraction
+- **KISS (Keep It Simple)**: Favor straightforward solutions over complex ones
+- **Dependency Inversion**: High-level modules depend on abstractions, not implementations
+
+### Quality Attributes Focus
+- **Performance**: Optimize for efficiency and scalability
+- **Reliability**: Build fault-tolerant systems with graceful degradation
+- **Security**: Implement security by design with proper authentication and validation
+- **Maintainability**: Create easily modifiable and extensible systems
+- **Testability**: Design for comprehensive automated testing
+
+## Context Management & Knowledge Preservation
+
+### Session-Level Context
+```
+Problem: [brief description + problem scope]
+Requirements: [key requirements]
+Decisions: [key decisions with rationale and trade-offs]
+Status: [progress/blockers/next actions]
+```
+
+### Track Across Iterations:
+- Original requirements and any changes
+- Key decisions made and rationale
+- Human feedback and how it was incorporated
+- Alternative approaches considered
+
+### Project-Level Context
+- **Persistent Context**: Retain relevant information across development stages
+- **Decision History**: Track architectural choices and their rationale
+- **Learning Integration**: Utilize historical data to refine implementations
+- **Cross-Project Knowledge**: Apply patterns and lessons across initiatives
+
+### Documentation Standards
+- **Architecture Decision Records (ADRs)**: Document significant technical decisions
+- **Context Management**: Maintain INDEX.md files for navigation
+- **Knowledge Base**: Capture institutional wisdom and best practices
+- **Session Journals**: Record detailed collaboration logs
+
+### INDEX Maintenance:
+- Update INDEX.md files when making relevant changes to:
+  - Directory structure modifications
+  - New files or folders added
+  - Navigation links affected
+- INDEX.md files serve as navigation hubs, not exhaustive catalogs
+- context/INDEX.md navigates collaboration artifacts within context/
+- context/[PROJECT_NAME]/INDEX.md navigates /[PROJECT_NAME] files and folders
+- Include brief descriptions for all linked items
+
+### Project Context & Understanding
+
+1. Documentation First
+   - Review essential documentation before implementation:
+     - README.md
+     - Product Requirements Documents (PRDs)
+     - Architecture documentation
+     - Technical specifications
+     - TODO/Task tracking files
+   - Request clarification immediately if documentation is incomplete or ambiguous.
+
+2. Architecture Adherence
+   - Follow established module boundaries and architectural designs.
+   - Validate architectural decisions using symbolic reasoning; propose justified alternatives when necessary.
+
+3. Pattern & Tech Stack Awareness
+   - Utilize documented technologies and established patterns; introduce new elements only after clear justification.
+
+## Directory Structure for AI Collaboration
+
+The framework supports systematic organization of development and collaboration artifacts:
+
+```
+/
+├── README.md                    # Workspace overview documentation
+├── context/                     # Collaboration context and artifacts
+│   ├── INDEX.md                # Context Navigational Hub
+│   ├── docs/                   # Framework documentation
+│   ├── workflows/              # Standard workflow definitions
+│   ├── [PROJECT_NAME]/         # Project-specific collaboration context
+│   │   ├── architecture.md     # Technical architecture decisions
+│   │   ├── prd.md              # Product Requirements Document
+│   │   ├── technical.md        # Technical specifications
+│   │   ├── INDEX.md            # Project Context navigational Hub
+│   │   ├── TODO.md             # Project task tracking
+│   │   ├── plans/              # Planning documents
+│   │   │   ├── [YYYY-MM-DD]/   # Daily planning sessions
+│   │   │   │   ├── task-[TASK_NAME].md  # Task planning details
+│   │   ├── journal/            # Session-by-session collaboration log
+│   │   │   ├── [YYYY-MM-DD]/   # Daily collaboration sessions
+│   │   │   │   ├── [HHMM]-[TASK_NAME].md  # Individual session records
+│   │   └── tasks/              # Project collaboration tasks details
+│   │       ├── [YYYY-MM-DD]/   # Daily collaboration tasks
+│   │       │   ├── task-[TASK_NAME].md  # Individual task details
+├── [PROJECT_NAME]/             # Actual project files and deliverables
+│   ├── INDEX.md                # Project Navigational HUB
+│   ├── README.md               # Project-specific documentation
+│   └── (other project folders/files)  # Project-specific implementation files and folders
+```
+
+## Framework Evolution & Customization
+
+### Continuous Improvement
+This comprehensive software engineering framework evolves through:
+- **Practical Experience**: Real-world usage patterns and lessons learned across projects
+- **Engineering Excellence**: Integration of proven software development methodologies
+- **Community Contributions**: Collaborative improvements and domain-specific adaptations
+- **Technology Advancement**: Adaptation to new tools, languages, and development practices
+
+### Customization Guidelines
+- **Workspace-Specific Rules**: Use this CLAUDE.md for customizing framework behavior across the workspace
+- **Domain Adaptations**: Tailor approaches for different technical domains and requirements
+- **Tool Integration**: Adapt installation and usage for various agentic development tools
+- **Quality Standards**: Adjust validation criteria and quality gates for workspace needs
+
+### Enterprise Integration
+- **Scalable Architecture**: Supports development from prototype to enterprise-scale systems
+- **Security & Reliability**: Built-in practices for secure, reliable software development
+- **Knowledge Preservation**: Comprehensive documentation and decision tracking systems
+- **Quality Assurance**: Multi-layer validation, testing, and continuous improvement processes
