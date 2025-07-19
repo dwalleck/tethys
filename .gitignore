@@ -5,6 +5,8 @@
 
 # dotenv files
 .env
+coverage-report*
+*.g.verified.cs
 
 # User-specific files
 *.rsuser
