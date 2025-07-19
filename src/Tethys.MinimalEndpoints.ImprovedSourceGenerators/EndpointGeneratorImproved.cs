@@ -105,7 +105,7 @@ public class EndpointGeneratorImproved : IIncrementalGenerator
             return HttpMethod.Unknown;
         }
 
-        var methodArg = attribute.ConstructorArguments[1];
+        var methodArg = attribute.ConstructorArguments[0];
         if (methodArg.Kind != TypedConstantKind.Enum || methodArg.Type?.TypeKind != TypeKind.Enum)
         {
             return HttpMethod.Unknown;
@@ -165,12 +165,12 @@ public class EndpointGeneratorImproved : IIncrementalGenerator
 
     private static string ExtractPattern(AttributeData attribute)
     {
-        if (attribute.ConstructorArguments.Length == 0)
+        if (attribute.ConstructorArguments.Length < 2)
         {
             return "/";
         }
 
-        var patternArg = attribute.ConstructorArguments[0];
+        var patternArg = attribute.ConstructorArguments[1];
         return patternArg.Value?.ToString() ?? "/";
     }
 
