@@ -23,6 +23,10 @@
   <ItemGroup>
     <ProjectReference Include="..\Tethys.ServiceDefaults\Tethys.ServiceDefaults.csproj" />
     <ProjectReference Include="..\Tethys.Infrastructure\Tethys.Infrastructure.csproj" />
+    <ProjectReference Include="..\Tethys.MinimalEndpoints\Tethys.MinimalEndpoints.csproj" />
+    <ProjectReference Include="..\Tethys.MinimalEndpoints.SourceGenerators\Tethys.MinimalEndpoints.SourceGenerators.csproj" 
+                      OutputItemType="Analyzer" 
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

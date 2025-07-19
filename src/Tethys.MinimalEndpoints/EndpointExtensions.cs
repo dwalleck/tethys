@@ -1,13 +1,16 @@
 using System.Reflection;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
-namespace Tethys.Api.Endpoints;
+namespace Tethys.MinimalEndpoints;
 
 public static class EndpointExtensions
 {
     public static IServiceCollection AddEndpoints(this IServiceCollection services)
     {
-        services.AddEndpoints(Assembly.GetExecutingAssembly());
+        services.AddEndpoints(Assembly.GetCallingAssembly());
 
         return services;
     }

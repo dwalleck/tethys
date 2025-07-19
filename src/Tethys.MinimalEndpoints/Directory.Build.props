@@ -1,0 +1,26 @@
+<Project>
+  <PropertyGroup>
+    <PackageId>Tethys.MinimalEndpoints</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Your Name</Authors>
+    <Description>A lightweight library for building vertical slice architecture with ASP.NET Core Minimal APIs</Description>
+    <PackageTags>aspnetcore;minimal-api;vertical-slice;endpoints</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/yourusername/Tethys.MinimalEndpoints</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yourusername/Tethys.MinimalEndpoints</RepositoryUrl>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Include the source generator in the package -->
+    <None Include="$(MSBuildThisFileDirectory)..\Tethys.MinimalEndpoints.SourceGenerators\bin\$(Configuration)\netstandard2.0\Tethys.MinimalEndpoints.SourceGenerators.dll" 
+          Pack="true" 
+          PackagePath="analyzers/dotnet/cs" 
+          Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\Tethys.MinimalEndpoints.SourceGenerators\bin\$(Configuration)\netstandard2.0\Tethys.MinimalEndpoints.SourceGenerators.pdb" 
+          Pack="true" 
+          PackagePath="analyzers/dotnet/cs" 
+          Visible="false" />
+  </ItemGroup>
+</Project>

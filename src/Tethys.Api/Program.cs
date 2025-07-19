@@ -1,7 +1,7 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Tethys.Api.Database;
-using Tethys.Api.Endpoints;
+using Tethys.MinimalEndpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 

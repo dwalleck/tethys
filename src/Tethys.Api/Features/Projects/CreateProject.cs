@@ -1,5 +1,5 @@
 using Tethys.Api.Database;
-using Tethys.Api.Endpoints;
+using Tethys.MinimalEndpoints;
 using FluentValidation;
 
 namespace Tethys.Api.Features.Projects;

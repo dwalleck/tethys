@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Tethys.Api.Database;
-using Tethys.Api.Endpoints;
+using Tethys.MinimalEndpoints;
 
 namespace Tethys.Api.Features.Projects;
 
