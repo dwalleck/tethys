@@ -14,11 +14,11 @@
 
   <ItemGroup>
     <!-- Include the source generator in the package -->
-    <None Include="$(MSBuildThisFileDirectory)..\Tethys.MinimalEndpoints.SourceGenerators\bin\$(Configuration)\netstandard2.0\Tethys.MinimalEndpoints.SourceGenerators.dll" 
+    <None Include="$(MSBuildThisFileDirectory)..\Tethys.MinimalEndpoints.ImprovedSourceGenerators\bin\$(Configuration)\netstandard2.0\Tethys.MinimalEndpoints.ImprovedSourceGenerators.dll" 
           Pack="true" 
           PackagePath="analyzers/dotnet/cs" 
           Visible="false" />
-    <None Include="$(MSBuildThisFileDirectory)..\Tethys.MinimalEndpoints.SourceGenerators\bin\$(Configuration)\netstandard2.0\Tethys.MinimalEndpoints.SourceGenerators.pdb" 
+    <None Include="$(MSBuildThisFileDirectory)..\Tethys.MinimalEndpoints.ImprovedSourceGenerators\bin\$(Configuration)\netstandard2.0\Tethys.MinimalEndpoints.ImprovedSourceGenerators.pdb" 
           Pack="true" 
           PackagePath="analyzers/dotnet/cs" 
           Visible="false" />

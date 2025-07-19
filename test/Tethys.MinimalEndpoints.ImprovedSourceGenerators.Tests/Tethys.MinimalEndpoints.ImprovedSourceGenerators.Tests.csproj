@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Tethys.MinimalEndpoints.ImprovedSourceGenerators\Tethys.MinimalEndpoints.ImprovedSourceGenerators.csproj" />
+    <ProjectReference Include="..\..\src\Tethys.MinimalEndpoints\Tethys.MinimalEndpoints.csproj" />
   </ItemGroup>
 
   <ItemGroup>
