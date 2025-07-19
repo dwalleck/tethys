@@ -193,7 +193,7 @@ public class HttpMethodEnumGeneratorTests
 
     private async Task<(Compilation outputCompilation, ImmutableArray<Diagnostic> diagnostics)> RunGenerator(string source)
     {
-        var generator = new EndpointGenerator();
+        var generator = new EndpointGeneratorImproved();
         var driver = CSharpGeneratorDriver.Create(generator);
         
         var compilation = TestCompilationHelper.CreateCompilation(source);

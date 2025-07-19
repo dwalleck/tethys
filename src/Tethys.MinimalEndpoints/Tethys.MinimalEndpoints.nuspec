@@ -21,9 +21,9 @@
     <file src="bin\Release\net9.0\Tethys.MinimalEndpoints.pdb" target="lib\net9.0\" />
     
     <!-- Source generator -->
-    <file src="..\Tethys.MinimalEndpoints.SourceGenerators\bin\Release\netstandard2.0\Tethys.MinimalEndpoints.SourceGenerators.dll" 
+    <file src="..\Tethys.MinimalEndpoints.ImprovedSourceGenerators\bin\Release\netstandard2.0\Tethys.MinimalEndpoints.ImprovedSourceGenerators.dll" 
           target="analyzers\dotnet\cs\" />
-    <file src="..\Tethys.MinimalEndpoints.SourceGenerators\bin\Release\netstandard2.0\Tethys.MinimalEndpoints.SourceGenerators.pdb" 
+    <file src="..\Tethys.MinimalEndpoints.ImprovedSourceGenerators\bin\Release\netstandard2.0\Tethys.MinimalEndpoints.ImprovedSourceGenerators.pdb" 
           target="analyzers\dotnet\cs\" />
   </files>
 </package>
