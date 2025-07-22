@@ -46,7 +46,6 @@ public static class TestCompilationHelper
                 public class EndpointAttribute : Attribute
                 {
                     public EndpointAttribute(HttpMethodType method, string pattern) { }
-                    public EndpointAttribute(Stratify.MinimalEndpoints.HttpMethod method, string pattern) { }
                 }
 
                 [AttributeUsage(AttributeTargets.Method)]
@@ -65,14 +64,6 @@ public static class TestCompilationHelper
                 }
             }
 
-            namespace Stratify.MinimalEndpoints
-            {
-                // Alias for backward compatibility in tests
-                public enum HttpMethod
-                {
-                    Get, Post, Put, Delete, Patch, Head, Options
-                }
-            }
 
             namespace Microsoft.AspNetCore.Http
             {
