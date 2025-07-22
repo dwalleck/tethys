@@ -78,3 +78,37 @@ Note: Tests are failing due to generator not producing output, which will be add
 ### Time Spent
 - Estimated: 1 hour
 - Actual: 45 minutes
+
+## Session: 2025-07-22 - TASK-003: Clean Up Duplicate Test Projects
+### Completed
+- Identified duplicate snapshot tests in main test project
+  - EndpointGeneratorSnapshotTests.cs with 8 test methods
+  - Snapshots/ directory with verified/received files
+- Compared test coverage between projects
+  - Found 4 unique test scenarios that would be lost
+  - Created AdvancedEndpointTests.cs in dedicated snapshot project
+  - Ported all missing test scenarios
+- Removed duplicate snapshot tests from main test project
+  - Deleted EndpointGeneratorSnapshotTests.cs
+  - Deleted Snapshots/ directory
+- Achieved clear separation of test types
+  - Snapshot tests: Stratify.ImprovedSourceGenerators.SnapshotTests
+  - Unit tests: Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests
+  - Integration tests: Stratify.ImprovedSourceGenerators.IntegrationTests
+
+### Key Technical Details
+- Main test project had snapshot tests using Verify framework
+- Dedicated snapshot project already exists with better organization
+- Preserved 4 unique test scenarios before deletion:
+  1. Complex handler signatures
+  2. Empty metadata arrays
+  3. All HTTP methods test
+  4. Nested classes test
+
+### Build Status
+✅ Solution builds successfully
+⚠️ Tests need snapshot updates due to generator improvements
+
+### Time Spent
+- Estimated: 1-2 hours
+- Actual: 30 minutes

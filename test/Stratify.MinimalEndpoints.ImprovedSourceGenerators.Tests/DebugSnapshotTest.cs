@@ -28,22 +28,22 @@ public class DebugSnapshotTest
             """;
 
         var attributeSource = """
-            namespace Stratify.MinimalEndpoints
+            namespace Stratify.MinimalEndpoints.Attributes
             {
                 [System.AttributeUsage(System.AttributeTargets.Class)]
                 public class EndpointAttribute : System.Attribute
                 {
                     public string Pattern { get; }
-                    public HttpMethod Method { get; }
+                    public HttpMethodType Method { get; }
 
-                    public EndpointAttribute(HttpMethod method, string pattern)
+                    public EndpointAttribute(HttpMethodType method, string pattern)
                     {
                         Method = method;
                         Pattern = pattern;
                     }
                 }
 
-                public enum HttpMethod
+                public enum HttpMethodType
                 {
                     Get
                 }
