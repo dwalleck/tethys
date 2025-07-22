@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- TUnit Test Framework -->
+    <PackageReference Include="TUnit" Version="0.25.21" />
+
+    <!-- ASP.NET Core for testing real endpoints -->
+    <PackageReference Include="Microsoft.AspNetCore.Testing" Version="9.7.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.7" />
+
+    <!-- FluentAssertions -->
+    <PackageReference Include="FluentAssertions" Version="8.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Reference the generator as an analyzer (THIS IS KEY!) -->
+    <ProjectReference Include="..\..\src\Stratify.MinimalEndpoints.ImprovedSourceGenerators\Stratify.MinimalEndpoints.ImprovedSourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+
+    <!-- Reference the base library normally -->
+    <ProjectReference Include="..\..\src\Stratify.MinimalEndpoints\Stratify.MinimalEndpoints.csproj" />
+  </ItemGroup>
+
+</Project>
