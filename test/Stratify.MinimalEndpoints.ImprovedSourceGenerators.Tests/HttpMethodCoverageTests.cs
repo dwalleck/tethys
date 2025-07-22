@@ -20,11 +20,11 @@ public class HttpMethodCoverageTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Head, "/api/head")]
+            [Endpoint(HttpMethodType.Head, "/api/head")]
             public partial class HeadEndpoint
             {
                 [Handler]
@@ -57,11 +57,11 @@ public class HttpMethodCoverageTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Options, "/api/options")]
+            [Endpoint(HttpMethodType.Options, "/api/options")]
             public partial class OptionsEndpoint
             {
                 [Handler]
@@ -93,11 +93,11 @@ public class HttpMethodCoverageTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Patch, "/api/patch")]
+            [Endpoint(HttpMethodType.Patch, "/api/patch")]
             public partial class PatchEndpoint
             {
                 [Handler]
@@ -128,32 +128,32 @@ public class HttpMethodCoverageTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/get")]
+            [Endpoint(HttpMethodType.Get, "/api/get")]
             public partial class GetEndpoint
             {
                 [Handler]
                 public static Task<IResult> HandleAsync() => Task.FromResult(Results.Ok());
             }
 
-            [Endpoint(HttpMethod.Post, "/api/post")]
+            [Endpoint(HttpMethodType.Post, "/api/post")]
             public partial class PostEndpoint
             {
                 [Handler]
                 public static Task<IResult> HandleAsync() => Task.FromResult(Results.Ok());
             }
 
-            [Endpoint(HttpMethod.Put, "/api/put")]
+            [Endpoint(HttpMethodType.Put, "/api/put")]
             public partial class PutEndpoint
             {
                 [Handler]
                 public static Task<IResult> HandleAsync() => Task.FromResult(Results.Ok());
             }
 
-            [Endpoint(HttpMethod.Delete, "/api/delete")]
+            [Endpoint(HttpMethodType.Delete, "/api/delete")]
             public partial class DeleteEndpoint
             {
                 [Handler]
@@ -187,12 +187,12 @@ public class HttpMethodCoverageTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
             // This would be caught during extraction, but we test the mapping logic
-            [Endpoint(HttpMethod.Get, "/api/test")]
+            [Endpoint(HttpMethodType.Get, "/api/test")]
             public partial class TestEndpoint
             {
                 [Handler]
@@ -222,53 +222,53 @@ public class HttpMethodCoverageTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/users")]
+            [Endpoint(HttpMethodType.Get, "/api/users")]
             public partial class GetUsersEndpoint
             {
                 [Handler]
                 public static Task<IResult> HandleAsync() => Task.FromResult(Results.Ok());
             }
 
-            [Endpoint(HttpMethod.Post, "/api/users")]
+            [Endpoint(HttpMethodType.Post, "/api/users")]
             public partial class CreateUserEndpoint
             {
                 [Handler]
                 public static Task<IResult> HandleAsync() => Task.FromResult(Results.Ok());
             }
 
-            [Endpoint(HttpMethod.Put, "/api/users/{id}")]
+            [Endpoint(HttpMethodType.Put, "/api/users/{id}")]
             public partial class UpdateUserEndpoint
             {
                 [Handler]
                 public static Task<IResult> HandleAsync(int id) => Task.FromResult(Results.Ok());
             }
 
-            [Endpoint(HttpMethod.Delete, "/api/users/{id}")]
+            [Endpoint(HttpMethodType.Delete, "/api/users/{id}")]
             public partial class DeleteUserEndpoint
             {
                 [Handler]
                 public static Task<IResult> HandleAsync(int id) => Task.FromResult(Results.Ok());
             }
 
-            [Endpoint(HttpMethod.Patch, "/api/users/{id}")]
+            [Endpoint(HttpMethodType.Patch, "/api/users/{id}")]
             public partial class PatchUserEndpoint
             {
                 [Handler]
                 public static Task<IResult> HandleAsync(int id) => Task.FromResult(Results.Ok());
             }
 
-            [Endpoint(HttpMethod.Head, "/api/users")]
+            [Endpoint(HttpMethodType.Head, "/api/users")]
             public partial class HeadUsersEndpoint
             {
                 [Handler]
                 public static Task<IResult> HandleAsync() => Task.FromResult(Results.Ok());
             }
 
-            [Endpoint(HttpMethod.Options, "/api/users")]
+            [Endpoint(HttpMethodType.Options, "/api/users")]
             public partial class OptionsUsersEndpoint
             {
                 [Handler]
@@ -311,25 +311,25 @@ public class HttpMethodCoverageTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/test1")]
+            [Endpoint(HttpMethodType.Get, "/api/test1")]
             public partial class GetEndpoint1
             {
                 [Handler]
                 public static Task<IResult> HandleAsync() => Task.FromResult(Results.Ok());
             }
 
-            [Endpoint(HttpMethod.Post, "/api/test2")]
+            [Endpoint(HttpMethodType.Post, "/api/test2")]
             public partial class PostEndpoint2
             {
                 [Handler]
                 public static Task<IResult> HandleAsync() => Task.FromResult(Results.Ok());
             }
 
-            [Endpoint(HttpMethod.Put, "/api/test3")]
+            [Endpoint(HttpMethodType.Put, "/api/test3")]
             public partial class PutEndpoint3
             {
                 [Handler]

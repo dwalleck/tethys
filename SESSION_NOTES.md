@@ -50,3 +50,31 @@ Note: Tests are failing due to generator not producing output, which will be add
 ### Time Spent
 - Estimated: 30 minutes
 - Actual: 30 minutes
+
+## Session: 2025-07-22 - TASK-002: Namespace Consistency Fix
+### Completed
+- Fixed namespace inconsistency in TestCompilationHelper.cs
+  - Changed from `Stratify.MinimalEndpoints` to `Stratify.MinimalEndpoints.Attributes`
+  - Generator now correctly finds endpoints using ForAttributeWithMetadataName
+- Updated all test files to use HttpMethodType instead of HttpMethod
+  - Updated 12 test files using sed commands
+  - Fixed type mismatches in test compilations
+- Added XML documentation explaining why HttpMethodType enum is necessary
+  - C# attributes can only accept compile-time constants
+  - ASP.NET Core's HttpMethod is a class with static properties (not constants)
+  - Custom enum allows compile-time attribute usage
+- Verified test improvements: 31/92 → 81/92 passing tests
+
+### Key Technical Details
+- Root cause: Generator expected `Stratify.MinimalEndpoints.Attributes.EndpointAttribute`
+- Test helpers were creating attributes in wrong namespace
+- HttpMethodType enum is required for attribute compatibility
+- Remaining 11 failures are snapshot tests needing updated expectations
+
+### Build Status
+✅ Solution builds successfully
+✅ Tests improved from 31 to 81 passing (88% pass rate)
+
+### Time Spent
+- Estimated: 1 hour
+- Actual: 45 minutes

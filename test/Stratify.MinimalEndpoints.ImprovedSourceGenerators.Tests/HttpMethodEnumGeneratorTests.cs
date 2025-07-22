@@ -21,11 +21,11 @@ public class HttpMethodEnumGeneratorTests
             using System;
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Products;
 
-            [Endpoint(HttpMethod.Post, "/api/products")]
+            [Endpoint(HttpMethodType.Post, "/api/products")]
             public partial class CreateProductEndpoint
             {
                 [Handler]
@@ -65,11 +65,11 @@ public class HttpMethodEnumGeneratorTests
                 using System;
                 using System.Threading.Tasks;
                 using Microsoft.AspNetCore.Http;
-                using Stratify.MinimalEndpoints;
+                using Stratify.MinimalEndpoints.Attributes;
 
                 namespace TestApp.Features.Test;
 
-                [Endpoint(HttpMethod.{{method}}, "/api/test")]
+                [Endpoint(HttpMethodType.{{method}}, "/api/test")]
                 public partial class TestEndpoint
                 {
                     [Handler]
@@ -101,11 +101,11 @@ public class HttpMethodEnumGeneratorTests
             using System;
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Put, "/api/items/{id}")]
+            [Endpoint(HttpMethodType.Put, "/api/items/{id}")]
             public partial class UpdateItemEndpoint
             {
                 [Handler]
@@ -136,12 +136,12 @@ public class HttpMethodEnumGeneratorTests
             using System;
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
             // This should not generate anything because it's missing the handler
-            [Endpoint(HttpMethod.Get, "/api/invalid")]
+            [Endpoint(HttpMethodType.Get, "/api/invalid")]
             public partial class InvalidEndpoint
             {
                 // No [Handler] attribute
@@ -165,11 +165,11 @@ public class HttpMethodEnumGeneratorTests
             using System;
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Delete, "/api/users/{id}")]
+            [Endpoint(HttpMethodType.Delete, "/api/users/{id}")]
             public partial class DeleteUserEndpoint
             {
                 [Handler]

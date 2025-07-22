@@ -29,7 +29,15 @@ public static class TestCompilationHelper
 
             namespace Stratify.MinimalEndpoints
             {
-                public enum HttpMethod
+                public interface IEndpoint
+                {
+                    void MapEndpoint(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder app);
+                }
+            }
+
+            namespace Stratify.MinimalEndpoints.Attributes
+            {
+                public enum HttpMethodType
                 {
                     Get, Post, Put, Delete, Patch, Head, Options
                 }
@@ -37,7 +45,7 @@ public static class TestCompilationHelper
                 [AttributeUsage(AttributeTargets.Class)]
                 public class EndpointAttribute : Attribute
                 {
-                    public EndpointAttribute(HttpMethod method, string pattern) { }
+                    public EndpointAttribute(HttpMethodType method, string pattern) { }
                 }
 
                 [AttributeUsage(AttributeTargets.Method)]
@@ -54,12 +62,8 @@ public static class TestCompilationHelper
                     public string[]? Policies { get; set; }
                     public string[]? Roles { get; set; }
                 }
-
-                public interface IEndpoint
-                {
-                    void MapEndpoint(Microsoft.AspNetCore.Routing.IEndpointRouteBuilder app);
-                }
             }
+
 
             namespace Microsoft.AspNetCore.Http
             {

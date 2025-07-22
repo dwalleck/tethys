@@ -20,11 +20,11 @@ public class HandlerParameterTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/hello/{name}")]
+            [Endpoint(HttpMethodType.Get, "/api/hello/{name}")]
             public partial class HelloEndpoint
             {
                 [Handler]
@@ -57,11 +57,11 @@ public class HandlerParameterTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/users/{id:int}")]
+            [Endpoint(HttpMethodType.Get, "/api/users/{id:int}")]
             public partial class GetUserEndpoint
             {
                 [Handler]
@@ -93,11 +93,11 @@ public class HandlerParameterTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/search")]
+            [Endpoint(HttpMethodType.Get, "/api/search")]
             public partial class SearchEndpoint
             {
                 [Handler]
@@ -126,11 +126,11 @@ public class HandlerParameterTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/greet")]
+            [Endpoint(HttpMethodType.Get, "/api/greet")]
             public partial class GreetEndpoint
             {
                 [Handler]
@@ -159,11 +159,11 @@ public class HandlerParameterTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/page")]
+            [Endpoint(HttpMethodType.Get, "/api/page")]
             public partial class PageEndpoint
             {
                 [Handler]
@@ -192,11 +192,11 @@ public class HandlerParameterTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/filter")]
+            [Endpoint(HttpMethodType.Get, "/api/filter")]
             public partial class FilterEndpoint
             {
                 [Handler]
@@ -225,11 +225,11 @@ public class HandlerParameterTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/nullable")]
+            [Endpoint(HttpMethodType.Get, "/api/nullable")]
             public partial class NullableEndpoint
             {
                 [Handler]
@@ -258,13 +258,13 @@ public class HandlerParameterTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
             public record CreateUserRequest(string Name, string Email);
 
-            [Endpoint(HttpMethod.Post, "/api/users")]
+            [Endpoint(HttpMethodType.Post, "/api/users")]
             public partial class CreateUserEndpoint
             {
                 [Handler]
@@ -293,13 +293,13 @@ public class HandlerParameterTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
             public record UpdateUserRequest(string Name, string Email);
 
-            [Endpoint(HttpMethod.Put, "/api/users/{id:int}")]
+            [Endpoint(HttpMethodType.Put, "/api/users/{id:int}")]
             public partial class UpdateUserEndpoint
             {
                 [Handler]
@@ -329,7 +329,7 @@ public class HandlerParameterTests
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
             using Microsoft.Extensions.Logging;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
@@ -338,7 +338,7 @@ public class HandlerParameterTests
                 Task<string> GetUserAsync(int id);
             }
 
-            [Endpoint(HttpMethod.Get, "/api/users/{id:int}")]
+            [Endpoint(HttpMethodType.Get, "/api/users/{id:int}")]
             public partial class GetUserWithServiceEndpoint
             {
                 [Handler]
@@ -373,11 +373,11 @@ public class HandlerParameterTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/context")]
+            [Endpoint(HttpMethodType.Get, "/api/context")]
             public partial class ContextEndpoint
             {
                 [Handler]
@@ -407,11 +407,11 @@ public class HandlerParameterTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/simple")]
+            [Endpoint(HttpMethodType.Get, "/api/simple")]
             public partial class SimpleEndpoint
             {
                 [Handler]
@@ -440,11 +440,11 @@ public class HandlerParameterTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/async")]
+            [Endpoint(HttpMethodType.Get, "/api/async")]
             public partial class AsyncEndpoint
             {
                 [Handler]
@@ -474,11 +474,11 @@ public class HandlerParameterTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/char")]
+            [Endpoint(HttpMethodType.Get, "/api/char")]
             public partial class CharEndpoint
             {
                 [Handler]

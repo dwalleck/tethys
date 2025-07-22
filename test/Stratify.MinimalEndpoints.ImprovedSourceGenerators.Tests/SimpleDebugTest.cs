@@ -15,22 +15,22 @@ public class SimpleDebugTest
     public async Task Simple_Debug_Test()
     {
         var source = """
-            namespace Stratify.MinimalEndpoints
+            namespace Stratify.MinimalEndpoints.Attributes
             {
                 [System.AttributeUsage(System.AttributeTargets.Class)]
                 public class EndpointAttribute : System.Attribute
                 {
                     public string Pattern { get; }
-                    public HttpMethod Method { get; }
+                    public HttpMethodType Method { get; }
 
-                    public EndpointAttribute(HttpMethod method, string pattern)
+                    public EndpointAttribute(HttpMethodType method, string pattern)
                     {
                         Method = method;
                         Pattern = pattern;
                     }
                 }
 
-                public enum HttpMethod
+                public enum HttpMethodType
                 {
                     Get,
                     Post,
@@ -44,9 +44,9 @@ public class SimpleDebugTest
 
             namespace TestNamespace
             {
-                using Stratify.MinimalEndpoints;
+                using Stratify.MinimalEndpoints.Attributes;
 
-                [Endpoint(HttpMethod.Get, "/api/test")]
+                [Endpoint(HttpMethodType.Get, "/api/test")]
                 public partial class TestEndpoint
                 {
                     public string Handle()
@@ -120,7 +120,7 @@ public class SimpleDebugTest
         }
 
         // Try to manually trace through the generation
-        var endpointAttribute = compilation.GetTypeByMetadataName("Stratify.MinimalEndpoints.EndpointAttribute");
+        var endpointAttribute = compilation.GetTypeByMetadataName("Stratify.MinimalEndpoints.Attributes.EndpointAttribute");
         Console.WriteLine($"\nEndpointAttribute type found: {endpointAttribute != null}");
 
         if (endpointAttribute != null)

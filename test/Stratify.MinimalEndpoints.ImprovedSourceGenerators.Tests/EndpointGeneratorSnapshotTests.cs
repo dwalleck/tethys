@@ -15,11 +15,11 @@ public class EndpointGeneratorSnapshotTests
     public Task Snapshot_Basic_Endpoint()
     {
         var source = """
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestNamespace;
 
-            [Endpoint(HttpMethod.Get, "/api/test")]
+            [Endpoint(HttpMethodType.Get, "/api/test")]
             public partial class TestEndpoint
             {
                 public string Handle()
@@ -36,11 +36,11 @@ public class EndpointGeneratorSnapshotTests
     public Task Snapshot_Endpoint_With_Metadata()
     {
         var source = """
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestNamespace;
 
-            [Endpoint(HttpMethod.Post, "/api/users")]
+            [Endpoint(HttpMethodType.Post, "/api/users")]
             [EndpointMetadata(
                 Name = "CreateUser",
                 Summary = "Creates a new user",
@@ -67,12 +67,12 @@ public class EndpointGeneratorSnapshotTests
     public Task Snapshot_Multiple_Endpoints()
     {
         var source = """
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
             using System.Threading.Tasks;
 
             namespace TestNamespace;
 
-            [Endpoint(HttpMethod.Get, "/api/products")]
+            [Endpoint(HttpMethodType.Get, "/api/products")]
             public partial class GetProductsEndpoint
             {
                 public Task<List<Product>> Handle()
@@ -81,7 +81,7 @@ public class EndpointGeneratorSnapshotTests
                 }
             }
 
-            [Endpoint(HttpMethod.Get, "/api/products/{id}")]
+            [Endpoint(HttpMethodType.Get, "/api/products/{id}")]
             [EndpointMetadata(Name = "GetProductById")]
             public partial class GetProductByIdEndpoint
             {
@@ -91,7 +91,7 @@ public class EndpointGeneratorSnapshotTests
                 }
             }
 
-            [Endpoint(HttpMethod.Post, "/api/products")]
+            [Endpoint(HttpMethodType.Post, "/api/products")]
             [EndpointMetadata(RequiresAuthorization = true)]
             public partial class CreateProductEndpoint
             {
@@ -111,14 +111,14 @@ public class EndpointGeneratorSnapshotTests
     public Task Snapshot_Complex_Handler_Signatures()
     {
         var source = """
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
             using Microsoft.AspNetCore.Http;
             using System.Threading;
             using System.Threading.Tasks;
 
             namespace TestNamespace;
 
-            [Endpoint(HttpMethod.Put, "/api/complex/{id}")]
+            [Endpoint(HttpMethodType.Put, "/api/complex/{id}")]
             public partial class ComplexHandlerEndpoint
             {
                 public async Task<IResult> Handle(
@@ -151,11 +151,11 @@ public class EndpointGeneratorSnapshotTests
     public Task Snapshot_Endpoint_With_Special_Characters()
     {
         var source = """
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestNamespace;
 
-            [Endpoint(HttpMethod.Get, "/api/special\"chars\"")]
+            [Endpoint(HttpMethodType.Get, "/api/special\"chars\"")]
             [EndpointMetadata(
                 Name = "Special\"Name\"",
                 Summary = "Summary with \"quotes\" and \nnewlines",
@@ -176,11 +176,11 @@ public class EndpointGeneratorSnapshotTests
     public Task Snapshot_Endpoint_With_Empty_Arrays()
     {
         var source = """
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestNamespace;
 
-            [Endpoint(HttpMethod.Get, "/api/empty")]
+            [Endpoint(HttpMethodType.Get, "/api/empty")]
             [EndpointMetadata(
                 Tags = new string[] { },
                 Policies = new string[] { },
@@ -201,47 +201,47 @@ public class EndpointGeneratorSnapshotTests
     public Task Snapshot_All_Http_Methods()
     {
         var source = """
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestNamespace;
 
-            [Endpoint(HttpMethod.Get, "/api/method/get")]
+            [Endpoint(HttpMethodType.Get, "/api/method/get")]
             public partial class GetMethodEndpoint
             {
                 public string Handle() => "GET";
             }
 
-            [Endpoint(HttpMethod.Post, "/api/method/post")]
+            [Endpoint(HttpMethodType.Post, "/api/method/post")]
             public partial class PostMethodEndpoint
             {
                 public string Handle() => "POST";
             }
 
-            [Endpoint(HttpMethod.Put, "/api/method/put")]
+            [Endpoint(HttpMethodType.Put, "/api/method/put")]
             public partial class PutMethodEndpoint
             {
                 public string Handle() => "PUT";
             }
 
-            [Endpoint(HttpMethod.Delete, "/api/method/delete")]
+            [Endpoint(HttpMethodType.Delete, "/api/method/delete")]
             public partial class DeleteMethodEndpoint
             {
                 public string Handle() => "DELETE";
             }
 
-            [Endpoint(HttpMethod.Patch, "/api/method/patch")]
+            [Endpoint(HttpMethodType.Patch, "/api/method/patch")]
             public partial class PatchMethodEndpoint
             {
                 public string Handle() => "PATCH";
             }
 
-            [Endpoint(HttpMethod.Head, "/api/method/head")]
+            [Endpoint(HttpMethodType.Head, "/api/method/head")]
             public partial class HeadMethodEndpoint
             {
                 public string Handle() => "HEAD";
             }
 
-            [Endpoint(HttpMethod.Options, "/api/method/options")]
+            [Endpoint(HttpMethodType.Options, "/api/method/options")]
             public partial class OptionsMethodEndpoint
             {
                 public string Handle() => "OPTIONS";
@@ -255,13 +255,13 @@ public class EndpointGeneratorSnapshotTests
     public Task Snapshot_Nested_Classes()
     {
         var source = """
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestNamespace;
 
             public class ParentClass
             {
-                [Endpoint(HttpMethod.Get, "/api/nested")]
+                [Endpoint(HttpMethodType.Get, "/api/nested")]
                 public partial class NestedEndpoint
                 {
                     public string Handle()
@@ -272,7 +272,7 @@ public class EndpointGeneratorSnapshotTests
 
                 public class AnotherLevel
                 {
-                    [Endpoint(HttpMethod.Post, "/api/deeply-nested")]
+                    [Endpoint(HttpMethodType.Post, "/api/deeply-nested")]
                     public partial class DeeplyNestedEndpoint
                     {
                         public IResult Handle(string data)

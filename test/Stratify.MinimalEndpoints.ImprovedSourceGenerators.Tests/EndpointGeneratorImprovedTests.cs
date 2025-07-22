@@ -20,11 +20,11 @@ public class EndpointGeneratorImprovedTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/test")]
+            [Endpoint(HttpMethodType.Get, "/api/test")]
             public partial class TestEndpoint
             {
                 [Handler]
@@ -59,12 +59,12 @@ public class EndpointGeneratorImprovedTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
             // This should be processed
-            [Endpoint(HttpMethod.Post, "/api/create")]
+            [Endpoint(HttpMethodType.Post, "/api/create")]
             public partial class CreateEndpoint
             {
                 [Handler]

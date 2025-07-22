@@ -20,11 +20,11 @@ public class ErrorHandlingTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get)]  // Missing pattern parameter
+            [Endpoint(HttpMethodType.Get)]  // Missing pattern parameter
             public partial class MissingPatternEndpoint
             {
                 [Handler]
@@ -55,11 +55,11 @@ public class ErrorHandlingTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "api/test")]  // Invalid pattern - missing leading slash
+            [Endpoint(HttpMethodType.Get, "api/test")]  // Invalid pattern - missing leading slash
             public partial class InvalidPatternEndpoint
             {
                 [Handler]
@@ -90,11 +90,11 @@ public class ErrorHandlingTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/test")]
+            [Endpoint(HttpMethodType.Get, "/api/test")]
             public partial class NoHandlerEndpoint
             {
                 // No method with [Handler] attribute
@@ -125,11 +125,11 @@ public class ErrorHandlingTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/test")]
+            [Endpoint(HttpMethodType.Get, "/api/test")]
             public partial class MultipleHandlersEndpoint
             {
                 [Handler]
@@ -167,12 +167,12 @@ public class ErrorHandlingTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
             // Valid endpoint to ensure generator runs
-            [Endpoint(HttpMethod.Get, "/api/valid")]
+            [Endpoint(HttpMethodType.Get, "/api/valid")]
             public partial class ValidEndpoint
             {
                 [Handler]
@@ -201,7 +201,7 @@ public class ErrorHandlingTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
@@ -235,11 +235,11 @@ public class ErrorHandlingTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "")]  // Empty pattern
+            [Endpoint(HttpMethodType.Get, "")]  // Empty pattern
             public partial class EmptyPatternEndpoint
             {
                 [Handler]
@@ -270,11 +270,11 @@ public class ErrorHandlingTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "   ")]  // Whitespace pattern
+            [Endpoint(HttpMethodType.Get, "   ")]  // Whitespace pattern
             public partial class WhitespacePatternEndpoint
             {
                 [Handler]
@@ -305,11 +305,11 @@ public class ErrorHandlingTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/test")]
+            [Endpoint(HttpMethodType.Get, "/api/test")]
             public class NonPartialEndpoint  // Missing partial keyword
             {
                 [Handler]
@@ -340,11 +340,11 @@ public class ErrorHandlingTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/test")]
+            [Endpoint(HttpMethodType.Get, "/api/test")]
             public abstract partial class AbstractEndpoint  // Abstract class
             {
                 [Handler]
@@ -375,7 +375,7 @@ public class ErrorHandlingTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
