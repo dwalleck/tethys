@@ -21,11 +21,11 @@ public class EndpointGeneratorTests
             using System;
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Products;
 
-            [Endpoint(HttpMethod.Get, "/api/products")]
+            [Endpoint(HttpMethodType.Get, "/api/products")]
             public partial class GetProductsEndpoint
             {
                 [Handler]
@@ -87,11 +87,11 @@ public class EndpointGeneratorTests
     {
         // Arrange
         var source = """
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Products;
 
-            [Endpoint(HttpMethod.Get, "/api/test")]
+            [Endpoint(HttpMethodType.Get, "/api/test")]
             public class NonPartialEndpoint
             {
                 [Handler]
@@ -115,11 +115,11 @@ public class EndpointGeneratorTests
     {
         // Arrange
         var source = """
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Products;
 
-            [Endpoint(HttpMethod.Get, "/api/test")]
+            [Endpoint(HttpMethodType.Get, "/api/test")]
             public partial class EndpointWithoutHandler
             {
                 // No [Handler] attribute

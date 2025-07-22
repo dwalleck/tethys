@@ -20,11 +20,11 @@ public class EndpointMetadataExtractionTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/test")]
+            [Endpoint(HttpMethodType.Get, "/api/test")]
             [EndpointMetadata(Tags = new[] { "Users", "Admin" })]
             public partial class TestEndpoint
             {
@@ -57,11 +57,11 @@ public class EndpointMetadataExtractionTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Post, "/api/create")]
+            [Endpoint(HttpMethodType.Post, "/api/create")]
             [EndpointMetadata(
                 Name = "CreateUser",
                 Summary = "Creates a new user",
@@ -99,11 +99,11 @@ public class EndpointMetadataExtractionTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Delete, "/api/delete")]
+            [Endpoint(HttpMethodType.Delete, "/api/delete")]
             [EndpointMetadata(RequiresAuthorization = true)]
             public partial class DeleteEndpoint
             {
@@ -135,11 +135,11 @@ public class EndpointMetadataExtractionTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Put, "/api/update")]
+            [Endpoint(HttpMethodType.Put, "/api/update")]
             [EndpointMetadata(
                 RequiresAuthorization = true,
                 Policies = new[] { "AdminPolicy", "UserPolicy" }
@@ -176,11 +176,11 @@ public class EndpointMetadataExtractionTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/admin")]
+            [Endpoint(HttpMethodType.Get, "/api/admin")]
             [EndpointMetadata(
                 RequiresAuthorization = true,
                 Roles = new[] { "Admin", "SuperUser" }
@@ -216,11 +216,11 @@ public class EndpointMetadataExtractionTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Post, "/api/complex")]
+            [Endpoint(HttpMethodType.Post, "/api/complex")]
             [EndpointMetadata(
                 Tags = new[] { "Complex", "Test" },
                 Name = "ComplexEndpoint",
@@ -267,11 +267,11 @@ public class EndpointMetadataExtractionTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/escape")]
+            [Endpoint(HttpMethodType.Get, "/api/escape")]
             [EndpointMetadata(
                 Name = "Test\"Quotes\"",
                 Summary = "Has\nNewline\rCarriage",
@@ -310,11 +310,11 @@ public class EndpointMetadataExtractionTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/empty")]
+            [Endpoint(HttpMethodType.Get, "/api/empty")]
             [EndpointMetadata(
                 Tags = new string[] { },
                 Policies = new string[] { },
@@ -352,11 +352,11 @@ public class EndpointMetadataExtractionTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp;
 
-            [Endpoint(HttpMethod.Get, "/api/simple")]
+            [Endpoint(HttpMethodType.Get, "/api/simple")]
             public partial class SimpleEndpoint
             {
                 [Handler]

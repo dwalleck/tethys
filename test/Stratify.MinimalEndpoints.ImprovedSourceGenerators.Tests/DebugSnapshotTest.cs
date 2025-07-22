@@ -13,11 +13,11 @@ public class DebugSnapshotTest
     public async Task Debug_Generator_Output()
     {
         var source = """
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestNamespace;
 
-            [Endpoint(HttpMethod.Get, "/api/test")]
+            [Endpoint(HttpMethodType.Get, "/api/test")]
             public partial class TestEndpoint
             {
                 public string Handle()

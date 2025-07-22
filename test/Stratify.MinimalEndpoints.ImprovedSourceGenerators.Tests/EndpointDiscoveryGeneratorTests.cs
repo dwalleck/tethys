@@ -20,11 +20,11 @@ public class EndpointDiscoveryGeneratorTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Products;
 
-            [Endpoint(HttpMethod.Post, "/products")]
+            [Endpoint(HttpMethodType.Post, "/products")]
             public partial class CreateProductEndpoint
             {
                 [Handler]
@@ -59,11 +59,11 @@ public class EndpointDiscoveryGeneratorTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Products;
 
-            [Endpoint(HttpMethod.Post, "/products")]
+            [Endpoint(HttpMethodType.Post, "/products")]
             public partial class CreateProductEndpoint
             {
                 [Handler]
@@ -73,7 +73,7 @@ public class EndpointDiscoveryGeneratorTests
                 }
             }
 
-            [Endpoint(HttpMethod.Get, "/products/{id}")]
+            [Endpoint(HttpMethodType.Get, "/products/{id}")]
             public partial class GetProductEndpoint
             {
                 [Handler]
@@ -85,7 +85,7 @@ public class EndpointDiscoveryGeneratorTests
 
             namespace TestApp.Features.Orders;
 
-            [Endpoint(HttpMethod.Post, "/orders")]
+            [Endpoint(HttpMethodType.Post, "/orders")]
             public partial class CreateOrderEndpoint
             {
                 [Handler]
@@ -119,18 +119,18 @@ public class EndpointDiscoveryGeneratorTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Products;
 
-            [Endpoint(HttpMethod.Post, "/products")]
+            [Endpoint(HttpMethodType.Post, "/products")]
             public abstract partial class BaseEndpoint
             {
                 [Handler]
                 public abstract Task<IResult> HandleAsync();
             }
 
-            [Endpoint(HttpMethod.Post, "/products")]
+            [Endpoint(HttpMethodType.Post, "/products")]
             public partial class CreateProductEndpoint
             {
                 [Handler]
@@ -165,11 +165,11 @@ public class EndpointDiscoveryGeneratorTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Products;
 
-            [Endpoint(HttpMethod.Post, "/products")]
+            [Endpoint(HttpMethodType.Post, "/products")]
             public partial class CreateProductEndpoint
             {
                 [Handler]
@@ -203,13 +203,13 @@ public class EndpointDiscoveryGeneratorTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Products;
 
             public static class CreateProduct
             {
-                [Endpoint(HttpMethod.Post, "/products")]
+                [Endpoint(HttpMethodType.Post, "/products")]
                 public partial class Endpoint
                 {
                     [Handler]

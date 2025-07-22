@@ -20,7 +20,7 @@ public class EnumHandlingGeneratorTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Products;
 
@@ -31,7 +31,7 @@ public class EnumHandlingGeneratorTests
                 Discontinued
             }
 
-            [Endpoint(HttpMethod.Get, "/products/status/{status}")]
+            [Endpoint(HttpMethodType.Get, "/products/status/{status}")]
             public partial class GetProductsByStatusEndpoint
             {
                 [Handler]
@@ -66,7 +66,7 @@ public class EnumHandlingGeneratorTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Products;
 
@@ -80,7 +80,7 @@ public class EnumHandlingGeneratorTests
 
             public record UpdateOrderRequest(int OrderId, OrderStatus Status);
 
-            [Endpoint(HttpMethod.Put, "/orders/{orderId}/status")]
+            [Endpoint(HttpMethodType.Put, "/orders/{orderId}/status")]
             public partial class UpdateOrderStatusEndpoint
             {
                 [Handler]
@@ -115,7 +115,7 @@ public class EnumHandlingGeneratorTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Products;
 
@@ -127,7 +127,7 @@ public class EnumHandlingGeneratorTests
                 Critical
             }
 
-            [Endpoint(HttpMethod.Get, "/tasks")]
+            [Endpoint(HttpMethodType.Get, "/tasks")]
             public partial class FilterTasksEndpoint
             {
                 [Handler]
@@ -160,7 +160,7 @@ public class EnumHandlingGeneratorTests
             using System;
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Permissions;
 
@@ -174,7 +174,7 @@ public class EnumHandlingGeneratorTests
                 Admin = Read | Write | Delete
             }
 
-            [Endpoint(HttpMethod.Get, "/permissions/check")]
+            [Endpoint(HttpMethodType.Get, "/permissions/check")]
             public partial class CheckPermissionsEndpoint
             {
                 [Handler]
@@ -204,7 +204,7 @@ public class EnumHandlingGeneratorTests
             using System.Collections.Generic;
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Filters;
 
@@ -219,7 +219,7 @@ public class EnumHandlingGeneratorTests
 
             public record FilterRequest(List<Category> Categories, Category[] ExcludeCategories);
 
-            [Endpoint(HttpMethod.Post, "/products/filter")]
+            [Endpoint(HttpMethodType.Post, "/products/filter")]
             public partial class FilterProductsEndpoint
             {
                 [Handler]
@@ -248,7 +248,7 @@ public class EnumHandlingGeneratorTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Responses;
 
@@ -261,7 +261,7 @@ public class EnumHandlingGeneratorTests
                 InternalServerError = 500
             }
 
-            [Endpoint(HttpMethod.Get, "/response/{code}")]
+            [Endpoint(HttpMethodType.Get, "/response/{code}")]
             public partial class CustomResponseEndpoint
             {
                 [Handler]
@@ -290,7 +290,7 @@ public class EnumHandlingGeneratorTests
         var source = """
             using System.Threading.Tasks;
             using Microsoft.AspNetCore.Http;
-            using Stratify.MinimalEndpoints;
+            using Stratify.MinimalEndpoints.Attributes;
 
             namespace TestApp.Features.Users;
 
@@ -311,7 +311,7 @@ public class EnumHandlingGeneratorTests
 
             public record UpdateUserRequest(UserRole Role, AccountStatus Status);
 
-            [Endpoint(HttpMethod.Put, "/users/{id}")]
+            [Endpoint(HttpMethodType.Put, "/users/{id}")]
             public partial class UpdateUserEndpoint
             {
                 [Handler]
