@@ -21,13 +21,16 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 #### 1. Security & Authentication ❌ Major Gap
 
 **FastEndpoints Provides:**
+
 - **JWT Bearer Authentication**: Built-in `AddAuthenticationJwtBearer()` with token creation utilities
 - **Cookie Authentication**: Native `AddAuthenticationCookie()` support
 - **Multiple Auth Schemes**: Mix authentication methods per endpoint
 - **Permission System**: Auto-generated permissions with `AccessControl()` attribute
+
   ```csharp
   AccessControl("Article_Create", behavior: Apply.ToThisEndpoint, groupNames: "Author", "Admin")
   ```
+
 - **JWT Revocation**: Middleware for token blacklisting
 - **CSRF Protection**: Built-in antiforgery token support
 - **OAuth2 Scopes**: Validate scopes with `Scopes("read", "write")`
@@ -37,7 +40,9 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 #### 2. Middleware & Cross-Cutting Concerns ❌ Major Gap
 
 **FastEndpoints Provides:**
+
 - **Global Pre/Post Processors**: System-wide request/response interceptors
+
   ```csharp
   public class SecurityProcessor<TRequest> : IPreProcessor<TRequest>
   {
@@ -47,6 +52,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
       }
   }
   ```
+
 - **Processor State Sharing**: Share state between processors and endpoints
 - **Command Bus**: Built-in mediator pattern with middleware pipeline
 - **Exception Handling**: Default exception handler middleware
@@ -59,12 +65,15 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 #### 3. API Versioning ❌ Major Gap
 
 **FastEndpoints Provides:**
+
 - **Version Sets**: Group related endpoints
+
   ```csharp
   VersionSets.CreateApi("Orders", v => v
       .HasApiVersion(1.0)
       .HasApiVersion(2.0));
   ```
+
 - **Header-Based Versioning**: `X-Api-Version` header support
 - **URL Path Versioning**: `/v1/endpoint` style
 - **Deprecation Support**: Mark endpoints as deprecated
@@ -75,6 +84,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 #### 4. Advanced Binding & Validation ⚠️ Partial Gap
 
 **FastEndpoints Provides:**
+
 - **Custom Value Parsers**: Type-specific parsing logic
 - **Complex Form Binding**: Deep object graphs from multipart forms
 - **File Handling**: Advanced `IFormFile` binding and streaming
@@ -82,10 +92,12 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 - **Custom Binders**: Extend default binding behavior
 
 **Stratify Has:**
+
 - Basic model binding
 - FluentValidation integration
 
 **Stratify Lacks:**
+
 - Advanced binding scenarios
 - Custom parser registration
 - Complex form handling
@@ -93,8 +105,10 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 #### 5. Documentation & Client Generation ❌ Major Gap
 
 **FastEndpoints Provides:**
+
 - **Multiple Swagger Documents**: Separate docs for different API versions/groups
 - **API Client Generation**: Auto-generate C# clients
+
   ```csharp
   app.MapApiClientEndpoint("/cs-client", c =>
   {
@@ -102,6 +116,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
       c.ClientClassName = "MyApiClient";
   });
   ```
+
 - **Swagger Customization**: Fine-grained OpenAPI control
 - **Endpoint Filtering**: Conditional documentation
 
@@ -110,7 +125,9 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 #### 6. Testing Infrastructure ⚠️ Partial Gap
 
 **FastEndpoints Provides:**
+
 - **Integration Testing Framework**:
+
   ```csharp
   public class MyTests(MyApp App) : TestBase<MyApp>
   {
@@ -121,6 +138,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
       }
   }
   ```
+
 - **Test Ordering**: Priority-based execution
 - **Pre-configured Clients**: Shared HTTP clients with auth
 
@@ -129,6 +147,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 #### 7. Job Queues & Background Processing ❌ Not Planned
 
 **FastEndpoints Provides:**
+
 - **Persistent Job Queues**: Database-backed job storage
 - **Progress Tracking**: Monitor long-running operations
 - **Job Results**: Store and retrieve execution results
@@ -138,6 +157,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 #### 8. Event System ❌ Not Planned
 
 **FastEndpoints Provides:**
+
 - **Event Handlers**: Pub/sub pattern
 - **Event Hubs**: Remote event broker
 - **Load Balancing**: Round-robin event distribution
@@ -147,7 +167,9 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 #### 9. Advanced Features ⚠️ Mixed
 
 **FastEndpoints Provides:**
+
 - **Entity Mapping**: Built-in mapper pattern
+
   ```csharp
   public class PersonMapper : Mapper<Request, Response, Person>
   {
@@ -155,20 +177,24 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
       public override Response FromEntity(Person e) => new() { ... };
   }
   ```
+
 - **Remote Procedure Calls**: gRPC-based RPC
 - **Source Generator Optimizations**: Type discovery
 
 **Stratify Has:**
+
 - Source generator for endpoint registration
 - Basic mapper pattern planned
 
 **Stratify Lacks:**
+
 - Advanced mapping features
 - RPC support
 
 #### 10. Configuration & Extensibility ⚠️ Partial Gap
 
 **FastEndpoints Provides:**
+
 - **Global Route Prefixes**: Apply to all endpoints
 - **Endpoint Configurators**: Bulk endpoint configuration
 - **Serializer Customization**: JSON options per endpoint
@@ -179,12 +205,14 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 ### Summary
 
 **Stratify Strengths:**
+
 - Simpler, more focused API
 - Source generator-first approach
 - Zero runtime reflection (when completed)
 - Cleaner attribute-based configuration
 
 **FastEndpoints Strengths:**
+
 - Comprehensive feature set
 - Production-ready with enterprise features
 - Extensive middleware ecosystem
@@ -213,7 +241,9 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 #### 1. Core Module System ✅ Different Approach
 
 **Carter Provides:**
+
 - **Module Pattern**: Clean route organization
+
   ```csharp
   public class HomeModule : ICarterModule
   {
@@ -223,10 +253,12 @@ Carter is a lightweight library that provides a thin layer of extension methods 
       }
   }
   ```
+
 - **Automatic Registration**: All `ICarterModule` implementations discovered
 - **Direct Minimal API Access**: Full access to `IEndpointRouteBuilder`
 
 **Stratify Approach:**
+
 - Attribute-based endpoint definition
 - Source generator registration
 - More structured endpoint classes
@@ -234,6 +266,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 #### 2. Validation ✅ Similar
 
 **Carter Provides:**
+
 - **FluentValidation Integration**: Built-in support
 - **Extension Methods**: `Validate<T>()` and `ValidateAsync<T>()`
 - **Simple Usage**: Integrated validation in route handlers
@@ -243,8 +276,10 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 #### 3. Dependency Injection ✅ Similar
 
 **Carter Provides:**
+
 - **Automatic Registration**: All implementations of `ICarterModule`, validators, and response negotiators
 - **Manual Registration Option**: Via `CarterConfigurator`
+
   ```csharp
   builder.Services.AddCarter(configurator: c =>
   {
@@ -258,6 +293,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 #### 4. Response Negotiation ⚠️ Partial Gap
 
 **Carter Provides:**
+
 - **Content Negotiation**: Via `IResponseNegotiator`
 - **Default JSON Support**: Built-in JSON negotiation
 - **Custom Negotiators**: Extensible negotiation system
@@ -267,13 +303,17 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 #### 5. Security Features ❌ Major Gap
 
 **Carter Provides:**
+
 - **Basic Authorization**: Via Minimal API extensions
+
   ```csharp
   app.MapGet("/", () => "...").RequireAuthorization();
   ```
+
 - **Leverages ASP.NET Core**: All standard security features
 
 **Carter Lacks (similar to Stratify):**
+
 - Built-in JWT handling
 - Permission system
 - Advanced authentication schemes
@@ -283,10 +323,12 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 #### 6. Middleware & Hooks ❌ Major Gap
 
 **Carter Provides:**
+
 - Standard ASP.NET Core middleware integration
 - No specific before/after hooks
 
 **Carter Lacks:**
+
 - Global pre/post processors
 - Request/response interceptors
 - Middleware pipeline specific to endpoints
@@ -296,6 +338,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 #### 7. OpenAPI/Swagger Support ❓ Unknown
 
 **Carter:** No explicit OpenAPI support mentioned in core documentation
+
 - Likely relies on ASP.NET Core's built-in OpenAPI support
 - No custom documentation attributes
 
@@ -304,6 +347,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 #### 8. Advanced Features ❌ Not Present
 
 **Carter Lacks:**
+
 - API versioning
 - Client generation
 - Job queues
@@ -315,6 +359,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 #### 9. File Handling ✅ Carter Advantage
 
 **Carter Provides:**
+
 - **File Upload Helpers**: `BindFile()` and `BindFiles()` extensions
 - **File Saving**: Built-in file handling utilities
 
@@ -323,6 +368,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 #### 10. Testing Support ❓ Basic
 
 **Carter:** No specific testing framework mentioned
+
 - Relies on standard ASP.NET Core testing approaches
 
 **Stratify:** Basic xUnit integration planned
@@ -330,6 +376,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 ### Summary
 
 **Carter Strengths:**
+
 - Extremely lightweight and simple
 - Direct access to Minimal APIs
 - Clean module organization
@@ -337,6 +384,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 - Good for simple APIs
 
 **Carter Weaknesses:**
+
 - Limited advanced features
 - No built-in security enhancements
 - No API versioning
@@ -344,6 +392,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 - No source generator optimizations
 
 **Stratify Differentiators:**
+
 - Source generator-first approach
 - Zero runtime reflection goal
 - Attribute-based configuration
@@ -371,7 +420,9 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 #### 1. Endpoint Definition Pattern ✅ Similar Philosophy
 
 **Ardalis.ApiEndpoints Provides:**
+
 - **Base Class Inheritance**: Clean endpoint structure
+
   ```csharp
   public class ListBooksEndpoint : EndpointBaseSync
       .WithoutRequest
@@ -384,10 +435,12 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
       }
   }
   ```
+
 - **Fluent Generic Interfaces**: `.WithRequest<T>`, `.WithResult<T>`
 - **Single Method Focus**: One `Handle()` method per endpoint
 
 **Stratify Approach:**
+
 - Similar REPR pattern
 - Attribute-based instead of fluent interfaces
 - Source generator registration vs runtime
@@ -395,12 +448,14 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 #### 2. Base Class Options ✅ Different Approaches
 
 **Ardalis.ApiEndpoints Provides:**
+
 - `EndpointBaseSync`: Synchronous endpoints
 - `EndpointBaseAsync`: Asynchronous endpoints
 - `EndpointBase`: Flexible base without strict generics
 - Fluent combinations for request/response patterns
 
 **Stratify Has:**
+
 - `IEndpoint` interface
 - `EndpointBase<TRequest, TResponse>`
 - `ValidatedEndpointBase<TRequest, TResponse>`
@@ -409,6 +464,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 #### 3. Routing & Documentation ✅ Similar
 
 **Ardalis.ApiEndpoints:**
+
 - Standard ASP.NET Core attributes (`[HttpGet]`, `[HttpPost]`)
 - Swagger support via `[SwaggerOperation]`
 - Tag-based endpoint grouping
@@ -418,17 +474,20 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 #### 4. Validation ❌ Gap
 
 **Ardalis.ApiEndpoints:**
+
 - No built-in validation framework
 - Relies on standard ASP.NET Core model validation
 - Manual validation in `Handle()` method
 
 **Stratify Has:**
+
 - Built-in FluentValidation integration
 - `ValidatedEndpointBase` for automatic validation
 
 #### 5. Dependency Injection ✅ Similar
 
 **Ardalis.ApiEndpoints:**
+
 - Constructor-based DI
 - Standard ASP.NET Core DI container
 - No special registration needed
@@ -438,6 +497,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 #### 6. Security & Authorization ❌ Both Limited
 
 **Ardalis.ApiEndpoints:**
+
 - Uses standard ASP.NET Core authorization
 - No additional security features
 - Apply `[Authorize]` attributes as needed
@@ -447,6 +507,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 #### 7. Middleware & Filters ❌ Not Supported
 
 **Ardalis.ApiEndpoints Lacks:**
+
 - No endpoint-specific middleware
 - No pre/post processors
 - No filter pipeline
@@ -456,6 +517,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 #### 8. Advanced Features ❌ Minimal
 
 **Ardalis.ApiEndpoints Lacks:**
+
 - No source generators
 - No response negotiation
 - No versioning support
@@ -463,6 +525,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - No job queues or events
 
 **Stratify Advantages:**
+
 - Source generator optimization
 - Planned mapper pattern
 - Zero runtime reflection goal
@@ -470,6 +533,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 #### 9. Testing ✅ Inherently Testable
 
 **Ardalis.ApiEndpoints:**
+
 - Endpoints are simple classes
 - Easy to unit test `Handle()` method
 - No special testing framework
@@ -479,6 +543,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 #### 10. Migration Path ✅ Clear Guidance
 
 **Ardalis.ApiEndpoints Provides:**
+
 - Detailed migration guide from controllers
 - Clear philosophical stance: "MVC Controllers are an antipattern"
 - Step-by-step conversion process
@@ -488,6 +553,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 ### Summary
 
 **Ardalis.ApiEndpoints Strengths:**
+
 - Original REPR pattern implementation
 - Extremely simple and focused
 - Clear philosophical vision
@@ -495,6 +561,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - Great for learning REPR pattern
 
 **Ardalis.ApiEndpoints Weaknesses:**
+
 - Very minimal feature set
 - No built-in validation
 - No advanced features
@@ -502,6 +569,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - Limited extensibility
 
 **Stratify Differentiators:**
+
 - Source generator approach
 - Built-in validation
 - More base class options

@@ -7,6 +7,7 @@ This document outlines a comprehensive testing strategy for the Stratify.Minimal
 ## Test Project Structure
 
 ### Current Structure (To Be Refactored)
+
 ```
 test/
 ├── Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/  # Unit tests + duplicate snapshots
@@ -16,6 +17,7 @@ test/
 ```
 
 ### Proposed Structure
+
 ```
 test/
 ├── Stratify.MinimalEndpoints.Tests/                          # Base library unit tests
@@ -30,7 +32,8 @@ test/
 
 ### 1. Base Library (Stratify.MinimalEndpoints)
 
-#### Components to Test:
+#### Components to Test
+
 - **Attributes/**
   - `EndpointAttribute` - Constructor validation, property assignment
   - `EndpointMetadataAttribute` - All metadata properties
@@ -46,14 +49,16 @@ test/
   - `EndpointExtensions` - Auto-registration logic
   - `RouteHandlerBuilderExtensions` - Metadata application
 
-#### Test Types:
+#### Test Types
+
 - Unit tests for each component
 - Integration tests for endpoint registration
 - Example usage tests
 
 ### 2. Source Generators (Stratify.MinimalEndpoints.ImprovedSourceGenerators)
 
-#### Components to Test:
+#### Components to Test
+
 - **Models/**
   - `HttpMethod` enum
   - `EndpointClass` record
@@ -66,9 +71,10 @@ test/
   - `EndpointGeneratorImproved` - Main generation logic
   - `EndpointGenerator` (legacy) - If still needed
 
-#### Test Categories:
+#### Test Categories
 
 ##### A. Unit Tests (Stratify.MinimalEndpoints.SourceGenerators.Tests)
+
 1. **Model Tests**
    - Equality tests for all record types
    - EquatableArray functionality
@@ -92,6 +98,7 @@ test/
    - Null symbol handling
 
 ##### B. Snapshot Tests (Stratify.MinimalEndpoints.SourceGenerators.SnapshotTests)
+
 1. **Basic Generation**
    - Simple GET endpoint
    - POST with parameters
@@ -123,6 +130,7 @@ test/
    - Very long method signatures
 
 ##### C. Integration Tests (Stratify.MinimalEndpoints.IntegrationTests)
+
 1. **Compilation Tests**
    - Generated code compiles
    - No compilation warnings
@@ -141,6 +149,7 @@ test/
    - Middleware compatibility
 
 ##### D. Performance Tests (Stratify.MinimalEndpoints.PerformanceTests)
+
 1. **Cacheability Tests** (Following Andrew Lock's Part 10)
    - ForAttributeWithMetadataName performance
    - Incremental compilation caching
@@ -158,6 +167,7 @@ test/
    - Minimal recompilation
 
 ##### E. NuGet Package Tests (Stratify.MinimalEndpoints.NuGetTests)
+
 1. **Package Installation**
    - Clean install works
    - Analyzer registration
@@ -171,6 +181,7 @@ test/
 ## Test Implementation Guidelines
 
 ### 1. Snapshot Testing Setup
+
 ```csharp
 // Module initializer
 [ModuleInitializer]
@@ -192,6 +203,7 @@ public static SettingsTask Verify(string source, VerifySettings? settings = null
 ```
 
 ### 2. Cacheability Testing Pattern
+
 ```csharp
 [Test]
 public void Generator_CachesOutput_WhenInputUnchanged()
@@ -207,6 +219,7 @@ public void Generator_CachesOutput_WhenInputUnchanged()
 ```
 
 ### 3. Integration Testing Pattern
+
 ```csharp
 [Test]
 public async Task Endpoint_RegistersAndHandlesRequests()
@@ -226,16 +239,19 @@ public async Task Endpoint_RegistersAndHandlesRequests()
 ## Test Data Organization
 
 ### 1. Test Sources
+
 - Keep test source code in constants or separate files
 - Group by scenario type
 - Use realistic examples
 
 ### 2. Expected Outputs
+
 - Store as verified snapshots
 - Version control all verified files
 - Review changes carefully
 
 ### 3. Test Fixtures
+
 - Shared compilation setup
 - Common references
 - Reusable assertions
@@ -243,6 +259,7 @@ public async Task Endpoint_RegistersAndHandlesRequests()
 ## CI/CD Integration
 
 ### 1. Test Execution
+
 ```yaml
 - name: Run Unit Tests
   run: dotnet test test/Stratify.MinimalEndpoints.SourceGenerators.Tests
@@ -258,12 +275,14 @@ public async Task Endpoint_RegistersAndHandlesRequests()
 ```
 
 ### 2. Coverage Requirements
+
 - Minimum 80% line coverage
 - 100% coverage for Models
 - 90% coverage for core generation logic
 - Exclude generated code from coverage
 
 ### 3. Performance Gates
+
 - Generation time < 100ms for typical project
 - Zero cache misses for unchanged input
 - Memory usage < 50MB
@@ -271,22 +290,26 @@ public async Task Endpoint_RegistersAndHandlesRequests()
 ## Migration Plan
 
 ### Phase 1: Clean Up Current Tests
+
 1. Remove duplicate snapshot tests from ImprovedSourceGenerators.Tests
 2. Move unit tests to appropriate categories
 3. Ensure all existing tests pass
 
 ### Phase 2: Fill Testing Gaps
+
 1. Add missing model equality tests
 2. Add cacheability tests
 3. Add performance benchmarks
 4. Add NuGet package tests
 
 ### Phase 3: Reorganize Projects
+
 1. Create new test project structure
 2. Move tests to appropriate projects
 3. Update CI/CD configuration
 
 ### Phase 4: Documentation
+
 1. Update test documentation
 2. Create contributor guide
 3. Document test patterns

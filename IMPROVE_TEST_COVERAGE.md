@@ -3,6 +3,7 @@
 ## Current State Analysis
 
 ### Overall Coverage Metrics
+
 - **Line Coverage**: 68.33% (up from ~45%)
 - **Method Coverage**: ~80% (estimated, up from ~60%)
 - **Branch Coverage**: Not measured (0%)
@@ -10,6 +11,7 @@
 - **Total Tests**: 78 (all passing, up from 23)
 
 ### Test Type Distribution
+
 - **Basic Functionality Tests**: 40+
 - **Edge Case Tests**: 20+
 - **Integration Tests**: 0
@@ -21,13 +23,15 @@
 
 ### 1. EndpointGenerator.cs (Original) - Estimated 40% Coverage
 
-#### Well-Tested Areas:
+#### Well-Tested Areas
+
 - ✅ Basic endpoint generation with [Endpoint] attribute
 - ✅ HTTP method extraction from enum
 - ✅ Pattern extraction
 - ✅ Handler method discovery
 
-#### Untested Areas:
+#### Untested Areas
+
 - ❌ Metadata extraction (`ExtractMetadata` - critical gap)
 - ❌ String array extraction for tags, policies, roles
 - ❌ Boolean value extraction
@@ -37,11 +41,13 @@
 
 ### 2. EndpointGeneratorImproved.cs - Estimated 30% Coverage
 
-#### Well-Tested Areas:
+#### Well-Tested Areas
+
 - ✅ Basic ForAttributeWithMetadataName usage
 - ✅ Basic endpoint generation
 
-#### Untested Areas:
+#### Untested Areas
+
 - ❌ `GetDefaultValueString()` - 0% coverage
 - ❌ `ExtractMetadata()` - minimal coverage
 - ❌ `ExtractStringArray()` - 0% coverage
@@ -52,7 +58,8 @@
 
 ### 3. Models.cs - Estimated 25% Coverage
 
-#### Untested Areas:
+#### Untested Areas
+
 - ❌ `MethodParameter` - completely untested
 - ❌ `HandlerMethod` - minimal coverage
 - ❌ `EquatableArray<T>` equality implementation
@@ -64,6 +71,7 @@
 ### Phase 1: Add Missing Unit Tests (Target: 80% Coverage)
 
 #### 1.1 Metadata Feature Tests (High Priority)
+
 ```csharp
 // Test: EndpointMetadataExtractionTests.cs
 - Test_Metadata_With_Tags
@@ -76,6 +84,7 @@
 ```
 
 #### 1.2 HTTP Method Coverage (High Priority)
+
 ```csharp
 // Test: HttpMethodCoverageTests.cs
 - Test_Head_Method_Generation
@@ -86,6 +95,7 @@
 ```
 
 #### 1.3 Parameter Handling Tests (High Priority)
+
 ```csharp
 // Test: HandlerParameterTests.cs
 - Test_Handler_With_String_Parameter
@@ -100,6 +110,7 @@
 ```
 
 #### 1.4 Error Handling Tests (Medium Priority)
+
 ```csharp
 // Test: ErrorHandlingTests.cs
 - Test_Missing_Pattern_In_Attribute
@@ -111,6 +122,7 @@
 ```
 
 #### 1.5 Model Equality Tests (Medium Priority)
+
 ```csharp
 // Test: ModelEqualityTests.cs
 - Test_EquatableArray_Equality
@@ -126,6 +138,7 @@
 ### Phase 2: Implement Best Practice Tests (Target: 90% Coverage)
 
 #### 2.1 Snapshot Testing with Verify
+
 ```csharp
 // Package: Verify.TUnit + Verify.SourceGenerators
 // Test: EndpointGeneratorSnapshotTests.cs
@@ -136,6 +149,7 @@
 ```
 
 #### 2.2 Cacheability Tests
+
 ```csharp
 // Test: GeneratorCacheabilityTests.cs
 - Test_Unchanged_Input_Uses_Cached_Output
@@ -146,6 +160,7 @@
 ```
 
 #### 2.3 Integration Tests
+
 ```csharp
 // New Project: Stratify.MinimalEndpoints.ImprovedSourceGenerators.IntegrationTests
 - Test_Generator_As_Analyzer_Reference
@@ -157,6 +172,7 @@
 ### Phase 3: Advanced Testing (Target: 95%+ Coverage)
 
 #### 3.1 Diagnostic Tests
+
 ```csharp
 // Test: DiagnosticReportingTests.cs
 - Test_Reports_Missing_Pattern_Diagnostic
@@ -166,6 +182,7 @@
 ```
 
 #### 3.2 Edge Case Tests
+
 ```csharp
 // Test: EdgeCaseTests.cs
 - Test_Unicode_In_Patterns
@@ -177,6 +194,7 @@
 ```
 
 #### 3.3 Performance Tests
+
 ```csharp
 // Test: PerformanceTests.cs
 - Test_Generator_Speed_With_100_Endpoints
@@ -188,23 +206,27 @@
 ## Implementation Strategy
 
 ### Week 1: Foundation (Phase 1.1-1.3)
+
 - Add metadata extraction tests
 - Complete HTTP method coverage
 - Add parameter handling tests
 - **Expected Coverage: 60% → 75%**
 
 ### Week 2: Robustness (Phase 1.4-1.5 + Phase 2.1)
+
 - Add error handling tests
 - Add model equality tests
 - Implement snapshot testing
 - **Expected Coverage: 75% → 85%**
 
 ### Week 3: Best Practices (Phase 2.2-2.3)
+
 - Add cacheability tests
 - Create integration test project
 - **Expected Coverage: 85% → 90%**
 
 ### Week 4: Polish (Phase 3)
+
 - Add diagnostic tests
 - Add edge case coverage
 - Add performance benchmarks
@@ -213,6 +235,7 @@
 ## Tooling Requirements
 
 ### 1. Test Dependencies to Add
+
 ```xml
 <PackageReference Include="Verify.TUnit" Version="28.4.0" />
 <PackageReference Include="Verify.SourceGenerators" Version="1.2.0" />
@@ -221,6 +244,7 @@
 ```
 
 ### 2. Coverage Collection Setup
+
 ```bash
 # Run tests with coverage
 dotnet test --collect:"XPlat Code Coverage" --results-directory ./TestResults
@@ -230,6 +254,7 @@ reportgenerator -reports:./TestResults/*/coverage.cobertura.xml -targetdir:./Cov
 ```
 
 ### 3. CI/CD Integration
+
 - Add coverage gates (minimum 80%)
 - Generate coverage badges
 - Fail builds if coverage drops
@@ -237,17 +262,20 @@ reportgenerator -reports:./TestResults/*/coverage.cobertura.xml -targetdir:./Cov
 ## Success Metrics
 
 ### Coverage Targets
+
 - **Line Coverage**: 95%+ (from ~45%)
 - **Branch Coverage**: 90%+ (from 0%)
 - **Method Coverage**: 98%+ (from ~60%)
 
 ### Quality Metrics
+
 - All edge cases tested
 - All error paths covered
 - Performance benchmarks established
 - Integration tests passing
 
 ### Test Distribution Goals
+
 - Unit Tests: 60%
 - Integration Tests: 20%
 - Snapshot Tests: 10%

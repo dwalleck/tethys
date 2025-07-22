@@ -9,6 +9,7 @@ This document tracks what we've built versus what we promised in the PRD. It ser
 ### ✅ Completed Features
 
 #### 1. Core Package (`src/Stratify.MinimalEndpoints`)
+
 - ✅ **IEndpoint Interface** - Base contract implemented
 - ✅ **Endpoint Attributes**:
   - ✅ `EndpointAttribute(HttpMethodType method, string pattern)`
@@ -23,6 +24,7 @@ This document tracks what we've built versus what we promised in the PRD. It ser
   - ✅ `MapEndpoints()` - Route registration
 
 #### 2. Source Generators (`src/Stratify.MinimalEndpoints.ImprovedSourceGenerators`)
+
 - ✅ **IIncrementalGenerator** implementation
 - ✅ **ForAttributeWithMetadataName** for efficient discovery
 - ✅ **Models** for compile-time data:
@@ -31,6 +33,7 @@ This document tracks what we've built versus what we promised in the PRD. It ser
 - ✅ **Basic code generation** for IEndpoint implementation
 
 #### 3. Example API (`src/Stratify.Api`)
+
 - ✅ Vertical slice organization demonstrated
 - ✅ Features folder structure
 - ✅ Integration with .NET Aspire
@@ -72,18 +75,21 @@ This document tracks what we've built versus what we promised in the PRD. It ser
 ### 📋 Not Started (From PRD Roadmap)
 
 #### Phase 2: Core Features
+
 - ❌ Request/Response binding improvements
 - ❌ Better validation integration beyond base class
 - ❌ Enhanced metadata support
 - ❌ Route constraint support
 
 #### Phase 3: Advanced Features
+
 - ❌ Versioning support
 - ❌ Rate limiting integration
 - ❌ Authentication/Authorization helpers
 - ❌ OpenAPI schema customization
 
 #### Phase 4: Tooling & Documentation
+
 - ❌ Visual Studio templates
 - ❌ CLI tooling for scaffolding
 - ❌ Comprehensive documentation site
@@ -111,21 +117,25 @@ This document tracks what we've built versus what we promised in the PRD. It ser
 To deliver a working MVP, we need to:
 
 ### 1. Fix Critical Bugs (Phase 0)
+
 - [ ] Fix constructor argument order in `EndpointGeneratorImproved.cs`
 - [ ] Update test helpers to use correct namespaces
 - [ ] Ensure generator produces correct output
 
 ### 2. Complete Core Testing (Phase 1)
+
 - [ ] Unit tests for all models (100% coverage)
 - [ ] Unit tests for generator logic (80%+ coverage)
 - [ ] Integration tests for full pipeline
 
 ### 3. Basic Documentation (Phase 2)
+
 - [ ] Getting started guide
 - [ ] API reference
 - [ ] Example projects
 
 ### 4. Package and Publish (Phase 3)
+
 - [ ] NuGet package configuration
 - [ ] CI/CD pipeline
 - [ ] Initial release
@@ -133,19 +143,23 @@ To deliver a working MVP, we need to:
 ## Reality Check
 
 ### What Works Today
+
 1. You can define an endpoint with attributes
 2. The source generator finds it and generates code
 3. The endpoint gets registered automatically
 4. Basic metadata and OpenAPI integration works
 
 ### What Doesn't Work
+
 1. Generator has wrong constructor argument order
 2. Tests are incomplete and some failing
 3. No route constraints or advanced features
 4. No tooling or templates
 
 ### Minimum Viable Product
+
 To have a usable framework, we need:
+
 1. **Fix the generator bug** - Without this, nothing works correctly
 2. **80% test coverage** - For confidence in the framework
 3. **Basic documentation** - So people can use it
@@ -164,6 +178,7 @@ To have a usable framework, we need:
 ## Time Estimate to MVP
 
 Based on current state:
+
 - Fix critical bugs: 1-2 days
 - Complete testing: 3-5 days
 - Documentation: 2-3 days

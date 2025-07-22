@@ -13,6 +13,7 @@ Stratify Minimal Endpoints is a lightweight, source generator-powered framework 
 ## What We're Building
 
 ### Core Concept
+
 A framework that allows developers to define API endpoints as self-contained classes, keeping all related code (request models, response models, validation, business logic) in a single location rather than scattered across multiple layers.
 
 ### Key Features
@@ -40,6 +41,7 @@ A framework that allows developers to define API endpoints as self-contained cla
 ## What We've Built So Far
 
 ### 1. Core Package (`src/Stratify.MinimalEndpoints`)
+
 - **IEndpoint Interface**: Base contract for all endpoints
 - **Endpoint Attributes**:
   - `EndpointAttribute(HttpMethod method, string pattern)`
@@ -52,6 +54,7 @@ A framework that allows developers to define API endpoints as self-contained cla
 - **Extension Methods**: For auto-registration of endpoints
 
 ### 2. Source Generators (`src/Stratify.MinimalEndpoints.ImprovedSourceGenerators`)
+
 - **EndpointGenerator**: Main generator that:
   - Discovers classes with `[Endpoint]` attribute
   - Extracts HTTP method from enum (identified issue with enum conversion)
@@ -59,11 +62,13 @@ A framework that allows developers to define API endpoints as self-contained cla
   - Handles metadata attributes for OpenAPI, authorization, etc.
 
 ### 3. Test Suite (`test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests`)
+
 - Comprehensive tests using TUnit framework
 - Tests for enum handling (the suspected bug area)
 - Tests for various endpoint patterns and scenarios
 
 ### 4. Example Implementation (`src/Stratify.Api`)
+
 - Demonstrates vertical slice architecture
 - Shows how to organize features (Projects, Environments)
 - Integration with Entity Framework Core
@@ -77,16 +82,19 @@ A framework that allows developers to define API endpoints as self-contained cla
 ## Comparison with Similar Frameworks
 
 ### FastEndpoints
+
 - More feature-rich (includes validation, security, versioning)
 - Larger API surface area
 - Our approach is more minimal and focused
 
 ### Carter
+
 - Module-based organization
 - Runtime discovery
 - We use compile-time generation for better performance
 
 ### ApiEndpoints
+
 - Base class inheritance model
 - Manual endpoint registration
 - We provide automatic registration via source generators
@@ -94,23 +102,27 @@ A framework that allows developers to define API endpoints as self-contained cla
 ## Future Roadmap
 
 ### Phase 1: Fix Current Issues ✓ (In Progress)
+
 - [ ] Fix enum conversion bug in `ExtractHttpMethod`
 - [ ] Update all tests to use attribute-based pattern
 - [ ] Ensure all tests pass
 
 ### Phase 2: Core Features
+
 - [ ] Request/Response binding improvements
 - [ ] Better validation integration
 - [ ] Enhanced metadata support
 - [ ] Route constraint support
 
 ### Phase 3: Advanced Features
+
 - [ ] Versioning support
 - [ ] Rate limiting integration
 - [ ] Authentication/Authorization helpers
 - [ ] OpenAPI schema customization
 
 ### Phase 4: Tooling & Documentation
+
 - [ ] Visual Studio templates
 - [ ] CLI tooling for scaffolding
 - [ ] Comprehensive documentation

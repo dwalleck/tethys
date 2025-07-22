@@ -5,6 +5,7 @@
 **MUST READ**: MCP-USAGE-GUIDE.md before starting any task!
 
 **Always use context7 MCP for**:
+
 - NuGet package documentation
 - Method signatures and parameters
 - Compilation errors with packages
@@ -35,6 +36,7 @@ dotnet test /p:CollectCoverage=true
 ## Key File Locations
 
 **📋 Your Daily Files:**
+
 - `AGENT-BOOTSTRAP.md` - Full workflow guide
 - `SESSION_NOTES.md` - Your working notes
 - `PR-WORKFLOW.md` - Pull request process
@@ -42,11 +44,13 @@ dotnet test /p:CollectCoverage=true
 - `github-issues/` - Individual task files
 
 **🏗️ Architecture:**
+
 - `ARCHITECTURE.md` - System design & class diagrams
 - `SOURCE_GENERATOR.md` - Generator implementation guide
 - `TEST_STRATEGY.md` - Testing approach
 
 **📁 Code Structure:**
+
 ```
 src/
 ├── Stratify.MinimalEndpoints/        # Base library
@@ -84,6 +88,7 @@ test/
 ## Emergency Procedures
 
 **Build broken?**
+
 ```bash
 dotnet clean
 dotnet restore
@@ -91,6 +96,7 @@ dotnet build
 ```
 
 **Snapshot tests failing?**
+
 ```bash
 cd test/Stratify.ImprovedSourceGenerators.SnapshotTests
 rm -rf Snapshots/*.received.txt
@@ -98,11 +104,13 @@ dotnet test
 ```
 
 **Lost context?**
+
 1. Read SESSION_NOTES.md
 2. Check git log
 3. Run task-status.py
 
 **TUnit syntax help?**
+
 ```bash
 # Use context7 MCP to look up TUnit docs
 # Step 1: mcp__context7__resolve-library-id --libraryName "TUnit"
@@ -110,6 +118,7 @@ dotnet test
 ```
 
 **Package compilation error?**
+
 ```bash
 # Use context7 MCP immediately!
 # Example for FluentValidation error:
@@ -128,6 +137,7 @@ dotnet test
 ## Pattern Quick Reference
 
 **TUnit Test:**
+
 ```csharp
 [Test]
 public async Task MethodName_Scenario_ExpectedResult()
@@ -144,6 +154,7 @@ public async Task MethodName_Scenario_ExpectedResult()
 ```
 
 **Snapshot Test:**
+
 ```csharp
 [Test]
 public Task GeneratesCorrectly()
@@ -156,6 +167,7 @@ public Task GeneratesCorrectly()
 ```
 
 **Generator Test:**
+
 ```csharp
 [Test]
 public async Task Generator_Scenario_ProducesExpectedOutput()

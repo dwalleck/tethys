@@ -5,6 +5,7 @@ Based on the TEST_STRATEGY.md, this document outlines the specific implementatio
 ## Current State Analysis
 
 ### What We Have
+
 1. **Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests** (88 tests)
    - ✅ Metadata extraction tests (Phase 1.1)
    - ✅ HTTP method coverage tests (Phase 1.1)
@@ -25,6 +26,7 @@ Based on the TEST_STRATEGY.md, this document outlines the specific implementatio
    - ❌ Limited test scenarios
 
 ### Critical Issues to Fix
+
 1. **Source generator not producing output** - Constructor argument order mismatch
 2. **Namespace mismatch** - Tests using wrong namespace for attributes
 3. **Duplicate snapshot tests** - Remove from main test project
@@ -32,6 +34,7 @@ Based on the TEST_STRATEGY.md, this document outlines the specific implementatio
 ## Implementation Phases
 
 ### Phase 0: Fix Critical Issues (1-2 days)
+
 **Priority: CRITICAL**
 
 1. **Fix Source Generator Output**
@@ -49,6 +52,7 @@ Based on the TEST_STRATEGY.md, this document outlines the specific implementatio
    - [ ] Ensure all tests use proper references
 
 ### Phase 1: Complete Existing Test Coverage (3-5 days)
+
 **Priority: HIGH**
 
 1. **Missing Unit Tests**
@@ -76,6 +80,7 @@ Based on the TEST_STRATEGY.md, this document outlines the specific implementatio
    - [ ] RouteHandlerBuilderExtensions
 
 ### Phase 2: Implement Cacheability Tests (2-3 days)
+
 **Priority: HIGH**
 
 Following Andrew Lock's Part 10 guide:
@@ -96,6 +101,7 @@ Following Andrew Lock's Part 10 guide:
    - [ ] Test with IncrementalGeneratorOutputKind tracking
 
 ### Phase 3: Expand Snapshot Tests (2-3 days)
+
 **Priority: MEDIUM**
 
 1. **Complex Scenarios**
@@ -116,6 +122,7 @@ Following Andrew Lock's Part 10 guide:
    - [ ] Unicode in strings/identifiers
 
 ### Phase 4: Performance Testing (2-3 days)
+
 **Priority: MEDIUM**
 
 1. **Benchmarks**
@@ -134,6 +141,7 @@ Following Andrew Lock's Part 10 guide:
    - [ ] Create failing tests for performance regression
 
 ### Phase 5: Integration Test Expansion (3-4 days)
+
 **Priority: MEDIUM**
 
 1. **HTTP Method Coverage**
@@ -153,6 +161,7 @@ Following Andrew Lock's Part 10 guide:
    - [ ] Exception handling
 
 ### Phase 6: NuGet Package Testing (2-3 days)
+
 **Priority: LOW**
 
 1. **Package Creation**
@@ -174,6 +183,7 @@ Following Andrew Lock's Part 10 guide:
 ## Test Project Reorganization
 
 ### Step 1: Create New Structure
+
 ```bash
 # Create new test projects
 dotnet new classlib -n Stratify.MinimalEndpoints.Tests
@@ -183,34 +193,40 @@ dotnet new classlib -n Stratify.MinimalEndpoints.NuGetTests
 ```
 
 ### Step 2: Move Tests
+
 1. Move model tests → SourceGenerators.UnitTests
 2. Move extraction tests → SourceGenerators.UnitTests
 3. Keep snapshot tests in existing project
 4. Keep integration tests in existing project
 
 ### Step 3: Update References
+
 1. Update project references
 2. Update using statements
 3. Fix namespace conflicts
 
 ## Success Criteria
 
-### Phase 0 Complete When:
+### Phase 0 Complete When
+
 - [ ] All snapshot tests produce non-empty output
 - [ ] No duplicate test code exists
 - [ ] All existing tests pass
 
-### Phase 1 Complete When:
+### Phase 1 Complete When
+
 - [ ] Code coverage > 80%
 - [ ] All models have equality tests
 - [ ] All error scenarios tested
 
-### Phase 2 Complete When:
+### Phase 2 Complete When
+
 - [ ] Cacheability tests pass
 - [ ] Tracking names implemented
 - [ ] Performance verified
 
-### Overall Project Complete When:
+### Overall Project Complete When
+
 - [ ] All phases implemented
 - [ ] Documentation updated
 - [ ] CI/CD pipeline updated

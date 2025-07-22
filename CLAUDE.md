@@ -3,12 +3,14 @@
 ## ⚠️ CRITICAL: Before Making ANY Code Changes
 
 **MANDATORY**: Always consult project guidelines before:
+
 - Writing any code
 - Making any modifications
 - Implementing any features
 - Creating any tests
 
 Key guidelines to follow:
+
 - Required Test-Driven Development workflow
 - Documentation standards
 - Code quality requirements
@@ -16,6 +18,7 @@ Key guidelines to follow:
 - Verification checklists
 
 **SPECIAL ATTENTION**: If working as part of a multi-agent team:
+
 1. You MUST follow parallel development workflows
 2. You MUST create branches and show ALL command outputs
 3. You MUST run verification scripts and show their output
@@ -33,6 +36,7 @@ Key guidelines to follow:
 4. **READ MCP-USAGE-GUIDE.md** for detailed instructions
 
 Example workflow:
+
 ```
 Compilation error → Is it package-related? → Use context7 MCP
 Need to use FluentValidation? → Check context7 FIRST
@@ -50,6 +54,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Framework Philosophy
 
 ### SPARC Methodology Integration
+
 - **Simplicity**: Prioritize clear, maintainable solutions over unnecessary complexity
 - **Iteration**: Enhance existing systems through continuous improvement cycles
 - **Focus**: Maintain strict adherence to defined objectives and scope
@@ -57,12 +62,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Collaboration**: Foster effective partnerships between human engineers and AI agents
 
 ### SPARC Methodology & Workflow
+
 - **Structured Workflow**: Follow clear phases from specification through deployment
 - **Flexibility**: Adapt processes to diverse project sizes and complexity levels
 - **Intelligent Evolution**: Continuously improve codebase using advanced symbolic reasoning and adaptive complexity management
 - **Conscious Integration**: Incorporate reflective awareness at each development stage
 
 ### Engineering Excellence
+
 - **Systematic Approach**: Apply methodical problem-solving and debugging practices
 - **Architectural Thinking**: Design scalable, maintainable systems with proper separation of concerns
 - **Quality Assurance**: Implement comprehensive testing, validation, and quality gates
@@ -239,6 +246,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - Need current documentation for any library
      - Looking for code examples or best practices
    - **Usage pattern**:
+
      ```
      1. First call: mcp__context7__resolve-library-id with package name
      2. Then call: mcp__context7__get-library-docs with the returned library ID
@@ -275,6 +283,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Verify best practices for the specific version
 
 4. **Common Scenarios**:
+
    ```
    Scenario: "Method not found" error
    Action: Use context7 to verify exact method name and parameters
@@ -377,6 +386,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Methodical Problem-Solving & Debugging
 
 ### Debugging Process
+
 1. **Reproduce Issues**: Create reliable, minimal test cases
 2. **Gather Information**: Collect logs, traces, and system state data
 3. **Analyze Patterns**: Review data to understand behavior and anomalies
@@ -386,6 +396,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 7. **Document Findings**: Record issues, causes, and solutions for future reference
 
 ### Advanced Techniques
+
 - **Binary Search Debugging**: Systematically eliminate problem space
 - **Root Cause Analysis**: Look beyond symptoms to fundamental issues
 - **State Snapshot Analysis**: Capture system state for intermittent issues
@@ -396,18 +407,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Three-Layer Validation
 
 **Layer 1: Pre-Development**
+
 - [ ] Requirements clearly understood and documented
 - [ ] Architecture approach validated and approved
 - [ ] Potential risks and issues identified
 - [ ] Success criteria and acceptance tests defined
 
 **Layer 2: During Development**
+
 - [ ] Code quality standards maintained
 - [ ] Comprehensive test coverage implemented
 - [ ] Security and performance considerations addressed
 - [ ] Regular validation checkpoints completed
 
 **Layer 3: Post-Development**
+
 - [ ] All tests passing and quality gates met
 - [ ] Security review and vulnerability assessment completed
 - [ ] Performance benchmarks validated
@@ -418,6 +432,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Key Commands
 
 ### Build and Run
+
 ```bash
 # Build the solution
 dotnet build
@@ -439,6 +454,7 @@ dotnet pack -c Release
 ```
 
 ### Development
+
 ```bash
 # Watch mode for the example API
 dotnet watch --project src/Stratify.Api/Stratify.Api.csproj
@@ -456,14 +472,17 @@ dotnet test
 ## Architecture
 
 ### Vertical Slice Architecture
+
 The codebase is organized by features rather than technical layers. Each feature contains all necessary components (endpoints, models, validators, handlers) in a single folder.
 
 Structure:
+
 - `src/Stratify.Api/Features/{FeatureName}/` - Contains all code for a specific feature
 - Each operation (Create, Get, Update, Delete) is typically in its own file
 - Endpoints are registered via the `IEndpoint` interface pattern
 
 ### Project Structure
+
 - **Stratify.MinimalEndpoints**: Core library with base interfaces and attributes
 - **Stratify.MinimalEndpoints.ImprovedSourceGenerators**: Source generators for compile-time code generation
 - **Stratify.Api**: Example API demonstrating vertical slice architecture usage
@@ -472,6 +491,7 @@ Structure:
 - **Stratify.Infrastructure**: Legacy shared code (being phased out)
 
 ### Key Patterns
+
 1. **Source Generator-Based Registration**:
    - Classes with `[Endpoint]` attribute are discovered at compile-time
    - Source generator creates `IEndpoint` implementation automatically
@@ -502,11 +522,13 @@ Structure:
 ### Key Components
 
 #### Attributes
+
 - **`[Endpoint(HttpMethod, pattern)]`**: Defines HTTP method and route pattern
 - **`[Handler]`**: Marks the method that handles requests
 - **`[EndpointMetadata]`**: Provides OpenAPI metadata, authorization policies, etc.
 
 #### Base Classes
+
 - **`IEndpoint`**: Base interface for all endpoints
 - **`EndpointBase<TRequest, TResponse>`**: Base class for endpoints with request/response
 - **`ValidatedEndpointBase<TRequest, TResponse>`**: Base class with built-in validation
@@ -515,6 +537,7 @@ Structure:
 ### How Source Generation Works
 
 1. **Define an endpoint class**:
+
    ```csharp
    [Endpoint(HttpMethod.Get, "/api/products/{id}")]
    [EndpointMetadata(Tags = ["Products"], Summary = "Get product by ID")]
@@ -530,6 +553,7 @@ Structure:
    ```
 
 2. **Source generator creates** (at compile-time):
+
    ```csharp
    partial class GetProductEndpoint : IEndpoint
    {
@@ -544,12 +568,14 @@ Structure:
    ```
 
 3. **Runtime registration** (one line in Program.cs):
+
    ```csharp
    // The MapEndpoints() extension method calls MapEndpoint() on all generated IEndpoint implementations
    app.MapEndpoints();
    ```
 
 ### Adding New Features (Example API)
+
 1. Create a new folder under `src/Stratify.Api/Features/{FeatureName}`
 2. Create an endpoint class with `[Endpoint]` attribute
 3. Add `[Handler]` attribute to the handling method
@@ -557,6 +583,7 @@ Structure:
 5. The generated code is automatically included in compilation - no manual registration needed
 
 ### Testing
+
 - **Unit Tests**: `test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/` - TUnit framework
 - **Snapshot Tests**: `test/Stratify.ImprovedSourceGenerators.SnapshotTests/` - Verify.TUnit
 - **Integration Tests**: `test/Stratify.ImprovedSourceGenerators.IntegrationTests/`
@@ -565,6 +592,7 @@ Structure:
 ## Core Engineering Principles
 
 ### Comprehensive Software Engineering Best Practices
+
 - **Separation of Concerns**: Divide systems into distinct, focused components
 - **Single Responsibility**: Each component has one clear reason to change
 - **DRY (Don't Repeat Yourself)**: Eliminate duplication through abstraction
@@ -572,6 +600,7 @@ Structure:
 - **Dependency Inversion**: High-level modules depend on abstractions, not implementations
 
 ### Quality Attributes Focus
+
 - **Performance**: Optimize for efficiency and scalability
 - **Reliability**: Build fault-tolerant systems with graceful degradation
 - **Security**: Implement security by design with proper authentication and validation
@@ -581,6 +610,7 @@ Structure:
 ## Context Management & Knowledge Preservation
 
 ### Session-Level Context
+
 ```
 Problem: [brief description + problem scope]
 Requirements: [key requirements]
@@ -588,25 +618,29 @@ Decisions: [key decisions with rationale and trade-offs]
 Status: [progress/blockers/next actions]
 ```
 
-### Track Across Iterations:
+### Track Across Iterations
+
 - Original requirements and any changes
 - Key decisions made and rationale
 - Human feedback and how it was incorporated
 - Alternative approaches considered
 
 ### Project-Level Context
+
 - **Persistent Context**: Retain relevant information across development stages
 - **Decision History**: Track architectural choices and their rationale
 - **Learning Integration**: Utilize historical data to refine implementations
 - **Cross-Project Knowledge**: Apply patterns and lessons across initiatives
 
 ### Documentation Standards
+
 - **Architecture Decision Records (ADRs)**: Document significant technical decisions
 - **Context Management**: Maintain INDEX.md files for navigation
 - **Knowledge Base**: Capture institutional wisdom and best practices
 - **Session Journals**: Record detailed collaboration logs
 
-### INDEX Maintenance:
+### INDEX Maintenance
+
 - Update INDEX.md files when making relevant changes to:
   - Directory structure modifications
   - New files or folders added
@@ -669,19 +703,23 @@ The framework supports systematic organization of development and collaboration 
 ## Framework Evolution & Customization
 
 ### Continuous Improvement
+
 This comprehensive software engineering framework evolves through:
+
 - **Practical Experience**: Real-world usage patterns and lessons learned across projects
 - **Engineering Excellence**: Integration of proven software development methodologies
 - **Community Contributions**: Collaborative improvements and domain-specific adaptations
 - **Technology Advancement**: Adaptation to new tools, languages, and development practices
 
 ### Customization Guidelines
+
 - **Workspace-Specific Rules**: Use this CLAUDE.md for customizing framework behavior across the workspace
 - **Domain Adaptations**: Tailor approaches for different technical domains and requirements
 - **Tool Integration**: Adapt installation and usage for various agentic development tools
 - **Quality Standards**: Adjust validation criteria and quality gates for workspace needs
 
 ### Enterprise Integration
+
 - **Scalable Architecture**: Supports development from prototype to enterprise-scale systems
 - **Security & Reliability**: Built-in practices for secure, reliable software development
 - **Knowledge Preservation**: Comprehensive documentation and decision tracking systems
