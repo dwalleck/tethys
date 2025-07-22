@@ -22,10 +22,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Tethys.ServiceDefaults\Tethys.ServiceDefaults.csproj" />
-    <ProjectReference Include="..\Tethys.Infrastructure\Tethys.Infrastructure.csproj" />
-    <ProjectReference Include="..\Tethys.MinimalEndpoints\Tethys.MinimalEndpoints.csproj" />
-    <ProjectReference Include="..\Tethys.MinimalEndpoints.ImprovedSourceGenerators\Tethys.MinimalEndpoints.ImprovedSourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\Stratify.ServiceDefaults\Stratify.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\Stratify.Infrastructure\Stratify.Infrastructure.csproj" />
+    <ProjectReference Include="..\Stratify.MinimalEndpoints\Stratify.MinimalEndpoints.csproj" />
+    <ProjectReference Include="..\Stratify.MinimalEndpoints.ImprovedSourceGenerators\Stratify.MinimalEndpoints.ImprovedSourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

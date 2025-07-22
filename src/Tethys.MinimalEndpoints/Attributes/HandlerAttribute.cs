@@ -1,6 +1,6 @@
 using System;
 
-namespace Tethys.MinimalEndpoints.Attributes;
+namespace Stratify.MinimalEndpoints.Attributes;
 
 /// <summary>
 /// Marks a method as the handler for an endpoint

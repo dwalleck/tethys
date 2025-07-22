@@ -1,8 +1,8 @@
-# Tethys Development Plan
+# Stratify Development Plan
 
 ## Overview
 
-This document provides a comprehensive, ordered development plan for completing the Tethys Minimal Endpoints framework. Each task includes dependencies, estimated time, and success criteria.
+This document provides a comprehensive, ordered development plan for completing the Stratify Minimal Endpoints framework. Each task includes dependencies, estimated time, and success criteria.
 
 ## Task Dependency Graph
 
@@ -12,36 +12,36 @@ graph TD
     P0-1[Fix Constructor Argument Order]
     P0-2[Fix Namespace Issues]
     P0-3[Clean Up Test Projects]
-    
-    %% Phase 1: Core Testing  
+
+    %% Phase 1: Core Testing
     P1-1[EquatableArray Tests]
     P1-2[Model Equality Tests]
     P1-3[Generator Logic Tests]
     P1-4[Base Library Tests]
-    
+
     %% Phase 2: Documentation
     P2-1[Getting Started Guide]
     P2-2[API Reference]
     P2-3[Migration Guide]
     P2-4[Example Projects]
-    
+
     %% Phase 3: Packaging
     P3-1[NuGet Configuration]
     P3-2[CI/CD Pipeline]
     P3-3[Release Process]
-    
+
     %% Phase 4: Advanced Testing
     P4-1[Cacheability Tests]
     P4-2[Performance Benchmarks]
     P4-3[Integration Tests]
     P4-4[Snapshot Tests]
-    
+
     %% Phase 5: Advanced Features
     P5-1[Route Constraints]
     P5-2[Versioning Support]
     P5-3[Rate Limiting]
     P5-4[Auth Helpers]
-    
+
     %% Dependencies
     P0-1 --> P1-1
     P0-1 --> P1-2
@@ -49,22 +49,22 @@ graph TD
     P0-2 --> P1-1
     P0-2 --> P1-2
     P0-3 --> P1-4
-    
+
     P1-1 --> P2-2
     P1-2 --> P2-2
     P1-3 --> P2-2
     P1-4 --> P2-1
-    
+
     P2-1 --> P3-1
     P2-2 --> P3-1
     P3-1 --> P3-2
     P3-2 --> P3-3
-    
+
     P1-3 --> P4-1
     P1-3 --> P4-2
     P1-4 --> P4-3
     P1-3 --> P4-4
-    
+
     P3-3 --> P5-1
     P3-3 --> P5-2
     P3-3 --> P5-3
@@ -90,8 +90,8 @@ These bugs prevent the framework from working correctly and must be fixed before
 - [ ] No build warnings about missing packages
 
 **Files to Modify**:
-- `test/Tethys.ImprovedSourceGenerators.SnapshotTests/Tethys.ImprovedSourceGenerators.SnapshotTests.csproj`
-- `test/Tethys.ImprovedSourceGenerators.IntegrationTests/Tethys.ImprovedSourceGenerators.IntegrationTests.csproj`
+- `test/Stratify.ImprovedSourceGenerators.SnapshotTests/Stratify.ImprovedSourceGenerators.SnapshotTests.csproj`
+- `test/Stratify.ImprovedSourceGenerators.IntegrationTests/Stratify.ImprovedSourceGenerators.IntegrationTests.csproj`
 - Any test files using FluentAssertions syntax
 
 ### TASK-001: Fix Constructor Argument Order
@@ -109,7 +109,7 @@ These bugs prevent the framework from working correctly and must be fixed before
 - [ ] Generated code uses correct HTTP method
 
 **Files to Modify**:
-- `src/Tethys.MinimalEndpoints.ImprovedSourceGenerators/EndpointGeneratorImproved.cs`
+- `src/Stratify.MinimalEndpoints.ImprovedSourceGenerators/EndpointGeneratorImproved.cs`
 
 ### TASK-002: Fix Namespace Inconsistencies
 - **Priority**: P0 (Critical)
@@ -117,7 +117,7 @@ These bugs prevent the framework from working correctly and must be fixed before
 - **Dependencies**: None
 - **Blocks**: Model and equality tests
 
-**Description**: Test helpers create attributes in wrong namespace. Generator expects `Tethys.MinimalEndpoints.Attributes`.
+**Description**: Test helpers create attributes in wrong namespace. Generator expects `Stratify.MinimalEndpoints.Attributes`.
 
 **Success Criteria**:
 - [ ] All test helpers use correct namespace

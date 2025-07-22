@@ -1,8 +1,8 @@
-# Pull Request Workflow for Tethys Development
+# Pull Request Workflow for Stratify Development
 
 ## Overview
 
-This document defines the pull request workflow for Tethys development. All code changes MUST go through pull requests - never commit directly to main.
+This document defines the pull request workflow for Stratify development. All code changes MUST go through pull requests - never commit directly to main.
 
 ## Branch → PR → Merge Workflow
 
@@ -10,7 +10,7 @@ This document defines the pull request workflow for Tethys development. All code
 
 ```bash
 # Pick an issue from GitHub
-# https://github.com/dwalleck/tethys/issues
+# https://github.com/dwalleck/Stratify/issues
 
 # Create feature branch
 git checkout main
@@ -63,26 +63,26 @@ dotnet build
 gh pr create \
   --title "[TASK-XXX] Brief description of changes" \
   --body "## Summary
-  
+
   Brief description of what was changed and why.
-  
+
   ## Changes
   - Fixed constructor argument order in EndpointGeneratorImproved
   - Added unit tests for argument extraction
   - Updated existing tests to match corrected behavior
-  
+
   ## Testing
   - Added new unit tests
   - All existing tests pass
   - Coverage: 85%
-  
+
   Closes #XXX" \
   --base main
 ```
 
 #### Option B: GitHub Web UI
 
-1. Go to https://github.com/dwalleck/tethys
+1. Go to https://github.com/dwalleck/Stratify
 2. Click "Pull requests" → "New pull request"
 3. Select your branch
 4. Fill in the template

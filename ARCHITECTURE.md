@@ -1,8 +1,8 @@
-# Tethys Minimal Endpoints Architecture
+# Stratify Minimal Endpoints Architecture
 
 ## Overview
 
-Tethys Minimal Endpoints is a source generator-powered framework that enables vertical slice architecture in ASP.NET Core applications. It uses compile-time code generation to automatically implement endpoint registration, eliminating boilerplate code while maintaining full type safety and performance.
+Stratify Minimal Endpoints is a source generator-powered framework that enables vertical slice architecture in ASP.NET Core applications. It uses compile-time code generation to automatically implement endpoint registration, eliminating boilerplate code while maintaining full type safety and performance.
 
 ## Architecture Layers
 
@@ -12,16 +12,16 @@ graph TB
         UserCode[User Code with Attributes]
         SourceGen[Source Generator]
         Generated[Generated IEndpoint Implementation]
-        
+
         UserCode --> SourceGen
         SourceGen --> Generated
     end
-    
+
     subgraph "Runtime"
         BaseLib[Base Library]
         Registration[Auto Registration]
         AspNetCore[ASP.NET Core Pipeline]
-        
+
         Generated --> Registration
         BaseLib --> Registration
         Registration --> AspNetCore
@@ -30,7 +30,7 @@ graph TB
 
 ## Core Components
 
-### 1. Base Library (`Tethys.MinimalEndpoints`)
+### 1. Base Library (`Stratify.MinimalEndpoints`)
 
 The base library provides the foundational contracts and utilities for the framework.
 
@@ -42,51 +42,51 @@ classDiagram
         <<interface>>
         +void MapEndpoint(IEndpointRouteBuilder app)
     }
-    
+
     class EndpointAttribute {
         <<sealed>>
         +HttpMethodType Method
         +string Pattern
         +EndpointAttribute(HttpMethodType method, string pattern)
     }
-    
+
     class HandlerAttribute {
         <<sealed>>
         <<marker>>
     }
-    
+
     class EndpointMetadataAttribute {
         <<sealed>>
         +string[] Tags
         +string Name
-        +string Summary  
+        +string Summary
         +string Description
         +bool RequiresAuthorization
         +string[] Policies
         +string[] Roles
     }
-    
+
     class EndpointExtensions {
         <<static>>
         +IServiceCollection AddEndpoints(IServiceCollection services)
         +IServiceCollection AddEndpoints(IServiceCollection services, Assembly assembly)
         +IApplicationBuilder MapEndpoints(WebApplication app, RouteGroupBuilder? routeGroupBuilder)
     }
-    
+
     class RouteHandlerBuilderExtensions {
         <<static>>
         +RouteHandlerBuilder WithTags(RouteHandlerBuilder builder, params string[] tags)
         +RouteHandlerBuilder WithSummary(RouteHandlerBuilder builder, string summary)
         +RouteHandlerBuilder WithDescription(RouteHandlerBuilder builder, string description)
     }
-    
+
     class EndpointBase~TRequest,TResponse~ {
         <<abstract>>
         +void MapEndpoint(IEndpointRouteBuilder app)
         #Task~TResponse~ HandleAsync(TRequest request)*
         #Delegate Handler
     }
-    
+
     class ValidatedEndpointBase~TRequest,TResponse~ {
         <<abstract>>
         -IValidator~TRequest~ _validator
@@ -94,7 +94,7 @@ classDiagram
         #Task~TResponse~ HandleAsync(TRequest request)*
         #Task~IResult~ HandleWithValidationAsync(TRequest request)
     }
-    
+
     class SliceEndpoint {
         <<abstract>>
         #IResult Ok()
@@ -109,7 +109,7 @@ classDiagram
         #IResult Forbid()
         #IResult ValidationProblem(Dictionary errors)
     }
-    
+
     IEndpoint <|.. EndpointBase
     EndpointBase <|-- ValidatedEndpointBase
     IEndpoint <|.. SliceEndpoint
@@ -135,7 +135,7 @@ classDiagram
    - `AddEndpoints()`: Discovers and registers endpoints in DI container
    - `MapEndpoints()`: Maps all registered endpoints to the routing pipeline
 
-### 2. Source Generator (`Tethys.MinimalEndpoints.ImprovedSourceGenerators`)
+### 2. Source Generator (`Stratify.MinimalEndpoints.ImprovedSourceGenerators`)
 
 The source generator analyzes code at compile-time and generates the IEndpoint implementations.
 
@@ -150,7 +150,7 @@ classDiagram
         -void Execute(ImmutableArray~EndpointClass~ endpoints, SourceProductionContext context)
         -string GenerateEndpointImplementation(EndpointClass endpoint)
     }
-    
+
     class EndpointClass {
         <<record struct>>
         +string Namespace
@@ -160,7 +160,7 @@ classDiagram
         +EndpointMetadata Metadata
         +HandlerMethod? HandlerMethod
     }
-    
+
     class EndpointMetadata {
         <<record struct>>
         +EquatableArray~string~ Tags
@@ -172,7 +172,7 @@ classDiagram
         +EquatableArray~string~ Roles
         +static EndpointMetadata Empty
     }
-    
+
     class HandlerMethod {
         <<record struct>>
         +string Name
@@ -182,7 +182,7 @@ classDiagram
         +bool ReturnsTask
         +EquatableArray~MethodParameter~ Parameters
     }
-    
+
     class MethodParameter {
         <<record struct>>
         +string Name
@@ -192,7 +192,7 @@ classDiagram
         +bool HasDefaultValue
         +string? DefaultValueString
     }
-    
+
     class EquatableArray~T~ {
         <<struct>>
         +static EquatableArray~T~ Empty
@@ -203,7 +203,7 @@ classDiagram
         +bool Equals(EquatableArray~T~ other)
         +int GetHashCode()
     }
-    
+
     EndpointGeneratorImproved --> EndpointClass : extracts
     EndpointClass --> EndpointMetadata
     EndpointClass --> HandlerMethod
@@ -220,19 +220,19 @@ sequenceDiagram
     participant Compiler as C# Compiler
     participant SG as Source Generator
     participant Roslyn as Roslyn API
-    
+
     Dev->>Compiler: Write endpoint class with attributes
     Compiler->>SG: Trigger source generation
     SG->>Roslyn: ForAttributeWithMetadataName("EndpointAttribute")
     Roslyn->>SG: Return matching syntax nodes
-    
+
     loop For each endpoint class
         SG->>SG: Extract metadata from attributes
         SG->>SG: Find [Handler] method
         SG->>SG: Create EndpointClass model
         SG->>SG: Generate IEndpoint implementation
     end
-    
+
     SG->>Compiler: Add generated source files
     Compiler->>Compiler: Compile with generated code
 ```
@@ -254,18 +254,18 @@ The developer writes a simple endpoint class:
 public partial class GetProductEndpoint
 {
     private readonly IProductService _productService;
-    
+
     public GetProductEndpoint(IProductService productService)
     {
         _productService = productService;
     }
-    
+
     [Handler]
     public async Task<IResult> GetProduct(int id, CancellationToken ct)
     {
         var product = await _productService.GetByIdAsync(id, ct);
-        return product is not null 
-            ? Results.Ok(product) 
+        return product is not null
+            ? Results.Ok(product)
             : Results.NotFound();
     }
 }
@@ -332,12 +332,12 @@ For endpoints with request/response models:
 public partial class CreateProductEndpoint : EndpointBase<CreateProductRequest, ProductResponse>
 {
     private readonly IProductService _productService;
-    
+
     public CreateProductEndpoint(IProductService productService)
     {
         _productService = productService;
     }
-    
+
     [Handler]
     protected override async Task<ProductResponse> HandleAsync(CreateProductRequest request)
     {
@@ -356,14 +356,14 @@ Using FluentValidation:
 public partial class UpdateProductEndpoint : ValidatedEndpointBase<UpdateProductRequest, IResult>
 {
     private readonly IProductService _productService;
-    
+
     public UpdateProductEndpoint(
         IProductService productService,
         IValidator<UpdateProductRequest> validator) : base(validator)
     {
         _productService = productService;
     }
-    
+
     [Handler]
     protected override async Task<IResult> HandleAsync(UpdateProductRequest request)
     {
@@ -382,12 +382,12 @@ For simplified result handling:
 public partial class DeleteProductEndpoint : SliceEndpoint
 {
     private readonly IProductService _productService;
-    
+
     public DeleteProductEndpoint(IProductService productService)
     {
         _productService = productService;
     }
-    
+
     [Handler]
     public async Task<IResult> Delete(int id)
     {
@@ -522,12 +522,12 @@ public async Task GetProduct_ReturnsProduct_WhenExists()
     // Arrange
     var productService = Substitute.For<IProductService>();
     productService.GetByIdAsync(1).Returns(new Product { Id = 1, Name = "Test" });
-    
+
     var endpoint = new GetProductEndpoint(productService);
-    
+
     // Act
     var result = await endpoint.GetProduct(1, CancellationToken.None);
-    
+
     // Assert
     var okResult = result.Should().BeOfType<Ok<Product>>().Subject;
     okResult.Value.Name.Should().Be("Test");
@@ -555,7 +555,7 @@ The architecture supports extensions through:
 
 ## Comparison with Alternatives
 
-| Feature | Tethys | FastEndpoints | Carter | Controllers |
+| Feature | Stratify | FastEndpoints | Carter | Controllers |
 |---------|---------|---------------|---------|-------------|
 | Registration | Compile-time | Runtime | Runtime | Runtime |
 | Performance | Optimal | Good | Good | Good |
@@ -566,4 +566,4 @@ The architecture supports extensions through:
 
 ## Conclusion
 
-Tethys Minimal Endpoints provides a powerful yet simple approach to building APIs with vertical slice architecture. By leveraging source generators, it eliminates boilerplate while maintaining full type safety and optimal performance. The framework is designed to be extensible, testable, and aligned with modern ASP.NET Core practices.
+Stratify Minimal Endpoints provides a powerful yet simple approach to building APIs with vertical slice architecture. By leveraging source generators, it eliminates boilerplate while maintaining full type safety and optimal performance. The framework is designed to be extensible, testable, and aligned with modern ASP.NET Core practices.

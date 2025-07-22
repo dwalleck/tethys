@@ -1,6 +1,6 @@
-# Project Comparison: Tethys vs Similar Frameworks
+# Project Comparison: Stratify vs Similar Frameworks
 
-This document provides a detailed comparison between Tethys Minimal Endpoints and similar frameworks in the .NET ecosystem.
+This document provides a detailed comparison between Stratify Minimal Endpoints and similar frameworks in the .NET ecosystem.
 
 ## FastEndpoints
 
@@ -8,7 +8,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 
 ### Core Architecture Comparison
 
-| Feature | Tethys | FastEndpoints |
+| Feature | Stratify | FastEndpoints |
 |---------|--------|---------------|
 | **Pattern** | REPR with source generators | REPR with reflection + optional source generators |
 | **Endpoint Definition** | Attribute-based (`[Endpoint]`) | Fluent API in `Configure()` method + optional attributes |
@@ -32,7 +32,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 - **CSRF Protection**: Built-in antiforgery token support
 - **OAuth2 Scopes**: Validate scopes with `Scopes("read", "write")`
 
-**Tethys Currently Lacks:** All of the above security features
+**Stratify Currently Lacks:** All of the above security features
 
 #### 2. Middleware & Cross-Cutting Concerns ❌ Major Gap
 
@@ -54,7 +54,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 - **Response Caching**: Native output caching integration
 - **Idempotency**: Handle duplicate requests gracefully
 
-**Tethys Currently Lacks:** No middleware infrastructure beyond basic pre/post processors
+**Stratify Currently Lacks:** No middleware infrastructure beyond basic pre/post processors
 
 #### 3. API Versioning ❌ Major Gap
 
@@ -70,7 +70,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 - **Deprecation Support**: Mark endpoints as deprecated
 - **Release Versioning**: Control visibility by release
 
-**Tethys Currently Lacks:** No versioning support
+**Stratify Currently Lacks:** No versioning support
 
 #### 4. Advanced Binding & Validation ⚠️ Partial Gap
 
@@ -81,11 +81,11 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 - **Unified Property Naming**: Consistent naming across all sources
 - **Custom Binders**: Extend default binding behavior
 
-**Tethys Has:**
+**Stratify Has:**
 - Basic model binding
 - FluentValidation integration
 
-**Tethys Lacks:**
+**Stratify Lacks:**
 - Advanced binding scenarios
 - Custom parser registration
 - Complex form handling
@@ -105,12 +105,12 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 - **Swagger Customization**: Fine-grained OpenAPI control
 - **Endpoint Filtering**: Conditional documentation
 
-**Tethys Currently Has:** Basic Swagger support only
+**Stratify Currently Has:** Basic Swagger support only
 
 #### 6. Testing Infrastructure ⚠️ Partial Gap
 
 **FastEndpoints Provides:**
-- **Integration Testing Framework**: 
+- **Integration Testing Framework**:
   ```csharp
   public class MyTests(MyApp App) : TestBase<MyApp>
   {
@@ -124,7 +124,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 - **Test Ordering**: Priority-based execution
 - **Pre-configured Clients**: Shared HTTP clients with auth
 
-**Tethys Has:** Basic xUnit integration tests
+**Stratify Has:** Basic xUnit integration tests
 
 #### 7. Job Queues & Background Processing ❌ Not Planned
 
@@ -133,7 +133,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 - **Progress Tracking**: Monitor long-running operations
 - **Job Results**: Store and retrieve execution results
 
-**Tethys:** Not in current scope
+**Stratify:** Not in current scope
 
 #### 8. Event System ❌ Not Planned
 
@@ -142,7 +142,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 - **Event Hubs**: Remote event broker
 - **Load Balancing**: Round-robin event distribution
 
-**Tethys:** Not in current scope
+**Stratify:** Not in current scope
 
 #### 9. Advanced Features ⚠️ Mixed
 
@@ -158,11 +158,11 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 - **Remote Procedure Calls**: gRPC-based RPC
 - **Source Generator Optimizations**: Type discovery
 
-**Tethys Has:**
+**Stratify Has:**
 - Source generator for endpoint registration
 - Basic mapper pattern planned
 
-**Tethys Lacks:**
+**Stratify Lacks:**
 - Advanced mapping features
 - RPC support
 
@@ -174,11 +174,11 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 - **Serializer Customization**: JSON options per endpoint
 - **Endpoint Options**: Fine-grained behavior control
 
-**Tethys Has:** Basic configuration through attributes
+**Stratify Has:** Basic configuration through attributes
 
 ### Summary
 
-**Tethys Strengths:**
+**Stratify Strengths:**
 - Simpler, more focused API
 - Source generator-first approach
 - Zero runtime reflection (when completed)
@@ -192,7 +192,7 @@ FastEndpoints is a mature, feature-rich framework for building REST APIs in ASP.
 - Rich testing infrastructure
 
 **Recommendation:**
-Tethys should focus on its core differentiators (simplicity, source generators, minimal overhead) rather than trying to match FastEndpoints' extensive feature set. Consider Tethys as a lightweight alternative for projects that don't need the full FastEndpoints feature set.
+Stratify should focus on its core differentiators (simplicity, source generators, minimal overhead) rather than trying to match FastEndpoints' extensive feature set. Consider Stratify as a lightweight alternative for projects that don't need the full FastEndpoints feature set.
 
 ## Carter
 
@@ -200,7 +200,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 
 ### Core Architecture Comparison
 
-| Feature | Tethys | Carter |
+| Feature | Stratify | Carter |
 |---------|--------|--------|
 | **Pattern** | REPR with source generators | Module-based with `ICarterModule` |
 | **Endpoint Definition** | Attribute-based (`[Endpoint]`) | Module classes with `AddRoutes` method |
@@ -226,7 +226,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 - **Automatic Registration**: All `ICarterModule` implementations discovered
 - **Direct Minimal API Access**: Full access to `IEndpointRouteBuilder`
 
-**Tethys Approach:**
+**Stratify Approach:**
 - Attribute-based endpoint definition
 - Source generator registration
 - More structured endpoint classes
@@ -238,7 +238,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 - **Extension Methods**: `Validate<T>()` and `ValidateAsync<T>()`
 - **Simple Usage**: Integrated validation in route handlers
 
-**Tethys Has:** Similar FluentValidation integration
+**Stratify Has:** Similar FluentValidation integration
 
 #### 3. Dependency Injection ✅ Similar
 
@@ -253,7 +253,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
   });
   ```
 
-**Tethys Has:** Similar DI integration with source generators
+**Stratify Has:** Similar DI integration with source generators
 
 #### 4. Response Negotiation ⚠️ Partial Gap
 
@@ -262,7 +262,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 - **Default JSON Support**: Built-in JSON negotiation
 - **Custom Negotiators**: Extensible negotiation system
 
-**Tethys Currently Lacks:** Formal response negotiation system
+**Stratify Currently Lacks:** Formal response negotiation system
 
 #### 5. Security Features ❌ Major Gap
 
@@ -273,12 +273,12 @@ Carter is a lightweight library that provides a thin layer of extension methods 
   ```
 - **Leverages ASP.NET Core**: All standard security features
 
-**Carter Lacks (similar to Tethys):**
+**Carter Lacks (similar to Stratify):**
 - Built-in JWT handling
 - Permission system
 - Advanced authentication schemes
 
-**Tethys:** Similar basic security support
+**Stratify:** Similar basic security support
 
 #### 6. Middleware & Hooks ❌ Major Gap
 
@@ -291,7 +291,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 - Request/response interceptors
 - Middleware pipeline specific to endpoints
 
-**Tethys:** Plans for basic pre/post processors
+**Stratify:** Plans for basic pre/post processors
 
 #### 7. OpenAPI/Swagger Support ❓ Unknown
 
@@ -299,7 +299,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 - Likely relies on ASP.NET Core's built-in OpenAPI support
 - No custom documentation attributes
 
-**Tethys Has:** Basic Swagger support planned
+**Stratify Has:** Basic Swagger support planned
 
 #### 8. Advanced Features ❌ Not Present
 
@@ -310,7 +310,7 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 - Event system
 - Entity mapping patterns
 
-**Tethys:** Similar limitations but with source generator focus
+**Stratify:** Similar limitations but with source generator focus
 
 #### 9. File Handling ✅ Carter Advantage
 
@@ -318,14 +318,14 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 - **File Upload Helpers**: `BindFile()` and `BindFiles()` extensions
 - **File Saving**: Built-in file handling utilities
 
-**Tethys Currently Lacks:** Dedicated file handling utilities
+**Stratify Currently Lacks:** Dedicated file handling utilities
 
 #### 10. Testing Support ❓ Basic
 
 **Carter:** No specific testing framework mentioned
 - Relies on standard ASP.NET Core testing approaches
 
-**Tethys:** Basic xUnit integration planned
+**Stratify:** Basic xUnit integration planned
 
 ### Summary
 
@@ -343,14 +343,14 @@ Carter is a lightweight library that provides a thin layer of extension methods 
 - Limited middleware capabilities
 - No source generator optimizations
 
-**Tethys Differentiators:**
+**Stratify Differentiators:**
 - Source generator-first approach
 - Zero runtime reflection goal
 - Attribute-based configuration
 - More structured endpoint pattern
 
 **Comparison:**
-Carter and Tethys are more similar to each other than to FastEndpoints. Both aim for simplicity over features. Carter's module approach is more traditional, while Tethys's source generator approach is more innovative. Neither attempts to compete with FastEndpoints' enterprise features.
+Carter and Stratify are more similar to each other than to FastEndpoints. Both aim for simplicity over features. Carter's module approach is more traditional, while Stratify's source generator approach is more innovative. Neither attempts to compete with FastEndpoints' enterprise features.
 
 ## Ardalis.ApiEndpoints
 
@@ -358,7 +358,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 
 ### Core Architecture Comparison
 
-| Feature | Tethys | Ardalis.ApiEndpoints |
+| Feature | Stratify | Ardalis.ApiEndpoints |
 |---------|--------|---------------------|
 | **Pattern** | REPR with source generators | REPR with base class inheritance |
 | **Endpoint Definition** | Attribute-based (`[Endpoint]`) | Base class with single `Handle()` method |
@@ -387,7 +387,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - **Fluent Generic Interfaces**: `.WithRequest<T>`, `.WithResult<T>`
 - **Single Method Focus**: One `Handle()` method per endpoint
 
-**Tethys Approach:**
+**Stratify Approach:**
 - Similar REPR pattern
 - Attribute-based instead of fluent interfaces
 - Source generator registration vs runtime
@@ -396,11 +396,11 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 
 **Ardalis.ApiEndpoints Provides:**
 - `EndpointBaseSync`: Synchronous endpoints
-- `EndpointBaseAsync`: Asynchronous endpoints  
+- `EndpointBaseAsync`: Asynchronous endpoints
 - `EndpointBase`: Flexible base without strict generics
 - Fluent combinations for request/response patterns
 
-**Tethys Has:**
+**Stratify Has:**
 - `IEndpoint` interface
 - `EndpointBase<TRequest, TResponse>`
 - `ValidatedEndpointBase<TRequest, TResponse>`
@@ -413,7 +413,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - Swagger support via `[SwaggerOperation]`
 - Tag-based endpoint grouping
 
-**Tethys:** Similar attribute-based routing with OpenAPI support
+**Stratify:** Similar attribute-based routing with OpenAPI support
 
 #### 4. Validation ❌ Gap
 
@@ -422,7 +422,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - Relies on standard ASP.NET Core model validation
 - Manual validation in `Handle()` method
 
-**Tethys Has:** 
+**Stratify Has:**
 - Built-in FluentValidation integration
 - `ValidatedEndpointBase` for automatic validation
 
@@ -433,7 +433,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - Standard ASP.NET Core DI container
 - No special registration needed
 
-**Tethys:** Similar DI support with automatic registration
+**Stratify:** Similar DI support with automatic registration
 
 #### 6. Security & Authorization ❌ Both Limited
 
@@ -442,7 +442,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - No additional security features
 - Apply `[Authorize]` attributes as needed
 
-**Tethys:** Similar basic security support
+**Stratify:** Similar basic security support
 
 #### 7. Middleware & Filters ❌ Not Supported
 
@@ -451,7 +451,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - No pre/post processors
 - No filter pipeline
 
-**Tethys Plans:** Basic pre/post processor support
+**Stratify Plans:** Basic pre/post processor support
 
 #### 8. Advanced Features ❌ Minimal
 
@@ -462,7 +462,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - No client generation
 - No job queues or events
 
-**Tethys Advantages:**
+**Stratify Advantages:**
 - Source generator optimization
 - Planned mapper pattern
 - Zero runtime reflection goal
@@ -474,7 +474,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - Easy to unit test `Handle()` method
 - No special testing framework
 
-**Tethys:** Similar testability with planned testing utilities
+**Stratify:** Similar testability with planned testing utilities
 
 #### 10. Migration Path ✅ Clear Guidance
 
@@ -483,7 +483,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - Clear philosophical stance: "MVC Controllers are an antipattern"
 - Step-by-step conversion process
 
-**Tethys:** Could benefit from similar migration guidance
+**Stratify:** Could benefit from similar migration guidance
 
 ### Summary
 
@@ -501,7 +501,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - No source generator optimizations
 - Limited extensibility
 
-**Tethys Differentiators:**
+**Stratify Differentiators:**
 - Source generator approach
 - Built-in validation
 - More base class options
@@ -509,7 +509,7 @@ Ardalis.ApiEndpoints is one of the original libraries promoting the Request-Endp
 - More modern approach
 
 **Comparison:**
-Ardalis.ApiEndpoints is the philosophical predecessor to many REPR frameworks. It proves the concept but remains intentionally minimal. Tethys builds on these ideas with modern techniques (source generators) and additional features (validation), while FastEndpoints took the concept to enterprise scale. Ardalis.ApiEndpoints remains valuable for its simplicity and as a learning tool for the REPR pattern.
+Ardalis.ApiEndpoints is the philosophical predecessor to many REPR frameworks. It proves the concept but remains intentionally minimal. Stratify builds on these ideas with modern techniques (source generators) and additional features (validation), while FastEndpoints took the concept to enterprise scale. Ardalis.ApiEndpoints remains valuable for its simplicity and as a learning tool for the REPR pattern.
 
 ## Minimal APIs (Native ASP.NET Core)
 

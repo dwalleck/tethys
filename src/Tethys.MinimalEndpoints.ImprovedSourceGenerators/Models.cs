@@ -2,7 +2,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 
-namespace Tethys.MinimalEndpoints.ImprovedSourceGenerators;
+namespace Stratify.MinimalEndpoints.ImprovedSourceGenerators;
 
 // Immutable value-based models that don't contain ITypeSymbol references
 

@@ -1,8 +1,8 @@
-using Tethys.Api.Database;
-using Tethys.MinimalEndpoints;
+using Stratify.Api.Database;
+using Stratify.MinimalEndpoints;
 using FluentValidation;
 
-namespace Tethys.Api.Features.Projects;
+namespace Stratify.Api.Features.Projects;
 
 public static class CreateProject
 {

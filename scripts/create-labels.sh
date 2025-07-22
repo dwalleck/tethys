@@ -1,7 +1,7 @@
 #!/bin/bash
-# Create all GitHub labels for Tethys
+# Create all GitHub labels for Stratify
 
-echo "Creating GitHub labels for Tethys repository..."
+echo "Creating GitHub labels for Stratify repository..."
 echo ""
 
 # Type labels

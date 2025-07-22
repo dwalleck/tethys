@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Tethys.MinimalEndpoints.SourceGenerators;
+namespace Stratify.MinimalEndpoints.SourceGenerators;
 
 [Generator]
 public class EndpointGenerator : IIncrementalGenerator
@@ -171,7 +171,7 @@ public class EndpointGenerator : IIncrementalGenerator
         sb.AppendLine("using Microsoft.AspNetCore.Builder;");
         sb.AppendLine("using Microsoft.AspNetCore.Http;");
         sb.AppendLine("using Microsoft.AspNetCore.Routing;");
-        sb.AppendLine("using Tethys.MinimalEndpoints;");
+        sb.AppendLine("using Stratify.MinimalEndpoints;");
         sb.AppendLine();
 
         foreach (var endpoint in endpoints)

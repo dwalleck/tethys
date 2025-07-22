@@ -1,4 +1,4 @@
-# Tethys MinimalEndpoints Source Generator - Final Status Report
+# Stratify MinimalEndpoints Source Generator - Final Status Report
 
 ## Mission Accomplished! 🎉
 
@@ -70,7 +70,7 @@ Custom collection type with proper structural equality for incremental compilati
 ## Next Steps
 
 1. **Phase 3**: Create integration tests for generator with base package
-2. **Phase 4**: Migrate Tethys.Api to use ImprovedSourceGenerators
+2. **Phase 4**: Migrate Stratify.Api to use ImprovedSourceGenerators
 3. **Add Diagnostics**: Implement error reporting for better developer experience
 4. **Performance Testing**: Verify cacheability with tracking names
 
@@ -86,10 +86,10 @@ Custom collection type with proper structural equality for incremental compilati
 
 ```bash
 # Run all tests
-dotnet test test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/
+dotnet test test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/
 
 # Run specific test
-dotnet test test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/ --filter "FullyQualifiedName~TestName"
+dotnet test test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/ --filter "FullyQualifiedName~TestName"
 
 # Build the solution
 dotnet build

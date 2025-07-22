@@ -1,34 +1,34 @@
-# Comprehensive Test Strategy for Tethys.MinimalEndpoints
+# Comprehensive Test Strategy for Stratify.MinimalEndpoints
 
 ## Overview
 
-This document outlines a comprehensive testing strategy for the Tethys.MinimalEndpoints library and its source generators. The strategy is based on Andrew Lock's source generator testing guide and tailored to our specific needs.
+This document outlines a comprehensive testing strategy for the Stratify.MinimalEndpoints library and its source generators. The strategy is based on Andrew Lock's source generator testing guide and tailored to our specific needs.
 
 ## Test Project Structure
 
 ### Current Structure (To Be Refactored)
 ```
 test/
-├── Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/  # Unit tests + duplicate snapshots
-├── Tethys.ImprovedSourceGenerators.SnapshotTests/          # Dedicated snapshot tests
-├── Tethys.ImprovedSourceGenerators.IntegrationTests/       # Integration tests
-└── Tethys.Api.Tests/                                       # Legacy API tests (ignore)
+├── Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/  # Unit tests + duplicate snapshots
+├── Stratify.ImprovedSourceGenerators.SnapshotTests/          # Dedicated snapshot tests
+├── Stratify.ImprovedSourceGenerators.IntegrationTests/       # Integration tests
+└── Stratify.Api.Tests/                                       # Legacy API tests (ignore)
 ```
 
 ### Proposed Structure
 ```
 test/
-├── Tethys.MinimalEndpoints.Tests/                          # Base library unit tests
-├── Tethys.MinimalEndpoints.SourceGenerators.Tests/         # Generator unit tests
-├── Tethys.MinimalEndpoints.SourceGenerators.SnapshotTests/ # Snapshot tests
-├── Tethys.MinimalEndpoints.IntegrationTests/               # Integration tests
-├── Tethys.MinimalEndpoints.PerformanceTests/               # Performance/cacheability tests
-└── Tethys.MinimalEndpoints.NuGetTests/                     # NuGet package tests
+├── Stratify.MinimalEndpoints.Tests/                          # Base library unit tests
+├── Stratify.MinimalEndpoints.SourceGenerators.Tests/         # Generator unit tests
+├── Stratify.MinimalEndpoints.SourceGenerators.SnapshotTests/ # Snapshot tests
+├── Stratify.MinimalEndpoints.IntegrationTests/               # Integration tests
+├── Stratify.MinimalEndpoints.PerformanceTests/               # Performance/cacheability tests
+└── Stratify.MinimalEndpoints.NuGetTests/                     # NuGet package tests
 ```
 
 ## Testing Scope
 
-### 1. Base Library (Tethys.MinimalEndpoints)
+### 1. Base Library (Stratify.MinimalEndpoints)
 
 #### Components to Test:
 - **Attributes/**
@@ -51,7 +51,7 @@ test/
 - Integration tests for endpoint registration
 - Example usage tests
 
-### 2. Source Generators (Tethys.MinimalEndpoints.ImprovedSourceGenerators)
+### 2. Source Generators (Stratify.MinimalEndpoints.ImprovedSourceGenerators)
 
 #### Components to Test:
 - **Models/**
@@ -68,7 +68,7 @@ test/
 
 #### Test Categories:
 
-##### A. Unit Tests (Tethys.MinimalEndpoints.SourceGenerators.Tests)
+##### A. Unit Tests (Stratify.MinimalEndpoints.SourceGenerators.Tests)
 1. **Model Tests**
    - Equality tests for all record types
    - EquatableArray functionality
@@ -91,7 +91,7 @@ test/
    - Invalid patterns
    - Null symbol handling
 
-##### B. Snapshot Tests (Tethys.MinimalEndpoints.SourceGenerators.SnapshotTests)
+##### B. Snapshot Tests (Stratify.MinimalEndpoints.SourceGenerators.SnapshotTests)
 1. **Basic Generation**
    - Simple GET endpoint
    - POST with parameters
@@ -122,7 +122,7 @@ test/
    - Special characters in strings
    - Very long method signatures
 
-##### C. Integration Tests (Tethys.MinimalEndpoints.IntegrationTests)
+##### C. Integration Tests (Stratify.MinimalEndpoints.IntegrationTests)
 1. **Compilation Tests**
    - Generated code compiles
    - No compilation warnings
@@ -140,7 +140,7 @@ test/
    - Dependency injection
    - Middleware compatibility
 
-##### D. Performance Tests (Tethys.MinimalEndpoints.PerformanceTests)
+##### D. Performance Tests (Stratify.MinimalEndpoints.PerformanceTests)
 1. **Cacheability Tests** (Following Andrew Lock's Part 10)
    - ForAttributeWithMetadataName performance
    - Incremental compilation caching
@@ -157,7 +157,7 @@ test/
    - Pipeline step caching
    - Minimal recompilation
 
-##### E. NuGet Package Tests (Tethys.MinimalEndpoints.NuGetTests)
+##### E. NuGet Package Tests (Stratify.MinimalEndpoints.NuGetTests)
 1. **Package Installation**
    - Clean install works
    - Analyzer registration
@@ -198,10 +198,10 @@ public void Generator_CachesOutput_WhenInputUnchanged()
 {
     var source = "...";
     var compilation = CreateCompilation(source);
-    
+
     var runResult1 = RunGeneratorWithTracking(compilation);
     var runResult2 = RunGeneratorWithTracking(compilation.Clone());
-    
+
     AssertAllOutputsCached(runResult2);
 }
 ```
@@ -213,12 +213,12 @@ public async Task Endpoint_RegistersAndHandlesRequests()
 {
     var builder = WebApplication.CreateBuilder();
     var app = builder.Build();
-    
+
     app.MapEndpoints(); // Auto-registration
-    
+
     using var client = app.GetTestClient();
     var response = await client.GetAsync("/api/test");
-    
+
     await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
 }
 ```
@@ -245,16 +245,16 @@ public async Task Endpoint_RegistersAndHandlesRequests()
 ### 1. Test Execution
 ```yaml
 - name: Run Unit Tests
-  run: dotnet test test/Tethys.MinimalEndpoints.SourceGenerators.Tests
+  run: dotnet test test/Stratify.MinimalEndpoints.SourceGenerators.Tests
 
 - name: Run Snapshot Tests
-  run: dotnet test test/Tethys.MinimalEndpoints.SourceGenerators.SnapshotTests
+  run: dotnet test test/Stratify.MinimalEndpoints.SourceGenerators.SnapshotTests
 
 - name: Run Integration Tests
-  run: dotnet test test/Tethys.MinimalEndpoints.IntegrationTests
+  run: dotnet test test/Stratify.MinimalEndpoints.IntegrationTests
 
 - name: Run Performance Tests
-  run: dotnet test test/Tethys.MinimalEndpoints.PerformanceTests
+  run: dotnet test test/Stratify.MinimalEndpoints.PerformanceTests
 ```
 
 ### 2. Coverage Requirements
@@ -308,4 +308,4 @@ public async Task Endpoint_RegistersAndHandlesRequests()
 5. **Performance Matters**: Source generators run frequently, performance is critical
 6. **Real-World Scenarios**: Test with realistic code examples
 
-This comprehensive test strategy ensures the Tethys.MinimalEndpoints library and its source generators are thoroughly tested, performant, and maintainable.
+This comprehensive test strategy ensures the Stratify.MinimalEndpoints library and its source generators are thoroughly tested, performant, and maintainable.

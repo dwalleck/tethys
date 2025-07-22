@@ -1,11 +1,11 @@
 # Code Coverage Plan: 90% Coverage Target
 
 ## Overview
-This document outlines the plan to achieve 90% code coverage for both `Tethys.MinimalEndpoints` and `Tethys.MinimalEndpoints.ImprovedSourceGenerators` projects.
+This document outlines the plan to achieve 90% code coverage for both `Stratify.MinimalEndpoints` and `Stratify.MinimalEndpoints.ImprovedSourceGenerators` projects.
 
 ## Current Coverage Analysis
 
-### Tethys.MinimalEndpoints
+### Stratify.MinimalEndpoints
 **Files to Cover:**
 1. `IEndpoint.cs` - Interface (minimal testable code)
 2. `EndpointExtensions.cs` - Critical registration logic
@@ -24,7 +24,7 @@ This document outlines the plan to achieve 90% code coverage for both `Tethys.Mi
 - Error handling
 - Dependency injection
 
-### Tethys.MinimalEndpoints.ImprovedSourceGenerators
+### Stratify.MinimalEndpoints.ImprovedSourceGenerators
 **Files to Cover:**
 1. `EndpointGenerator.cs` - Main generator logic
    - `Initialize()` - Generator setup
@@ -49,9 +49,9 @@ This document outlines the plan to achieve 90% code coverage for both `Tethys.Mi
 
 ### Unit Test Structure
 
-#### For Tethys.MinimalEndpoints
+#### For Stratify.MinimalEndpoints
 ```csharp
-test/Tethys.MinimalEndpoints.Tests/
+test/Stratify.MinimalEndpoints.Tests/
 ├── EndpointExtensionsTests.cs
 ├── Base/
 │   ├── EndpointBaseTests.cs
@@ -70,9 +70,9 @@ test/Tethys.MinimalEndpoints.Tests/
     └── TestHelpers.cs
 ```
 
-#### For Tethys.MinimalEndpoints.ImprovedSourceGenerators
+#### For Stratify.MinimalEndpoints.ImprovedSourceGenerators
 ```csharp
-test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/
+test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/
 ├── EndpointGeneratorTests.cs
 ├── Scenarios/
 │   ├── HttpMethodTests.cs
@@ -94,7 +94,7 @@ test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/
 
 ## Detailed Test Coverage Plan
 
-### Phase 1: Base Package Tests (Tethys.MinimalEndpoints)
+### Phase 1: Base Package Tests (Stratify.MinimalEndpoints)
 
 #### 1.1 EndpointExtensions Tests
 ```csharp
@@ -203,7 +203,7 @@ Create `.runsettings` file:
         <Configuration>
           <Format>cobertura</Format>
           <Exclude>[*]*.Generated.*,[*]*.g.cs</Exclude>
-          <Include>[Tethys.*]*</Include>
+          <Include>[Stratify.*]*</Include>
           <ExcludeByAttribute>GeneratedCodeAttribute,CompilerGeneratedAttribute</ExcludeByAttribute>
           <SingleHit>false</SingleHit>
           <UseSourceLink>true</UseSourceLink>

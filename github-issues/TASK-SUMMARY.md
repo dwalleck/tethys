@@ -1,4 +1,4 @@
-# Tethys Development Tasks Summary
+# Stratify Development Tasks Summary
 
 Total Tasks: 23
 

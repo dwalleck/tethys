@@ -1,5 +1,5 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-builder.AddProject<Projects.Tethys_Api>("tethys-api");
+builder.AddProject<Projects.Stratify_Api>("Stratify-api");
 
 builder.Build().Run();

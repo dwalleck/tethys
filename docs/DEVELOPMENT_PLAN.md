@@ -1,14 +1,14 @@
 # Development Plan: Complete ImprovedSourceGenerators and Deprecate Original
 
 ## Goal
-Complete unit tests for `Tethys.MinimalEndpoints.ImprovedSourceGenerators`, fix identified bugs, and deprecate the original `Tethys.MinimalEndpoints.SourceGenerators` project.
+Complete unit tests for `Stratify.MinimalEndpoints.ImprovedSourceGenerators`, fix identified bugs, and deprecate the original `Stratify.MinimalEndpoints.SourceGenerators` project.
 
 ## Current State Analysis
 
 ### What We Have
-1. **Working Base Package** (`Tethys.MinimalEndpoints`): Provides core abstractions and manual implementation options
-2. **Original Generator** (`Tethys.MinimalEndpoints.SourceGenerators`): Works but has code quality issues
-3. **Improved Generator** (`Tethys.MinimalEndpoints.ImprovedSourceGenerators`): Better implementation with a critical enum conversion bug
+1. **Working Base Package** (`Stratify.MinimalEndpoints`): Provides core abstractions and manual implementation options
+2. **Original Generator** (`Stratify.MinimalEndpoints.SourceGenerators`): Works but has code quality issues
+3. **Improved Generator** (`Stratify.MinimalEndpoints.ImprovedSourceGenerators`): Better implementation with a critical enum conversion bug
 4. **Test Suite**: Written for wrong generator (`SimpleEndpointGenerator` instead of `EndpointGenerator`) and wrong pattern (IEndpoint interface instead of attributes)
 
 ### Known Issues
@@ -82,9 +82,9 @@ Potential issues:
 **Goal**: Ensure the improved generator works with the base package
 
 #### 3.1 Create Integration Test Project
-- [ ] Create `test/Tethys.MinimalEndpoints.Integration.Tests/`
+- [ ] Create `test/Stratify.MinimalEndpoints.Integration.Tests/`
 - [ ] Test full flow: attribute → generation → runtime execution
-- [ ] Test with `Tethys.Api` project
+- [ ] Test with `Stratify.Api` project
 
 #### 3.2 Test Scenarios
 - [ ] Simple GET endpoint
@@ -103,7 +103,7 @@ Potential issues:
 - [ ] List any breaking changes
 
 #### 4.2 Update Package References
-- [ ] Update `Tethys.Api` to use `ImprovedSourceGenerators`
+- [ ] Update `Stratify.Api` to use `ImprovedSourceGenerators`
 - [ ] Remove references to original `SourceGenerators`
 - [ ] Update any documentation
 
@@ -156,7 +156,7 @@ public partial class CreateProductEndpoint
 1. **All Tests Pass**: 100% of tests for `EndpointGenerator` pass
 2. **Bug Fixed**: Enum conversion works correctly for all scenarios
 3. **Integration Verified**: Generator works with real projects
-4. **Clean Migration**: `Tethys.Api` successfully uses improved generator
+4. **Clean Migration**: `Stratify.Api` successfully uses improved generator
 5. **Documentation Complete**: Users can easily adopt the improved generator
 
 ## Timeline Estimate

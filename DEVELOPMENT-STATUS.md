@@ -1,4 +1,4 @@
-# Tethys Development Status
+# Stratify Development Status
 
 ## Executive Summary
 
@@ -8,10 +8,10 @@ This document tracks what we've built versus what we promised in the PRD. It ser
 
 ### ✅ Completed Features
 
-#### 1. Core Package (`src/Tethys.MinimalEndpoints`)
+#### 1. Core Package (`src/Stratify.MinimalEndpoints`)
 - ✅ **IEndpoint Interface** - Base contract implemented
 - ✅ **Endpoint Attributes**:
-  - ✅ `EndpointAttribute(HttpMethodType method, string pattern)` 
+  - ✅ `EndpointAttribute(HttpMethodType method, string pattern)`
   - ✅ `HandlerAttribute` - Marker for handler methods
   - ✅ `EndpointMetadataAttribute` - Full metadata support
 - ✅ **Base Classes**:
@@ -22,7 +22,7 @@ This document tracks what we've built versus what we promised in the PRD. It ser
   - ✅ `AddEndpoints()` - DI registration
   - ✅ `MapEndpoints()` - Route registration
 
-#### 2. Source Generators (`src/Tethys.MinimalEndpoints.ImprovedSourceGenerators`)
+#### 2. Source Generators (`src/Stratify.MinimalEndpoints.ImprovedSourceGenerators`)
 - ✅ **IIncrementalGenerator** implementation
 - ✅ **ForAttributeWithMetadataName** for efficient discovery
 - ✅ **Models** for compile-time data:
@@ -30,7 +30,7 @@ This document tracks what we've built versus what we promised in the PRD. It ser
   - ✅ `EquatableArray<T>` for proper equality
 - ✅ **Basic code generation** for IEndpoint implementation
 
-#### 3. Example API (`src/Tethys.Api`)
+#### 3. Example API (`src/Stratify.Api`)
 - ✅ Vertical slice organization demonstrated
 - ✅ Features folder structure
 - ✅ Integration with .NET Aspire
@@ -38,15 +38,15 @@ This document tracks what we've built versus what we promised in the PRD. It ser
 
 ### ❌ Known Issues (Not Fixed)
 
-1. **Constructor Argument Order Bug** 
+1. **Constructor Argument Order Bug**
    - `EndpointAttribute(HttpMethodType method, string pattern)`
    - Generator extracts in wrong order (pattern at index 0, method at index 1)
    - **Impact**: Generated code uses wrong HTTP method
 
 2. **Namespace Mismatch in Tests**
    - Tests create attributes in wrong namespace
-   - Generator looks for `Tethys.MinimalEndpoints.Attributes`
-   - Tests use `Tethys.MinimalEndpoints`
+   - Generator looks for `Stratify.MinimalEndpoints.Attributes`
+   - Tests use `Stratify.MinimalEndpoints`
 
 3. **Test Coverage**
    - Current: ~68%
@@ -165,7 +165,7 @@ To have a usable framework, we need:
 
 Based on current state:
 - Fix critical bugs: 1-2 days
-- Complete testing: 3-5 days  
+- Complete testing: 3-5 days
 - Documentation: 2-3 days
 - Packaging: 1 day
 

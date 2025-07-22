@@ -1,4 +1,4 @@
-# MCP (Model Context Protocol) Usage Guide for Tethys Development
+# MCP (Model Context Protocol) Usage Guide for Stratify Development
 
 ## Overview
 

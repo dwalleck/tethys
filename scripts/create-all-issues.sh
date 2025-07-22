@@ -1,9 +1,9 @@
 #!/bin/bash
-# Create all GitHub issues for Tethys development plan
+# Create all GitHub issues for Stratify development plan
 
 cd github-issues
 
-echo "Creating all GitHub issues for Tethys..."
+echo "Creating all GitHub issues for Stratify..."
 echo ""
 
 # Check if issues already exist to avoid duplicates
@@ -14,7 +14,7 @@ create_issue_if_not_exists() {
     local title=$2
     local labels=$3
     local file=$4
-    
+
     # Check if issue already exists
     if echo "$existing_issues" | grep -q "\[$task_id\]"; then
         echo "Issue $task_id already exists, skipping..."
@@ -63,7 +63,7 @@ create_issue_if_not_exists "TASK-021" "Rate Limiting Integration" "type: feature
 create_issue_if_not_exists "TASK-022" "Auth/AuthZ Helpers" "type: feature,priority: p3,phase: 5,size: large" "task-022.md"
 
 echo ""
-echo "All issues created! Check https://github.com/dwalleck/tethys/issues"
+echo "All issues created! Check https://github.com/dwalleck/Stratify/issues"
 echo ""
 echo "Summary:"
 gh issue list --limit 50 --json number,title,labels | jq -r '.[] | "Issue #\(.number): \(.title)"' | sort -V

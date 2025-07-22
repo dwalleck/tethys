@@ -1,6 +1,6 @@
-@Tethys.Api_HostAddress = http://localhost:5172
+@Stratify.Api_HostAddress = http://localhost:5172
 
-GET {{Tethys.Api_HostAddress}}/weatherforecast/
+GET {{Stratify.Api_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###

@@ -1,6 +1,6 @@
 ---
 name: Development Task
-about: Create a new development task for the Tethys framework
+about: Create a new development task for the Stratify framework
 title: '[TASK-XXX] '
 labels: 'type: feature'
 assignees: ''
@@ -9,9 +9,9 @@ assignees: ''
 
 ## Task: TASK-XXX - [Brief Title]
 
-**Type**: [Feature/Testing/Documentation/Infrastructure]  
-**Priority**: [P0/P1/P2/P3]  
-**Estimated**: [2-4 hours / 1-2 days / 3+ days]  
+**Type**: [Feature/Testing/Documentation/Infrastructure]
+**Priority**: [P0/P1/P2/P3]
+**Estimated**: [2-4 hours / 1-2 days / 3+ days]
 **Phase**: [0-5]
 
 ### Description

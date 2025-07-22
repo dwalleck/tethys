@@ -9,9 +9,9 @@ assignees: ''
 
 ## Task: TASK-XXX - [Generator Enhancement]
 
-**Type**: Feature/Bug Fix  
-**Priority**: [P0/P1/P2]  
-**Estimated**: [1-3 days]  
+**Type**: Feature/Bug Fix
+**Priority**: [P0/P1/P2]
+**Estimated**: [1-3 days]
 **Phase**: [0-5]
 
 ### Description
@@ -74,9 +74,9 @@ public partial class ExampleEndpoint : IEndpoint
 - [ ] No regression in existing functionality
 
 ### Files to Modify
-- `src/Tethys.MinimalEndpoints.ImprovedSourceGenerators/[file].cs`
-- `test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/[test].cs`
-- `test/Tethys.ImprovedSourceGenerators.SnapshotTests/[snapshot].cs`
+- `src/Stratify.MinimalEndpoints.ImprovedSourceGenerators/[file].cs`
+- `test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/[test].cs`
+- `test/Stratify.ImprovedSourceGenerators.SnapshotTests/[snapshot].cs`
 
 ### Roslyn API Notes
 - [Any specific Roslyn APIs to use]
@@ -86,13 +86,13 @@ public partial class ExampleEndpoint : IEndpoint
 ### Verification
 ```bash
 # Run generator tests
-dotnet test test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests
+dotnet test test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests
 
 # Run snapshot tests
-dotnet test test/Tethys.ImprovedSourceGenerators.SnapshotTests
+dotnet test test/Stratify.ImprovedSourceGenerators.SnapshotTests
 
 # Test in example project
-dotnet build src/Tethys.Api
+dotnet build src/Stratify.Api
 ```
 
 ### References

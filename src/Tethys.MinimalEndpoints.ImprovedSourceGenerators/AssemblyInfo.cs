@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests")]
-[assembly: InternalsVisibleTo("Tethys.ImprovedSourceGenerators.SnapshotTests")]
-[assembly: InternalsVisibleTo("Tethys.ImprovedSourceGenerators.IntegrationTests")]
+[assembly: InternalsVisibleTo("Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests")]
+[assembly: InternalsVisibleTo("Stratify.ImprovedSourceGenerators.SnapshotTests")]
+[assembly: InternalsVisibleTo("Stratify.ImprovedSourceGenerators.IntegrationTests")]

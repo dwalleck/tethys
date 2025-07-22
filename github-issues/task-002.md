@@ -5,13 +5,13 @@ labels: ["type: bug", "priority: p0", "phase: 0", "size: small"]
 
 ## Task: TASK-002 - Fix Namespace Inconsistencies
 
-**Type**: Bug  
-**Priority**: P0 (Critical)  
-**Estimated**: 1-2 hours  
+**Type**: Bug
+**Priority**: P0 (Critical)
+**Estimated**: 1-2 hours
 **Phase**: 0
 
 ### Description
-Test helpers create attributes in wrong namespace. Generator expects `Tethys.MinimalEndpoints.Attributes`.
+Test helpers create attributes in wrong namespace. Generator expects `Stratify.MinimalEndpoints.Attributes`.
 
 ### Dependencies
 None

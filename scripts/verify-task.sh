@@ -1,5 +1,5 @@
 #!/bin/bash
-# Task verification script for Tethys development
+# Task verification script for Stratify development
 # Usage: ./scripts/verify-task.sh TASK-XXX
 
 set -e
@@ -46,16 +46,16 @@ fi
 # Check code coverage for test projects
 echo "Checking code coverage..."
 COVERAGE_PROJECTS=(
-    "test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests"
-    "test/Tethys.ImprovedSourceGenerators.SnapshotTests"
-    "test/Tethys.ImprovedSourceGenerators.IntegrationTests"
+    "test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests"
+    "test/Stratify.ImprovedSourceGenerators.SnapshotTests"
+    "test/Stratify.ImprovedSourceGenerators.IntegrationTests"
 )
 
 for PROJECT in "${COVERAGE_PROJECTS[@]}"; do
     if [ -d "$PROJECT" ]; then
         echo -n "  $PROJECT: "
         COVERAGE_OUTPUT=$(dotnet test "$PROJECT" /p:CollectCoverage=true /p:CoverletOutputFormat=json /p:Threshold=80 /p:ThresholdType=line --nologo --verbosity quiet 2>&1 || true)
-        
+
         if echo "$COVERAGE_OUTPUT" | grep -q "The total line coverage is below the specified"; then
             echo "❌ Below 80%"
             echo "    Run this for details: dotnet test $PROJECT /p:CollectCoverage=true"
@@ -75,41 +75,41 @@ done
 case $TASK_ID in
     "TASK-001")
         # Check for fixed constructor argument
-        if grep -q "Method = method;" src/Tethys.MinimalEndpoints.ImprovedSourceGenerators/EndpointGeneratorImproved.cs; then
+        if grep -q "Method = method;" src/Stratify.MinimalEndpoints.ImprovedSourceGenerators/EndpointGeneratorImproved.cs; then
             echo "✓ Constructor argument order appears fixed"
         else
             echo "⚠️  Verify constructor argument order is fixed"
         fi
         ;;
-    
+
     "TASK-002")
         # Check snapshot tests removed
-        if [ -f "test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/*Snapshot*.cs" ]; then
+        if [ -f "test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/*Snapshot*.cs" ]; then
             echo "❌ Snapshot tests still exist in main test project"
             exit 1
         else
             echo "✓ Snapshot tests removed from main project"
         fi
         ;;
-    
+
     "TASK-003")
         # Check test helpers updated
-        if grep -q "Tethys.MinimalEndpoints.Attributes" test/*/TestHelper.cs 2>/dev/null; then
+        if grep -q "Stratify.MinimalEndpoints.Attributes" test/*/TestHelper.cs 2>/dev/null; then
             echo "✓ Test helpers use correct namespace"
         else
             echo "⚠️  Verify test helpers use correct attribute namespace"
         fi
         ;;
-    
+
     "TASK-004")
         # Check EquatableArray tests
-        if [ -f "test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/EquatableArrayTests.cs" ]; then
+        if [ -f "test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/EquatableArrayTests.cs" ]; then
             echo "✓ EquatableArray tests exist"
         else
             echo "❌ EquatableArray tests not found"
         fi
         ;;
-    
+
     *)
         echo "⚠️  No specific verification rules for $TASK_ID"
         ;;

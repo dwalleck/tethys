@@ -1,6 +1,6 @@
 using System;
 
-namespace Tethys.MinimalEndpoints.Attributes;
+namespace Stratify.MinimalEndpoints.Attributes;
 
 /// <summary>
 /// Marks a class as an endpoint that should be auto-generated
@@ -10,7 +10,7 @@ public sealed class EndpointAttribute : Attribute
 {
     public string Pattern { get; }
     public HttpMethodType Method { get; }
-    
+
     public EndpointAttribute(HttpMethodType method, string pattern)
     {
         Method = method;

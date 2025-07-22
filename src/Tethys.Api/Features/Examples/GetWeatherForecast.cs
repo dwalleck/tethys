@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
-using Tethys.MinimalEndpoints.Attributes;
+using Stratify.MinimalEndpoints.Attributes;
 
-namespace Tethys.Api.Features.Examples;
+namespace Stratify.Api.Features.Examples;
 
 [Endpoint(HttpMethodType.Get, "/weather/{city}")]
 [EndpointMetadata(
@@ -18,11 +18,11 @@ public partial class GetWeatherForecast
     public static async Task<Ok<Response>> HandleAsync(string city)
     {
         await Task.Delay(100); // Simulate work
-        
+
         var temperature = Random.Shared.Next(-20, 55);
         var summaries = new[] { "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching" };
         var summary = summaries[Random.Shared.Next(summaries.Length)];
-        
+
         return TypedResults.Ok(new Response(city, temperature, summary));
     }
 }

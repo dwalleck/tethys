@@ -1,4 +1,4 @@
-namespace Tethys.Api.Features.Projects;
+namespace Stratify.Api.Features.Projects;
 
 public class Project
 {

@@ -1,4 +1,4 @@
-# Tethys.MinimalEndpoints
+# Stratify.MinimalEndpoints
 
 A lightweight library for building vertical slice architecture with ASP.NET Core Minimal APIs.
 

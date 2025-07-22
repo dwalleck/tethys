@@ -1,10 +1,10 @@
 ﻿// using Microsoft.EntityFrameworkCore;
-// using Tethys.Infrastructure.Models.Responses;
+// using Stratify.Infrastructure.Models.Responses;
 
-// namespace Tethys.Infrastructure.Services;
-// public class ProjectService(TethysContext dbContext) : IProjectService
+// namespace Stratify.Infrastructure.Services;
+// public class ProjectService(StratifyContext dbContext) : IProjectService
 // {
-//     private readonly TethysContext _dbContext = dbContext;
+//     private readonly StratifyContext _dbContext = dbContext;
 
 //     public Task<List<Project>> GetProjectsAsync()
 //     {

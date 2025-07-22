@@ -1,6 +1,6 @@
-﻿// using Tethys.Infrastructure.Models.Responses;
+﻿// using Stratify.Infrastructure.Models.Responses;
 
-// namespace Tethys.Infrastructure.Services;
+// namespace Stratify.Infrastructure.Services;
 // public interface IProjectService
 // {
 //     Task<List<Project>> GetProjectsAsync();

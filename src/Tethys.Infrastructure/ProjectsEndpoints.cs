@@ -1,9 +1,9 @@
 // using Microsoft.AspNetCore.Http.HttpResults;
-// using Tethys.Infrastructure.Models.Requests;
-// using Tethys.Infrastructure.Models.Responses;
-// using Tethys.Infrastructure.Services;
+// using Stratify.Infrastructure.Models.Requests;
+// using Stratify.Infrastructure.Models.Responses;
+// using Stratify.Infrastructure.Services;
 
-// namespace Tethys.Api.Features.Projects;
+// namespace Stratify.Api.Features.Projects;
 
 // public static class ProjectsEndpoints
 // {

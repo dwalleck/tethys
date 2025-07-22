@@ -1,8 +1,8 @@
-# Tethys Minimal Endpoints - Product Requirements Document
+# Stratify Minimal Endpoints - Product Requirements Document
 
 ## Overview
 
-Tethys Minimal Endpoints is a lightweight, source generator-powered framework for building vertical slice architecture APIs in ASP.NET Core. Originally conceived as a test environment management API, the project has evolved into a reusable package that enables developers to organize their APIs using the REPR (Request-Endpoint-Response) pattern.
+Stratify Minimal Endpoints is a lightweight, source generator-powered framework for building vertical slice architecture APIs in ASP.NET Core. Originally conceived as a test environment management API, the project has evolved into a reusable package that enables developers to organize their APIs using the REPR (Request-Endpoint-Response) pattern.
 
 ## Project Evolution
 
@@ -39,9 +39,9 @@ A framework that allows developers to define API endpoints as self-contained cla
 
 ## What We've Built So Far
 
-### 1. Core Package (`src/Tethys.MinimalEndpoints`)
+### 1. Core Package (`src/Stratify.MinimalEndpoints`)
 - **IEndpoint Interface**: Base contract for all endpoints
-- **Endpoint Attributes**: 
+- **Endpoint Attributes**:
   - `EndpointAttribute(HttpMethod method, string pattern)`
   - `HandlerAttribute`
   - `EndpointMetadataAttribute`
@@ -51,19 +51,19 @@ A framework that allows developers to define API endpoints as self-contained cla
   - `SliceEndpoint`: Simplified base with helper methods
 - **Extension Methods**: For auto-registration of endpoints
 
-### 2. Source Generators (`src/Tethys.MinimalEndpoints.ImprovedSourceGenerators`)
+### 2. Source Generators (`src/Stratify.MinimalEndpoints.ImprovedSourceGenerators`)
 - **EndpointGenerator**: Main generator that:
   - Discovers classes with `[Endpoint]` attribute
   - Extracts HTTP method from enum (identified issue with enum conversion)
   - Generates `IEndpoint` implementation with `MapEndpoint` method
   - Handles metadata attributes for OpenAPI, authorization, etc.
 
-### 3. Test Suite (`test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests`)
+### 3. Test Suite (`test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests`)
 - Comprehensive tests using TUnit framework
 - Tests for enum handling (the suspected bug area)
 - Tests for various endpoint patterns and scenarios
 
-### 4. Example Implementation (`src/Tethys.Api`)
+### 4. Example Implementation (`src/Stratify.Api`)
 - Demonstrates vertical slice architecture
 - Shows how to organize features (Projects, Environments)
 - Integration with Entity Framework Core

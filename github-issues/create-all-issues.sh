@@ -1,7 +1,7 @@
 #!/bin/bash
-# Create all Tethys development tasks as GitHub issues
+# Create all Stratify development tasks as GitHub issues
 
-echo "Creating GitHub issues for Tethys development plan..."
+echo "Creating GitHub issues for Stratify development plan..."
 echo ""
 
 # Check if gh is installed

@@ -1,6 +1,6 @@
 using System;
 
-namespace Tethys.MinimalEndpoints.Attributes;
+namespace Stratify.MinimalEndpoints.Attributes;
 
 /// <summary>
 /// Provides metadata for an endpoint

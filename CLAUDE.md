@@ -41,7 +41,7 @@ Unsure about TUnit syntax? → Use context7 for current docs
 
 ## Overview
 
-Tethys Minimal Endpoints is a lightweight, source generator-powered framework for building vertical slice architecture APIs in ASP.NET Core. The framework uses compile-time source generation to automatically discover and register endpoints, eliminating runtime reflection and providing zero-overhead endpoint registration. It enables developers to organize their APIs using the REPR (Request-Endpoint-Response) pattern, keeping all related code (request models, response models, validation, business logic) in a single location rather than scattered across multiple layers.
+Stratify Minimal Endpoints is a lightweight, source generator-powered framework for building vertical slice architecture APIs in ASP.NET Core. The framework uses compile-time source generation to automatically discover and register endpoints, eliminating runtime reflection and providing zero-overhead endpoint registration. It enables developers to organize their APIs using the REPR (Request-Endpoint-Response) pattern, keeping all related code (request models, response models, validation, business logic) in a single location rather than scattered across multiple layers.
 
 **Primary Implementation**: Source generators automatically generate the `MapEndpoint` implementation for classes decorated with `[Endpoint]` attributes, making manual endpoint registration unnecessary.
 
@@ -278,10 +278,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    ```
    Scenario: "Method not found" error
    Action: Use context7 to verify exact method name and parameters
-   
+
    Scenario: "Cannot convert type" error with package types
    Action: Use context7 to check type definitions and conversions
-   
+
    Scenario: Implementing new feature with NuGet package
    Action: First check context7 for examples and patterns
    ```
@@ -429,10 +429,10 @@ dotnet test
 dotnet test --filter "FullyQualifiedName~TestClassName.TestMethodName"
 
 # Run the example API
-dotnet run --project src/Tethys.Api/Tethys.Api.csproj
+dotnet run --project src/Stratify.Api/Stratify.Api.csproj
 
 # Run with .NET Aspire orchestration (recommended for development)
-dotnet run --project src/Tethys.AppHost/Tethys.AppHost.csproj
+dotnet run --project src/Stratify.AppHost/Stratify.AppHost.csproj
 
 # Pack NuGet packages
 dotnet pack -c Release
@@ -441,13 +441,13 @@ dotnet pack -c Release
 ### Development
 ```bash
 # Watch mode for the example API
-dotnet watch --project src/Tethys.Api/Tethys.Api.csproj
+dotnet watch --project src/Stratify.Api/Stratify.Api.csproj
 
 # Format code
 dotnet format
 
 # Run source generator tests with snapshot verification
-dotnet test test/Tethys.ImprovedSourceGenerators.SnapshotTests/
+dotnet test test/Stratify.ImprovedSourceGenerators.SnapshotTests/
 
 # Run all tests
 dotnet test
@@ -459,20 +459,20 @@ dotnet test
 The codebase is organized by features rather than technical layers. Each feature contains all necessary components (endpoints, models, validators, handlers) in a single folder.
 
 Structure:
-- `src/Tethys.Api/Features/{FeatureName}/` - Contains all code for a specific feature
+- `src/Stratify.Api/Features/{FeatureName}/` - Contains all code for a specific feature
 - Each operation (Create, Get, Update, Delete) is typically in its own file
 - Endpoints are registered via the `IEndpoint` interface pattern
 
 ### Project Structure
-- **Tethys.MinimalEndpoints**: Core library with base interfaces and attributes
-- **Tethys.MinimalEndpoints.ImprovedSourceGenerators**: Source generators for compile-time code generation
-- **Tethys.Api**: Example API demonstrating vertical slice architecture usage
-- **Tethys.AppHost**: .NET Aspire orchestration for local development
-- **Tethys.ServiceDefaults**: Shared configuration for observability, health checks, and resilience
-- **Tethys.Infrastructure**: Legacy shared code (being phased out)
+- **Stratify.MinimalEndpoints**: Core library with base interfaces and attributes
+- **Stratify.MinimalEndpoints.ImprovedSourceGenerators**: Source generators for compile-time code generation
+- **Stratify.Api**: Example API demonstrating vertical slice architecture usage
+- **Stratify.AppHost**: .NET Aspire orchestration for local development
+- **Stratify.ServiceDefaults**: Shared configuration for observability, health checks, and resilience
+- **Stratify.Infrastructure**: Legacy shared code (being phased out)
 
 ### Key Patterns
-1. **Source Generator-Based Registration**: 
+1. **Source Generator-Based Registration**:
    - Classes with `[Endpoint]` attribute are discovered at compile-time
    - Source generator creates `IEndpoint` implementation automatically
    - No runtime reflection or manual registration needed
@@ -493,7 +493,7 @@ Structure:
    - Generated code is as efficient as hand-written code
    - No runtime performance penalty
 
-5. **Reusable Patterns**: The `Tethys.MinimalEndpoints` project contains:
+5. **Reusable Patterns**: The `Stratify.MinimalEndpoints` project contains:
    - Attribute definitions for endpoint configuration
    - Base classes for common endpoint patterns
    - Extension methods for endpoint registration
@@ -550,17 +550,17 @@ Structure:
    ```
 
 ### Adding New Features (Example API)
-1. Create a new folder under `src/Tethys.Api/Features/{FeatureName}`
+1. Create a new folder under `src/Stratify.Api/Features/{FeatureName}`
 2. Create an endpoint class with `[Endpoint]` attribute
 3. Add `[Handler]` attribute to the handling method
 4. Build the project - source generator creates the IEndpoint implementation
 5. The generated code is automatically included in compilation - no manual registration needed
 
 ### Testing
-- **Unit Tests**: `test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/` - TUnit framework
-- **Snapshot Tests**: `test/Tethys.ImprovedSourceGenerators.SnapshotTests/` - Verify.TUnit
-- **Integration Tests**: `test/Tethys.ImprovedSourceGenerators.IntegrationTests/`
-- **Example API Tests**: `test/Tethys.Api.Tests/` - xUnit framework
+- **Unit Tests**: `test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/` - TUnit framework
+- **Snapshot Tests**: `test/Stratify.ImprovedSourceGenerators.SnapshotTests/` - Verify.TUnit
+- **Integration Tests**: `test/Stratify.ImprovedSourceGenerators.IntegrationTests/`
+- **Example API Tests**: `test/Stratify.Api.Tests/` - xUnit framework
 
 ## Core Engineering Principles
 

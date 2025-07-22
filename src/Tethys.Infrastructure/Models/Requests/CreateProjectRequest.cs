@@ -1,4 +1,4 @@
-namespace Tethys.Infrastructure.Models.Requests;
+namespace Stratify.Infrastructure.Models.Requests;
 public class CreateProjectRequest
 {
     public string Name { get; set; } = string.Empty;

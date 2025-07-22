@@ -5,9 +5,9 @@ labels: ["type: bug", "priority: p0", "phase: 0", "size: small"]
 
 ## Task: TASK-001 - Fix Constructor Argument Order
 
-**Type**: Bug  
-**Priority**: P0 (Critical)  
-**Estimated**: 2-4 hours  
+**Type**: Bug
+**Priority**: P0 (Critical)
+**Estimated**: 2-4 hours
 **Phase**: 0
 
 ### Description
@@ -26,7 +26,7 @@ All testing tasks
 - [ ] Generated code uses correct HTTP method
 
 ### Files to Modify
-- `src/Tethys.MinimalEndpoints.ImprovedSourceGenerators/EndpointGeneratorImproved.cs`
+- `src/Stratify.MinimalEndpoints.ImprovedSourceGenerators/EndpointGeneratorImproved.cs`
 
 ### Implementation Notes
 - Use TUnit for all tests (not xUnit)

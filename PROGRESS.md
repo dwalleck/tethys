@@ -1,7 +1,7 @@
-# Tethys MinimalEndpoints Source Generator - Current Progress
+# Stratify MinimalEndpoints Source Generator - Current Progress
 
 ## Overview
-We are working on fixing and completing unit tests for `Tethys.MinimalEndpoints.ImprovedSourceGenerators`, which is a C# source generator that creates endpoint implementations from attribute-decorated classes. The generator is intended to replace the original `Tethys.MinimalEndpoints.SourceGenerators` project.
+We are working on fixing and completing unit tests for `Stratify.MinimalEndpoints.ImprovedSourceGenerators`, which is a C# source generator that creates endpoint implementations from attribute-decorated classes. The generator is intended to replace the original `Stratify.MinimalEndpoints.SourceGenerators` project.
 
 ## Current State (As of January 19, 2025)
 
@@ -33,12 +33,12 @@ We are working on fixing and completing unit tests for `Tethys.MinimalEndpoints.
 - Fixed missing `using System.Collections.Generic;` in generated code
 
 ### Key Files Modified
-1. `/test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/SimpleEndpointGeneratorTests.cs` → `EndpointGeneratorTests.cs`
-2. `/test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/EnumHandlingGeneratorTests.cs`
-3. `/test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/EndpointDiscoveryGeneratorTests.cs`
-4. `/test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/HttpMethodEnumGeneratorTests.cs`
-5. `/test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/Helpers/TestCompilationHelper.cs` (new)
-6. `/src/Tethys.MinimalEndpoints.ImprovedSourceGenerators/EndpointGenerator.cs` (added missing using)
+1. `/test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/SimpleEndpointGeneratorTests.cs` → `EndpointGeneratorTests.cs`
+2. `/test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/EnumHandlingGeneratorTests.cs`
+3. `/test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/EndpointDiscoveryGeneratorTests.cs`
+4. `/test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/HttpMethodEnumGeneratorTests.cs`
+5. `/test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/Helpers/TestCompilationHelper.cs` (new)
+6. `/src/Stratify.MinimalEndpoints.ImprovedSourceGenerators/EndpointGenerator.cs` (added missing using)
 
 ## Known Issues
 
@@ -85,14 +85,14 @@ Some tests still have compilation errors due to:
    ```csharp
    // Option 1: Use Convert.ToInt32
    var enumValue = Convert.ToInt32(methodArg.Value);
-   
+
    // Option 2: Check the actual type
    if (methodArg.Value is int intValue)
        enumValue = intValue;
    else if (methodArg.Value is byte byteValue)
        enumValue = byteValue;
    // etc.
-   
+
    // Option 3: Use Roslyn's type conversion
    var enumValue = methodArg.Type.GetEnumUnderlyingType() switch
    {
@@ -137,8 +137,8 @@ Some tests still have compilation errors due to:
    - Test special characters in metadata strings
 
 ### Phase 5: Integration & Migration
-1. Test with real `Tethys.Api` project
-2. Ensure compatibility with base `Tethys.MinimalEndpoints` package
+1. Test with real `Stratify.Api` project
+2. Ensure compatibility with base `Stratify.MinimalEndpoints` package
 3. Create migration guide from original SourceGenerators
 4. Deprecate original generator
 
@@ -164,7 +164,7 @@ using System.Collections.Generic;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using Tethys.MinimalEndpoints;
+using Stratify.MinimalEndpoints;
 
 namespace TestApp
 {
@@ -190,13 +190,13 @@ namespace TestApp
 ## Commands to Run Tests
 ```bash
 # Run all tests
-dotnet test test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/
+dotnet test test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/
 
 # Run specific test
-dotnet test test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/ --filter "FullyQualifiedName~TestName"
+dotnet test test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/ --filter "FullyQualifiedName~TestName"
 
 # Run with detailed output
-dotnet test test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/ --verbosity normal
+dotnet test test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/ --verbosity normal
 ```
 
 ## Next Immediate Actions
@@ -206,11 +206,11 @@ dotnet test test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/ --verbo
    - Need to either:
      a) Update tests to match what generator actually does
      b) Add endpoint discovery/registration feature to generator
-     
+
 2. **Fix EnumHandlingGeneratorTests** (7 failing tests)
    - These tests have compilation errors (2 errors per test)
    - Likely missing type definitions or incorrect test setup
-   
+
 3. **Fix remaining SimpleEndpointGeneratorTests** (1 failing test)
    - Investigate what's different about the failing test
 
@@ -256,7 +256,7 @@ dotnet test test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/ --verbo
 2. **Consider removing or fixing compilation checks** in these 2 tests
 3. **Phase 1.3**: Add missing test scenarios (metadata, handler, auth, OpenAPI, string escaping)
 4. **Phase 3**: Create integration tests
-5. **Phase 4**: Migrate Tethys.Api to use ImprovedSourceGenerators
+5. **Phase 4**: Migrate Stratify.Api to use ImprovedSourceGenerators
 
 The generator is working correctly for its intended purpose. Most failures are due to test design issues rather than generator bugs.
 
@@ -299,7 +299,7 @@ The 2 failing tests check for compilation errors in the full output, which inclu
    - Tests now use proper attribute-based endpoints with [Handler] methods
    - 5/7 tests now passing (up from 0/7)
 
-2. **Identified CS8424 Warning Issue** 
+2. **Identified CS8424 Warning Issue**
    - 9 tests failing due to "duplicate InternalsVisibleTo attribute" warning
    - Tests check that `diagnostics.IsEmpty()` but warning is present
    - Not a generator bug, but a test setup issue
@@ -336,8 +336,8 @@ The 2 failing tests check for compilation errors in the full output, which inclu
 1. **EndpointDiscoveryGeneratorTests** (6 tests failing)
    - Tests expect IEndpoint interface pattern, generator uses attributes
    - Tests look for "EndpointRegistration" files that don't exist
-   
-2. **EnumHandlingGeneratorTests** (7 tests failing)  
+
+2. **EnumHandlingGeneratorTests** (7 tests failing)
    - All have compilation errors (2 errors per test)
    - Likely missing type definitions in test setup
 

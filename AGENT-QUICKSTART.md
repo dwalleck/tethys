@@ -1,4 +1,4 @@
-# Tethys Agent Quick Reference
+# Stratify Agent Quick Reference
 
 ## ⚠️ CRITICAL: MCP Tools
 
@@ -49,9 +49,9 @@ dotnet test /p:CollectCoverage=true
 **📁 Code Structure:**
 ```
 src/
-├── Tethys.MinimalEndpoints/        # Base library
-├── Tethys.MinimalEndpoints.ImprovedSourceGenerators/  # Generators
-└── Tethys.Api/                     # Example API
+├── Stratify.MinimalEndpoints/        # Base library
+├── Stratify.MinimalEndpoints.ImprovedSourceGenerators/  # Generators
+└── Stratify.Api/                     # Example API
 test/
 ├── *.ImprovedSourceGenerators.Tests/     # Unit tests
 ├── *.SnapshotTests/                      # Snapshot tests
@@ -92,7 +92,7 @@ dotnet build
 
 **Snapshot tests failing?**
 ```bash
-cd test/Tethys.ImprovedSourceGenerators.SnapshotTests
+cd test/Stratify.ImprovedSourceGenerators.SnapshotTests
 rm -rf Snapshots/*.received.txt
 dotnet test
 ```
@@ -134,10 +134,10 @@ public async Task MethodName_Scenario_ExpectedResult()
 {
     // Arrange
     var sut = new ClassUnderTest();
-    
+
     // Act
     var result = sut.Method();
-    
+
     // Assert
     await Assert.That(result).IsEqualTo(expected);
 }
@@ -150,7 +150,7 @@ public Task GeneratesCorrectly()
 {
     var source = @"[Endpoint(HttpMethodType.Get, ""/api/test"")]
                    public partial class TestEndpoint { }";
-    
+
     return TestHelper.Verify(source);
 }
 ```
@@ -162,10 +162,10 @@ public async Task Generator_Scenario_ProducesExpectedOutput()
 {
     // Arrange
     var compilation = CreateCompilation(source);
-    
+
     // Act
     var result = RunGenerator(compilation);
-    
+
     // Assert
     await Assert.That(result.GeneratedSources).HasCount().EqualTo(1);
 }
@@ -192,9 +192,9 @@ reportgenerator -reports:"**/coverage.opencover.xml" -targetdir:"coveragereport"
 open coveragereport/index.html
 
 # Specific project coverage
-dotnet test test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests /p:CollectCoverage=true
+dotnet test test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests /p:CollectCoverage=true
 ```
 
 ---
-*Need more details? → AGENT-BOOTSTRAP.md*  
+*Need more details? → AGENT-BOOTSTRAP.md*
 *Stuck? → SOURCE_GENERATOR.md or TEST_STRATEGY.md*

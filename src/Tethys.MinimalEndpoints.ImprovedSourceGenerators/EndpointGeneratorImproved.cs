@@ -8,15 +8,15 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Tethys.MinimalEndpoints.ImprovedSourceGenerators;
+namespace Stratify.MinimalEndpoints.ImprovedSourceGenerators;
 
 [Generator]
 public class EndpointGeneratorImproved : IIncrementalGenerator
 {
     // Define well-known type full names for robust comparison
-    private const string EndpointAttributeFullName = "Tethys.MinimalEndpoints.Attributes.EndpointAttribute";
-    private const string EndpointMetadataAttributeFullName = "Tethys.MinimalEndpoints.Attributes.EndpointMetadataAttribute";
-    private const string HandlerAttributeFullName = "Tethys.MinimalEndpoints.Attributes.HandlerAttribute";
+    private const string EndpointAttributeFullName = "Stratify.MinimalEndpoints.Attributes.EndpointAttribute";
+    private const string EndpointMetadataAttributeFullName = "Stratify.MinimalEndpoints.Attributes.EndpointMetadataAttribute";
+    private const string HandlerAttributeFullName = "Stratify.MinimalEndpoints.Attributes.HandlerAttribute";
 
     // Tracking names for debugging
     private static class TrackingNames
@@ -56,7 +56,7 @@ public class EndpointGeneratorImproved : IIncrementalGenerator
         }
 
         // Get the [Endpoint] attribute from the context
-        var endpointAttribute = context.Attributes.FirstOrDefault(a => 
+        var endpointAttribute = context.Attributes.FirstOrDefault(a =>
             a.AttributeClass?.ToDisplayString() == EndpointAttributeFullName);
 
         if (endpointAttribute is null)
@@ -117,10 +117,10 @@ public class EndpointGeneratorImproved : IIncrementalGenerator
         {
             return HttpMethod.Unknown;
         }
-        
+
         // Convert the value to int64 to handle all integral types
         long enumValueAsLong;
-        
+
         try
         {
             if (methodArg.Value is null)
@@ -141,7 +141,7 @@ public class EndpointGeneratorImproved : IIncrementalGenerator
         // Find the enum member with matching value
         var enumMember = enumType.GetMembers()
             .OfType<IFieldSymbol>()
-            .FirstOrDefault(f => f.HasConstantValue && 
+            .FirstOrDefault(f => f.HasConstantValue &&
                            Convert.ToInt64(f.ConstantValue) == enumValueAsLong);
 
         if (enumMember is null)
@@ -211,7 +211,7 @@ public class EndpointGeneratorImproved : IIncrementalGenerator
         {
             returnTypeName = method.ReturnType.Name;
             returnTypeNamespace = method.ReturnType.ContainingNamespace?.ToDisplayString();
-            
+
             // Check if it's async/Task
             var returnTypeFullName = method.ReturnType.ToDisplayString();
             isAsync = method.IsAsync;
@@ -343,7 +343,7 @@ public class EndpointGeneratorImproved : IIncrementalGenerator
         sb.AppendLine("using Microsoft.AspNetCore.Builder;");
         sb.AppendLine("using Microsoft.AspNetCore.Http;");
         sb.AppendLine("using Microsoft.AspNetCore.Routing;");
-        sb.AppendLine("using Tethys.MinimalEndpoints;");
+        sb.AppendLine("using Stratify.MinimalEndpoints;");
         sb.AppendLine();
 
         foreach (var endpoint in endpoints)

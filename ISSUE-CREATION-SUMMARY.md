@@ -49,15 +49,15 @@ Each phase has a corresponding milestone with due dates:
 
 ## Next Steps for Agents
 
-1. **Pick an issue** from https://github.com/dwalleck/tethys/issues
+1. **Pick an issue** from https://github.com/dwalleck/Stratify/issues
 2. **Start with Phase 0** issues (critical fixes)
 3. **Use MCP tools** for any package documentation needs
 4. **Follow workflows** in AGENT-BOOTSTRAP.md
 5. **Track progress** using TodoWrite tool and SESSION_NOTES.md
 
 ## Quick Links
-- GitHub Issues: https://github.com/dwalleck/tethys/issues
-- GitHub Milestones: https://github.com/dwalleck/tethys/milestones
+- GitHub Issues: https://github.com/dwalleck/Stratify/issues
+- GitHub Milestones: https://github.com/dwalleck/Stratify/milestones
 - Development Plan: DEVELOPMENT-PLAN.md
 - Agent Guide: AGENT-BOOTSTRAP.md
 - MCP Guide: MCP-USAGE-GUIDE.md

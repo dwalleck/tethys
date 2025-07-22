@@ -2,7 +2,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace Tethys.MinimalEndpoints;
+namespace Stratify.MinimalEndpoints;
 
 /// <summary>
 /// Base class for endpoints with validation support
@@ -28,6 +28,6 @@ public abstract class ValidatedEndpointBase<TRequest, TResponse> : EndpointBase<
     }
 
     protected abstract Task<IResult> HandleValidatedAsync(TRequest request, CancellationToken cancellationToken = default);
-    
+
     protected virtual IValidator<TRequest>? GetValidator() => null;
 }

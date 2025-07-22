@@ -1,4 +1,4 @@
-# Test Coverage Improvement Plan for Tethys.MinimalEndpoints.ImprovedSourceGenerators
+# Test Coverage Improvement Plan for Stratify.MinimalEndpoints.ImprovedSourceGenerators
 
 ## Current State Analysis
 
@@ -147,7 +147,7 @@
 
 #### 2.3 Integration Tests
 ```csharp
-// New Project: Tethys.MinimalEndpoints.ImprovedSourceGenerators.IntegrationTests
+// New Project: Stratify.MinimalEndpoints.ImprovedSourceGenerators.IntegrationTests
 - Test_Generator_As_Analyzer_Reference
 - Test_Generated_Endpoints_Compile
 - Test_Generated_Endpoints_Register_Correctly

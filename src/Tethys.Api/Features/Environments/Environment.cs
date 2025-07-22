@@ -1,4 +1,4 @@
-namespace Tethys.Api.Features.Environments;
+namespace Stratify.Api.Features.Environments;
 
 public class Environment
 {

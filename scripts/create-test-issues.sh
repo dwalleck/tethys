@@ -26,4 +26,4 @@ gh issue create \
     --body-file "task-002.md" \
     --label "type: bug,priority: p0,phase: 0,size: small"
 
-echo "Done! Check https://github.com/dwalleck/tethys/issues"
+echo "Done! Check https://github.com/dwalleck/Stratify/issues"

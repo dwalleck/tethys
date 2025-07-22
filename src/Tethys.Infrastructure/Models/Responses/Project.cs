@@ -1,3 +1,3 @@
 ﻿
-namespace Tethys.Infrastructure.Models.Responses;
+namespace Stratify.Infrastructure.Models.Responses;
 

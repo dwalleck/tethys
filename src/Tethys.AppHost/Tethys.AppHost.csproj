@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Tethys.Api\Tethys.Api.csproj" />
+    <ProjectReference Include="..\Stratify.Api\Stratify.Api.csproj" />
   </ItemGroup>
 
 </Project>

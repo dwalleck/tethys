@@ -5,9 +5,9 @@ labels: ["type: feature", "priority: p0", "phase: 0", "size: small"]
 
 ## Task: TASK-000 - Remove FluentAssertions Due to Licensing
 
-**Type**: Feature  
-**Priority**: P0 (Critical - Legal)  
-**Estimated**: 1-2 hours  
+**Type**: Feature
+**Priority**: P0 (Critical - Legal)
+**Estimated**: 1-2 hours
 **Phase**: 0
 
 ### Description
@@ -26,8 +26,8 @@ All testing tasks
 - [ ] No build warnings about missing packages
 
 ### Files to Modify
-- `test/Tethys.ImprovedSourceGenerators.SnapshotTests/Tethys.ImprovedSourceGenerators.SnapshotTests.csproj`
-- `test/Tethys.ImprovedSourceGenerators.IntegrationTests/Tethys.ImprovedSourceGenerators.IntegrationTests.csproj`
+- `test/Stratify.ImprovedSourceGenerators.SnapshotTests/Stratify.ImprovedSourceGenerators.SnapshotTests.csproj`
+- `test/Stratify.ImprovedSourceGenerators.IntegrationTests/Stratify.ImprovedSourceGenerators.IntegrationTests.csproj`
 
 ### Implementation Notes
 - Use TUnit for all tests (not xUnit)

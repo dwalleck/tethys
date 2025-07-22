@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Routing;
 
-namespace Tethys.MinimalEndpoints;
+namespace Stratify.MinimalEndpoints;
 
 public interface IEndpoint
 {

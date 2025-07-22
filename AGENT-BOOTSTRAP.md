@@ -1,8 +1,8 @@
-# Agent Bootstrap Guide for Tethys Development
+# Agent Bootstrap Guide for Stratify Development
 
 ## Quick Start for Agents
 
-You are working on **Tethys Minimal Endpoints**, a source generator-powered framework for building vertical slice architecture APIs in ASP.NET Core. This document contains everything you need to understand the project, pick tasks, and complete them successfully.
+You are working on **Stratify Minimal Endpoints**, a source generator-powered framework for building vertical slice architecture APIs in ASP.NET Core. This document contains everything you need to understand the project, pick tasks, and complete them successfully.
 
 ### ⚠️ CRITICAL: MCP Tool Usage
 
@@ -72,7 +72,7 @@ cat >> SESSION_NOTES.md << EOF
 ## Session: $(date '+%Y-%m-%d %H:%M')
 ### Completed
 - [What you finished]
-### In Progress  
+### In Progress
 - Current file: [filename:line]
 - Next step: [specific action]
 ### Blockers
@@ -111,13 +111,13 @@ gh pr create --title "[TASK-XXX] Brief description" \
 ### Quick Wins 🏆 - When Motivation is Low
 - Add a missing test
 - Fix a small TODO
-- Improve an error message  
+- Improve an error message
 - Update documentation
 - Refactor a small method
 
 ## Essential Project Context
 
-### What is Tethys Minimal Endpoints?
+### What is Stratify Minimal Endpoints?
 A .NET 9-based framework that:
 - Uses source generators for compile-time endpoint registration
 - Eliminates boilerplate with attribute-based development
@@ -130,12 +130,12 @@ Core Stack:
   - .NET 9 with Minimal APIs
   - C# 12 with source generators
   - Roslyn for code generation
-  
+
 Testing:
   - TUnit (v0.25.21) for unit testing
   - Verify.TUnit for snapshot testing
   - Microsoft.CodeAnalysis.CSharp for generator tests
-  
+
 Quality:
   - FluentValidation for validation
   - Serilog for logging (in example API)
@@ -146,18 +146,18 @@ Quality:
 ## Project Structure
 
 ```
-tethys/
+Stratify/
 ├── src/
-│   ├── Tethys.MinimalEndpoints/              # Base library with attributes
-│   ├── Tethys.MinimalEndpoints.ImprovedSourceGenerators/  # Source generators
-│   ├── Tethys.Api/                          # Example API implementation
-│   ├── Tethys.AppHost/                      # .NET Aspire orchestration
-│   └── Tethys.ServiceDefaults/              # Shared configuration
+│   ├── Stratify.MinimalEndpoints/              # Base library with attributes
+│   ├── Stratify.MinimalEndpoints.ImprovedSourceGenerators/  # Source generators
+│   ├── Stratify.Api/                          # Example API implementation
+│   ├── Stratify.AppHost/                      # .NET Aspire orchestration
+│   └── Stratify.ServiceDefaults/              # Shared configuration
 ├── test/
-│   ├── Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests/  # Unit tests
-│   ├── Tethys.ImprovedSourceGenerators.SnapshotTests/           # Snapshot tests
-│   ├── Tethys.ImprovedSourceGenerators.IntegrationTests/        # Integration tests
-│   └── Tethys.Api.Tests/                    # Example API tests
+│   ├── Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests/  # Unit tests
+│   ├── Stratify.ImprovedSourceGenerators.SnapshotTests/           # Snapshot tests
+│   ├── Stratify.ImprovedSourceGenerators.IntegrationTests/        # Integration tests
+│   └── Stratify.Api.Tests/                    # Example API tests
 ├── docs/                                     # Documentation
 ├── scripts/                                  # Utility scripts
 └── github-issues/                           # Exported task issues
@@ -196,7 +196,7 @@ grep -A5 "Priority.*P0" TEST-COVERAGE-PLAN.md
 
 ### 3. Task Priority Rules
 - **P0**: Critical bugs blocking other work - do these first
-- **P1**: Core functionality - do after P0s  
+- **P1**: Core functionality - do after P0s
 - **P2**: Nice to have - do if all P0/P1 done
 
 ### 4. When to Defer vs Decide Now
@@ -217,6 +217,7 @@ grep -A5 "Priority.*P0" TEST-COVERAGE-PLAN.md
 ### Task Structure in Issues
 
 Each task contains:
+
 1. **Technical Details** - Specific implementation requirements
 2. **Files to Modify** - Exact files and locations
 3. **Code Examples** - Sample implementations
@@ -226,6 +227,7 @@ Each task contains:
 ### Definition of Done
 
 A task is ONLY complete when:
+
 - [ ] All acceptance criteria are met
 - [ ] Code compiles without warnings
 - [ ] All tests pass
@@ -269,13 +271,13 @@ dotnet build
 dotnet test
 
 # Run specific test project
-dotnet test test/Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests
+dotnet test test/Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests
 
 # Run tests with coverage
 dotnet test /p:CollectCoverage=true /p:CoverletOutputFormat=opencover
 
 # Run snapshot tests and update snapshots
-dotnet test test/Tethys.ImprovedSourceGenerators.SnapshotTests -- -d verify.accept
+dotnet test test/Stratify.ImprovedSourceGenerators.SnapshotTests -- -d verify.accept
 
 # Run only unit tests (skip integration)
 dotnet test --filter "Category!=Integration"
@@ -293,7 +295,7 @@ git checkout main
 dotnet build
 
 # If snapshot tests failing
-cd test/Tethys.ImprovedSourceGenerators.SnapshotTests
+cd test/Stratify.ImprovedSourceGenerators.SnapshotTests
 rm -rf Snapshots/*.received.txt
 dotnet test
 
@@ -316,7 +318,7 @@ using TUnit.Core;
 using TUnit.Assertions;
 using TUnit.Assertions.Extensions;
 
-namespace Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests;
+namespace Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests;
 
 public class EquatableArrayTests
 {
@@ -326,7 +328,7 @@ public class EquatableArrayTests
         // Arrange
         var array1 = new EquatableArray<string>(["a", "b", "c"]);
         var array2 = new EquatableArray<string>(["a", "b", "c"]);
-        
+
         // Act & Assert
         await Assert.That(array1).IsEqualTo(array2);
         await Assert.That(array1 == array2).IsTrue();
@@ -341,7 +343,7 @@ public Task GeneratesEndpointCorrectly()
 {
     // Arrange
     var source = @"
-using Tethys.MinimalEndpoints.Attributes;
+using Stratify.MinimalEndpoints.Attributes;
 
 [Endpoint(HttpMethodType.Get, ""/api/test"")]
 public partial class TestEndpoint
@@ -365,10 +367,10 @@ public async Task ExtractHttpMethod_ValidEnum_ReturnsCorrectMethod()
 [Endpoint(HttpMethodType.Post, ""/api/test"")]
 public partial class TestEndpoint { }
 ");
-    
+
     // Act
     var result = RunGenerator(source);
-    
+
     // Assert
     await Assert.That(result.GeneratedSources).HasCount().EqualTo(1);
     await Assert.That(result.GeneratedSources[0].SourceText)
@@ -505,4 +507,4 @@ Monitor these metrics to stay on track:
 
 > "Make it work, make it right, make it fast." - Kent Beck
 
-This guide should enable you to work autonomously on Tethys testing tasks. Each task in the github-issues directory is self-contained with clear requirements. Follow the daily workflow, complete the acceptance criteria, and maintain momentum by focusing on one task at a time.
+This guide should enable you to work autonomously on Stratify testing tasks. Each task in the github-issues directory is self-contained with clear requirements. Follow the daily workflow, complete the acceptance criteria, and maintain momentum by focusing on one task at a time.

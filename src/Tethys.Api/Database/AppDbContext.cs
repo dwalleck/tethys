@@ -1,8 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Tethys.Infrastructure.Models.Responses;
-using Tethys.Api.Features.Projects;
+using Stratify.Infrastructure.Models.Responses;
+using Stratify.Api.Features.Projects;
 
-namespace Tethys.Api.Database;
+namespace Stratify.Api.Database;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {

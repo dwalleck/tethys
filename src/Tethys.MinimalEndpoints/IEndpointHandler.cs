@@ -1,4 +1,4 @@
-namespace Tethys.MinimalEndpoints;
+namespace Stratify.MinimalEndpoints;
 
 /// <summary>
 /// Defines a handler for processing endpoint requests

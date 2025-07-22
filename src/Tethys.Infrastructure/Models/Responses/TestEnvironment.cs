@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Tethys.Infrastructure.Models.Responses;
+namespace Stratify.Infrastructure.Models.Responses;
 
 public class TestEnvironment
 {

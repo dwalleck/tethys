@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Http.HttpResults;
-using Tethys.Api.Database;
-using Tethys.MinimalEndpoints;
+using Stratify.Api.Database;
+using Stratify.MinimalEndpoints;
 
-namespace Tethys.Api.Features.Projects;
+namespace Stratify.Api.Features.Projects;
 
 public static class DeleteProject
 {

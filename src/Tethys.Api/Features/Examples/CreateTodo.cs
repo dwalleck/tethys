@@ -1,8 +1,8 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Http.HttpResults;
-using Tethys.MinimalEndpoints.Attributes;
+using Stratify.MinimalEndpoints.Attributes;
 
-namespace Tethys.Api.Features.Examples;
+namespace Stratify.Api.Features.Examples;
 
 [Endpoint(HttpMethodType.Post, "/todos")]
 [EndpointMetadata(

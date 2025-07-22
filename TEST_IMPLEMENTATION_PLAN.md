@@ -1,12 +1,12 @@
-# Test Implementation Plan for Tethys.MinimalEndpoints
+# Test Implementation Plan for Stratify.MinimalEndpoints
 
 Based on the TEST_STRATEGY.md, this document outlines the specific implementation plan with priorities and timelines.
 
 ## Current State Analysis
 
 ### What We Have
-1. **Tethys.MinimalEndpoints.ImprovedSourceGenerators.Tests** (88 tests)
-   - ✅ Metadata extraction tests (Phase 1.1) 
+1. **Stratify.MinimalEndpoints.ImprovedSourceGenerators.Tests** (88 tests)
+   - ✅ Metadata extraction tests (Phase 1.1)
    - ✅ HTTP method coverage tests (Phase 1.1)
    - ✅ Parameter handling tests (Phase 1.3)
    - ✅ Error handling tests (Phase 1.4)
@@ -14,13 +14,13 @@ Based on the TEST_STRATEGY.md, this document outlines the specific implementatio
    - ❌ Duplicate/broken snapshot tests (need removal)
    - ⚠️ Coverage: 68.33%
 
-2. **Tethys.ImprovedSourceGenerators.SnapshotTests** (17 tests)
+2. **Stratify.ImprovedSourceGenerators.SnapshotTests** (17 tests)
    - ✅ Basic endpoint generation snapshots
    - ✅ Metadata scenarios
    - ✅ Working snapshot infrastructure
    - ❌ Missing cacheability tests
 
-3. **Tethys.ImprovedSourceGenerators.IntegrationTests** (5 tests)
+3. **Stratify.ImprovedSourceGenerators.IntegrationTests** (5 tests)
    - ✅ Basic integration test setup
    - ❌ Limited test scenarios
 
@@ -176,10 +176,10 @@ Following Andrew Lock's Part 10 guide:
 ### Step 1: Create New Structure
 ```bash
 # Create new test projects
-dotnet new classlib -n Tethys.MinimalEndpoints.Tests
-dotnet new classlib -n Tethys.MinimalEndpoints.SourceGenerators.UnitTests
-dotnet new classlib -n Tethys.MinimalEndpoints.SourceGenerators.PerformanceTests
-dotnet new classlib -n Tethys.MinimalEndpoints.NuGetTests
+dotnet new classlib -n Stratify.MinimalEndpoints.Tests
+dotnet new classlib -n Stratify.MinimalEndpoints.SourceGenerators.UnitTests
+dotnet new classlib -n Stratify.MinimalEndpoints.SourceGenerators.PerformanceTests
+dotnet new classlib -n Stratify.MinimalEndpoints.NuGetTests
 ```
 
 ### Step 2: Move Tests

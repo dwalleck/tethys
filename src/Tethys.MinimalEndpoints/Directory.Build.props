@@ -1,26 +1,26 @@
 <Project>
   <PropertyGroup>
-    <PackageId>Tethys.MinimalEndpoints</PackageId>
+    <PackageId>Stratify.MinimalEndpoints</PackageId>
     <Version>1.0.0</Version>
     <Authors>Your Name</Authors>
     <Description>A lightweight library for building vertical slice architecture with ASP.NET Core Minimal APIs</Description>
     <PackageTags>aspnetcore;minimal-api;vertical-slice;endpoints</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/yourusername/Tethys.MinimalEndpoints</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/yourusername/Tethys.MinimalEndpoints</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/yourusername/Stratify.MinimalEndpoints</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/yourusername/Stratify.MinimalEndpoints</RepositoryUrl>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IncludeBuildOutput>true</IncludeBuildOutput>
   </PropertyGroup>
 
   <ItemGroup>
     <!-- Include the source generator in the package -->
-    <None Include="$(MSBuildThisFileDirectory)..\Tethys.MinimalEndpoints.ImprovedSourceGenerators\bin\$(Configuration)\netstandard2.0\Tethys.MinimalEndpoints.ImprovedSourceGenerators.dll" 
-          Pack="true" 
-          PackagePath="analyzers/dotnet/cs" 
+    <None Include="$(MSBuildThisFileDirectory)..\Stratify.MinimalEndpoints.ImprovedSourceGenerators\bin\$(Configuration)\netstandard2.0\Stratify.MinimalEndpoints.ImprovedSourceGenerators.dll"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
           Visible="false" />
-    <None Include="$(MSBuildThisFileDirectory)..\Tethys.MinimalEndpoints.ImprovedSourceGenerators\bin\$(Configuration)\netstandard2.0\Tethys.MinimalEndpoints.ImprovedSourceGenerators.pdb" 
-          Pack="true" 
-          PackagePath="analyzers/dotnet/cs" 
+    <None Include="$(MSBuildThisFileDirectory)..\Stratify.MinimalEndpoints.ImprovedSourceGenerators\bin\$(Configuration)\netstandard2.0\Stratify.MinimalEndpoints.ImprovedSourceGenerators.pdb"
+          Pack="true"
+          PackagePath="analyzers/dotnet/cs"
           Visible="false" />
   </ItemGroup>
 </Project>

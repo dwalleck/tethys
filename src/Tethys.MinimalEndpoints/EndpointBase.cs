@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-namespace Tethys.MinimalEndpoints;
+namespace Stratify.MinimalEndpoints;
 
 /// <summary>
 /// Base class for endpoints following the REPR pattern
@@ -51,10 +51,10 @@ public abstract class EndpointBase<TRequest, TResponse> : EndpointBase
             .WithNameIfProvided(Name)
             .WithSummaryIfProvided(Summary)
             .WithDescriptionIfProvided(Description);
-            
+
         OnConfigureEndpoint(builder);
     }
-    
+
     /// <summary>
     /// Override to add custom endpoint configuration
     /// </summary>
@@ -98,10 +98,10 @@ public abstract class EndpointBase<TResponse> : EndpointBase
             .WithNameIfProvided(Name)
             .WithSummaryIfProvided(Summary)
             .WithDescriptionIfProvided(Description);
-            
+
         OnConfigureEndpoint(builder);
     }
-    
+
     /// <summary>
     /// Override to add custom endpoint configuration
     /// </summary>

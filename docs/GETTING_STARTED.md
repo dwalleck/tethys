@@ -1,6 +1,6 @@
-# Getting Started with Tethys Minimal Endpoints
+# Getting Started with Stratify Minimal Endpoints
 
-This guide will walk you through implementing an API using Tethys Minimal Endpoints, a lightweight framework for building vertical slice architecture APIs in ASP.NET Core.
+This guide will walk you through implementing an API using Stratify Minimal Endpoints, a lightweight framework for building vertical slice architecture APIs in ASP.NET Core.
 
 ## Table of Contents
 1. [Installation](#installation)
@@ -14,20 +14,20 @@ This guide will walk you through implementing an API using Tethys Minimal Endpoi
 
 ## Installation
 
-Add the Tethys.MinimalEndpoints package to your project:
+Add the Stratify.MinimalEndpoints package to your project:
 
 ```xml
-<PackageReference Include="Tethys.MinimalEndpoints" Version="1.0.0" />
+<PackageReference Include="Stratify.MinimalEndpoints" Version="1.0.0" />
 ```
 
 If you want to use source generators for reduced boilerplate:
 ```xml
-<PackageReference Include="Tethys.MinimalEndpoints.ImprovedSourceGenerators" Version="1.0.0" />
+<PackageReference Include="Stratify.MinimalEndpoints.ImprovedSourceGenerators" Version="1.0.0" />
 ```
 
 ## Basic Concepts
 
-Tethys Minimal Endpoints allows you to define API endpoints as self-contained classes. Each endpoint:
+Stratify Minimal Endpoints allows you to define API endpoints as self-contained classes. Each endpoint:
 - Handles a single route/HTTP method combination
 - Contains its request/response models
 - Includes validation logic
@@ -38,7 +38,7 @@ Tethys Minimal Endpoints allows you to define API endpoints as self-contained cl
 ### Method 1: Using Base Classes (Manual Approach)
 
 ```csharp
-using Tethys.MinimalEndpoints;
+using Stratify.MinimalEndpoints;
 
 namespace MyApi.Features.Products;
 
@@ -47,7 +47,7 @@ public class GetAllProductsEndpoint : EndpointBase<ProductsResponse>
 {
     protected override string Pattern => "/api/products";
     protected override HttpMethod Method => HttpMethod.Get;
-    
+
     protected override async Task<IResult> HandleAsync(CancellationToken ct)
     {
         var products = await GetProductsFromDatabase();
@@ -62,7 +62,7 @@ public record Product(int Id, string Name, decimal Price);
 ### Method 2: Using Attributes (Source Generator Approach)
 
 ```csharp
-using Tethys.MinimalEndpoints;
+using Stratify.MinimalEndpoints;
 
 namespace MyApi.Features.Products;
 
@@ -95,11 +95,11 @@ public class GetProductByIdEndpoint : EndpointBase<int, ProductResponse>
 {
     protected override string Pattern => "/api/products/{id}";
     protected override HttpMethod Method => HttpMethod.Get;
-    
+
     protected override async Task<IResult> HandleAsync(int id, CancellationToken ct)
     {
         var product = await GetProductById(id);
-        return product != null 
+        return product != null
             ? Ok(new ProductResponse(product))
             : NotFound();
     }
@@ -116,7 +116,7 @@ public partial class GetProductById
         CancellationToken ct)
     {
         var product = await repository.GetByIdAsync(id, ct);
-        return product != null 
+        return product != null
             ? TypedResults.Ok(new ProductResponse(product))
             : TypedResults.NotFound();
     }
@@ -131,9 +131,9 @@ public class CreateProductEndpoint : EndpointBase<CreateProductRequest, ProductR
 {
     protected override string Pattern => "/api/products";
     protected override HttpMethod Method => HttpMethod.Post;
-    
+
     protected override async Task<IResult> HandleAsync(
-        CreateProductRequest request, 
+        CreateProductRequest request,
         CancellationToken ct)
     {
         var product = await CreateProduct(request);
@@ -153,7 +153,7 @@ public partial class CreateProduct
     {
         var product = await repository.CreateAsync(request, ct);
         return TypedResults.Created(
-            $"/api/products/{product.Id}", 
+            $"/api/products/{product.Id}",
             new ProductResponse(product));
     }
 }
@@ -178,9 +178,9 @@ public partial class UpdateProduct
         var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
             return TypedResults.ValidationProblem(validationResult.ToDictionary());
-            
+
         var updated = await repository.UpdateAsync(id, request, ct);
-        return updated 
+        return updated
             ? TypedResults.NoContent()
             : TypedResults.NotFound();
     }
@@ -200,7 +200,7 @@ public partial class DeleteProduct
         CancellationToken ct)
     {
         var deleted = await repository.DeleteAsync(id, ct);
-        return deleted 
+        return deleted
             ? TypedResults.NoContent()
             : TypedResults.NotFound();
     }
@@ -216,9 +216,9 @@ public class CreateProductEndpoint : ValidatedEndpointBase<CreateProductRequest,
 {
     protected override string Pattern => "/api/products";
     protected override HttpMethod Method => HttpMethod.Post;
-    
+
     protected override async Task<IResult> HandleAsync(
-        CreateProductRequest request, 
+        CreateProductRequest request,
         CancellationToken ct)
     {
         // Validation happens automatically before this method is called
@@ -235,11 +235,11 @@ public class CreateProductRequestValidator : AbstractValidator<CreateProductRequ
         RuleFor(x => x.Name)
             .NotEmpty()
             .MaximumLength(100);
-            
+
         RuleFor(x => x.Price)
             .GreaterThan(0)
             .LessThanOrEqualTo(999999.99m);
-            
+
         RuleFor(x => x.Description)
             .MaximumLength(500);
     }
@@ -262,7 +262,7 @@ public partial class CreateProduct
         var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
             return TypedResults.ValidationProblem(validationResult.ToDictionary());
-            
+
         var product = await repository.CreateAsync(request, ct);
         return TypedResults.Created($"/api/products/{product.Id}", new ProductResponse(product));
     }
@@ -312,14 +312,14 @@ public partial class UploadProductImage
     {
         if (image.Length > 5_000_000) // 5MB limit
             return TypedResults.BadRequest("Image too large");
-            
+
         var product = await repository.GetByIdAsync(id, ct);
         if (product == null)
             return TypedResults.NotFound();
-            
+
         var imageUrl = await fileService.SaveAsync(image, ct);
         await repository.UpdateImageAsync(id, imageUrl, ct);
-        
+
         return TypedResults.NoContent();
     }
 }
@@ -344,7 +344,7 @@ public partial class SearchProducts
             query.Page,
             query.PageSize,
             ct);
-            
+
         return TypedResults.Ok(new PagedResponse<ProductResponse>(
             result.Items.Select(p => new ProductResponse(p)),
             result.TotalCount,
@@ -378,15 +378,15 @@ public partial class GetFeaturedProducts
         CancellationToken ct)
     {
         var cacheKey = "featured-products";
-        
+
         if (cache.TryGetValue<List<ProductResponse>>(cacheKey, out var cached))
             return TypedResults.Ok(cached!);
-            
+
         var products = await repository.GetFeaturedAsync(ct);
         var response = products.Select(p => new ProductResponse(p)).ToList();
-        
+
         cache.Set(cacheKey, response, TimeSpan.FromMinutes(5));
-        
+
         return TypedResults.Ok(response);
     }
 }
@@ -425,7 +425,7 @@ MyApi/
 ### Program.cs Setup
 
 ```csharp
-using Tethys.MinimalEndpoints;
+using Stratify.MinimalEndpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -439,7 +439,7 @@ builder.Services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
 // Add your repositories and services
 builder.Services.AddScoped<IProductRepository, ProductRepository>();
 
-// Add Tethys endpoints
+// Add Stratify endpoints
 builder.Services.AddEndpoints(Assembly.GetExecutingAssembly());
 
 var app = builder.Build();
@@ -470,35 +470,35 @@ app.Run();
 public class ProductsController : ControllerBase
 {
     private readonly IProductRepository _repository;
-    
+
     public ProductsController(IProductRepository repository)
     {
         _repository = repository;
     }
-    
+
     [HttpGet("{id}")]
     public async Task<ActionResult<ProductResponse>> Get(int id)
     {
         var product = await _repository.GetByIdAsync(id);
         if (product == null)
             return NotFound();
-            
+
         return Ok(new ProductResponse(product));
     }
-    
+
     [HttpPost]
     public async Task<ActionResult<ProductResponse>> Create(CreateProductRequest request)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
-            
+
         var product = await _repository.CreateAsync(request);
         return CreatedAtAction(nameof(Get), new { id = product.Id }, new ProductResponse(product));
     }
 }
 ```
 
-### After (Tethys Minimal Endpoints)
+### After (Stratify Minimal Endpoints)
 
 ```csharp
 // GetProduct.cs
@@ -511,7 +511,7 @@ public partial class GetProduct
         IProductRepository repository)
     {
         var product = await repository.GetByIdAsync(id);
-        return product != null 
+        return product != null
             ? TypedResults.Ok(new ProductResponse(product))
             : TypedResults.NotFound();
     }
@@ -530,7 +530,7 @@ public partial class CreateProduct
         var validationResult = await validator.ValidateAsync(request);
         if (!validationResult.IsValid)
             return TypedResults.ValidationProblem(validationResult.ToDictionary());
-            
+
         var product = await repository.CreateAsync(request);
         return TypedResults.Created($"/api/products/{product.Id}", new ProductResponse(product));
     }

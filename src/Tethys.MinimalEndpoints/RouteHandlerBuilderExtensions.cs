@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 
-namespace Tethys.MinimalEndpoints;
+namespace Stratify.MinimalEndpoints;
 
 internal static class RouteHandlerBuilderExtensions
 {

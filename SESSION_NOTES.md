@@ -1,4 +1,4 @@
-# Tethys Development Session Notes
+# Stratify Development Session Notes
 
 Track your daily progress here. Each session should have:
 - What you completed
@@ -41,7 +41,7 @@ Note: Tests are failing due to generator not producing output, which will be add
 - Created PR #26 and merged to main
 
 ### Key Issues Fixed
-1. Missing namespace errors (2) - Fixed by adding project reference to Tethys.MinimalEndpoints
+1. Missing namespace errors (2) - Fixed by adding project reference to Stratify.MinimalEndpoints
 2. Duplicate MapEndpoint method errors (2) - Fixed by removing duplicate generator
 
 ### Build Status

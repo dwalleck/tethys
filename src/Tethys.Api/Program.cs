@@ -1,7 +1,7 @@
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
-using Tethys.Api.Database;
-using Tethys.MinimalEndpoints;
+using Stratify.Api.Database;
+using Stratify.MinimalEndpoints;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,7 +13,7 @@ builder.Services.AddCors();
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    options.UseInMemoryDatabase("Tethys");
+    options.UseInMemoryDatabase("Stratify");
 });
 
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);

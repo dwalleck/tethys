@@ -1,7 +1,7 @@
 #!/bin/bash
-# Development session startup script for Tethys
+# Development session startup script for Stratify
 
-echo "🚀 Starting Tethys Development Session"
+echo "🚀 Starting Stratify Development Session"
 echo "====================================="
 echo ""
 
@@ -33,7 +33,7 @@ if [ -f "SESSION_NOTES.md" ]; then
 else
     echo "No session notes found. Creating SESSION_NOTES.md..."
     cat > SESSION_NOTES.md << EOF
-# Tethys Development Session Notes
+# Stratify Development Session Notes
 
 Track your daily progress here. Each session should have:
 - What you completed
