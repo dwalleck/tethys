@@ -81,12 +81,16 @@ internal readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>
 
     public bool IsDefaultOrEmpty => _array.IsDefaultOrEmpty;
 
-    public int Length => _array.Length;
+    public int Length => _array.IsDefault ? 0 : _array.Length;
 
-    public T this[int index] => _array[index];
+    public T this[int index] => _array.IsDefault ? throw new InvalidOperationException("Cannot index into a default EquatableArray") : _array[index];
 
     public bool Equals(EquatableArray<T> other)
     {
+        if (_array.IsDefault && other._array.IsDefault)
+            return true;
+        if (_array.IsDefault || other._array.IsDefault)
+            return false;
         return _array.SequenceEqual(other._array);
     }
 
