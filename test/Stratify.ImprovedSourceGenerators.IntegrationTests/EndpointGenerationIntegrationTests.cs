@@ -1,4 +1,3 @@
-using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
@@ -50,10 +49,10 @@ public class EndpointGenerationIntegrationTests : IAsyncDisposable
 
         // Assert
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.OK);
-        weather.Should().NotBeNull();
-        weather!.Temperature.Should().Be(72);
-        weather.Condition.Should().Be("Sunny");
-        weather.Location.Should().Be("Test City");
+        await Assert.That(weather).IsNotNull();
+        await Assert.That(weather!.Temperature).IsEqualTo(72);
+        await Assert.That(weather.Condition).IsEqualTo("Sunny");
+        await Assert.That(weather.Location).IsEqualTo("Test City");
     }
 
     [Test]
@@ -68,13 +67,13 @@ public class EndpointGenerationIntegrationTests : IAsyncDisposable
 
         // Assert
         await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.Created);
-        response.Headers.Location.Should().NotBeNull();
-        response.Headers.Location!.ToString().Should().Be("/api/todos/1");
+        await Assert.That(response.Headers.Location).IsNotNull();
+        await Assert.That(response.Headers.Location!.ToString()).IsEqualTo("/api/todos/1");
 
-        todo.Should().NotBeNull();
-        todo!.Id.Should().Be(1);
-        todo.Title.Should().Be("Test Todo Item");
-        todo.IsComplete.Should().BeFalse();
+        await Assert.That(todo).IsNotNull();
+        await Assert.That(todo!.Id).IsEqualTo(1);
+        await Assert.That(todo.Title).IsEqualTo("Test Todo Item");
+        await Assert.That(todo.IsComplete).IsFalse();
     }
 
     [Test]

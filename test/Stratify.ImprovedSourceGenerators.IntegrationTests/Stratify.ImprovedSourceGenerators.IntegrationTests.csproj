@@ -16,8 +16,6 @@
     <PackageReference Include="Microsoft.AspNetCore.Testing" Version="9.7.0" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="9.0.7" />
 
-    <!-- FluentAssertions -->
-    <PackageReference Include="FluentAssertions" Version="8.5.0" />
   </ItemGroup>
 
   <ItemGroup>

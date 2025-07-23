@@ -20,8 +20,6 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" PrivateAssets="all" />
 
-    <!-- FluentAssertions for Better Assertions -->
-    <PackageReference Include="FluentAssertions" Version="8.5.0" />
   </ItemGroup>
 
   <ItemGroup>
