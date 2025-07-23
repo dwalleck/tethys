@@ -128,6 +128,8 @@ Note: Tests are failing due to generator not producing output, which will be add
   - Fixed Length property to handle default instances (returned 0 instead of throwing)
   - Fixed indexer to throw InvalidOperationException for default instances
   - Fixed Equals method to properly handle default instances
+- Updated all snapshot tests to use Stratify namespace (was Tethys)
+- Renamed all 21 task files to follow consistent pattern (task-XXX-description.md)
 - All EquatableArray tests now pass (108/111 total tests passing)
 
 ### Key Technical Details
@@ -135,12 +137,14 @@ Note: Tests are failing due to generator not producing output, which will be add
 - Essential for source generators to detect when input has changed
 - Fixed bug where default(EquatableArray<T>) would throw NullReferenceException
 - Tests cover 100% of EquatableArray<T> functionality
+- Snapshot tests needed namespace update due to project rename from Tethys to Stratify
 
 ### Build Status
 ✅ Solution builds successfully
 ✅ EquatableArray tests: 100% passing
-⚠️ 2 unrelated tests still failing (pre-existing issues)
+✅ Snapshot tests: 24/26 passing (2 cacheability tests unrelated to this task)
+⚠️ 2 unrelated tests still failing (pre-existing cacheability issues)
 
 ### Time Spent
 - Estimated: 3-4 hours
-- Actual: 45 minutes
+- Actual: 1 hour
