@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using FluentAssertions;
 using Microsoft.CodeAnalysis;
 using TUnit.Assertions;
 using TUnit.Core;
@@ -39,16 +38,17 @@ public class CacheabilityTests
         var secondSteps = GetTrackedSteps(secondRun);
 
         // First run should have executed steps
-        firstSteps.Should().NotBeEmpty();
-        firstSteps.Should().Contain(step =>
-            step.Value.Any(s => s.Outputs.Any(output => output.Reason == IncrementalStepRunReason.New)));
+        await Assert.That(firstSteps).IsNotEmpty();
+        await Assert.That(firstSteps.Any(step =>
+            step.Value.Any(s => s.Outputs.Any(output => output.Reason == IncrementalStepRunReason.New)))).IsTrue();
 
         // Second run should have all cached steps
-        secondSteps.Should().NotBeEmpty();
-        secondSteps.SelectMany(step => step.Value)
+        await Assert.That(secondSteps).IsNotEmpty();
+        var allReasons = secondSteps.SelectMany(step => step.Value)
             .SelectMany(s => s.Outputs)
             .Select(output => output.Reason)
-            .Should().OnlyContain(reason => reason == IncrementalStepRunReason.Cached);
+            .ToList();
+        await Assert.That(allReasons.All(reason => reason == IncrementalStepRunReason.Cached)).IsTrue();
 
         // Verify no compilation errors
         await Assert.That(firstRun.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)).IsEmpty();
@@ -109,7 +109,7 @@ public class CacheabilityTests
         var firstOutput = GetGeneratedOutput(firstRun);
         var secondOutput = GetGeneratedOutput(secondRun);
 
-        firstOutput.Should().Be(secondOutput);
+        await Assert.That(firstOutput).IsEqualTo(secondOutput);
 
         // Most steps should still be cached
         var secondSteps = GetTrackedSteps(secondRun);
@@ -118,7 +118,7 @@ public class CacheabilityTests
             .SelectMany(s => s.Outputs)
             .Count(output => output.Reason == IncrementalStepRunReason.Cached);
 
-        cachedSteps.Should().BeGreaterThan(0);
+        await Assert.That(cachedSteps).IsGreaterThan(0);
     }
 
     [Test]
@@ -169,15 +169,16 @@ public class CacheabilityTests
         var firstOutput = GetGeneratedOutput(firstRun);
         var secondOutput = GetGeneratedOutput(secondRun);
 
-        firstOutput.Should().Contain("MapGet");
-        secondOutput.Should().Contain("MapPost");
-        firstOutput.Should().NotBe(secondOutput);
+        await Assert.That(firstOutput).Contains("MapGet");
+        await Assert.That(secondOutput).Contains("MapPost");
+        await Assert.That(firstOutput).IsNotEqualTo(secondOutput);
 
         // Some steps should have rerun
         var secondSteps = GetTrackedSteps(secondRun);
-        secondSteps.SelectMany(step => step.Value)
+        var hasNonCachedSteps = secondSteps.SelectMany(step => step.Value)
             .SelectMany(s => s.Outputs)
-            .Should().Contain(output => output.Reason != IncrementalStepRunReason.Cached);
+            .Any(output => output.Reason != IncrementalStepRunReason.Cached);
+        await Assert.That(hasNonCachedSteps).IsTrue();
     }
 
     [Test]
