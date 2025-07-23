@@ -9,14 +9,17 @@ from pathlib import Path
 from collections import defaultdict
 
 def parse_tasks_from_plan():
-    """Parse all tasks from TEST_IMPLEMENTATION_PLAN.md"""
-    plan_path = Path(__file__).parent.parent / 'TEST_IMPLEMENTATION_PLAN.md'
+    """Parse all tasks from DEVELOPMENT-PLAN.md"""
+    plan_path = Path(__file__).parent.parent / 'DEVELOPMENT-PLAN.md'
     if not plan_path.exists():
-        # Fallback to TEST-COVERAGE-PLAN.md if it exists
-        plan_path = Path(__file__).parent.parent / 'TEST-COVERAGE-PLAN.md'
+        # Fallback to TEST_IMPLEMENTATION_PLAN.md if it exists
+        plan_path = Path(__file__).parent.parent / 'TEST_IMPLEMENTATION_PLAN.md'
+        if not plan_path.exists():
+            # Fallback to TEST-COVERAGE-PLAN.md if it exists
+            plan_path = Path(__file__).parent.parent / 'TEST-COVERAGE-PLAN.md'
 
     if not plan_path.exists():
-        print("ERROR: No test plan found. Looking for TEST_IMPLEMENTATION_PLAN.md or TEST-COVERAGE-PLAN.md")
+        print("ERROR: No development plan found. Looking for DEVELOPMENT-PLAN.md, TEST_IMPLEMENTATION_PLAN.md or TEST-COVERAGE-PLAN.md")
         return {}, {}
 
     with open(plan_path, 'r') as f:
@@ -25,52 +28,108 @@ def parse_tasks_from_plan():
     tasks = {}
     dependencies = defaultdict(list)
 
-    # Parse tasks from phases
-    phase_pattern = r'### Phase (\d+):[^#]+?(.*?)(?=###|\Z)'
-    task_count = 0
+    # Check if this is DEVELOPMENT-PLAN.md format
+    if 'TASK-' in content and '### TASK-' in content:
+        # Parse DEVELOPMENT-PLAN.md format
+        task_pattern = r'### (TASK-\d+):\s*(.+?)\n'
+        
+        for match in re.finditer(task_pattern, content):
+            task_id = match.group(1)
+            title = match.group(2).strip()
+            
+            # Extract details after the task header
+            task_section_pattern = rf'### {re.escape(task_id)}.*?\n(.*?)(?=\n### |$)'
+            section_match = re.search(task_section_pattern, content, re.DOTALL)
+            
+            if section_match:
+                section_content = section_match.group(1)
+                
+                # Extract priority
+                priority_match = re.search(r'\*\*Priority\*\*:\s*(\w+)', section_content)
+                priority = priority_match.group(1) if priority_match else "P2"
+                
+                # Extract estimated time
+                time_match = re.search(r'\*\*Estimated\*\*:\s*([^\n]+)', section_content)
+                estimated = time_match.group(1) if time_match else "2-4 hours"
+                
+                # Extract dependencies
+                deps_match = re.search(r'\*\*Dependencies\*\*:\s*([^\n]+)', section_content)
+                if deps_match:
+                    deps_text = deps_match.group(1)
+                    if deps_text.strip().lower() != 'none':
+                        deps = [d.strip() for d in deps_text.split(',')]
+                        dependencies[task_id] = deps
+                
+                # Determine phase based on priority and dependencies
+                if priority == "P0":
+                    phase = "Phase 0"
+                    milestone = "Critical Fixes"
+                elif priority == "P1":
+                    phase = "Phase 1"
+                    milestone = "Core Development"
+                elif priority == "P2":
+                    phase = "Phase 2"
+                    milestone = "Quality & Features"
+                else:
+                    phase = "Phase 3"
+                    milestone = "Advanced Features"
+                
+                tasks[task_id] = {
+                    'id': task_id,
+                    'title': title,
+                    'phase': phase,
+                    'priority': priority,
+                    'milestone': milestone,
+                    'estimated': estimated,
+                    'status': 'pending'
+                }
+    else:
+        # Original parsing logic for TEST_IMPLEMENTATION_PLAN.md format
+        phase_pattern = r'### Phase (\d+):[^#]+?(.*?)(?=###|\Z)'
+        task_count = 0
 
-    for phase_match in re.finditer(phase_pattern, content, re.DOTALL):
-        phase_num = phase_match.group(1)
-        phase_content = phase_match.group(2)
+        for phase_match in re.finditer(phase_pattern, content, re.DOTALL):
+            phase_num = phase_match.group(1)
+            phase_content = phase_match.group(2)
 
-        # Extract tasks from checkbox items
-        task_pattern = r'- \[ \] (.+?)(?:\n|$)'
-        for task_match in re.finditer(task_pattern, phase_content):
-            task_count += 1
-            task_desc = task_match.group(1).strip()
-            task_id = f"TASK-{task_count:03d}"
+            # Extract tasks from checkbox items
+            task_pattern = r'- \[ \] (.+?)(?:\n|$)'
+            for task_match in re.finditer(task_pattern, phase_content):
+                task_count += 1
+                task_desc = task_match.group(1).strip()
+                task_id = f"TASK-{task_count:03d}"
 
-            # Determine priority based on phase
-            if phase_num == "0":
-                priority = "P0"
-                milestone = "Critical Fixes"
-            elif phase_num in ["1", "2"]:
-                priority = "P1"
-                milestone = "Core Testing"
-            else:
-                priority = "P2"
-                milestone = "Advanced Testing"
+                # Determine priority based on phase
+                if phase_num == "0":
+                    priority = "P0"
+                    milestone = "Critical Fixes"
+                elif phase_num in ["1", "2"]:
+                    priority = "P1"
+                    milestone = "Core Testing"
+                else:
+                    priority = "P2"
+                    milestone = "Advanced Testing"
 
-            # Extract estimated time if present
-            time_match = re.search(r'\((\d+[-\d]*)\s*(days?|hours?)\)', phase_content)
-            estimated = time_match.group(0) if time_match else "2-4 hours"
+                # Extract estimated time if present
+                time_match = re.search(r'\((\d+[-\d]*)\s*(days?|hours?)\)', phase_content)
+                estimated = time_match.group(0) if time_match else "2-4 hours"
 
-            tasks[task_id] = {
-                'id': task_id,
-                'title': task_desc,
-                'phase': f"Phase {phase_num}",
-                'priority': priority,
-                'milestone': milestone,
-                'estimated': estimated,
-                'status': 'pending'
-            }
+                tasks[task_id] = {
+                    'id': task_id,
+                    'title': task_desc,
+                    'phase': f"Phase {phase_num}",
+                    'priority': priority,
+                    'milestone': milestone,
+                    'estimated': estimated,
+                    'status': 'pending'
+                }
 
-            # Simple dependency: tasks in later phases depend on earlier phases
-            if int(phase_num) > 0:
-                for i in range(1, task_count):
-                    prev_task_id = f"TASK-{i:03d}"
-                    if prev_task_id in tasks and tasks[prev_task_id]['phase'] < f"Phase {phase_num}":
-                        dependencies[task_id].append(prev_task_id)
+                # Simple dependency: tasks in later phases depend on earlier phases
+                if int(phase_num) > 0:
+                    for i in range(1, task_count):
+                        prev_task_id = f"TASK-{i:03d}"
+                        if prev_task_id in tasks and tasks[prev_task_id]['phase'] < f"Phase {phase_num}":
+                            dependencies[task_id].append(prev_task_id)
 
     return tasks, dependencies
 
