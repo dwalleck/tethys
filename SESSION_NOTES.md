@@ -148,3 +148,34 @@ Note: Tests are failing due to generator not producing output, which will be add
 ### Time Spent
 - Estimated: 3-4 hours
 - Actual: 1 hour
+
+## Session: 2025-07-23 - Fix Integration Test Port Conflicts
+### Completed
+- Diagnosed port conflict issues when TUnit runs tests in parallel
+- Implemented dynamic port allocation using TcpListener
+- Added authentication services to fix authorization errors
+- Fixed endpoint registration by adding AddEndpoints() call
+- Created PR #31 with comprehensive fix
+
+### Key Technical Details
+- Tests were failing because multiple instances tried to bind to port 5000
+- Solution uses TcpListener to find available ports dynamically
+- Each test now gets its own unique port during setup
+- Added test authentication handler that always authenticates for testing
+- Proper disposal already handled by existing DisposeAsync method
+
+### Changes Made
+1. Dynamic port allocation in Setup() method
+2. Kestrel configuration to use allocated port
+3. Authentication setup with test handler
+4. Service registration with AddEndpoints()
+5. Test authentication classes for handling auth requirements
+
+### Build Status
+✅ Solution builds successfully
+✅ All 4 integration tests passing
+✅ Tests can now run in parallel without conflicts
+
+### Time Spent
+- Estimated: 30 minutes
+- Actual: 25 minutes

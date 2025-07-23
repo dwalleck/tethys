@@ -6,6 +6,12 @@ using Stratify.ImprovedSourceGenerators.IntegrationTests.TestEndpoints;
 using Stratify.MinimalEndpoints;
 using TUnit.Assertions;
 using TUnit.Core;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+using System.Text.Encodings.Web;
+using System.Security.Claims;
 
 namespace Stratify.ImprovedSourceGenerators.IntegrationTests;
 
@@ -19,11 +25,20 @@ public class EndpointGenerationIntegrationTests : IAsyncDisposable
     {
         var builder = WebApplication.CreateBuilder();
 
+        // Use port 0 to let the OS assign an available port
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+
         // Add services
+        builder.Services.AddAuthentication("Test")
+            .AddScheme<TestAuthenticationSchemeOptions, TestAuthenticationHandler>("Test", null);
+            
         builder.Services.AddAuthorization(options =>
         {
             options.AddPolicy("TodoWritePolicy", policy => policy.RequireAssertion(_ => true));
         });
+        
+        // Register all endpoints from the current assembly
+        builder.Services.AddEndpoints();
 
         _app = builder.Build();
 
@@ -34,9 +49,22 @@ public class EndpointGenerationIntegrationTests : IAsyncDisposable
         // Start the test server
         await _app.StartAsync();
 
+        // Get the actual port that was assigned by the OS
+        var addresses = _app.Urls;
+        var address = addresses.FirstOrDefault();
+        
+        if (address == null)
+        {
+            throw new InvalidOperationException("Could not determine server address");
+        }
+        
+        // Extract port from the address (format: http://localhost:port)
+        var uri = new Uri(address);
+        var port = uri.Port;
+
         _client = new HttpClient
         {
-            BaseAddress = new Uri("http://localhost:5000") // Use the test server address
+            BaseAddress = new Uri($"http://127.0.0.1:{port}")
         };
     }
 
@@ -118,3 +146,29 @@ public class EndpointGenerationIntegrationTests : IAsyncDisposable
         }
     }
 }
+
+// Test authentication handler that always authenticates
+public class TestAuthenticationHandler : AuthenticationHandler<TestAuthenticationSchemeOptions>
+{
+    public TestAuthenticationHandler(IOptionsMonitor<TestAuthenticationSchemeOptions> options,
+        ILoggerFactory logger, UrlEncoder encoder) : base(options, logger, encoder)
+    {
+    }
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.Name, "Test User"),
+            new Claim(ClaimTypes.NameIdentifier, "123")
+        };
+
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+        var ticket = new AuthenticationTicket(principal, "Test");
+
+        return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+}
+
+public class TestAuthenticationSchemeOptions : AuthenticationSchemeOptions { }
