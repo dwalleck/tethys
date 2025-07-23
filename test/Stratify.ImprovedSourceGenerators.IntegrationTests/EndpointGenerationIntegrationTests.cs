@@ -2,10 +2,17 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Sockets;
 using Stratify.ImprovedSourceGenerators.IntegrationTests.TestEndpoints;
 using Stratify.MinimalEndpoints;
 using TUnit.Assertions;
 using TUnit.Core;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+using System.Text.Encodings.Web;
+using System.Security.Claims;
 
 namespace Stratify.ImprovedSourceGenerators.IntegrationTests;
 
@@ -13,17 +20,33 @@ public class EndpointGenerationIntegrationTests : IAsyncDisposable
 {
     private WebApplication? _app;
     private HttpClient? _client;
+    private int _port;
 
     [Before(HookType.Test)]
     public async Task Setup()
     {
+        // Get a random available port
+        _port = GetAvailablePort();
+        
         var builder = WebApplication.CreateBuilder();
 
+        // Configure Kestrel to use the specific port
+        builder.WebHost.ConfigureKestrel(options =>
+        {
+            options.ListenLocalhost(_port);
+        });
+
         // Add services
+        builder.Services.AddAuthentication("Test")
+            .AddScheme<TestAuthenticationSchemeOptions, TestAuthenticationHandler>("Test", null);
+            
         builder.Services.AddAuthorization(options =>
         {
             options.AddPolicy("TodoWritePolicy", policy => policy.RequireAssertion(_ => true));
         });
+        
+        // Register all endpoints from the current assembly
+        builder.Services.AddEndpoints();
 
         _app = builder.Build();
 
@@ -36,8 +59,18 @@ public class EndpointGenerationIntegrationTests : IAsyncDisposable
 
         _client = new HttpClient
         {
-            BaseAddress = new Uri("http://localhost:5000") // Use the test server address
+            BaseAddress = new Uri($"http://localhost:{_port}")
         };
+    }
+    
+    private static int GetAvailablePort()
+    {
+        // Create a temporary listener to find an available port
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return port;
     }
 
     [Test]
@@ -118,3 +151,29 @@ public class EndpointGenerationIntegrationTests : IAsyncDisposable
         }
     }
 }
+
+// Test authentication handler that always authenticates
+public class TestAuthenticationHandler : AuthenticationHandler<TestAuthenticationSchemeOptions>
+{
+    public TestAuthenticationHandler(IOptionsMonitor<TestAuthenticationSchemeOptions> options,
+        ILoggerFactory logger, UrlEncoder encoder) : base(options, logger, encoder)
+    {
+    }
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.Name, "Test User"),
+            new Claim(ClaimTypes.NameIdentifier, "123")
+        };
+
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+        var ticket = new AuthenticationTicket(principal, "Test");
+
+        return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+}
+
+public class TestAuthenticationSchemeOptions : AuthenticationSchemeOptions { }
