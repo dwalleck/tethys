@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
-using System.Net.Sockets;
 using Stratify.ImprovedSourceGenerators.IntegrationTests.TestEndpoints;
 using Stratify.MinimalEndpoints;
 using TUnit.Assertions;
@@ -20,21 +19,14 @@ public class EndpointGenerationIntegrationTests : IAsyncDisposable
 {
     private WebApplication? _app;
     private HttpClient? _client;
-    private int _port;
 
     [Before(HookType.Test)]
     public async Task Setup()
     {
-        // Get a random available port
-        _port = GetAvailablePort();
-        
         var builder = WebApplication.CreateBuilder();
 
-        // Configure Kestrel to use the specific port
-        builder.WebHost.ConfigureKestrel(options =>
-        {
-            options.ListenLocalhost(_port);
-        });
+        // Use port 0 to let the OS assign an available port
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
 
         // Add services
         builder.Services.AddAuthentication("Test")
@@ -57,20 +49,23 @@ public class EndpointGenerationIntegrationTests : IAsyncDisposable
         // Start the test server
         await _app.StartAsync();
 
+        // Get the actual port that was assigned by the OS
+        var addresses = _app.Urls;
+        var address = addresses.FirstOrDefault();
+        
+        if (address == null)
+        {
+            throw new InvalidOperationException("Could not determine server address");
+        }
+        
+        // Extract port from the address (format: http://localhost:port)
+        var uri = new Uri(address);
+        var port = uri.Port;
+
         _client = new HttpClient
         {
-            BaseAddress = new Uri($"http://localhost:{_port}")
+            BaseAddress = new Uri($"http://127.0.0.1:{port}")
         };
-    }
-    
-    private static int GetAvailablePort()
-    {
-        // Create a temporary listener to find an available port
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        return port;
     }
 
     [Test]
