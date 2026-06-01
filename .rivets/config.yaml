@@ -1,0 +1,4 @@
+issue-prefix: tethys
+storage:
+  backend: jsonl
+  data_file: .rivets/issues.jsonl
