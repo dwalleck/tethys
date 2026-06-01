@@ -443,7 +443,9 @@ mod tests {
         // Skip when not running inside the rivets monorepo (e.g., the standalone
         // tethys repo): there is no crates/ directory to expand.
         if results.is_empty() {
-            eprintln!("Skipping glob_member_expands_simple_pattern: no crates/* members (not the rivets monorepo)");
+            eprintln!(
+                "Skipping glob_member_expands_simple_pattern: no crates/* members (not the rivets monorepo)"
+            );
             return;
         }
         assert!(!results.is_empty());
