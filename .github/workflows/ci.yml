@@ -54,7 +54,7 @@ jobs:
             echo ""
             echo "Expected format: <type>[optional scope]: <description>"
             echo "Valid types: feat, fix, docs, style, refactor, perf, test, build, ci, chore"
-            echo "Scopes should be lowercase (e.g., cli, storage, mcp, jsonl)"
+            echo "Scopes should be lowercase (e.g., lsp, db, languages, cli)"
             echo "Description must be at least 3 characters"
             exit 1
           fi
@@ -125,10 +125,10 @@ jobs:
         uses: taiki-e/install-action@nextest
 
       - name: Run tests
-        run: cargo nextest run --all-features --workspace
+        run: cargo nextest run --all-features
 
       - name: Run doc tests
-        run: cargo test --doc --all-features --workspace
+        run: cargo test --doc --all-features
 
   build:
     name: Build
@@ -152,28 +152,28 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Build
-        run: cargo build --release --all-features --workspace
+        run: cargo build --release --all-features
 
       - name: Upload binary (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: rivets-linux
-          path: target/release/rivets
+          name: tethys-linux
+          path: target/release/tethys
 
       - name: Upload binary (macOS)
         if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: rivets-macos
-          path: target/release/rivets
+          name: tethys-macos
+          path: target/release/tethys
 
       - name: Upload binary (Windows)
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: rivets-windows
-          path: target/release/rivets.exe
+          name: tethys-windows
+          path: target/release/tethys.exe
 
   # Check that Cargo.lock is up to date
   cargo-deny:
@@ -212,7 +212,7 @@ jobs:
         run: cargo install cargo-tarpaulin
 
       - name: Generate coverage
-        run: cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
+        run: cargo tarpaulin --verbose --all-features --timeout 120 --out xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
