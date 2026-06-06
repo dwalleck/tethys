@@ -730,17 +730,10 @@ impl Tethys {
     pub(crate) fn src_root_for_file(&self, file: &Path, caller: &'static str) -> PathBuf {
         // Intentionally skips `self.get_crate_for_file`'s canonicalize() — callers
         // work with pre-canonicalized paths and the extra syscall per file adds up.
-        if let Some(crate_info) = cargo::get_crate_for_file(file, &self.crates) {
-            crate_info.src_root()
-        } else {
-            debug!(
-                operation = caller,
-                file = %file.display(),
-                "File not in any known crate; using file parent as sentinel src_root"
-            );
-            file.parent()
-                .map_or_else(|| self.workspace_root.clone(), Path::to_path_buf)
-        }
+        // Logic lives in the ModuleResolver seam; `caller` granularity in the
+        // orphan-fallback debug line is traded for the shared implementation.
+        let _ = caller;
+        languages::module_resolver::rust_src_root_for(file, &self.crates, &self.workspace_root)
     }
 
     // === Database ===

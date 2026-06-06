@@ -22,14 +22,21 @@
 //! Database lookups stay in the drivers, which keeps candidate enumeration
 //! and index state separable (and testable without a DB).
 
-#![expect(
-    dead_code,
-    reason = "seam lands dark in this slice; resolve.rs/indexing.rs drivers wire it in the next slices, at which point this expectation must be removed"
+#![cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "seam lands dark in this slice; resolve.rs/indexing.rs drivers wire it in the next slices, at which point this expectation must be removed"
+    )
 )]
 
 use std::path::{Path, PathBuf};
 
-use crate::types::CrateInfo;
+use tracing::debug;
+
+use crate::cargo;
+use crate::resolver::resolve_module_path;
+use crate::types::{CrateInfo, Language};
 
 /// Workspace context handed to a [`ModuleResolver`].
 ///
@@ -39,7 +46,6 @@ use crate::types::CrateInfo;
 /// per file so resolvers don't rescan `crates` on every call.
 pub(crate) struct ModuleContext<'a> {
     pub current_file: &'a Path,
-    pub workspace_root: &'a Path,
     pub crates: &'a [CrateInfo],
     pub anchor: Option<PathBuf>,
 }
@@ -110,6 +116,125 @@ pub(crate) trait ModuleResolver: Send + Sync {
     fn qualified_splits(&self, ref_name: &str, ctx: &ModuleContext<'_>) -> Vec<QualifiedSplit>;
 }
 
+/// Get the module resolver implementation for a language.
+pub(crate) fn get_module_resolver(lang: Language) -> &'static dyn ModuleResolver {
+    match lang {
+        Language::Rust => &RustModuleResolver,
+        Language::CSharp => &CSharpModuleResolver,
+    }
+}
+
+/// Per-file source-root anchor for Rust files.
+///
+/// For files inside a discovered crate, the crate's
+/// [`CrateInfo::src_root`] (`lib_path.parent()`-derived, not a hardcoded
+/// `src/` — the rivets-6aoc bug class). For files outside any crate,
+/// falls back to the file's parent directory as a documented sentinel:
+/// `crate::*` paths anchored there are semantic no-ops (they won't
+/// accidentally resolve), while `self::`/`super::` arms keep working off
+/// the file path directly.
+pub(crate) fn rust_src_root_for(
+    file: &Path,
+    crates: &[CrateInfo],
+    workspace_root: &Path,
+) -> PathBuf {
+    if let Some(crate_info) = cargo::get_crate_for_file(file, crates) {
+        crate_info.src_root()
+    } else {
+        debug!(
+            file = %file.display(),
+            "File not in any known crate; using file parent as sentinel src_root"
+        );
+        file.parent()
+            .map_or_else(|| workspace_root.to_path_buf(), Path::to_path_buf)
+    }
+}
+
+/// Rust module resolution: `crate`/`self`/`super` anchors, Cargo crate
+/// routing, and the implicit-crate retry for bare qualified paths.
+///
+/// Path translation delegates to [`crate::resolver::resolve_module_path`],
+/// which this seam owns as its engine; the candidate *enumeration* for
+/// qualified references lives here (ported verbatim from the pre-seam
+/// `qualified_module_fallback`, rivets-044i).
+pub(crate) struct RustModuleResolver;
+
+impl ModuleResolver for RustModuleResolver {
+    fn import_separator(&self) -> &'static str {
+        "::"
+    }
+
+    fn file_anchor(
+        &self,
+        file: &Path,
+        workspace_root: &Path,
+        crates: &[CrateInfo],
+    ) -> Option<PathBuf> {
+        Some(rust_src_root_for(file, crates, workspace_root))
+    }
+
+    fn resolve_import_segments(
+        &self,
+        segments: &[String],
+        ctx: &ModuleContext<'_>,
+    ) -> Option<PathBuf> {
+        let anchor = ctx.anchor.as_deref()?;
+        resolve_module_path(segments, ctx.current_file, anchor, ctx.crates)
+    }
+
+    /// Candidate enumeration for qualified references, longest prefix
+    /// first. Per split, up to two file candidates in priority order:
+    ///
+    /// 1. **Implicit-crate**: the prefix with `crate::` prepended (skipped
+    ///    when the first segment is already `crate`/`self`/`super`) —
+    ///    Rust 2018+ paths like `helper::foo` from an import-less file.
+    /// 2. **As-written**: the prefix unchanged, letting the
+    ///    `crate`/`self`/`super`/workspace-crate arms fire.
+    ///
+    /// Splits with no on-disk candidate are omitted (the driver would skip
+    /// them anyway). Duplicate candidates within a split are deduped — the
+    /// driver's first-indexed-wins rule makes the second copy unreachable.
+    fn qualified_splits(&self, ref_name: &str, ctx: &ModuleContext<'_>) -> Vec<QualifiedSplit> {
+        let segments: Vec<&str> = ref_name.split("::").collect();
+        if segments.len() < 2 {
+            return Vec::new();
+        }
+        let Some(anchor) = ctx.anchor.as_deref() else {
+            return Vec::new();
+        };
+
+        let mut splits = Vec::with_capacity(segments.len() - 1);
+        for split in (1..segments.len()).rev() {
+            let prefix = &segments[..split];
+            let tail = segments[split..].join("::");
+            let mut files = Vec::with_capacity(2);
+
+            if !matches!(prefix[0], "crate" | "self" | "super") {
+                let mut with_crate: Vec<String> = Vec::with_capacity(prefix.len() + 1);
+                with_crate.push("crate".to_string());
+                with_crate.extend(prefix.iter().map(|s| (*s).to_string()));
+                if let Some(p) =
+                    resolve_module_path(&with_crate, ctx.current_file, anchor, ctx.crates)
+                {
+                    files.push(p);
+                }
+            }
+
+            let as_written: Vec<String> = prefix.iter().map(|s| (*s).to_string()).collect();
+            if let Some(p) = resolve_module_path(&as_written, ctx.current_file, anchor, ctx.crates)
+                && !files.contains(&p)
+            {
+                files.push(p);
+            }
+
+            if !files.is_empty() {
+                splits.push(QualifiedSplit { files, tail });
+            }
+        }
+        splits
+    }
+}
+
 /// C# module resolution: an explicit declining stub.
 ///
 /// C# namespaces are textual and tethys has no namespace→file index yet, so
@@ -152,10 +277,15 @@ mod tests {
     fn ctx<'a>(root: &'a Path) -> ModuleContext<'a> {
         ModuleContext {
             current_file: root,
-            workspace_root: root,
             crates: &[],
             anchor: None,
         }
+    }
+
+    #[test]
+    fn registry_dispatches_by_language() {
+        assert_eq!(get_module_resolver(Language::Rust).import_separator(), "::");
+        assert_eq!(get_module_resolver(Language::CSharp).import_separator(), ".");
     }
 
     #[test]
@@ -206,6 +336,164 @@ mod tests {
         assert_eq!(
             CSharpModuleResolver.file_anchor(root, root, &[]),
             None
+        );
+    }
+
+    // ===== RustModuleResolver =====
+
+    use std::fs;
+
+    /// Build a crate dir with the given files (relative to the crate's src/)
+    /// and return its CrateInfo.
+    fn make_crate(root: &Path, name: &str, files: &[&str]) -> CrateInfo {
+        let crate_path = root.join(name);
+        let src = crate_path.join("src");
+        fs::create_dir_all(&src).expect("crate src");
+        fs::write(src.join("lib.rs"), "").expect("lib.rs");
+        for relative in files {
+            let full = src.join(relative);
+            if let Some(parent) = full.parent() {
+                fs::create_dir_all(parent).expect("nested dir");
+            }
+            fs::write(&full, "").expect("nested file");
+        }
+        CrateInfo {
+            name: name.to_string(),
+            path: crate_path,
+            lib_path: Some(PathBuf::from("src/lib.rs")),
+            bin_paths: vec![],
+        }
+    }
+
+    fn rust_ctx<'a>(
+        current_file: &'a Path,
+        workspace_root: &'a Path,
+        crates: &'a [CrateInfo],
+    ) -> ModuleContext<'a> {
+        let anchor = RustModuleResolver.file_anchor(current_file, workspace_root, crates);
+        ModuleContext { current_file, crates, anchor }
+    }
+
+    #[test]
+    fn rust_import_separator_is_double_colon() {
+        assert_eq!(RustModuleResolver.import_separator(), "::");
+    }
+
+    /// The C6 trap shape: implicit-crate candidate (app/src/helper.rs) must
+    /// come BEFORE the as-written workspace-crate candidate (helper/src/lib.rs)
+    /// in the same split — the driver's first-indexed-wins + abandon-on-miss
+    /// then reproduces the pre-seam interleaving exactly.
+    #[test]
+    fn qualified_splits_trap_ordering() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let crates = vec![
+            make_crate(dir.path(), "app", &["helper.rs"]),
+            make_crate(dir.path(), "helper", &[]),
+        ];
+        let current = dir.path().join("app/src/lib.rs");
+        let ctx = rust_ctx(&current, dir.path(), &crates);
+
+        let splits = RustModuleResolver.qualified_splits("helper::do_thing", &ctx);
+        assert_eq!(splits.len(), 1, "two segments give exactly one split");
+        assert_eq!(splits[0].tail, "do_thing");
+        assert_eq!(
+            splits[0].files,
+            vec![
+                dir.path().join("app/src/helper.rs"),
+                dir.path().join("helper/src/lib.rs"),
+            ],
+            "implicit-crate candidate must precede as-written candidate"
+        );
+    }
+
+    /// `crate::`-prefixed references suppress the implicit-crate retry:
+    /// no split may contain a doubled `crate::crate::...` candidate.
+    #[test]
+    fn qualified_splits_crate_prefix_suppresses_retry() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let crates = vec![make_crate(dir.path(), "app", &["db.rs"])];
+        let current = dir.path().join("app/src/lib.rs");
+        let ctx = rust_ctx(&current, dir.path(), &crates);
+
+        let splits = RustModuleResolver.qualified_splits("crate::db::open", &ctx);
+        assert_eq!(
+            (splits[0].files.clone(), splits[0].tail.clone()),
+            (vec![dir.path().join("app/src/db.rs")], "open".to_string()),
+            "longest split resolves crate::db with exactly one candidate"
+        );
+        for s in &splits {
+            assert_eq!(s.files.len(), 1, "crate-prefixed: no implicit-crate duplicate");
+        }
+        if let Some(second) = splits.get(1) {
+            assert_eq!(second.tail, "db::open");
+        }
+    }
+
+    /// Splits are ordered longest prefix first.
+    #[test]
+    fn qualified_splits_longest_prefix_first() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let crates = vec![make_crate(dir.path(), "app", &["a.rs", "a/b.rs"])];
+        let current = dir.path().join("app/src/lib.rs");
+        let ctx = rust_ctx(&current, dir.path(), &crates);
+
+        let splits = RustModuleResolver.qualified_splits("a::b::c", &ctx);
+        assert_eq!(splits.len(), 2);
+        assert_eq!(splits[0].tail, "c");
+        assert_eq!(splits[0].files, vec![dir.path().join("app/src/a/b.rs")]);
+        assert_eq!(splits[1].tail, "b::c");
+        assert_eq!(splits[1].files, vec![dir.path().join("app/src/a.rs")]);
+    }
+
+    /// Simple names (no separator) produce no splits — they never reach the
+    /// qualified fallback in the driver either.
+    #[test]
+    fn qualified_splits_simple_name_empty() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let crates = vec![make_crate(dir.path(), "app", &[])];
+        let current = dir.path().join("app/src/lib.rs");
+        let ctx = rust_ctx(&current, dir.path(), &crates);
+        assert!(RustModuleResolver.qualified_splits("lonely", &ctx).is_empty());
+    }
+
+    /// resolve_import (provided method) splits stored source_modules on "::".
+    #[test]
+    fn rust_resolve_import_crate_path() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let crates = vec![make_crate(dir.path(), "app", &["db.rs"])];
+        let current = dir.path().join("app/src/lib.rs");
+        let ctx = rust_ctx(&current, dir.path(), &crates);
+        assert_eq!(
+            RustModuleResolver.resolve_import("crate::db", &ctx),
+            Some(dir.path().join("app/src/db.rs"))
+        );
+        assert_eq!(RustModuleResolver.resolve_import("std::collections", &ctx), None);
+    }
+
+    /// Orphan files (no containing crate) anchor at their parent directory —
+    /// the documented sentinel.
+    #[test]
+    fn rust_file_anchor_orphan_falls_back_to_parent() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let orphan_dir = dir.path().join("scripts");
+        fs::create_dir_all(&orphan_dir).expect("orphan dir");
+        let orphan = orphan_dir.join("tool.rs");
+        fs::write(&orphan, "").expect("orphan file");
+        assert_eq!(
+            RustModuleResolver.file_anchor(&orphan, dir.path(), &[]),
+            Some(orphan_dir)
+        );
+    }
+
+    /// Files inside a crate anchor at the crate's src root.
+    #[test]
+    fn rust_file_anchor_uses_crate_src_root() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let crates = vec![make_crate(dir.path(), "app", &[])];
+        let current = dir.path().join("app/src/lib.rs");
+        assert_eq!(
+            RustModuleResolver.file_anchor(&current, dir.path(), &crates),
+            Some(dir.path().join("app/src"))
         );
     }
 }
