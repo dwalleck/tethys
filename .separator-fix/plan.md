@@ -4,7 +4,18 @@ Design: `.separator-fix/design.md` (approved; C1 passed, C6 baseline verified).
 Every slice's standing oracle: **the dump oracle** — `.separator-fix/dump.sh` output
 on (a) tethys self-index, (b) C# probe workspace, (c) C6 trap fixture must be
 byte-identical to the Slice-0 baselines after EVERY slice (all slices are
-behavior-neutral). `cargo nextest run` green after every slice.
+behavior-neutral). `cargo test` green after every slice (nextest not installed on
+this machine; cargo test is the equivalent gate).
+
+**Oracle revision (Slice 1 halt):** the self-index oracle originally indexed the
+live repo — but each slice adds the feature's own source to that repo, so the
+input mutated and the dump legitimately drifted (84/158 diff lines were rows for
+the new file; the rest, +1 line shifts in mod.rs). Corrected procedure: the input
+workspace is a git worktree frozen at the Slice-0 commit (`/tmp/sf-frozen` @
+57a506d); the baseline (`baselines/self-frozen.dump`) was captured with the
+pre-seam binary built FROM that frozen tree and verified deterministic; every
+slice's gate runs the current binary against the frozen tree. Slice-8 timing
+comparison likewise: both binaries timed against the frozen tree, median of ≥5.
 
 **Design refinement (budget-driven):** design.md said the Rust impl recomputes
 src_root per resolve call. Budget math: `O(calls × crates)`; at 50k files ×

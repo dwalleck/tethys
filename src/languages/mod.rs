@@ -17,6 +17,7 @@
 
 pub mod common;
 pub mod csharp;
+pub(crate) mod module_resolver;
 pub mod rust;
 mod tree_sitter_utils;
 
