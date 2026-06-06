@@ -24,7 +24,7 @@ use crate::error::{Error, IndexError, IndexErrorKind, Result};
 use crate::languages::{self, common};
 use crate::lsp;
 use crate::parallel::{OwnedSymbolData, ParsedFileData};
-use crate::resolver::resolve_module_path;
+use crate::languages::module_resolver::{ModuleContext, get_module_resolver};
 use crate::types::{
     ArchPhaseResult, FileId, Import, IndexOptions, IndexStats, Language, Span, SymbolId, SymbolKind,
 };
@@ -724,6 +724,7 @@ impl Tethys {
         self.compute_dependencies(
             &full_path,
             file_id,
+            data.language,
             &data.imports,
             &data.references,
             pending,
@@ -896,22 +897,29 @@ impl Tethys {
     /// Dependencies that can't be resolved (target file not yet indexed) are added to
     /// `pending` for retry in subsequent passes.
     ///
-    /// The per-file `src_root` anchor is derived by [`Tethys::src_root_for_file`],
-    /// which falls back to the file's parent directory for files outside any
-    /// known crate. In such cases `crate::*` paths have no valid anchor, but
-    /// `self::`/`super::` (resolved off `current_file` directly) continue to
-    /// produce dep edges.
+    /// The per-file anchor is derived by
+    /// [`ModuleResolver::file_anchor`](crate::languages::module_resolver::ModuleResolver::file_anchor)
+    /// (for Rust, the crate's source root, falling back to the file's parent
+    /// directory for files outside any known crate). In the fallback case
+    /// `crate::*` paths have no valid anchor, but `self::`/`super::`
+    /// (resolved off `current_file` directly) continue to produce dep edges.
     fn compute_dependencies(
         &self,
         current_file: &Path,
         file_id: FileId,
+        language: Language,
         imports: &[common::ImportStatement],
         refs: &[common::ExtractedReference],
         pending: &mut Vec<PendingDependency>,
     ) -> Result<()> {
         use std::collections::HashSet;
 
-        let src_root = self.src_root_for_file(current_file, "compute_dependencies");
+        let resolver = get_module_resolver(language);
+        let module_ctx = ModuleContext {
+            current_file,
+            crates: self.crates(),
+            anchor: resolver.file_anchor(current_file, &self.workspace_root, self.crates()),
+        };
 
         // Build a set of actually referenced names (both direct names and path prefixes)
         let mut referenced_names: HashSet<&str> = HashSet::new();
@@ -946,8 +954,7 @@ impl Tethys {
             }
 
             // Resolve the module path to a file
-            if let Some(resolved) =
-                resolve_module_path(&import_stmt.path, current_file, &src_root, self.crates())
+            if let Some(resolved) = resolver.resolve_import_segments(&import_stmt.path, &module_ctx)
             {
                 // Make the path relative to workspace root
                 let dep_path = self.relative_path(&resolved).to_path_buf();
@@ -1010,6 +1017,7 @@ impl Tethys {
             self.compute_dependencies_from_stored(
                 &full_path,
                 file.id,
+                file.language,
                 &import_statements,
                 &ref_names,
                 pending,
@@ -1076,18 +1084,25 @@ impl Tethys {
     ///
     /// Similar to `compute_dependencies` but takes pre-processed data rather than
     /// `ExtractedReference` objects. Used in streaming mode. See
-    /// [`Tethys::src_root_for_file`] for the per-file anchor contract.
+    /// [`ModuleResolver::file_anchor`](crate::languages::module_resolver::ModuleResolver::file_anchor)
+    /// for the per-file anchor contract.
     fn compute_dependencies_from_stored(
         &self,
         current_file: &Path,
         file_id: FileId,
+        language: Language,
         imports: &[common::ImportStatement],
         reference_names: &[String],
         pending: &mut Vec<PendingDependency>,
     ) -> Result<()> {
         use std::collections::HashSet;
 
-        let src_root = self.src_root_for_file(current_file, "compute_dependencies_from_stored");
+        let resolver = get_module_resolver(language);
+        let module_ctx = ModuleContext {
+            current_file,
+            crates: self.crates(),
+            anchor: resolver.file_anchor(current_file, &self.workspace_root, self.crates()),
+        };
 
         // Build a set of actually referenced names
         let refs_set: HashSet<&str> = reference_names.iter().map(String::as_str).collect();
@@ -1108,8 +1123,7 @@ impl Tethys {
                 continue;
             }
 
-            if let Some(resolved) =
-                resolve_module_path(&import_stmt.path, current_file, &src_root, self.crates())
+            if let Some(resolved) = resolver.resolve_import_segments(&import_stmt.path, &module_ctx)
             {
                 let dep_path = self.relative_path(&resolved).to_path_buf();
                 depended_files.insert(dep_path);
