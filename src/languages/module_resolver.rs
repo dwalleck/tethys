@@ -22,14 +22,6 @@
 //! Database lookups stay in the drivers, which keeps candidate enumeration
 //! and index state separable (and testable without a DB).
 
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "seam lands dark in this slice; resolve.rs/indexing.rs drivers wire it in the next slices, at which point this expectation must be removed"
-    )
-)]
-
 use std::path::{Path, PathBuf};
 
 use tracing::debug;
@@ -274,7 +266,7 @@ impl ModuleResolver for CSharpModuleResolver {
 mod tests {
     use super::*;
 
-    fn ctx<'a>(root: &'a Path) -> ModuleContext<'a> {
+    fn ctx(root: &Path) -> ModuleContext<'_> {
         ModuleContext {
             current_file: root,
             crates: &[],
@@ -344,7 +336,7 @@ mod tests {
     use std::fs;
 
     /// Build a crate dir with the given files (relative to the crate's src/)
-    /// and return its CrateInfo.
+    /// and return its [`CrateInfo`].
     fn make_crate(root: &Path, name: &str, files: &[&str]) -> CrateInfo {
         let crate_path = root.join(name);
         let src = crate_path.join("src");
@@ -456,7 +448,7 @@ mod tests {
         assert!(RustModuleResolver.qualified_splits("lonely", &ctx).is_empty());
     }
 
-    /// resolve_import (provided method) splits stored source_modules on "::".
+    /// `resolve_import` (provided method) splits stored `source_modules` on "::".
     #[test]
     fn rust_resolve_import_crate_path() {
         let dir = tempfile::tempdir().expect("tempdir");
