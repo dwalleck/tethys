@@ -1,0 +1,24 @@
+## files
+src/Auth.cs|csharp|292
+src/Hasher.cs|csharp|202
+## symbols
+src/Auth.cs|MyApp.Services||MyApp.Services|module|4|1|15|2||public||0
+src/Auth.cs|AuthService||AuthService|class|6|5|14|6||public||0
+src/Auth.cs|Login||AuthService::Login|method|8|9|13|10|void Login(string user)|public||0
+src/Hasher.cs|MyApp.Models||MyApp.Models|module|1|1|11|2||public||0
+src/Hasher.cs|Hasher||Hasher|class|3|5|6|6||public||0
+src/Hasher.cs|Hash||Hasher::Hash|function|5|9|5|66|string Hash(string input)|public||0
+src/Hasher.cs|Outer||Outer|class|7|5|10|6||public||0
+src/Hasher.cs|Inner||Outer::Inner|class|9|9|9|31||public||0
+## refs
+src/Auth.cs|call|10|26|-1|-1||src/Hasher.cs:5:Hasher::Hash|AuthService::Login
+src/Auth.cs|construct|11|31|-1|-1||src/Hasher.cs:9:Outer::Inner|AuthService::Login
+src/Auth.cs|call|12|13|-1|-1|Console::WriteLine|<unresolved>|AuthService::Login
+## imports
+src/Auth.cs|*|MyApp.Models|
+src/Auth.cs|*|System|
+## file_deps
+src/Auth.cs|src/Hasher.cs|3
+## call_edges
+src/Auth.cs:8:AuthService::Login|src/Hasher.cs:5:Hasher::Hash|1
+src/Auth.cs:8:AuthService::Login|src/Hasher.cs:9:Outer::Inner|1
