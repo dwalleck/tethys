@@ -13,6 +13,7 @@ use tracing::{debug, info, trace, warn};
 use crate::Tethys;
 use crate::error::{Error, Result};
 use crate::graph::{self, SymbolGraphOps};
+use crate::languages::module_resolver::{ModuleContext, ModuleResolver, get_module_resolver};
 use crate::lsp::{self, LspProvider};
 use crate::resolver::resolve_module_path;
 use crate::types::{
@@ -30,6 +31,10 @@ pub(crate) struct ResolveContext<'a> {
     pub(crate) current_file_path: Option<&'a Path>,
     pub(crate) src_root: &'a Path,
     pub(crate) file_id: FileId,
+    /// Per-language module resolution (the [`ModuleResolver`] seam),
+    /// selected by the file's language.
+    pub(crate) resolver: &'a dyn ModuleResolver,
+    pub(crate) module_ctx: &'a ModuleContext<'a>,
 }
 
 #[expect(
@@ -102,6 +107,18 @@ impl Tethys {
         // path lookup during incident triage if needed.
         let src_root = self.src_root_for_file(&current_file_path, "resolve_refs_for_file");
 
+        // Per-language module resolution. The anchor duplicates `src_root`
+        // for Rust files while both fields coexist; `src_root` is consumed
+        // only by `qualified_module_fallback` and is removed with it.
+        let module_resolver = get_module_resolver(file_record.language);
+        let anchor =
+            module_resolver.file_anchor(&current_file_path, &self.workspace_root, self.crates());
+        let module_ctx = ModuleContext {
+            current_file: &current_file_path,
+            crates: self.crates(),
+            anchor,
+        };
+
         // Build import structures
         let (explicit_imports, glob_imports) = Self::build_import_maps(&imports);
 
@@ -111,6 +128,8 @@ impl Tethys {
             current_file_path: Some(&current_file_path),
             src_root: &src_root,
             file_id,
+            resolver: module_resolver,
+            module_ctx: &module_ctx,
         };
 
         let mut resolved_count = 0;
@@ -168,13 +187,7 @@ impl Tethys {
         let is_qualified = ref_name.contains("::");
 
         // Try explicit imports
-        if let Some(symbol) = self.resolve_via_explicit_import(
-            ref_name,
-            ctx.explicit_imports,
-            ctx.current_file_path,
-            ctx.src_root,
-            is_qualified,
-        )? {
+        if let Some(symbol) = self.resolve_via_explicit_import(ref_name, ctx, is_qualified)? {
             trace!(
                 ref_id = ref_.id,
                 ref_name = %ref_name,
@@ -187,13 +200,9 @@ impl Tethys {
 
         // Try glob imports
         for source_module in ctx.glob_imports {
-            if let Some(symbol) = self.resolve_symbol_in_module(
-                ref_name,
-                source_module,
-                ctx.current_file_path,
-                ctx.src_root,
-                is_qualified,
-            )? {
+            if let Some(symbol) =
+                self.resolve_symbol_in_module(ref_name, source_module, ctx, is_qualified)?
+            {
                 trace!(
                     ref_id = ref_.id,
                     ref_name = %ref_name,
@@ -357,9 +366,7 @@ impl Tethys {
     fn resolve_via_explicit_import(
         &self,
         ref_name: &str,
-        explicit_imports: &HashMap<&str, (&str, &str)>,
-        current_file_path: Option<&Path>,
-        src_root: &Path,
+        ctx: &ResolveContext<'_>,
         is_qualified: bool,
     ) -> Result<Option<Symbol>> {
         let lookup_name = if is_qualified {
@@ -370,7 +377,7 @@ impl Tethys {
             ref_name
         };
 
-        let Some((symbol_name, source_module)) = explicit_imports.get(lookup_name) else {
+        let Some((symbol_name, source_module)) = ctx.explicit_imports.get(lookup_name) else {
             return Ok(None);
         };
 
@@ -385,13 +392,7 @@ impl Tethys {
             (*symbol_name).to_string()
         };
 
-        self.resolve_symbol_in_module(
-            &search_name,
-            source_module,
-            current_file_path,
-            src_root,
-            is_qualified,
-        )
+        self.resolve_symbol_in_module(&search_name, source_module, ctx, is_qualified)
     }
 
     /// Resolve a symbol within a specific module (source path).
@@ -402,13 +403,10 @@ impl Tethys {
         &self,
         symbol_name: &str,
         source_module: &str,
-        current_file_path: Option<&Path>,
-        src_root: &Path,
+        ctx: &ResolveContext<'_>,
         use_qualified_search: bool,
     ) -> Result<Option<Symbol>> {
-        let Some(target_file_id) =
-            self.resolve_module_to_file_id(source_module, current_file_path, src_root)?
-        else {
+        let Some(target_file_id) = self.resolve_module_to_file_id(source_module, ctx)? else {
             return Ok(None);
         };
 
@@ -420,25 +418,14 @@ impl Tethys {
         }
     }
 
-    /// Translate a module path (e.g., `crate::db`) to a file ID.
+    /// Translate a stored import module path (e.g., `crate::db`) to a file ID
+    /// via the file's [`ModuleResolver`].
     fn resolve_module_to_file_id(
         &self,
         source_module: &str,
-        current_file_path: Option<&Path>,
-        src_root: &Path,
+        ctx: &ResolveContext<'_>,
     ) -> Result<Option<FileId>> {
-        let Some(current_path) = current_file_path else {
-            trace!(
-                source_module = %source_module,
-                "Cannot resolve module: no current file path"
-            );
-            return Ok(None);
-        };
-
-        let path_segments: Vec<String> = source_module.split("::").map(String::from).collect();
-
-        let Some(resolved_file) =
-            resolve_module_path(&path_segments, current_path, src_root, self.crates())
+        let Some(resolved_file) = ctx.resolver.resolve_import(source_module, ctx.module_ctx)
         else {
             trace!(
                 source_module = %source_module,
