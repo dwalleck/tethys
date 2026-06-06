@@ -9,6 +9,11 @@
 //! 2. Create a new module (e.g., `python.rs`)
 //! 3. Implement `LanguageSupport` trait
 //! 4. Register in `get_language_support()`
+//! 5. Implement `ModuleResolver` in `module_resolver.rs` (module-path→file
+//!    translation, per-file anchor, and the stored-import separator) and
+//!    register it in `get_module_resolver()`. The resolution drivers in
+//!    `resolve.rs` and `indexing.rs` are language-neutral and must not be
+//!    edited — `tests/seam_lint.rs` enforces this.
 //!
 //! ## Design
 //!
