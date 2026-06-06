@@ -849,11 +849,8 @@ impl Tethys {
         // Clear old imports for this file (for re-indexing)
         self.db.clear_imports_for_file(file_id)?;
 
-        // Determine path separator based on language
-        let separator = match language {
-            Language::Rust => "::",
-            Language::CSharp => ".",
-        };
+        // Stored import format is owned by the language's ModuleResolver.
+        let separator = get_module_resolver(language).import_separator();
 
         for import in imports {
             let source = import.path.join(separator);
@@ -1052,10 +1049,7 @@ impl Tethys {
                 .push(import);
         }
 
-        let separator = match language {
-            Language::Rust => "::",
-            Language::CSharp => ".",
-        };
+        let separator = get_module_resolver(language).import_separator();
 
         grouped
             .into_iter()
