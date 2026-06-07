@@ -6,8 +6,10 @@
 //! resolver dispatch ever keys on anything other than the individual
 //! file's language (e.g., workspace-majority language), the C# import
 //! could resolve through Rust crate routing and mint a phantom
-//! `.cs -> .rs` file dependency. Correct dispatch sends C# imports to the
-//! declining stub (tethys-jwf9 tracks the real C# implementation).
+//! `.cs -> .rs` file dependency. Correct dispatch sends C# imports to
+//! `CSharpModuleResolver`, whose namespace map contains workspace C#
+//! namespaces only — `System` (the namespace) never maps to `System`
+//! (the Rust crate).
 //!
 //! Parameterized across batch and streaming modes (PR-review findings
 //! I2/I3): the two modes store imports through different copies of the
@@ -60,7 +62,11 @@ namespace App
 {
     public class Runner
     {
-        public void Go() { Console.WriteLine("x"); }
+        public void Go()
+        {
+            var w = new Widget();
+            Console.WriteLine("x");
+        }
     }
 }
 "#,
@@ -136,8 +142,10 @@ namespace My.Models
          dispatch must key on the file's language"
     );
 
-    // Positive control: the pre-existing C# namespace-map post-pass still
-    // links cs->cs deps (using My.Models -> Models.cs), proving the zero
+    // Positive control: a USED C# namespace import (new Widget() under
+    // `using My.Models;`) still yields the cs->cs dep through the
+    // call-edge + namespace-corroboration path (L2 semantics, csharp-ns
+    // decision #2 — the L1 per-using post-pass is gone), proving the zero
     // above comes from correct dispatch, not from C# deps being broken.
     let cs_cs_deps: i64 = conn
         .query_row(
@@ -152,6 +160,6 @@ namespace My.Models
         .expect("count cs->cs deps");
     assert_eq!(
         cs_cs_deps, 1,
-        "namespace-map post-pass must still produce the App.cs -> Models.cs dep"
+        "the used C# namespace import must produce the App.cs -> Models.cs dep"
     );
 }

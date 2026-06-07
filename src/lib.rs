@@ -76,7 +76,6 @@ pub struct Tethys {
     workspace_root: PathBuf,
     db_path: PathBuf,
     db: Index,
-    parser: tree_sitter::Parser,
     crates: Vec<CrateInfo>,
 }
 
@@ -123,7 +122,6 @@ impl Tethys {
             .join("tethys.db");
         let db = Index::open(&db_path)?;
 
-        let parser = tree_sitter::Parser::new();
         let crates = cargo::discover_crates(&workspace_root);
 
         debug_assert!(
@@ -139,7 +137,6 @@ impl Tethys {
             workspace_root,
             db_path,
             db,
-            parser,
             crates,
         })
     }

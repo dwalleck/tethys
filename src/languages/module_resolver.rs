@@ -4,9 +4,10 @@
 //! module paths (from `use`/`using` statements and qualified reference
 //! prefixes) into workspace files. The *rules* for that translation are
 //! language-specific: Rust has `crate`/`self`/`super` anchors, Cargo crate
-//! roots, and an implicit-crate retry for bare paths; C# namespaces have no
-//! file mapping at all (tethys-jwf9). This trait contains those rules so the
-//! drivers in `resolve.rs` and `indexing.rs` stay language-neutral.
+//! roots, and an implicit-crate retry for bare paths; C# namespaces map
+//! one-to-many onto files via [`ModuleContext::namespaces`]. This trait
+//! contains those rules so the drivers in `resolve.rs` and `indexing.rs`
+//! stay language-neutral.
 //!
 //! Two separators exist, deliberately:
 //!
@@ -22,13 +23,26 @@
 //! Database lookups stay in the drivers, which keeps candidate enumeration
 //! and index state separable (and testable without a DB).
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use tracing::debug;
 
 use crate::cargo;
 use crate::resolver::resolve_module_path;
-use crate::types::{CrateInfo, Language};
+use crate::types::{CrateInfo, Language, SymbolKind};
+
+/// Namespace → declaring files (workspace-relative), for languages whose
+/// imports name namespaces rather than module paths (C#).
+///
+/// Keys are FLAT namespace names exactly as stored on Module-kind symbols:
+/// dotted declarations (`namespace A.B`) and file-scoped namespaces key
+/// correctly; nested block declarations store un-dotted segment symbols and
+/// therefore never match a dotted `using` (pre-existing gap, tethys-nnst).
+/// Values are sorted by path for determinism and deliberately NOT deduped —
+/// one entry per Module symbol, preserving the historical per-declaration
+/// counting of the namespace post-pass.
+pub(crate) type NamespaceMap = HashMap<String, Vec<PathBuf>>;
 
 /// Workspace context handed to a [`ModuleResolver`].
 ///
@@ -40,6 +54,30 @@ pub(crate) struct ModuleContext<'a> {
     pub current_file: &'a Path,
     pub crates: &'a [CrateInfo],
     pub anchor: Option<PathBuf>,
+    /// Namespace→files map for namespace-import languages (C#). `None` is a
+    /// documented refusal: resolvers treat it exactly like an empty map and
+    /// decline (never panic) — Rust contexts always pass `None`.
+    pub namespaces: Option<&'a NamespaceMap>,
+}
+
+/// How the Pass-2 glob-import arm consumes a language's candidates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum GlobPolicy {
+    /// Iterate glob imports in stored order; within each, search its single
+    /// resolved file; first match wins. The pre-seam Rust behavior, verbatim.
+    FirstMatch,
+    /// Collect candidate symbols across ALL of the file's glob imports and
+    /// resolve only when exactly one candidate exists (C#: spec decisions
+    /// #3/#4 — types-only, unique-or-decline). Simple-name refs only.
+    UniqueAcrossAll,
+}
+
+/// Glob-arm semantics declared by a [`ModuleResolver`]; the driver owns the
+/// DB access, the resolver owns the policy.
+pub(crate) struct GlobResolution {
+    pub policy: GlobPolicy,
+    /// Symbol kinds the arm may match; `None` = all kinds (Rust).
+    pub kinds: Option<&'static [SymbolKind]>,
 }
 
 /// One prefix-split of a qualified reference name: candidate files in
@@ -109,6 +147,25 @@ pub(crate) trait ModuleResolver: Send + Sync {
     /// `tests/seam_lint.rs`).
     fn join_import(&self, segments: &[String]) -> String {
         segments.join(self.import_separator())
+    }
+
+    /// ALL files defining the imported module/namespace, sorted. Default:
+    /// the 0-or-1 result of [`ModuleResolver::resolve_import`] (Rust —
+    /// module paths name a single file). C# overrides via
+    /// [`ModuleContext::namespaces`] (a namespace spans many files).
+    fn resolve_import_files(&self, source_module: &str, ctx: &ModuleContext<'_>) -> Vec<PathBuf> {
+        self.resolve_import(source_module, ctx)
+            .into_iter()
+            .collect()
+    }
+
+    /// Glob-arm semantics for this language. Default is the pre-seam Rust
+    /// behavior: first match in stored-import order, any symbol kind.
+    fn glob_resolution(&self) -> GlobResolution {
+        GlobResolution {
+            policy: GlobPolicy::FirstMatch,
+            kinds: None,
+        }
     }
 
     /// Candidate lookups for a qualified reference name (canonical `::`
@@ -237,12 +294,15 @@ impl ModuleResolver for RustModuleResolver {
     }
 }
 
-/// C# module resolution: an explicit declining stub.
+/// C# module resolution: namespace-based, one-to-many (closed tethys-jwf9).
 ///
-/// C# namespaces are textual and tethys has no namespace→file index yet, so
-/// every translation declines — exactly the pre-seam behavior, where C#
-/// import paths never resolved through the Rust-only path logic. Implementing
-/// real `using`-directive resolution is tethys-jwf9.
+/// Plain `using Namespace;` directives resolve through
+/// [`ModuleContext::namespaces`] — the namespace→files map built from
+/// indexed Module-kind symbols — via [`ModuleResolver::resolve_import_files`]
+/// (a namespace spans many files, so the single-file form stays declining).
+/// The glob arm consumes candidates with `UniqueAcrossAll` + a types-only
+/// kind filter. Out of scope and tracked: `using static` / alias / global
+/// usings (tethys-usgf), nested block namespaces (tethys-nnst).
 pub(crate) struct CSharpModuleResolver;
 
 impl ModuleResolver for CSharpModuleResolver {
@@ -264,7 +324,30 @@ impl ModuleResolver for CSharpModuleResolver {
         _segments: &[String],
         _ctx: &ModuleContext<'_>,
     ) -> Option<PathBuf> {
+        // The single-file form stays declining: C# namespace semantics are
+        // one-to-many and flow exclusively through resolve_import_files.
         None
+    }
+
+    fn resolve_import_files(&self, source_module: &str, ctx: &ModuleContext<'_>) -> Vec<PathBuf> {
+        let Some(map) = ctx.namespaces else {
+            return Vec::new();
+        };
+        map.get(source_module).cloned().unwrap_or_default()
+    }
+
+    fn glob_resolution(&self) -> GlobResolution {
+        GlobResolution {
+            policy: GlobPolicy::UniqueAcrossAll,
+            // Plain usings import TYPES (spec decision #3); bare members
+            // need `using static` (tethys-usgf). No Record variant exists.
+            kinds: Some(&[
+                SymbolKind::Class,
+                SymbolKind::Struct,
+                SymbolKind::Interface,
+                SymbolKind::Enum,
+            ]),
+        }
     }
 
     fn qualified_splits(&self, _ref_name: &str, _ctx: &ModuleContext<'_>) -> Vec<QualifiedSplit> {
@@ -281,7 +364,87 @@ mod tests {
             current_file: root,
             crates: &[],
             anchor: None,
+            namespaces: None,
         }
+    }
+
+    #[test]
+    fn rust_glob_resolution_is_first_match_any_kind() {
+        let g = RustModuleResolver.glob_resolution();
+        assert_eq!(g.policy, GlobPolicy::FirstMatch);
+        assert!(g.kinds.is_none());
+    }
+
+    #[test]
+    fn csharp_glob_resolution_is_unique_types_only() {
+        let g = CSharpModuleResolver.glob_resolution();
+        assert_eq!(g.policy, GlobPolicy::UniqueAcrossAll);
+        assert_eq!(
+            g.kinds,
+            Some(
+                &[
+                    SymbolKind::Class,
+                    SymbolKind::Struct,
+                    SymbolKind::Interface,
+                    SymbolKind::Enum
+                ][..]
+            )
+        );
+    }
+
+    #[test]
+    fn csharp_resolve_import_files_none_map_is_empty_no_panic() {
+        // ctx.namespaces = None is a documented refusal (empty, not panic).
+        let root = Path::new("/ws");
+        assert!(
+            CSharpModuleResolver
+                .resolve_import_files("My.Models", &ctx(root))
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn csharp_resolve_import_files_uses_map() {
+        let root = Path::new("/ws");
+        let mut map = NamespaceMap::new();
+        map.insert(
+            "My.Models".to_string(),
+            vec![PathBuf::from("a/Models.cs"), PathBuf::from("b/More.cs")],
+        );
+        let mut c = ctx(root);
+        c.namespaces = Some(&map);
+        assert_eq!(
+            CSharpModuleResolver.resolve_import_files("My.Models", &c),
+            vec![PathBuf::from("a/Models.cs"), PathBuf::from("b/More.cs")]
+        );
+        // Cross-separator / unknown keys miss.
+        assert!(
+            CSharpModuleResolver
+                .resolve_import_files("A::B", &c)
+                .is_empty()
+        );
+        assert!(
+            CSharpModuleResolver
+                .resolve_import_files("System", &c)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn rust_resolve_import_files_default_wraps_single_resolution() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let crates = vec![make_crate(dir.path(), "app", &["db.rs"])];
+        let current = dir.path().join("app/src/lib.rs");
+        let c = rust_ctx(&current, dir.path(), &crates);
+        assert_eq!(
+            RustModuleResolver.resolve_import_files("crate::db", &c),
+            vec![dir.path().join("app/src/db.rs")]
+        );
+        assert!(
+            RustModuleResolver
+                .resolve_import_files("std::x", &c)
+                .is_empty()
+        );
     }
 
     #[test]
@@ -384,6 +547,7 @@ mod tests {
         ModuleContext {
             current_file,
             crates,
+            namespaces: None,
             anchor,
         }
     }
