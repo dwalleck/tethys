@@ -4,9 +4,10 @@
 //! module paths (from `use`/`using` statements and qualified reference
 //! prefixes) into workspace files. The *rules* for that translation are
 //! language-specific: Rust has `crate`/`self`/`super` anchors, Cargo crate
-//! roots, and an implicit-crate retry for bare paths; C# namespaces have no
-//! file mapping at all (tethys-jwf9). This trait contains those rules so the
-//! drivers in `resolve.rs` and `indexing.rs` stay language-neutral.
+//! roots, and an implicit-crate retry for bare paths; C# namespaces map
+//! one-to-many onto files via [`ModuleContext::namespaces`]. This trait
+//! contains those rules so the drivers in `resolve.rs` and `indexing.rs`
+//! stay language-neutral.
 //!
 //! Two separators exist, deliberately:
 //!
@@ -293,12 +294,15 @@ impl ModuleResolver for RustModuleResolver {
     }
 }
 
-/// C# module resolution: an explicit declining stub.
+/// C# module resolution: namespace-based, one-to-many (closed tethys-jwf9).
 ///
-/// C# namespaces are textual and tethys has no namespace→file index yet, so
-/// every translation declines — exactly the pre-seam behavior, where C#
-/// import paths never resolved through the Rust-only path logic. Implementing
-/// real `using`-directive resolution is tethys-jwf9.
+/// Plain `using Namespace;` directives resolve through
+/// [`ModuleContext::namespaces`] — the namespace→files map built from
+/// indexed Module-kind symbols — via [`ModuleResolver::resolve_import_files`]
+/// (a namespace spans many files, so the single-file form stays declining).
+/// The glob arm consumes candidates with `UniqueAcrossAll` + a types-only
+/// kind filter. Out of scope and tracked: `using static` / alias / global
+/// usings (tethys-usgf), nested block namespaces (tethys-nnst).
 pub(crate) struct CSharpModuleResolver;
 
 impl ModuleResolver for CSharpModuleResolver {

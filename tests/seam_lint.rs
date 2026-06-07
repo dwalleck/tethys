@@ -45,6 +45,21 @@ fn indexing_rs_contains_no_direct_module_path_resolution() {
     );
 }
 
+/// csharp-ns C10: the C# namespace post-pass stays deleted. C# file deps
+/// derive from resolved references (call-edge phase + namespace-corroborated
+/// cross-bucket edges); a reappearing post-pass would silently reintroduce
+/// L1 per-using edges. TDD-inversion verified at introduction: the
+/// pre-deletion tree contains 3 occurrences and fails this fence.
+#[test]
+fn csharp_namespace_post_pass_stays_deleted() {
+    assert!(
+        !INDEXING_RS.contains("resolve_csharp_dependencies"),
+        "src/indexing.rs reintroduces the C# namespace post-pass — C# file \
+         deps must derive from resolved refs under L2 semantics \
+         (csharp-ns spec decision #2)"
+    );
+}
+
 /// C10: resolver implementations are DB-free — candidate enumeration and
 /// index lookup stay separable (the driver owns all DB access). Matches
 /// the import form and the connection-handle type; `crate::db` as a

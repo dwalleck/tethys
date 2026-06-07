@@ -6,8 +6,10 @@
 //! resolver dispatch ever keys on anything other than the individual
 //! file's language (e.g., workspace-majority language), the C# import
 //! could resolve through Rust crate routing and mint a phantom
-//! `.cs -> .rs` file dependency. Correct dispatch sends C# imports to the
-//! declining stub (tethys-jwf9 tracks the real C# implementation).
+//! `.cs -> .rs` file dependency. Correct dispatch sends C# imports to
+//! `CSharpModuleResolver`, whose namespace map contains workspace C#
+//! namespaces only — `System` (the namespace) never maps to `System`
+//! (the Rust crate).
 //!
 //! Parameterized across batch and streaming modes (PR-review findings
 //! I2/I3): the two modes store imports through different copies of the
