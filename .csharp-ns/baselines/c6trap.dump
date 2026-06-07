@@ -1,0 +1,14 @@
+## files
+app/src/helper.rs|rust|22
+app/src/lib.rs|rust|56
+helper/src/lib.rs|rust|21
+## symbols
+app/src/helper.rs|unrelated|crate::helper|unrelated|function|1|1|1|22|fn unrelated()|public||0
+app/src/lib.rs|helper|crate|helper|module|1|1|1|12||private||0
+app/src/lib.rs|use_it|crate|use_it|function|2|1|4|2|fn use_it()|public||0
+helper/src/lib.rs|do_thing|crate|do_thing|function|1|1|1|21|fn do_thing()|public||0
+## refs
+app/src/lib.rs|call|3|5|-1|-1|helper::do_thing|<unresolved>|use_it
+## imports
+## file_deps
+## call_edges

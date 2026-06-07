@@ -1,0 +1,6 @@
+run1: 13347 ms
+run2: 13500 ms
+run3: 13711 ms
+run4: 13986 ms
+run5: 13534 ms
+note: incremental-target binary; authoritative C12 comparison at slice 8 uses fresh cold-target builds BOTH sides on the frozen tree (per tethys-self-index-oracle-freezing)
