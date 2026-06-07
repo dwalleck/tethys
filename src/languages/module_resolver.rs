@@ -277,7 +277,10 @@ mod tests {
     #[test]
     fn registry_dispatches_by_language() {
         assert_eq!(get_module_resolver(Language::Rust).import_separator(), "::");
-        assert_eq!(get_module_resolver(Language::CSharp).import_separator(), ".");
+        assert_eq!(
+            get_module_resolver(Language::CSharp).import_separator(),
+            "."
+        );
     }
 
     #[test]
@@ -288,7 +291,10 @@ mod tests {
     #[test]
     fn csharp_declines_simple_namespace() {
         let root = Path::new("/ws");
-        assert_eq!(CSharpModuleResolver.resolve_import("System", &ctx(root)), None);
+        assert_eq!(
+            CSharpModuleResolver.resolve_import("System", &ctx(root)),
+            None
+        );
     }
 
     #[test]
@@ -311,24 +317,26 @@ mod tests {
         // Cross-separator input (the other language's format) must decline,
         // not be misparsed into segments.
         let root = Path::new("/ws");
-        assert_eq!(CSharpModuleResolver.resolve_import("A::B", &ctx(root)), None);
+        assert_eq!(
+            CSharpModuleResolver.resolve_import("A::B", &ctx(root)),
+            None
+        );
     }
 
     #[test]
     fn csharp_qualified_splits_empty() {
         let root = Path::new("/ws");
-        assert!(CSharpModuleResolver
-            .qualified_splits("Foo::Bar", &ctx(root))
-            .is_empty());
+        assert!(
+            CSharpModuleResolver
+                .qualified_splits("Foo::Bar", &ctx(root))
+                .is_empty()
+        );
     }
 
     #[test]
     fn csharp_file_anchor_none() {
         let root = Path::new("/ws");
-        assert_eq!(
-            CSharpModuleResolver.file_anchor(root, root, &[]),
-            None
-        );
+        assert_eq!(CSharpModuleResolver.file_anchor(root, root, &[]), None);
     }
 
     // ===== RustModuleResolver =====
@@ -363,7 +371,11 @@ mod tests {
         crates: &'a [CrateInfo],
     ) -> ModuleContext<'a> {
         let anchor = RustModuleResolver.file_anchor(current_file, workspace_root, crates);
-        ModuleContext { current_file, crates, anchor }
+        ModuleContext {
+            current_file,
+            crates,
+            anchor,
+        }
     }
 
     #[test]
@@ -414,7 +426,11 @@ mod tests {
             "longest split resolves crate::db with exactly one candidate"
         );
         for s in &splits {
-            assert_eq!(s.files.len(), 1, "crate-prefixed: no implicit-crate duplicate");
+            assert_eq!(
+                s.files.len(),
+                1,
+                "crate-prefixed: no implicit-crate duplicate"
+            );
         }
         if let Some(second) = splits.get(1) {
             assert_eq!(second.tail, "db::open");
@@ -445,7 +461,11 @@ mod tests {
         let crates = vec![make_crate(dir.path(), "app", &[])];
         let current = dir.path().join("app/src/lib.rs");
         let ctx = rust_ctx(&current, dir.path(), &crates);
-        assert!(RustModuleResolver.qualified_splits("lonely", &ctx).is_empty());
+        assert!(
+            RustModuleResolver
+                .qualified_splits("lonely", &ctx)
+                .is_empty()
+        );
     }
 
     /// `resolve_import` (provided method) splits stored `source_modules` on "::".
@@ -459,7 +479,10 @@ mod tests {
             RustModuleResolver.resolve_import("crate::db", &ctx),
             Some(dir.path().join("app/src/db.rs"))
         );
-        assert_eq!(RustModuleResolver.resolve_import("std::collections", &ctx), None);
+        assert_eq!(
+            RustModuleResolver.resolve_import("std::collections", &ctx),
+            None
+        );
     }
 
     /// Orphan files (no containing crate) anchor at their parent directory —

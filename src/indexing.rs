@@ -21,10 +21,10 @@ use crate::Tethys;
 use crate::batch_writer::BatchWriter;
 use crate::db::{InsertReferenceParams, SymbolData};
 use crate::error::{Error, IndexError, IndexErrorKind, Result};
+use crate::languages::module_resolver::{ModuleContext, get_module_resolver};
 use crate::languages::{self, common};
 use crate::lsp;
 use crate::parallel::{OwnedSymbolData, ParsedFileData};
-use crate::languages::module_resolver::{ModuleContext, get_module_resolver};
 use crate::types::{
     ArchPhaseResult, FileId, Import, IndexOptions, IndexStats, Language, Span, SymbolId, SymbolKind,
 };

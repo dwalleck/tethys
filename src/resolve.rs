@@ -226,9 +226,7 @@ impl Tethys {
         // Qualified-path module fallback (rivets-044i). Only fires for refs that
         // both (a) contain `::` and (b) survived every prior path. Interprets the
         // prefix as a module path, looks the tail up in the resolved file.
-        if is_qualified
-            && let Some(symbol) = self.qualified_module_fallback(ref_name, ctx)?
-        {
+        if is_qualified && let Some(symbol) = self.qualified_module_fallback(ref_name, ctx)? {
             trace!(
                 ref_id = ref_.id,
                 ref_name = %ref_name,
@@ -371,8 +369,7 @@ impl Tethys {
         source_module: &str,
         ctx: &ResolveContext<'_>,
     ) -> Result<Option<FileId>> {
-        let Some(resolved_file) = ctx.resolver.resolve_import(source_module, ctx.module_ctx)
-        else {
+        let Some(resolved_file) = ctx.resolver.resolve_import(source_module, ctx.module_ctx) else {
             trace!(
                 source_module = %source_module,
                 "Cannot resolve module: path resolution failed (likely external crate)"
