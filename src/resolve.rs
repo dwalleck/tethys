@@ -110,6 +110,7 @@ impl Tethys {
             current_file: &current_file_path,
             crates: self.crates(),
             anchor,
+            namespaces: None,
         };
 
         // Build import structures

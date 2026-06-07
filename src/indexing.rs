@@ -920,6 +920,7 @@ impl Tethys {
             current_file,
             crates: self.crates(),
             anchor: resolver.file_anchor(current_file, &self.workspace_root, self.crates()),
+            namespaces: None,
         };
 
         // Build a set of actually referenced names (both direct names and path prefixes)
@@ -1100,6 +1101,7 @@ impl Tethys {
             current_file,
             crates: self.crates(),
             anchor: resolver.file_anchor(current_file, &self.workspace_root, self.crates()),
+            namespaces: None,
         };
 
         // Build a set of actually referenced names
@@ -1537,10 +1539,19 @@ mod tests {
             ("Scoped.cs", "namespace My.Scoped;\n\npublic class F { }\n"),
         ]);
         let map = tethys.build_namespace_map().expect("map");
-        assert!(!map.contains_key("Outer1.Inner1"), "nested dotted form must be absent");
+        assert!(
+            !map.contains_key("Outer1.Inner1"),
+            "nested dotted form must be absent"
+        );
         assert!(map.contains_key("Outer1") && map.contains_key("Inner1"));
-        assert_eq!(map["My.Models"], vec![std::path::PathBuf::from("Dotted.cs")]);
-        assert_eq!(map["My.Scoped"], vec![std::path::PathBuf::from("Scoped.cs")]);
+        assert_eq!(
+            map["My.Models"],
+            vec![std::path::PathBuf::from("Dotted.cs")]
+        );
+        assert_eq!(
+            map["My.Scoped"],
+            vec![std::path::PathBuf::from("Scoped.cs")]
+        );
     }
 
     /// Rust `mod` symbols are Module-kind too — they must be excluded
@@ -1548,7 +1559,10 @@ mod tests {
     #[test]
     fn namespace_map_excludes_rust_modules() {
         let (_dir, tethys) = indexed_workspace(&[
-            ("Cargo.toml", "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
             ("src/lib.rs", "pub mod shared;\n"),
             ("src/shared.rs", "pub fn f() {}\n"),
             ("cs/Thing.cs", "namespace Cs.Side { public class T { } }\n"),
@@ -1565,7 +1579,10 @@ mod tests {
     #[test]
     fn namespace_map_empty_for_rust_only_workspace() {
         let (_dir, tethys) = indexed_workspace(&[
-            ("Cargo.toml", "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
             ("src/lib.rs", "pub fn f() {}\n"),
         ]);
         let map = tethys.build_namespace_map().expect("map");
