@@ -850,10 +850,10 @@ impl Tethys {
         self.db.clear_imports_for_file(file_id)?;
 
         // Stored import format is owned by the language's ModuleResolver.
-        let separator = get_module_resolver(language).import_separator();
+        let resolver = get_module_resolver(language);
 
         for import in imports {
-            let source = import.path.join(separator);
+            let source = resolver.join_import(&import.path);
 
             // Handle glob imports
             if import.is_glob {
@@ -1191,6 +1191,13 @@ impl Tethys {
     ///
     /// For each C# file, look at its `using` directives and find which files
     /// declare those namespaces. Record file-level dependencies.
+    ///
+    /// This post-pass predates the `ModuleResolver` seam and is C#'s
+    /// file-level dependency mechanism while the seam's
+    /// `CSharpModuleResolver` remains a declining stub (tethys-jwf9). It
+    /// borrows the seam's `join_import` so the namespace string form has a
+    /// single owner; folding the whole mechanism into the C# resolver is
+    /// tracked at tethys-nmsp.
     fn resolve_csharp_dependencies(
         &mut self,
         namespace_map: &HashMap<String, Vec<FileId>>,
@@ -1201,8 +1208,9 @@ impl Tethys {
         let mut files_skipped_utf8: usize = 0;
         let mut files_skipped_parse: usize = 0;
 
-        // Get language support once before the loop
+        // Get language support and the module resolver once before the loop
         let lang_support = languages::get_language_support(Language::CSharp);
+        let resolver = get_module_resolver(Language::CSharp);
 
         self.parser
             .set_language(&lang_support.tree_sitter_language())
@@ -1251,8 +1259,9 @@ impl Tethys {
             let imports = lang_support.extract_imports(&tree, content_str.as_bytes());
 
             for import in &imports {
-                // Join path segments to form namespace name: ["MyApp", "Services"] -> "MyApp.Services"
-                let namespace = import.path.join(".");
+                // Join path segments into the stored namespace form via the
+                // seam: ["MyApp", "Services"] -> "MyApp.Services"
+                let namespace = resolver.join_import(&import.path);
 
                 if let Some(file_ids) = namespace_map.get(&namespace) {
                     for &dep_file_id in file_ids {

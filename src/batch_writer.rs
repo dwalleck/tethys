@@ -376,10 +376,10 @@ fn store_imports(
     db.clear_imports_for_file(file_id)?;
 
     // Stored import format is owned by the language's ModuleResolver.
-    let separator = get_module_resolver(language).import_separator();
+    let resolver = get_module_resolver(language);
 
     for import in imports {
-        let source = import.path.join(separator);
+        let source = resolver.join_import(&import.path);
 
         // Handle glob imports
         if import.is_glob {

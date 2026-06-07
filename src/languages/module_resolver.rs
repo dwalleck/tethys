@@ -101,6 +101,16 @@ pub(crate) trait ModuleResolver: Send + Sync {
         self.resolve_import_segments(&segments, ctx)
     }
 
+    /// Join import-path segments into this language's stored
+    /// `source_module` / namespace string form — the inverse of
+    /// [`ModuleResolver::resolve_import`]'s split. Every import-format
+    /// join goes through here so the format has exactly one owner
+    /// (fenced by `import_joins_go_through_the_seam` in
+    /// `tests/seam_lint.rs`).
+    fn join_import(&self, segments: &[String]) -> String {
+        segments.join(self.import_separator())
+    }
+
     /// Candidate lookups for a qualified reference name (canonical `::`
     /// form) that survived import-based resolution, longest prefix first.
     /// Owns language-specific interpretations (Rust: implicit-crate retry,
