@@ -13,8 +13,8 @@ use tracing::{debug, info, trace, warn};
 use crate::Tethys;
 use crate::error::{Error, Result};
 use crate::graph::{self, SymbolGraphOps};
+use crate::languages::module_resolver::{ModuleContext, ModuleResolver, get_module_resolver};
 use crate::lsp::{self, LspProvider};
-use crate::resolver::resolve_module_path;
 use crate::types::{
     Dependent, FileId, Import, Language, LspCompletedSession, LspOutcome, LspSessionResult,
     Reference, ReferenceKind, Symbol, SymbolId, UnresolvedRefForLsp,
@@ -28,8 +28,11 @@ pub(crate) struct ResolveContext<'a> {
     pub(crate) explicit_imports: &'a HashMap<&'a str, (&'a str, &'a str)>,
     pub(crate) glob_imports: &'a [&'a str],
     pub(crate) current_file_path: Option<&'a Path>,
-    pub(crate) src_root: &'a Path,
     pub(crate) file_id: FileId,
+    /// Per-language module resolution (the [`ModuleResolver`] seam),
+    /// selected by the file's language.
+    pub(crate) resolver: &'a dyn ModuleResolver,
+    pub(crate) module_ctx: &'a ModuleContext<'a>,
 }
 
 #[expect(
@@ -72,14 +75,15 @@ impl Tethys {
 
     /// Resolve references for a single file using its imports.
     ///
-    /// The per-file `src_root` anchor comes from [`Tethys::src_root_for_file`].
-    /// The resolver needs it so that `crate::*` paths in a sub-crate file
-    /// resolve under that crate's own source root rather than the workspace
-    /// root. For orphan files (helper falls back to the file's parent),
-    /// `crate::*` becomes a semantic no-op as in Rust itself; `self::`/`super::`
-    /// arms keep working off `current_file` directly, and the path-agnostic
-    /// `fallback_symbol_search` still has a chance to resolve qualified
-    /// references via `get_symbol_by_qualified_name`.
+    /// The per-file anchor comes from [`ModuleResolver::file_anchor`] (for
+    /// Rust, the crate's source root) so that `crate::*` paths in a
+    /// sub-crate file resolve under that crate's own source root rather
+    /// than the workspace root. For orphan files (anchor falls back to the
+    /// file's parent), `crate::*` becomes a semantic no-op as in Rust
+    /// itself; `self::`/`super::` arms keep working off `current_file`
+    /// directly, and the path-agnostic `fallback_symbol_search` still has a
+    /// chance to resolve qualified references via
+    /// `get_symbol_by_qualified_name`.
     fn resolve_refs_for_file(&self, file_id: FileId, refs: Vec<Reference>) -> Result<usize> {
         let imports = self.db.get_imports_for_file(file_id)?;
         // Do NOT short-circuit on imports.is_empty(): try_resolve_reference's
@@ -98,9 +102,15 @@ impl Tethys {
         };
         let current_file_path = self.workspace_root.join(&file_record.path);
 
-        // `file_id` is not forwarded to the helper's `debug!`; recover it via
-        // path lookup during incident triage if needed.
-        let src_root = self.src_root_for_file(&current_file_path, "resolve_refs_for_file");
+        // Per-language module resolution, selected by the file's language.
+        let module_resolver = get_module_resolver(file_record.language);
+        let anchor =
+            module_resolver.file_anchor(&current_file_path, &self.workspace_root, self.crates());
+        let module_ctx = ModuleContext {
+            current_file: &current_file_path,
+            crates: self.crates(),
+            anchor,
+        };
 
         // Build import structures
         let (explicit_imports, glob_imports) = Self::build_import_maps(&imports);
@@ -109,8 +119,9 @@ impl Tethys {
             explicit_imports: &explicit_imports,
             glob_imports: &glob_imports,
             current_file_path: Some(&current_file_path),
-            src_root: &src_root,
             file_id,
+            resolver: module_resolver,
+            module_ctx: &module_ctx,
         };
 
         let mut resolved_count = 0;
@@ -168,13 +179,7 @@ impl Tethys {
         let is_qualified = ref_name.contains("::");
 
         // Try explicit imports
-        if let Some(symbol) = self.resolve_via_explicit_import(
-            ref_name,
-            ctx.explicit_imports,
-            ctx.current_file_path,
-            ctx.src_root,
-            is_qualified,
-        )? {
+        if let Some(symbol) = self.resolve_via_explicit_import(ref_name, ctx, is_qualified)? {
             trace!(
                 ref_id = ref_.id,
                 ref_name = %ref_name,
@@ -187,13 +192,9 @@ impl Tethys {
 
         // Try glob imports
         for source_module in ctx.glob_imports {
-            if let Some(symbol) = self.resolve_symbol_in_module(
-                ref_name,
-                source_module,
-                ctx.current_file_path,
-                ctx.src_root,
-                is_qualified,
-            )? {
+            if let Some(symbol) =
+                self.resolve_symbol_in_module(ref_name, source_module, ctx, is_qualified)?
+            {
                 trace!(
                     ref_id = ref_.id,
                     ref_name = %ref_name,
@@ -225,10 +226,7 @@ impl Tethys {
         // Qualified-path module fallback (rivets-044i). Only fires for refs that
         // both (a) contain `::` and (b) survived every prior path. Interprets the
         // prefix as a module path, looks the tail up in the resolved file.
-        if is_qualified
-            && let Some(symbol) =
-                self.qualified_module_fallback(ref_name, ctx.current_file_path, ctx.src_root)?
-        {
+        if is_qualified && let Some(symbol) = self.qualified_module_fallback(ref_name, ctx)? {
             trace!(
                 ref_id = ref_.id,
                 ref_name = %ref_name,
@@ -247,104 +245,59 @@ impl Tethys {
         Ok(false)
     }
 
-    /// Resolve a qualified reference by interpreting its prefix as a module
-    /// path and querying the resulting file for the tail symbol (rivets-044i).
+    /// Resolve a qualified reference via the file's [`ModuleResolver`]
+    /// candidate enumeration (rivets-044i).
     ///
     /// Used after every import-based and same-crate fallback has missed. The
-    /// existing `get_symbol_by_qualified_name` literal-string match cannot
-    /// resolve refs like `helper::do_thing` from an import-less file because
-    /// stored `symbols.qualified_name` is module-stripped (free fns store
-    /// `name`; methods store `parent_name::name`). This method bridges that
-    /// gap by translating the prefix to a `file_id` via
-    /// [`resolve_module_path`] and then looking up the tail in that specific
-    /// file.
+    /// literal `get_symbol_by_qualified_name` match cannot resolve refs like
+    /// `helper::do_thing` from an import-less file because stored
+    /// `symbols.qualified_name` is module-stripped (free fns store `name`;
+    /// methods store `parent_name::name`). The resolver bridges that gap by
+    /// enumerating prefix-splits (longest first), each carrying candidate
+    /// files in priority order — for Rust, the implicit-crate interpretation
+    /// before the as-written one; see
+    /// [`RustModuleResolver::qualified_splits`](crate::languages::module_resolver::RustModuleResolver).
     ///
-    /// Tries each prefix split from longest to shortest. For each split,
-    /// attempts two interpretations in order:
-    /// 1. **Implicit-crate**: prepend `crate::` (skipped when the first
-    ///    segment is already `crate`/`self`/`super`). This handles Rust 2018+
-    ///    paths like `helper::foo` from an import-less file in the same crate.
-    /// 2. **As-written**: the prefix passed through unchanged. This lets the
-    ///    `crate::`/`self::`/`super::`/workspace-crate arms of
-    ///    [`resolve_module_path`] fire.
+    /// Driver contract (claim C6, fenced by the `qualified_split_trap`
+    /// integration test): within a split, the first candidate file present
+    /// in the index claims it; if the tail symbol is then missing in that
+    /// file, the split is abandoned — remaining candidates are NOT tried.
+    /// This preserves the pre-seam interleaving of candidate generation and
+    /// index lookup, including its bounded-ambiguity acceptance (design-v3
+    /// C5/C6): a phantom resolution still requires both a colliding file
+    /// path and a colliding tail symbol.
     ///
-    /// Returns `Ok(None)` for: unqualified names, `current_file_path = None`,
-    /// external-crate prefixes that `resolve_module_path` can't translate,
-    /// and any ref whose tail doesn't match a symbol in the resolved file.
-    ///
-    /// # Acceptable ambiguity
-    ///
-    /// When a workspace contains both `<crate_root>/<seg>.rs` AND a sibling
-    /// module file along the same prefix, Interpretation A (the implicit-crate
-    /// retry) wins because [`resolve_module_path`] returns the first on-disk
-    /// match. The resolved tail must additionally exist in that file as a
-    /// symbol with the exact `qualified_name` produced by the indexer, so a
-    /// phantom resolution requires *both* a colliding file path *and* a
-    /// colliding tail symbol — the same bounded-ambiguity class as
-    /// `fallback_symbol_search`'s same-crate prefix arm, and accepted under
-    /// design-v3 C5/C6.
+    /// Returns `Ok(None)` for unqualified names (the resolver yields no
+    /// splits), external-crate prefixes, and refs whose tail matches no
+    /// symbol in any claimed file.
     fn qualified_module_fallback(
         &self,
         ref_name: &str,
-        current_file_path: Option<&Path>,
-        src_root: &Path,
+        ctx: &ResolveContext<'_>,
     ) -> Result<Option<Symbol>> {
-        // `current_file_path` is Option because Pass-2 sometimes lacks a path
-        // for synthetic refs; silent decline keeps resolution best-effort
-        // rather than panicking on a propagated None.
-        let Some(current_file) = current_file_path else {
-            return Ok(None);
-        };
-
-        let segments: Vec<&str> = ref_name.split("::").collect();
-        // Defense-in-depth: the `is_qualified` gate at the only current call
-        // site guarantees `segments.len() >= 2`. Hand-rolled future callers
-        // get a safe decline instead of an empty-loop silent success.
-        if segments.len() < 2 {
-            return Ok(None);
-        }
-
-        let crates = self.crates();
-        for split in (1..segments.len()).rev() {
-            let prefix = &segments[..split];
-            let tail = segments[split..].join("::");
-
-            let mut file_id = None;
-
-            if !matches!(prefix[0], "crate" | "self" | "super") {
-                let mut with_crate: Vec<String> = Vec::with_capacity(prefix.len() + 1);
-                with_crate.push("crate".to_string());
-                with_crate.extend(prefix.iter().map(|s| (*s).to_string()));
-                if let Some(resolved) =
-                    resolve_module_path(&with_crate, current_file, src_root, crates)
-                {
-                    let relative = self.relative_path(&resolved);
-                    file_id = self.db.get_file_id(&relative)?;
+        for split in ctx.resolver.qualified_splits(ref_name, ctx.module_ctx) {
+            let mut claimed = None;
+            for file in &split.files {
+                let relative = self.relative_path(file);
+                if let Some(file_id) = self.db.get_file_id(&relative)? {
+                    claimed = Some(file_id);
+                    break;
                 }
             }
+            let Some(file_id) = claimed else { continue };
 
-            if file_id.is_none() {
-                let as_owned: Vec<String> = prefix.iter().map(|s| (*s).to_string()).collect();
-                if let Some(resolved) =
-                    resolve_module_path(&as_owned, current_file, src_root, crates)
-                {
-                    let relative = self.relative_path(&resolved);
-                    file_id = self.db.get_file_id(&relative)?;
-                }
-            }
-
-            let Some(file_id) = file_id else { continue };
             if let Some(sym) = self
                 .db
-                .search_symbol_by_qualified_name_in_file(&tail, file_id)?
+                .search_symbol_by_qualified_name_in_file(&split.tail, file_id)?
             {
                 return Ok(Some(sym));
             }
+            // Tail miss: abandon this split without trying its remaining
+            // candidates (driver contract, claim C6).
         }
 
         trace!(
             ref_name = %ref_name,
-            segments = segments.len(),
             "qualified_module_fallback: no prefix split resolved"
         );
         Ok(None)
@@ -357,9 +310,7 @@ impl Tethys {
     fn resolve_via_explicit_import(
         &self,
         ref_name: &str,
-        explicit_imports: &HashMap<&str, (&str, &str)>,
-        current_file_path: Option<&Path>,
-        src_root: &Path,
+        ctx: &ResolveContext<'_>,
         is_qualified: bool,
     ) -> Result<Option<Symbol>> {
         let lookup_name = if is_qualified {
@@ -370,7 +321,7 @@ impl Tethys {
             ref_name
         };
 
-        let Some((symbol_name, source_module)) = explicit_imports.get(lookup_name) else {
+        let Some((symbol_name, source_module)) = ctx.explicit_imports.get(lookup_name) else {
             return Ok(None);
         };
 
@@ -385,13 +336,7 @@ impl Tethys {
             (*symbol_name).to_string()
         };
 
-        self.resolve_symbol_in_module(
-            &search_name,
-            source_module,
-            current_file_path,
-            src_root,
-            is_qualified,
-        )
+        self.resolve_symbol_in_module(&search_name, source_module, ctx, is_qualified)
     }
 
     /// Resolve a symbol within a specific module (source path).
@@ -402,13 +347,10 @@ impl Tethys {
         &self,
         symbol_name: &str,
         source_module: &str,
-        current_file_path: Option<&Path>,
-        src_root: &Path,
+        ctx: &ResolveContext<'_>,
         use_qualified_search: bool,
     ) -> Result<Option<Symbol>> {
-        let Some(target_file_id) =
-            self.resolve_module_to_file_id(source_module, current_file_path, src_root)?
-        else {
+        let Some(target_file_id) = self.resolve_module_to_file_id(source_module, ctx)? else {
             return Ok(None);
         };
 
@@ -420,26 +362,14 @@ impl Tethys {
         }
     }
 
-    /// Translate a module path (e.g., `crate::db`) to a file ID.
+    /// Translate a stored import module path (e.g., `crate::db`) to a file ID
+    /// via the file's [`ModuleResolver`].
     fn resolve_module_to_file_id(
         &self,
         source_module: &str,
-        current_file_path: Option<&Path>,
-        src_root: &Path,
+        ctx: &ResolveContext<'_>,
     ) -> Result<Option<FileId>> {
-        let Some(current_path) = current_file_path else {
-            trace!(
-                source_module = %source_module,
-                "Cannot resolve module: no current file path"
-            );
-            return Ok(None);
-        };
-
-        let path_segments: Vec<String> = source_module.split("::").map(String::from).collect();
-
-        let Some(resolved_file) =
-            resolve_module_path(&path_segments, current_path, src_root, self.crates())
-        else {
+        let Some(resolved_file) = ctx.resolver.resolve_import(source_module, ctx.module_ctx) else {
             trace!(
                 source_module = %source_module,
                 "Cannot resolve module: path resolution failed (likely external crate)"

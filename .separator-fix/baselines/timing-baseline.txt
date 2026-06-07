@@ -1,0 +1,4 @@
+run1: 10927 ms
+run2: 12044 ms
+run3: 12754 ms
+median = 12044 ms (debug build). Spread 10927-12754 (~±8%): Slice-8 comparison must use median of >=5 reps; noise floor noted.

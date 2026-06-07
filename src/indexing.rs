@@ -21,10 +21,10 @@ use crate::Tethys;
 use crate::batch_writer::BatchWriter;
 use crate::db::{InsertReferenceParams, SymbolData};
 use crate::error::{Error, IndexError, IndexErrorKind, Result};
+use crate::languages::module_resolver::{ModuleContext, get_module_resolver};
 use crate::languages::{self, common};
 use crate::lsp;
 use crate::parallel::{OwnedSymbolData, ParsedFileData};
-use crate::resolver::resolve_module_path;
 use crate::types::{
     ArchPhaseResult, FileId, Import, IndexOptions, IndexStats, Language, Span, SymbolId, SymbolKind,
 };
@@ -724,6 +724,7 @@ impl Tethys {
         self.compute_dependencies(
             &full_path,
             file_id,
+            data.language,
             &data.imports,
             &data.references,
             pending,
@@ -848,14 +849,11 @@ impl Tethys {
         // Clear old imports for this file (for re-indexing)
         self.db.clear_imports_for_file(file_id)?;
 
-        // Determine path separator based on language
-        let separator = match language {
-            Language::Rust => "::",
-            Language::CSharp => ".",
-        };
+        // Stored import format is owned by the language's ModuleResolver.
+        let resolver = get_module_resolver(language);
 
         for import in imports {
-            let source = import.path.join(separator);
+            let source = resolver.join_import(&import.path);
 
             // Handle glob imports
             if import.is_glob {
@@ -896,22 +894,33 @@ impl Tethys {
     /// Dependencies that can't be resolved (target file not yet indexed) are added to
     /// `pending` for retry in subsequent passes.
     ///
-    /// The per-file `src_root` anchor is derived by [`Tethys::src_root_for_file`],
-    /// which falls back to the file's parent directory for files outside any
-    /// known crate. In such cases `crate::*` paths have no valid anchor, but
-    /// `self::`/`super::` (resolved off `current_file` directly) continue to
-    /// produce dep edges.
+    /// The per-file anchor is derived by
+    /// [`ModuleResolver::file_anchor`](crate::languages::module_resolver::ModuleResolver::file_anchor)
+    /// and import resolution is dispatched per the file's language. For
+    /// Rust files the anchor is the crate's source root (orphan files fall
+    /// back to the file's parent directory, where `crate::*` paths have no
+    /// valid anchor but `self::`/`super::` — resolved off `current_file`
+    /// directly — continue to produce dep edges). Languages whose resolver
+    /// declines (e.g. C#'s stub, tethys-jwf9) record no import-based edges
+    /// here; C# file deps come from the namespace-map post-pass instead
+    /// (see `resolve_csharp_dependencies`).
     fn compute_dependencies(
         &self,
         current_file: &Path,
         file_id: FileId,
+        language: Language,
         imports: &[common::ImportStatement],
         refs: &[common::ExtractedReference],
         pending: &mut Vec<PendingDependency>,
     ) -> Result<()> {
         use std::collections::HashSet;
 
-        let src_root = self.src_root_for_file(current_file, "compute_dependencies");
+        let resolver = get_module_resolver(language);
+        let module_ctx = ModuleContext {
+            current_file,
+            crates: self.crates(),
+            anchor: resolver.file_anchor(current_file, &self.workspace_root, self.crates()),
+        };
 
         // Build a set of actually referenced names (both direct names and path prefixes)
         let mut referenced_names: HashSet<&str> = HashSet::new();
@@ -946,8 +955,7 @@ impl Tethys {
             }
 
             // Resolve the module path to a file
-            if let Some(resolved) =
-                resolve_module_path(&import_stmt.path, current_file, &src_root, self.crates())
+            if let Some(resolved) = resolver.resolve_import_segments(&import_stmt.path, &module_ctx)
             {
                 // Make the path relative to workspace root
                 let dep_path = self.relative_path(&resolved).to_path_buf();
@@ -1010,6 +1018,7 @@ impl Tethys {
             self.compute_dependencies_from_stored(
                 &full_path,
                 file.id,
+                file.language,
                 &import_statements,
                 &ref_names,
                 pending,
@@ -1044,10 +1053,7 @@ impl Tethys {
                 .push(import);
         }
 
-        let separator = match language {
-            Language::Rust => "::",
-            Language::CSharp => ".",
-        };
+        let separator = get_module_resolver(language).import_separator();
 
         grouped
             .into_iter()
@@ -1076,18 +1082,25 @@ impl Tethys {
     ///
     /// Similar to `compute_dependencies` but takes pre-processed data rather than
     /// `ExtractedReference` objects. Used in streaming mode. See
-    /// [`Tethys::src_root_for_file`] for the per-file anchor contract.
+    /// [`ModuleResolver::file_anchor`](crate::languages::module_resolver::ModuleResolver::file_anchor)
+    /// for the per-file anchor contract.
     fn compute_dependencies_from_stored(
         &self,
         current_file: &Path,
         file_id: FileId,
+        language: Language,
         imports: &[common::ImportStatement],
         reference_names: &[String],
         pending: &mut Vec<PendingDependency>,
     ) -> Result<()> {
         use std::collections::HashSet;
 
-        let src_root = self.src_root_for_file(current_file, "compute_dependencies_from_stored");
+        let resolver = get_module_resolver(language);
+        let module_ctx = ModuleContext {
+            current_file,
+            crates: self.crates(),
+            anchor: resolver.file_anchor(current_file, &self.workspace_root, self.crates()),
+        };
 
         // Build a set of actually referenced names
         let refs_set: HashSet<&str> = reference_names.iter().map(String::as_str).collect();
@@ -1108,8 +1121,7 @@ impl Tethys {
                 continue;
             }
 
-            if let Some(resolved) =
-                resolve_module_path(&import_stmt.path, current_file, &src_root, self.crates())
+            if let Some(resolved) = resolver.resolve_import_segments(&import_stmt.path, &module_ctx)
             {
                 let dep_path = self.relative_path(&resolved).to_path_buf();
                 depended_files.insert(dep_path);
@@ -1183,6 +1195,13 @@ impl Tethys {
     ///
     /// For each C# file, look at its `using` directives and find which files
     /// declare those namespaces. Record file-level dependencies.
+    ///
+    /// This post-pass predates the `ModuleResolver` seam and is C#'s
+    /// file-level dependency mechanism while the seam's
+    /// `CSharpModuleResolver` remains a declining stub (tethys-jwf9). It
+    /// borrows the seam's `join_import` so the namespace string form has a
+    /// single owner; folding the whole mechanism into the C# resolver is
+    /// tracked at tethys-nmsp.
     fn resolve_csharp_dependencies(
         &mut self,
         namespace_map: &HashMap<String, Vec<FileId>>,
@@ -1193,8 +1212,9 @@ impl Tethys {
         let mut files_skipped_utf8: usize = 0;
         let mut files_skipped_parse: usize = 0;
 
-        // Get language support once before the loop
+        // Get language support and the module resolver once before the loop
         let lang_support = languages::get_language_support(Language::CSharp);
+        let resolver = get_module_resolver(Language::CSharp);
 
         self.parser
             .set_language(&lang_support.tree_sitter_language())
@@ -1243,8 +1263,9 @@ impl Tethys {
             let imports = lang_support.extract_imports(&tree, content_str.as_bytes());
 
             for import in &imports {
-                // Join path segments to form namespace name: ["MyApp", "Services"] -> "MyApp.Services"
-                let namespace = import.path.join(".");
+                // Join path segments into the stored namespace form via the
+                // seam: ["MyApp", "Services"] -> "MyApp.Services"
+                let namespace = resolver.join_import(&import.path);
 
                 if let Some(file_ids) = namespace_map.get(&namespace) {
                     for &dep_file_id in file_ids {

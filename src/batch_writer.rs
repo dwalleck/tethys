@@ -49,6 +49,7 @@ use tracing::{debug, error, trace, warn};
 use crate::db::{Index, InsertReferenceParams, SymbolData};
 use crate::error::{Error, Result};
 use crate::languages::common::{ExtractedReference, ImportStatement};
+use crate::languages::module_resolver::get_module_resolver;
 use crate::parallel::OwnedSymbolData;
 use crate::parallel::ParsedFileData;
 use crate::types::{FileId, Language, Span, SymbolId};
@@ -374,14 +375,11 @@ fn store_imports(
 ) -> Result<()> {
     db.clear_imports_for_file(file_id)?;
 
-    // Determine path separator based on language
-    let separator = match language {
-        Language::Rust => "::",
-        Language::CSharp => ".",
-    };
+    // Stored import format is owned by the language's ModuleResolver.
+    let resolver = get_module_resolver(language);
 
     for import in imports {
-        let source = import.path.join(separator);
+        let source = resolver.join_import(&import.path);
 
         // Handle glob imports
         if import.is_glob {
