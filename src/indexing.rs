@@ -896,10 +896,14 @@ impl Tethys {
     ///
     /// The per-file anchor is derived by
     /// [`ModuleResolver::file_anchor`](crate::languages::module_resolver::ModuleResolver::file_anchor)
-    /// (for Rust, the crate's source root, falling back to the file's parent
-    /// directory for files outside any known crate). In the fallback case
-    /// `crate::*` paths have no valid anchor, but `self::`/`super::`
-    /// (resolved off `current_file` directly) continue to produce dep edges.
+    /// and import resolution is dispatched per the file's language. For
+    /// Rust files the anchor is the crate's source root (orphan files fall
+    /// back to the file's parent directory, where `crate::*` paths have no
+    /// valid anchor but `self::`/`super::` — resolved off `current_file`
+    /// directly — continue to produce dep edges). Languages whose resolver
+    /// declines (e.g. C#'s stub, tethys-jwf9) record no import-based edges
+    /// here; C# file deps come from the namespace-map post-pass instead
+    /// (see `resolve_csharp_dependencies`).
     fn compute_dependencies(
         &self,
         current_file: &Path,
