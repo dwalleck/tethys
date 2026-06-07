@@ -124,6 +124,14 @@ impl Index {
         // Acquires and releases the connection guard internally.
         let imports_per_file = self.build_imports_per_file_crate(file_crate_map)?;
 
+        // C# namespace corroboration (csharp-ns claim C9): a cross-bucket
+        // C#→C# edge is corroborated when the caller file imports a
+        // namespace DECLARED in the callee file — the using directive is the
+        // import corroboration, exactly parallel to the Rust crate-prefix
+        // check below. Acquires and releases the guard internally.
+        let (csharp_decls_per_file, csharp_usings_per_file) =
+            self.build_csharp_namespace_corroboration()?;
+
         // Re-acquire the connection (with mutable access for the transaction)
         // and wrap the insert loop in an explicit transaction. The project
         // pattern (see `files.rs::upsert_file_with_symbols`, `architecture.rs::
@@ -142,9 +150,19 @@ impl Index {
 
             let keep = match (from_crate, to_crate) {
                 (Some(a), Some(b)) if a == b => true,
-                (Some(_), Some(b)) => imports_per_file
-                    .get(&from_file)
-                    .is_some_and(|imports| imports.contains(b)),
+                (Some(_), Some(b)) => {
+                    imports_per_file
+                        .get(&from_file)
+                        .is_some_and(|imports| imports.contains(b))
+                        // C# arm: the caller's usings intersect the callee's
+                        // declared namespaces (both maps are empty for
+                        // non-C# files, so Rust edges never take this path).
+                        || csharp_usings_per_file.get(&from_file).is_some_and(|usings| {
+                            csharp_decls_per_file
+                                .get(&to_file)
+                                .is_some_and(|decls| !usings.is_disjoint(decls))
+                        })
+                }
                 _ => {
                     warn!(
                         from_file_id = from_fid_i64,
@@ -197,6 +215,60 @@ impl Index {
     /// pseudo-crate per top-level directory (no `.csproj` discovery), so
     /// the C# handling is mainly future-proofing for when multi-project
     /// C# workspace support lands.
+    /// Per-file C# namespace data for the K-hybrid corroboration arm:
+    /// `(file → namespaces it DECLARES, file → namespaces it IMPORTS)`.
+    ///
+    /// Shaped from the same Module-symbol data as
+    /// `Tethys::build_namespace_map`, inverted for edge-wise lookup. Both
+    /// maps are empty for non-C# files, so Rust edges can never satisfy the
+    /// corroboration arm. Acquires and releases the connection guard
+    /// internally (the caller opens its own transaction afterwards).
+    #[expect(clippy::type_complexity, reason = "paired per-file maps, used once")]
+    fn build_csharp_namespace_corroboration(
+        &self,
+    ) -> Result<(
+        HashMap<FileId, HashSet<String>>,
+        HashMap<FileId, HashSet<String>>,
+    )> {
+        let conn = self.connection()?;
+
+        let mut decls: HashMap<FileId, HashSet<String>> = HashMap::new();
+        let mut stmt = conn.prepare(
+            "SELECT s.file_id, s.name FROM symbols s
+             JOIN files f ON f.id = s.file_id
+             WHERE s.kind = 'module' AND f.language = 'csharp'",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                FileId::from(row.get::<_, i64>(0)?),
+                row.get::<_, String>(1)?,
+            ))
+        })?;
+        for row in rows {
+            let (fid, name) = row?;
+            decls.entry(fid).or_default().insert(name);
+        }
+
+        let mut usings: HashMap<FileId, HashSet<String>> = HashMap::new();
+        let mut stmt = conn.prepare(
+            "SELECT i.file_id, i.source_module FROM imports i
+             JOIN files f ON f.id = i.file_id
+             WHERE i.symbol_name = '*' AND f.language = 'csharp'",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                FileId::from(row.get::<_, i64>(0)?),
+                row.get::<_, String>(1)?,
+            ))
+        })?;
+        for row in rows {
+            let (fid, source_module) = row?;
+            usings.entry(fid).or_default().insert(source_module);
+        }
+
+        Ok((decls, usings))
+    }
+
     fn build_imports_per_file_crate(
         &self,
         file_crate_map: &HashMap<FileId, String>,
