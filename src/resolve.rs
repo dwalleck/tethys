@@ -13,7 +13,9 @@ use tracing::{debug, info, trace, warn};
 use crate::Tethys;
 use crate::error::{Error, Result};
 use crate::graph::{self, SymbolGraphOps};
-use crate::languages::module_resolver::{ModuleContext, ModuleResolver, get_module_resolver};
+use crate::languages::module_resolver::{
+    GlobPolicy, ModuleContext, ModuleResolver, NamespaceMap, get_module_resolver,
+};
 use crate::lsp::{self, LspProvider};
 use crate::types::{
     Dependent, FileId, Import, Language, LspCompletedSession, LspOutcome, LspSessionResult,
@@ -60,6 +62,10 @@ impl Tethys {
 
         let mut resolved_count = 0;
 
+        // Namespace→files map for the C# using-arm, built once per resolve
+        // run (one Module-kind query; empty for Rust-only workspaces).
+        let namespace_map = self.build_namespace_map()?;
+
         // Group by file for efficiency - avoids repeated import lookups
         let mut by_file: HashMap<FileId, Vec<Reference>> = HashMap::new();
         for ref_ in unresolved {
@@ -67,7 +73,7 @@ impl Tethys {
         }
 
         for (file_id, refs) in by_file {
-            resolved_count += self.resolve_refs_for_file(file_id, refs)?;
+            resolved_count += self.resolve_refs_for_file(file_id, refs, &namespace_map)?;
         }
 
         Ok(resolved_count)
@@ -84,7 +90,12 @@ impl Tethys {
     /// directly, and the path-agnostic `fallback_symbol_search` still has a
     /// chance to resolve qualified references via
     /// `get_symbol_by_qualified_name`.
-    fn resolve_refs_for_file(&self, file_id: FileId, refs: Vec<Reference>) -> Result<usize> {
+    fn resolve_refs_for_file(
+        &self,
+        file_id: FileId,
+        refs: Vec<Reference>,
+        namespace_map: &NamespaceMap,
+    ) -> Result<usize> {
         let imports = self.db.get_imports_for_file(file_id)?;
         // Do NOT short-circuit on imports.is_empty(): try_resolve_reference's
         // fallback_symbol_search (same-crate prefix + unscoped unique lookup) and
@@ -110,7 +121,8 @@ impl Tethys {
             current_file: &current_file_path,
             crates: self.crates(),
             anchor,
-            namespaces: None,
+            // Namespace-import languages get the map; Rust contexts stay None.
+            namespaces: (file_record.language == Language::CSharp).then_some(namespace_map),
         };
 
         // Build import structures
@@ -191,20 +203,59 @@ impl Tethys {
             return Ok(true);
         }
 
-        // Try glob imports
-        for source_module in ctx.glob_imports {
-            if let Some(symbol) =
-                self.resolve_symbol_in_module(ref_name, source_module, ctx, is_qualified)?
-            {
-                trace!(
-                    ref_id = ref_.id,
-                    ref_name = %ref_name,
-                    symbol_id = %symbol.id,
-                    "Resolved reference via glob import"
-                );
-                self.db.resolve_reference(ref_.id, symbol.id)?;
-                return Ok(true);
+        // Try glob imports — consumption semantics are declared by the
+        // language's resolver (GlobResolution).
+        let glob = ctx.resolver.glob_resolution();
+        match glob.policy {
+            GlobPolicy::FirstMatch => {
+                // Pre-seam behavior, verbatim: iterate stored order, first
+                // match wins, any symbol kind.
+                for source_module in ctx.glob_imports {
+                    if let Some(symbol) =
+                        self.resolve_symbol_in_module(ref_name, source_module, ctx, is_qualified)?
+                    {
+                        trace!(
+                            ref_id = ref_.id,
+                            ref_name = %ref_name,
+                            symbol_id = %symbol.id,
+                            "Resolved reference via glob import"
+                        );
+                        self.db.resolve_reference(ref_.id, symbol.id)?;
+                        return Ok(true);
+                    }
+                }
             }
+            // C# using-arm: candidates collected across ALL of the file's
+            // usings, one kind-filtered unique-or-decline lookup (spec
+            // decisions #3/#4). Simple names only — qualified refs keep
+            // their pre-existing path through the fallback arms, so no
+            // resolution-order change can flip an existing target.
+            GlobPolicy::UniqueAcrossAll if !is_qualified => {
+                let mut candidate_files = Vec::new();
+                for source_module in ctx.glob_imports {
+                    candidate_files.extend(
+                        ctx.resolver
+                            .resolve_import_files(source_module, ctx.module_ctx),
+                    );
+                }
+                if let Some(symbol) = self.db.search_unique_symbol_by_name_in_files(
+                    ref_name,
+                    glob.kinds,
+                    &candidate_files,
+                )? {
+                    trace!(
+                        ref_id = ref_.id,
+                        ref_name = %ref_name,
+                        symbol_id = %symbol.id,
+                        "Resolved reference via namespace imports"
+                    );
+                    self.db.resolve_reference(ref_.id, symbol.id)?;
+                    return Ok(true);
+                }
+            }
+            // Qualified ref under UniqueAcrossAll: decline here; the
+            // qualified fallback arms below handle it exactly as before.
+            GlobPolicy::UniqueAcrossAll => {}
         }
 
         // Fallback search differs for qualified vs simple names. The caller's

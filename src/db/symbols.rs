@@ -335,13 +335,6 @@ impl Index {
     ///
     /// `file_paths` are chunked (500 per query) to stay clear of `SQLite`'s
     /// host-parameter limit; uniqueness is aggregated ACROSS chunks.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the resolve.rs glob-arm driver wires this in the next slice, at which point this expectation must be removed"
-        )
-    )]
     pub fn search_unique_symbol_by_name_in_files(
         &self,
         name: &str,

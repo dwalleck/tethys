@@ -22,14 +22,6 @@
 //! Database lookups stay in the drivers, which keeps candidate enumeration
 //! and index state separable (and testable without a DB).
 
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "GlobResolution/ctx.namespaces land dark; the resolve.rs glob-arm driver wires them in the next slices, at which point this expectation must be removed"
-    )
-)]
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
