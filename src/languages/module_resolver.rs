@@ -495,6 +495,28 @@ mod tests {
         );
     }
 
+    /// Symmetric negatives to the C# stub tests: the Rust resolver declines
+    /// cross-separator and degenerate inputs rather than misparsing them.
+    #[test]
+    fn rust_resolve_import_declines_cross_separator_and_degenerate_inputs() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let crates = vec![make_crate(dir.path(), "app", &["db.rs"])];
+        let current = dir.path().join("app/src/lib.rs");
+        let ctx = rust_ctx(&current, dir.path(), &crates);
+
+        // The OTHER language's separator: one opaque segment, no crate match.
+        assert_eq!(
+            RustModuleResolver.resolve_import("MyApp.Models", &ctx),
+            None
+        );
+        // Trailing separator: empty tail segment resolves to no file.
+        assert_eq!(RustModuleResolver.resolve_import("crate::", &ctx), None);
+        // Leading separator: empty head segment matches no crate/keyword.
+        assert_eq!(RustModuleResolver.resolve_import("::db", &ctx), None);
+        // Empty input: documented refusal in the provided method.
+        assert_eq!(RustModuleResolver.resolve_import("", &ctx), None);
+    }
+
     /// Orphan files (no containing crate) anchor at their parent directory —
     /// the documented sentinel.
     #[test]

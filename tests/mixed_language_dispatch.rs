@@ -1,5 +1,5 @@
 //! Regression fence for per-file `ModuleResolver` dispatch (separator-fix
-//! claim C5's stress shape).
+//! claim C5's stress shape) and for C# import storage format.
 //!
 //! The fixture is adversarial by name collision: a Rust workspace crate
 //! literally named `System` next to a C# file with `using System;`. If
@@ -8,15 +8,29 @@
 //! could resolve through Rust crate routing and mint a phantom
 //! `.cs -> .rs` file dependency. Correct dispatch sends C# imports to the
 //! declining stub (tethys-jwf9 tracks the real C# implementation).
+//!
+//! Parameterized across batch and streaming modes (PR-review findings
+//! I2/I3): the two modes store imports through different copies of the
+//! separator logic (`Tethys::store_imports` vs the batch writer's) and
+//! compute dependencies through different paths (`compute_dependencies`
+//! vs `compute_dependencies_from_stored`). A C#-separator or dispatch
+//! regression in the streaming copies would be invisible to batch-only
+//! assertions.
 
+use rstest::rstest;
 use rusqlite::params;
+use tethys::IndexOptions;
 
 mod common;
 
 use common::{open_db, workspace_with_files};
 
-#[test]
-fn csharp_imports_never_resolve_through_rust_crate_routing() {
+#[rstest]
+#[case::batch(IndexOptions::default)]
+#[case::streaming(IndexOptions::with_streaming)]
+fn csharp_imports_never_resolve_through_rust_crate_routing(
+    #[case] options_factory: fn() -> IndexOptions,
+) {
     let (_dir, mut tethys) = workspace_with_files(&[
         (
             "Cargo.toml",
@@ -40,6 +54,7 @@ edition = "2021"
             "cs/App.cs",
             r#"
 using System;
+using My.Models;
 
 namespace App
 {
@@ -50,9 +65,20 @@ namespace App
 }
 "#,
         ),
+        (
+            "cs/Models.cs",
+            r"
+namespace My.Models
+{
+    public class Widget { }
+}
+",
+        ),
     ]);
 
-    tethys.index().expect("index should succeed");
+    tethys
+        .index_with_options(options_factory())
+        .expect("index should succeed");
 
     let conn = open_db(&tethys);
 
@@ -72,10 +98,27 @@ namespace App
             |row| row.get(0),
         )
         .expect("count rs files");
-    assert_eq!(cs_files, 1, "fixture's C# file must be indexed");
+    assert_eq!(cs_files, 2, "fixture's C# files must be indexed");
     assert_eq!(rs_files, 1, "fixture's Rust file must be indexed");
 
-    // The fence: no .cs -> .rs file dependency may exist.
+    // I2: the dotted C# namespace import is stored in C#'s own format —
+    // a swapped separator constant in this mode's store_imports copy would
+    // store 'My::Models'.
+    let dotted_import: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM imports i JOIN files f ON f.id = i.file_id
+             WHERE f.path = 'cs/App.cs' AND i.source_module = 'My.Models'",
+            params![],
+            |row| row.get(0),
+        )
+        .expect("count dotted import");
+    assert_eq!(
+        dotted_import, 1,
+        "C# import must be stored as 'My.Models' (dotted) in this indexing mode"
+    );
+
+    // The dispatch fence: no .cs -> .rs file dependency may exist (I3
+    // covers the streaming-mode dependency path).
     let phantom_deps: i64 = conn
         .query_row(
             "SELECT COUNT(*)
@@ -91,5 +134,24 @@ namespace App
         phantom_deps, 0,
         "a C# import resolved through Rust crate routing — ModuleResolver \
          dispatch must key on the file's language"
+    );
+
+    // Positive control: the pre-existing C# namespace-map post-pass still
+    // links cs->cs deps (using My.Models -> Models.cs), proving the zero
+    // above comes from correct dispatch, not from C# deps being broken.
+    let cs_cs_deps: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+             FROM file_deps d
+             JOIN files ff ON d.from_file_id = ff.id
+             JOIN files tf ON d.to_file_id = tf.id
+             WHERE ff.path = 'cs/App.cs' AND tf.path = 'cs/Models.cs'",
+            params![],
+            |row| row.get(0),
+        )
+        .expect("count cs->cs deps");
+    assert_eq!(
+        cs_cs_deps, 1,
+        "namespace-map post-pass must still produce the App.cs -> Models.cs dep"
     );
 }
