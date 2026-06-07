@@ -323,6 +323,73 @@ impl Index {
         Ok(Some(first))
     }
 
+    /// Unique-or-decline name lookup scoped to a set of files, optionally
+    /// kind-filtered (the C# using-arm primitive — csharp-ns claims C3–C5).
+    ///
+    /// Returns the symbol only when EXACTLY one candidate matches across the
+    /// whole file set — the same refuse-ambiguity idiom as
+    /// [`Self::search_unique_symbol_by_name`], scoped. `kinds: None` means
+    /// any kind. Empty `file_paths` is a documented refusal: returns `None`
+    /// without touching SQL (load-bearing — an empty `IN ()` is a syntax
+    /// error, and "no files" must mean "no candidates", not an error).
+    ///
+    /// `file_paths` are chunked (500 per query) to stay clear of `SQLite`'s
+    /// host-parameter limit; uniqueness is aggregated ACROSS chunks.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the resolve.rs glob-arm driver wires this in the next slice, at which point this expectation must be removed"
+        )
+    )]
+    pub fn search_unique_symbol_by_name_in_files(
+        &self,
+        name: &str,
+        kinds: Option<&[SymbolKind]>,
+        file_paths: &[std::path::PathBuf],
+    ) -> Result<Option<Symbol>> {
+        if file_paths.is_empty() {
+            return Ok(None);
+        }
+        let conn = self.connection()?;
+        let kind_strs: Option<Vec<&'static str>> =
+            kinds.map(|ks| ks.iter().map(SymbolKind::as_str).collect());
+
+        let mut found: Option<Symbol> = None;
+        for chunk in file_paths.chunks(500) {
+            let path_marks = vec!["?"; chunk.len()].join(", ");
+            let kind_clause = match &kind_strs {
+                Some(ks) => format!(" AND kind IN ({})", vec!["?"; ks.len()].join(", ")),
+                None => String::new(),
+            };
+            let sql = format!(
+                "SELECT {SYMBOLS_COLUMNS} FROM symbols
+                 WHERE name = ?
+                   AND file_id IN (SELECT id FROM files WHERE path IN ({path_marks})){kind_clause}
+                 LIMIT 2"
+            );
+            let params: Vec<String> = std::iter::once(name.to_string())
+                .chain(chunk.iter().map(|p| super::files::normalize_path(p)))
+                .chain(kind_strs.iter().flatten().map(|k| (*k).to_string()))
+                .collect();
+
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map(rusqlite::params_from_iter(params.iter()), row_to_symbol)?;
+            for row in rows {
+                let sym = row?;
+                if found.is_some() {
+                    debug!(
+                        symbol_name = %name,
+                        "Refusing ambiguous file-scoped name match (multiple candidates)"
+                    );
+                    return Ok(None);
+                }
+                found = Some(sym);
+            }
+        }
+        Ok(found)
+    }
+
     /// Find a symbol at a specific file and line.
     ///
     /// This is used to match LSP `goto_definition` results to our indexed symbols.
@@ -639,6 +706,150 @@ mod search_by_name_ambiguity_tests {
         assert!(
             result.is_none(),
             "missing name must return None, got {result:?}"
+        );
+    }
+
+    // ========================================================================
+    // search_unique_symbol_by_name_in_files Tests (csharp-ns claims C3–C5)
+    // ========================================================================
+
+    fn insert_sym(index: &mut Index, file_path: &str, name: &str, kind: SymbolKind) -> SymbolId {
+        let file_id = index
+            .upsert_file(
+                std::path::Path::new(file_path),
+                Language::CSharp,
+                0,
+                0,
+                None,
+            )
+            .expect("file");
+        index
+            .insert_symbol(&InsertSymbolParams {
+                file_id,
+                name,
+                module_path: "",
+                qualified_name: name,
+                kind,
+                line: 1,
+                column: 1,
+                span: None,
+                signature: None,
+                visibility: Visibility::Public,
+                parent_symbol_id: None,
+                is_test: false,
+            })
+            .expect("symbol")
+    }
+
+    fn paths(strs: &[&str]) -> Vec<std::path::PathBuf> {
+        strs.iter().map(std::path::PathBuf::from).collect()
+    }
+
+    /// Kind-filter bug class: a method sharing the class's name must be
+    /// excluded when kinds = types-only. (Both symbols inserted against ONE
+    /// upsert — re-upserting a path atomically clears its prior symbols.)
+    #[test]
+    fn in_files_kind_filter_picks_class_over_same_named_method() {
+        let (_dir, mut index) = fresh_index();
+        let file_id = index
+            .upsert_file(std::path::Path::new("a/W.cs"), Language::CSharp, 0, 0, None)
+            .expect("file");
+        let insert = |name: &str, kind: SymbolKind| {
+            index
+                .insert_symbol(&InsertSymbolParams {
+                    file_id,
+                    name,
+                    module_path: "",
+                    qualified_name: name,
+                    kind,
+                    line: 1,
+                    column: 1,
+                    span: None,
+                    signature: None,
+                    visibility: Visibility::Public,
+                    parent_symbol_id: None,
+                    is_test: false,
+                })
+                .expect("symbol")
+        };
+        let class_id = insert("Widget", SymbolKind::Class);
+        let _method_id = insert("Widget", SymbolKind::Method);
+        let result = index
+            .search_unique_symbol_by_name_in_files(
+                "Widget",
+                Some(&[SymbolKind::Class, SymbolKind::Struct]),
+                &paths(&["a/W.cs"]),
+            )
+            .expect("query")
+            .expect("class must match through the kind filter");
+        assert_eq!(result.id, class_id);
+    }
+
+    /// Unique rule: two same-kind matches across the listed files decline.
+    #[test]
+    fn in_files_two_candidates_decline() {
+        let (_dir, mut index) = fresh_index();
+        insert_sym(&mut index, "a/W1.cs", "Widget", SymbolKind::Class);
+        insert_sym(&mut index, "b/W2.cs", "Widget", SymbolKind::Class);
+        let result = index
+            .search_unique_symbol_by_name_in_files(
+                "Widget",
+                Some(&[SymbolKind::Class]),
+                &paths(&["a/W1.cs", "b/W2.cs"]),
+            )
+            .expect("query");
+        assert!(result.is_none(), "ambiguity must decline, got {result:?}");
+    }
+
+    /// Scope check: a symbol outside the listed files must not match.
+    #[test]
+    fn in_files_out_of_scope_symbol_is_invisible() {
+        let (_dir, mut index) = fresh_index();
+        insert_sym(&mut index, "elsewhere/W.cs", "Widget", SymbolKind::Class);
+        let result = index
+            .search_unique_symbol_by_name_in_files("Widget", None, &paths(&["a/W1.cs"]))
+            .expect("query");
+        assert!(result.is_none());
+    }
+
+    /// Documented refusal: empty file set returns None without SQL.
+    #[test]
+    fn in_files_empty_path_set_declines() {
+        let (_dir, mut index) = fresh_index();
+        insert_sym(&mut index, "a/W.cs", "Widget", SymbolKind::Class);
+        let result = index
+            .search_unique_symbol_by_name_in_files("Widget", None, &[])
+            .expect("query");
+        assert!(result.is_none());
+    }
+
+    /// Host-parameter-limit bug class: 1,200 paths must chunk, find the one
+    /// match, and aggregate uniqueness ACROSS chunks (a second candidate in
+    /// a different chunk must still decline).
+    #[test]
+    fn in_files_chunking_finds_match_and_aggregates_uniqueness() {
+        let (_dir, mut index) = fresh_index();
+        let target = insert_sym(&mut index, "dir/file0777.cs", "Widget", SymbolKind::Class);
+
+        let many: Vec<std::path::PathBuf> = (0..1200)
+            .map(|i| std::path::PathBuf::from(format!("dir/file{i:04}.cs")))
+            .collect();
+
+        let result = index
+            .search_unique_symbol_by_name_in_files("Widget", Some(&[SymbolKind::Class]), &many)
+            .expect("query")
+            .expect("single match across chunks must resolve");
+        assert_eq!(result.id, target);
+
+        // Second candidate lands in a different chunk (index 0010 vs 0777
+        // straddles the 500-path chunk boundary): cross-chunk ambiguity.
+        insert_sym(&mut index, "dir/file0010.cs", "Widget", SymbolKind::Class);
+        let result = index
+            .search_unique_symbol_by_name_in_files("Widget", Some(&[SymbolKind::Class]), &many)
+            .expect("query");
+        assert!(
+            result.is_none(),
+            "cross-chunk ambiguity must decline, got {result:?}"
         );
     }
 }
