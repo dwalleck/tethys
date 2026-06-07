@@ -5,7 +5,6 @@
 //! - Parallel parsing with tree-sitter
 //! - Database writes (both batch and streaming modes)
 //! - File-level dependency computation
-//! - C# namespace resolution
 //! - Pending dependency resolution passes
 
 use std::collections::HashMap;
@@ -328,17 +327,6 @@ impl Tethys {
                 files_indexed,
                 symbols_found, references_found, "Sequential write complete (Pass 1b)"
             );
-        }
-
-        // C# namespace resolution pass: resolve using directives via namespace map
-        // This must happen after all files are indexed so we have the complete namespace map
-        let namespace_map = self.build_namespace_map()?;
-        if !namespace_map.is_empty() {
-            debug!(
-                namespace_count = namespace_map.len(),
-                "Resolving C# dependencies via namespace map"
-            );
-            self.resolve_csharp_dependencies(&namespace_map)?;
         }
 
         // Resolution passes: retry pending dependencies until stable
@@ -900,10 +888,11 @@ impl Tethys {
     /// Rust files the anchor is the crate's source root (orphan files fall
     /// back to the file's parent directory, where `crate::*` paths have no
     /// valid anchor but `self::`/`super::` — resolved off `current_file`
-    /// directly — continue to produce dep edges). Languages whose resolver
-    /// declines (e.g. C#'s stub, tethys-jwf9) record no import-based edges
-    /// here; C# file deps come from the namespace-map post-pass instead
-    /// (see `resolve_csharp_dependencies`).
+    /// directly — continue to produce dep edges). Glob imports (including
+    /// every C# using-directive) record no edges here; C# file deps derive
+    /// from resolved references via the call-edge phase, with cross-bucket
+    /// edges corroborated against the caller's usings (see
+    /// `Index::populate_file_deps_from_call_edges`).
     fn compute_dependencies(
         &self,
         current_file: &Path,
@@ -1196,124 +1185,6 @@ impl Tethys {
         }
 
         Ok(map)
-    }
-
-    /// Resolve C# file dependencies using namespace-to-file mapping.
-    ///
-    /// For each C# file, look at its `using` directives and find which files
-    /// declare those namespaces. Record file-level dependencies.
-    ///
-    /// This post-pass predates the `ModuleResolver` seam and is C#'s
-    /// file-level dependency mechanism while the seam's
-    /// `CSharpModuleResolver` remains a declining stub (tethys-jwf9). It
-    /// borrows the seam's `join_import` so the namespace string form has a
-    /// single owner; folding the whole mechanism into the C# resolver is
-    /// tracked at tethys-nmsp.
-    fn resolve_csharp_dependencies(&mut self, namespace_map: &NamespaceMap) -> Result<()> {
-        // Track processing statistics for visibility
-        let mut files_processed: usize = 0;
-        let mut files_skipped_read: usize = 0;
-        let mut files_skipped_utf8: usize = 0;
-        let mut files_skipped_parse: usize = 0;
-
-        // Get language support and the module resolver once before the loop
-        let lang_support = languages::get_language_support(Language::CSharp);
-        let resolver = get_module_resolver(Language::CSharp);
-
-        self.parser
-            .set_language(&lang_support.tree_sitter_language())
-            .map_err(|e| Error::Parser(format!("Failed to set parser language to C#: {e}")))?;
-
-        // Get all C# files
-        let csharp_files = self.db.get_files_by_language(Language::CSharp)?;
-
-        for file in &csharp_files {
-            // Get the using directives for this file by re-parsing
-            let full_path = self.workspace_root.join(&file.path);
-            let content = match std::fs::read(&full_path) {
-                Ok(c) => c,
-                Err(e) => {
-                    warn!(
-                        file = %full_path.display(),
-                        error = %e,
-                        "Failed to read C# file for dependency resolution"
-                    );
-                    files_skipped_read += 1;
-                    continue;
-                }
-            };
-            let content_str = match std::str::from_utf8(&content) {
-                Ok(s) => s,
-                Err(e) => {
-                    warn!(
-                        file = %full_path.display(),
-                        error = %e,
-                        "C# file is not valid UTF-8, skipping dependency resolution"
-                    );
-                    files_skipped_utf8 += 1;
-                    continue;
-                }
-            };
-
-            let Some(tree) = self.parser.parse(content_str, None) else {
-                warn!(
-                    file = %full_path.display(),
-                    "Failed to parse C# file for dependency resolution"
-                );
-                files_skipped_parse += 1;
-                continue;
-            };
-
-            let imports = lang_support.extract_imports(&tree, content_str.as_bytes());
-
-            for import in &imports {
-                // Join path segments into the stored namespace form via the
-                // seam: ["MyApp", "Services"] -> "MyApp.Services"
-                let namespace = resolver.join_import(&import.path);
-
-                if let Some(paths) = namespace_map.get(&namespace) {
-                    for path in paths {
-                        let Some(dep_file_id) = self.db.get_file_id(path)? else {
-                            continue;
-                        };
-                        // Don't add self-dependency
-                        if dep_file_id != file.id {
-                            self.db.insert_file_dependency(file.id, dep_file_id)?;
-                        }
-                    }
-                }
-            }
-
-            files_processed += 1;
-        }
-
-        // Log summary if any files were skipped
-        let total_skipped = files_skipped_read + files_skipped_utf8 + files_skipped_parse;
-        let total_files = files_processed + total_skipped;
-        if total_skipped > 0 {
-            if total_skipped > files_processed {
-                // More than half failed - likely a systemic issue
-                tracing::error!(
-                    total_files,
-                    files_processed,
-                    files_skipped_read,
-                    files_skipped_utf8,
-                    files_skipped_parse,
-                    "C# dependency resolution mostly failed - check file permissions and encoding"
-                );
-            } else {
-                warn!(
-                    total_files,
-                    files_processed,
-                    files_skipped_read,
-                    files_skipped_utf8,
-                    files_skipped_parse,
-                    "C# dependency resolution completed with some files skipped"
-                );
-            }
-        }
-
-        Ok(())
     }
 
     /// Retry resolving pending dependencies.

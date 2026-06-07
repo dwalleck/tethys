@@ -94,11 +94,11 @@ namespace App.Services
     tethys.index().expect("index should succeed");
 
     // Corroborated cross-bucket edge: services -> models via `using
-    // Domain.Models;`. (Count tightens to exactly 1 once the namespace
-    // post-pass is deleted; ≥1 is the claim here.)
-    assert!(
-        dep_count(&tethys, "services/Svc.cs", "models/Widget.cs") >= 1,
-        "corroborated cross-directory dep must exist"
+    // Domain.Models;`, sourced solely from the corroborated call edge.
+    assert_eq!(
+        dep_count(&tethys, "services/Svc.cs", "models/Widget.cs"),
+        1,
+        "corroborated cross-directory dep must exist (call-edge source only)"
     );
 
     // Uncorroborated cross-bucket edge: UtilThing resolves (workspace-
