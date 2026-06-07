@@ -22,6 +22,7 @@
 //! Database lookups stay in the drivers, which keeps candidate enumeration
 //! and index state separable (and testable without a DB).
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use tracing::debug;
@@ -29,6 +30,18 @@ use tracing::debug;
 use crate::cargo;
 use crate::resolver::resolve_module_path;
 use crate::types::{CrateInfo, Language};
+
+/// Namespace → declaring files (workspace-relative), for languages whose
+/// imports name namespaces rather than module paths (C#).
+///
+/// Keys are FLAT namespace names exactly as stored on Module-kind symbols:
+/// dotted declarations (`namespace A.B`) and file-scoped namespaces key
+/// correctly; nested block declarations store un-dotted segment symbols and
+/// therefore never match a dotted `using` (pre-existing gap, tethys-nnst).
+/// Values are sorted by path for determinism and deliberately NOT deduped —
+/// one entry per Module symbol, preserving the historical per-declaration
+/// counting of the namespace post-pass.
+pub(crate) type NamespaceMap = HashMap<String, Vec<PathBuf>>;
 
 /// Workspace context handed to a [`ModuleResolver`].
 ///

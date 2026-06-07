@@ -21,7 +21,7 @@ use crate::Tethys;
 use crate::batch_writer::BatchWriter;
 use crate::db::{InsertReferenceParams, SymbolData};
 use crate::error::{Error, IndexError, IndexErrorKind, Result};
-use crate::languages::module_resolver::{ModuleContext, get_module_resolver};
+use crate::languages::module_resolver::{ModuleContext, NamespaceMap, get_module_resolver};
 use crate::languages::{self, common};
 use crate::lsp;
 use crate::parallel::{OwnedSymbolData, ParsedFileData};
@@ -1156,10 +1156,8 @@ impl Tethys {
     ///
     /// This enables C# `using` directive resolution: `using MyApp.Services`
     /// resolves to whichever files declare `namespace MyApp.Services`.
-    fn build_namespace_map(&self) -> Result<HashMap<String, Vec<FileId>>> {
-        use std::collections::HashSet;
-
-        let mut map: HashMap<String, Vec<FileId>> = HashMap::new();
+    pub(crate) fn build_namespace_map(&self) -> Result<NamespaceMap> {
+        let mut map: NamespaceMap = NamespaceMap::new();
 
         // Query all Module-kind symbols (namespaces)
         let symbols = self
@@ -1173,19 +1171,26 @@ impl Tethys {
             );
         }
 
-        // Fetch all C# file IDs upfront to avoid N+1 queries
-        let csharp_file_ids: HashSet<FileId> = self
+        // Fetch all C# file paths upfront to avoid N+1 queries
+        let csharp_file_paths: HashMap<FileId, PathBuf> = self
             .db
             .get_files_by_language(Language::CSharp)?
             .into_iter()
-            .map(|f| f.id)
+            .map(|f| (f.id, f.path))
             .collect();
 
         for sym in symbols {
             // Only include C# files (Rust modules use different resolution)
-            if csharp_file_ids.contains(&sym.file_id) {
-                map.entry(sym.name.clone()).or_default().push(sym.file_id);
+            if let Some(path) = csharp_file_paths.get(&sym.file_id) {
+                map.entry(sym.name.clone()).or_default().push(path.clone());
             }
+        }
+
+        // Sort for determinism (Module symbols arrive in id order, which
+        // depends on parallel parse scheduling). NOT deduped: one entry per
+        // Module symbol — see the NamespaceMap doc.
+        for paths in map.values_mut() {
+            paths.sort();
         }
 
         Ok(map)
@@ -1202,10 +1207,7 @@ impl Tethys {
     /// borrows the seam's `join_import` so the namespace string form has a
     /// single owner; folding the whole mechanism into the C# resolver is
     /// tracked at tethys-nmsp.
-    fn resolve_csharp_dependencies(
-        &mut self,
-        namespace_map: &HashMap<String, Vec<FileId>>,
-    ) -> Result<()> {
+    fn resolve_csharp_dependencies(&mut self, namespace_map: &NamespaceMap) -> Result<()> {
         // Track processing statistics for visibility
         let mut files_processed: usize = 0;
         let mut files_skipped_read: usize = 0;
@@ -1267,8 +1269,11 @@ impl Tethys {
                 // seam: ["MyApp", "Services"] -> "MyApp.Services"
                 let namespace = resolver.join_import(&import.path);
 
-                if let Some(file_ids) = namespace_map.get(&namespace) {
-                    for &dep_file_id in file_ids {
+                if let Some(paths) = namespace_map.get(&namespace) {
+                    for path in paths {
+                        let Some(dep_file_id) = self.db.get_file_id(path)? else {
+                            continue;
+                        };
                         // Don't add self-dependency
                         if dep_file_id != file.id {
                             self.db.insert_file_dependency(file.id, dep_file_id)?;
@@ -1482,6 +1487,90 @@ impl Tethys {
 mod tests {
     use super::*;
     use crate::types::{FileId, Import, Language};
+
+    // ========================================================================
+    // build_namespace_map Tests (separator-fix follow-on: csharp-ns claim C1)
+    // ========================================================================
+
+    /// Index a temp workspace from (path, content) pairs and return Tethys.
+    fn indexed_workspace(files: &[(&str, &str)]) -> (tempfile::TempDir, Tethys) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        for (rel, content) in files {
+            let full = dir.path().join(rel);
+            if let Some(parent) = full.parent() {
+                std::fs::create_dir_all(parent).expect("mkdir");
+            }
+            std::fs::write(&full, content).expect("write fixture file");
+        }
+        let mut tethys = Tethys::new(dir.path()).expect("Tethys::new");
+        tethys.index().expect("index");
+        (dir, tethys)
+    }
+
+    /// Two files declaring the same namespace: values sorted by path
+    /// (parallel-parse insertion order must not leak — determinism bug class).
+    #[test]
+    fn namespace_map_sorts_multi_file_namespaces_by_path() {
+        let (_dir, tethys) = indexed_workspace(&[
+            ("z/Beta.cs", "namespace Shared { public class B { } }\n"),
+            ("a/Alpha.cs", "namespace Shared { public class A { } }\n"),
+        ]);
+        let map = tethys.build_namespace_map().expect("map");
+        let paths: Vec<String> = map["Shared"]
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(paths, vec!["a/Alpha.cs", "z/Beta.cs"]);
+    }
+
+    /// Nested block namespaces store un-dotted segment symbols: the dotted
+    /// form must NOT be a key (tethys-nnst), while dotted DECLARATIONS and
+    /// file-scoped namespaces key exactly.
+    #[test]
+    fn namespace_map_keys_flat_names_only() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Nested.cs",
+                "namespace Outer1 { namespace Inner1 { public class T { } } }\n",
+            ),
+            ("Dotted.cs", "namespace My.Models { public class W { } }\n"),
+            ("Scoped.cs", "namespace My.Scoped;\n\npublic class F { }\n"),
+        ]);
+        let map = tethys.build_namespace_map().expect("map");
+        assert!(!map.contains_key("Outer1.Inner1"), "nested dotted form must be absent");
+        assert!(map.contains_key("Outer1") && map.contains_key("Inner1"));
+        assert_eq!(map["My.Models"], vec![std::path::PathBuf::from("Dotted.cs")]);
+        assert_eq!(map["My.Scoped"], vec![std::path::PathBuf::from("Scoped.cs")]);
+    }
+
+    /// Rust `mod` symbols are Module-kind too — they must be excluded
+    /// (language-filter bug class).
+    #[test]
+    fn namespace_map_excludes_rust_modules() {
+        let (_dir, tethys) = indexed_workspace(&[
+            ("Cargo.toml", "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+            ("src/lib.rs", "pub mod shared;\n"),
+            ("src/shared.rs", "pub fn f() {}\n"),
+            ("cs/Thing.cs", "namespace Cs.Side { public class T { } }\n"),
+        ]);
+        let map = tethys.build_namespace_map().expect("map");
+        assert!(map.contains_key("Cs.Side"));
+        assert!(
+            !map.contains_key("shared"),
+            "Rust module must not enter the namespace map"
+        );
+    }
+
+    /// Empty input shape: a workspace with no C# files yields an empty map.
+    #[test]
+    fn namespace_map_empty_for_rust_only_workspace() {
+        let (_dir, tethys) = indexed_workspace(&[
+            ("Cargo.toml", "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+            ("src/lib.rs", "pub fn f() {}\n"),
+        ]);
+        let map = tethys.build_namespace_map().expect("map");
+        assert!(map.is_empty());
+    }
 
     // ========================================================================
     // is_excluded_dir Tests
