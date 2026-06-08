@@ -23,14 +23,6 @@
 //! Database lookups stay in the drivers, which keeps candidate enumeration
 //! and index state separable (and testable without a DB).
 
-#![cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "GlobResolution.member_kinds + StaticMemberImport land dark; the resolve.rs union arm wires them in slice 3, at which point this expectation must be removed"
-    )
-)]
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -444,7 +436,14 @@ mod tests {
         assert_eq!(g.policy, GlobPolicy::UniqueAcrossAll);
         assert_eq!(
             g.kinds,
-            Some(&[SymbolKind::Class, SymbolKind::Struct, SymbolKind::Interface, SymbolKind::Enum][..])
+            Some(
+                &[
+                    SymbolKind::Class,
+                    SymbolKind::Struct,
+                    SymbolKind::Interface,
+                    SymbolKind::Enum
+                ][..]
+            )
         );
         assert_eq!(
             g.member_kinds,
@@ -484,7 +483,11 @@ mod tests {
         let c = ns_ctx(root, &map);
         // `using My.Models;` (source_module IS the namespace): rsplit gives
         // prefix "My" (not in map) → None. The types arm handles it.
-        assert!(CSharpModuleResolver.static_member_import("My.Models", &c).is_none());
+        assert!(
+            CSharpModuleResolver
+                .static_member_import("My.Models", &c)
+                .is_none()
+        );
     }
 
     #[test]
@@ -492,7 +495,11 @@ mod tests {
         let root = Path::new("/ws");
         let map = NamespaceMap::new();
         let c = ns_ctx(root, &map);
-        assert!(CSharpModuleResolver.static_member_import("System.Math", &c).is_none());
+        assert!(
+            CSharpModuleResolver
+                .static_member_import("System.Math", &c)
+                .is_none()
+        );
     }
 
     #[test]
@@ -500,13 +507,21 @@ mod tests {
         let root = Path::new("/ws");
         let map = NamespaceMap::new();
         let c = ns_ctx(root, &map);
-        assert!(CSharpModuleResolver.static_member_import("Foo", &c).is_none());
+        assert!(
+            CSharpModuleResolver
+                .static_member_import("Foo", &c)
+                .is_none()
+        );
     }
 
     #[test]
     fn static_member_import_none_map_yields_none() {
         let root = Path::new("/ws");
-        assert!(CSharpModuleResolver.static_member_import("My.Models.Helper", &ctx(root)).is_none());
+        assert!(
+            CSharpModuleResolver
+                .static_member_import("My.Models.Helper", &ctx(root))
+                .is_none()
+        );
     }
 
     #[test]
@@ -534,7 +549,11 @@ mod tests {
         let mut map = NamespaceMap::new();
         map.insert("My.Models".to_string(), vec![PathBuf::from("a.cs")]);
         let c = ns_ctx(root, &map);
-        assert!(RustModuleResolver.static_member_import("My.Models.Helper", &c).is_none());
+        assert!(
+            RustModuleResolver
+                .static_member_import("My.Models.Helper", &c)
+                .is_none()
+        );
     }
 
     #[test]
