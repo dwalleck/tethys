@@ -1,0 +1,17 @@
+## files
+models/Widget.cs|csharp|56
+services/Svc.cs|csharp|133
+## symbols
+models/Widget.cs|Domain.Models||Domain.Models|module|1|1|4|2||public||0
+models/Widget.cs|Widget||Widget|class|3|5|3|28||public||0
+services/Svc.cs|App.Services||App.Services|module|2|1|8|2||public||0
+services/Svc.cs|Svc||Svc|class|4|5|7|6||public||0
+services/Svc.cs|Run||Svc::Run|method|6|9|6|52|void Run()|public||0
+## refs
+services/Svc.cs|construct|6|41|-1|-1||models/Widget.cs:3:Widget|Svc::Run
+## imports
+services/Svc.cs|*|Domain.Models|
+## file_deps
+services/Svc.cs|models/Widget.cs|1
+## call_edges
+services/Svc.cs:6:Svc::Run|models/Widget.cs:3:Widget|1

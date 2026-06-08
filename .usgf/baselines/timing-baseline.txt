@@ -1,0 +1,6 @@
+run1: 13256 ms
+run2: 13374 ms
+run3: 12946 ms
+run4: 13487 ms
+run5: 12954 ms
+note: incremental-target binary; C9 at slice 4 uses fresh cold-target builds both sides on frozen tree
