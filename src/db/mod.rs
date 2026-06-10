@@ -39,8 +39,15 @@ pub(crate) use helpers::{
     FILES_COLUMNS, REFS_COLUMNS, SYMBOLS_COLUMNS, parse_language, parse_symbol_kind, row_to_import,
     row_to_indexed_file, row_to_reference, row_to_symbol,
 };
-pub(crate) use references::InsertReferenceParams;
 pub(crate) use schema::SCHEMA;
+
+// Test-only re-exports: fixture helper for authoring ref rows directly,
+// and the canonical qualified-name builder (production callers reach it
+// inside `index_parsed_file_atomic`; lib.rs unit tests exercise it directly).
+#[cfg(test)]
+pub(crate) use files::build_qualified_name;
+#[cfg(test)]
+pub(crate) use references::InsertReferenceParams;
 
 // Re-export parse_visibility for tests in types.rs
 #[cfg(test)]

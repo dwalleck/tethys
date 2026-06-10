@@ -13,6 +13,11 @@ use crate::error::Result;
 use crate::types::{FileId, RefId, Reference, SymbolId};
 
 /// Parameters for inserting a reference into the index.
+///
+/// Test-only: production references are written inside the per-file
+/// transaction by [`Index::index_parsed_file_atomic`]; fixtures use this
+/// to author ref rows directly.
+#[cfg(test)]
 pub(crate) struct InsertReferenceParams<'a> {
     /// The symbol this reference points to, or `None` for unresolved references.
     pub symbol_id: Option<SymbolId>,
@@ -30,37 +35,24 @@ pub(crate) struct InsertReferenceParams<'a> {
     pub reference_name: Option<&'a str>,
 }
 
-impl InsertReferenceParams<'_> {
-    /// Asserts struct invariants in debug builds.
-    ///
-    /// - `line` must be >= 1 (1-indexed).
-    /// - If `symbol_id` is `None`, `reference_name` must be `Some` (unresolved refs need a name for Pass 2).
-    #[cfg(debug_assertions)]
-    pub(crate) fn debug_assert_valid(&self) {
-        debug_assert!(
-            self.line >= 1,
-            "reference line should be >= 1, got {}",
-            self.line
-        );
-        debug_assert!(
-            self.symbol_id.is_some() || self.reference_name.is_some(),
-            "unresolved reference (symbol_id is None) must have a reference_name for Pass 2"
-        );
-    }
-
-    /// No-op in release builds.
-    #[cfg(not(debug_assertions))]
-    #[inline]
-    pub(crate) fn debug_assert_valid(&self) {}
-}
-
 impl Index {
     /// Insert a reference to a symbol.
     ///
     /// If `symbol_id` is `None`, the reference is unresolved and `reference_name`
     /// should be provided for later resolution in Pass 2.
+    ///
+    /// Test-only: see [`InsertReferenceParams`].
+    #[cfg(test)]
     pub fn insert_reference(&self, params: &InsertReferenceParams<'_>) -> Result<i64> {
-        params.debug_assert_valid();
+        debug_assert!(
+            params.line >= 1,
+            "reference line should be >= 1, got {}",
+            params.line
+        );
+        debug_assert!(
+            params.symbol_id.is_some() || params.reference_name.is_some(),
+            "unresolved reference (symbol_id is None) must have a reference_name for Pass 2"
+        );
         let conn = self.connection()?;
 
         conn.execute(
@@ -141,10 +133,44 @@ impl Index {
         Ok(refs)
     }
 
+    /// Apply a batch of Pass 2 resolutions in ONE transaction.
+    ///
+    /// Each pair is `(ref row id, resolved symbol id)`. Replaces the
+    /// per-resolution autocommit UPDATE pattern (idxperf claim C7): on a
+    /// workspace with thousands of resolutions, one fsync instead of one
+    /// per resolution. Empty input is a no-op without touching the
+    /// connection.
+    ///
+    /// Sanity hint (not load-bearing): ref ids are expected to come from
+    /// the same index — a stale id makes its UPDATE a silent no-op, which
+    /// the caller's resolved-count accounting surfaces.
+    pub fn apply_resolutions(&self, resolutions: &[(i64, SymbolId)]) -> Result<()> {
+        if resolutions.is_empty() {
+            return Ok(());
+        }
+        trace!(
+            resolution_count = resolutions.len(),
+            "Applying Pass 2 resolutions in one transaction"
+        );
+        let mut conn = self.connection()?;
+        let tx = conn.transaction()?;
+        {
+            let mut stmt = tx.prepare_cached(
+                "UPDATE refs SET symbol_id = ?2, reference_name = NULL WHERE id = ?1",
+            )?;
+            for (ref_id, symbol_id) in resolutions {
+                stmt.execute(params![ref_id, symbol_id.as_i64()])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     /// Resolve a reference by setting its `symbol_id`.
     ///
-    /// This is used in Pass 2 to link unresolved references to their target symbols
-    /// after cross-file symbol resolution.
+    /// This is used in Pass 3 (LSP) to link unresolved references to their
+    /// target symbols one at a time as the language server answers; Pass 2
+    /// uses the batched [`Self::apply_resolutions`] instead.
     pub fn resolve_reference(&self, ref_id: i64, symbol_id: SymbolId) -> Result<()> {
         trace!(
             ref_id = ref_id,
@@ -190,5 +216,128 @@ impl Index {
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(refs)
+    }
+}
+
+#[cfg(test)]
+mod apply_resolutions_tests {
+    use super::*;
+    use crate::db::Index;
+    use crate::db::symbols::InsertSymbolParams;
+    use crate::types::{Language, SymbolKind, Visibility};
+    use std::path::Path;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// Fixture: one file, one symbol, two unresolved refs. Returns the
+    /// ref row ids and the target symbol id.
+    fn fixture(index: &mut Index) -> (Vec<i64>, SymbolId) {
+        let file_id = index
+            .upsert_file(Path::new("src/a.rs"), Language::Rust, 0, 0, None)
+            .expect("file");
+        let sym_id = index
+            .insert_symbol(&InsertSymbolParams {
+                file_id,
+                name: "target",
+                module_path: "",
+                qualified_name: "target",
+                kind: SymbolKind::Function,
+                line: 1,
+                column: 1,
+                span: None,
+                signature: None,
+                visibility: Visibility::Public,
+                parent_symbol_id: None,
+                is_test: false,
+            })
+            .expect("symbol");
+        let mut ref_ids = Vec::new();
+        for line in [10, 11] {
+            ref_ids.push(
+                index
+                    .insert_reference(&InsertReferenceParams {
+                        symbol_id: None,
+                        file_id,
+                        kind: "call",
+                        line,
+                        column: 1,
+                        in_symbol_id: None,
+                        reference_name: Some("target"),
+                    })
+                    .expect("ref"),
+            );
+        }
+        (ref_ids, sym_id)
+    }
+
+    /// C7 fence: the whole batch applies in EXACTLY one transaction, every
+    /// pair lands, and `reference_name` is cleared. A buggy implementation
+    /// that falls back to per-resolution autocommit fails the commit count;
+    /// one that loses pairs fails the row asserts.
+    #[test]
+    fn apply_resolutions_batches_in_one_commit() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut index = Index::open(&dir.path().join("idx.db")).expect("open");
+        let (ref_ids, sym_id) = fixture(&mut index);
+
+        let commits = Arc::new(AtomicUsize::new(0));
+        {
+            let counter = Arc::clone(&commits);
+            index
+                .connection()
+                .expect("conn")
+                .commit_hook(Some(move || {
+                    counter.fetch_add(1, Ordering::SeqCst);
+                    false
+                }));
+        }
+
+        let pairs: Vec<(i64, SymbolId)> = ref_ids.iter().map(|&r| (r, sym_id)).collect();
+        index.apply_resolutions(&pairs).expect("apply");
+
+        index
+            .connection()
+            .expect("conn")
+            .commit_hook(None::<fn() -> bool>);
+
+        assert_eq!(commits.load(Ordering::SeqCst), 1, "one transaction total");
+
+        let conn = index.connection().expect("conn");
+        let (resolved, named): (i64, i64) = conn
+            .query_row(
+                "SELECT
+                   (SELECT COUNT(*) FROM refs WHERE symbol_id = ?1),
+                   (SELECT COUNT(*) FROM refs WHERE reference_name IS NOT NULL)",
+                [sym_id.as_i64()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("counts");
+        assert_eq!(resolved, 2, "both resolutions applied");
+        assert_eq!(named, 0, "reference_name cleared on resolution");
+    }
+
+    /// Empty input must not open a transaction at all.
+    #[test]
+    fn apply_resolutions_empty_is_a_no_op() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let index = Index::open(&dir.path().join("idx.db")).expect("open");
+
+        let commits = Arc::new(AtomicUsize::new(0));
+        {
+            let counter = Arc::clone(&commits);
+            index
+                .connection()
+                .expect("conn")
+                .commit_hook(Some(move || {
+                    counter.fetch_add(1, Ordering::SeqCst);
+                    false
+                }));
+        }
+        index.apply_resolutions(&[]).expect("apply empty");
+        index
+            .connection()
+            .expect("conn")
+            .commit_hook(None::<fn() -> bool>);
+        assert_eq!(commits.load(Ordering::SeqCst), 0);
     }
 }
