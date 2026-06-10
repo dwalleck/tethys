@@ -17,18 +17,24 @@ cargo bench --manifest-path crates/tethys/Cargo.toml --bench queries
 
 ### Indexing Performance
 
-| Workspace Size | Modules | Symbols | References | Time (ms) | Throughput |
-|----------------|---------|---------|------------|-----------|------------|
-| Small          | 1       | ~15     | ~40        | 32        | ~30 elem/s |
-| Medium         | 5       | ~75     | ~200       | 168       | ~30 elem/s |
-| Large          | 10      | ~150    | ~400       | 333       | ~30 elem/s |
-| Very Large     | 20      | ~300    | ~800       | 670       | ~30 elem/s |
+Post-idxperf numbers (one transaction per file write + batched Pass 2
+resolutions + syscall-free crate map; see `.idxperf/acceptance.md` for the
+full audit trail):
+
+| Workspace Size | Modules | Symbols | References | Time (ms) | vs pre-idxperf |
+|----------------|---------|---------|------------|-----------|----------------|
+| Small          | 1       | ~15     | ~40        | 7.5       | −83% (was 32)  |
+| Medium         | 5       | ~75     | ~200       | 17.7      | −92% (was 168) |
+| Large          | 10      | ~150    | ~400       | 28.7      | −94% (was 333) |
+| Very Large     | 20      | ~300    | ~800       | 52.3      | −95% (was 670) |
 
 Key observations:
 - Linear scaling with workspace size (good)
-- ~30-32ms per module indexed
-- Average ~2ms per symbol
-- Re-indexing unchanged workspace takes similar time (no incremental optimization yet)
+- Real-repo data point: indexing tethys itself (80 files, ~14.7k refs)
+  dropped from 15.74s to 0.44s (35×) — the old write path was ~96%
+  fdatasync-bound from per-row autocommits
+- Re-indexing unchanged workspace takes similar time (no incremental
+  optimization yet; tracked at tethys-q8qw)
 
 ### Query Performance
 
