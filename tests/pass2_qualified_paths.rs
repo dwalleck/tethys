@@ -1,8 +1,8 @@
 //! Regression fence for rivets-044i: qualified refs from import-less files.
 //!
 //! Stored `symbols.qualified_name` is module-stripped — the free-fn arm of
-//! `indexing.rs::store_references` writes `name` only; the method arm writes
-//! `parent_name::name`. So the literal `get_symbol_by_qualified_name` lookup
+//! `parse_file_static`'s qualified-name construction writes `name` only; the
+//! method arm writes `parent_name::name`. So the literal `get_symbol_by_qualified_name` lookup
 //! in Pass 2's `fallback_symbol_search` cannot match a ref like
 //! `helper::do_thing_q` whose text carries a module prefix. The fix in
 //! `resolve.rs::qualified_module_fallback` interprets the prefix as a module
@@ -573,7 +573,7 @@ pub fn do_crate_thing_044i() {}
 ///   = `deep_thing_044i`). Reached by split=2 with tail `deep_thing_044i`.
 /// - `src/outer.rs::inner::deep_thing_044i` (method on `impl inner`, stored
 ///   `qualified_name` = `inner::deep_thing_044i` per the method arm of
-///   `indexing.rs::store_references`). Reached by split=1 with tail
+///   `parse_file_static`'s qualified-name construction). Reached by split=1 with tail
 ///   `inner::deep_thing_044i`.
 ///
 /// With the working loop `(1..segments.len()).rev()` (longest first), split=2

@@ -18,14 +18,14 @@ use tracing::{debug, info, trace, warn};
 
 use crate::Tethys;
 use crate::batch_writer::BatchWriter;
-use crate::db::{InsertReferenceParams, SymbolData};
+use crate::db::SymbolData;
 use crate::error::{Error, IndexError, IndexErrorKind, Result};
 use crate::languages::module_resolver::{ModuleContext, NamespaceMap, get_module_resolver};
 use crate::languages::{self, common};
 use crate::lsp;
 use crate::parallel::{OwnedSymbolData, ParsedFileData};
 use crate::types::{
-    ArchPhaseResult, FileId, Import, IndexOptions, IndexStats, Language, Span, SymbolId, SymbolKind,
+    ArchPhaseResult, FileId, Import, IndexOptions, IndexStats, Language, SymbolKind,
 };
 
 /// A dependency that couldn't be resolved because the target file wasn't indexed yet.
@@ -667,7 +667,11 @@ impl Tethys {
     /// Write a single parsed file to the database and compute its dependencies.
     ///
     /// This is Phase 1b of indexing - the sequential database write that must
-    /// happen after parallel parsing.
+    /// happen after parallel parsing. The complete write (file row, symbols,
+    /// attributes, references with same-file resolution, imports) happens in
+    /// ONE transaction via [`crate::db::Index::index_parsed_file_atomic`] —
+    /// the per-row autocommit pattern this replaced was ~96% of indexing
+    /// wall time (see `.idxperf/probe-findings.md`).
     pub(crate) fn write_parsed_file(
         &mut self,
         data: &ParsedFileData,
@@ -688,25 +692,17 @@ impl Tethys {
             })
             .collect();
 
-        // Insert file and symbols atomically
-        let (file_id, symbol_ids) = self.db.index_file_atomic(
+        // Insert file, symbols, references, and imports atomically
+        let (file_id, _symbol_ids, refs_stored) = self.db.index_parsed_file_atomic(
             &data.relative_path,
             data.language,
             data.mtime_ns,
             data.size_bytes,
             None,
             &symbol_data,
+            &data.references,
+            &data.imports,
         )?;
-
-        // Build lookup maps from inserted data + generated IDs (no DB round-trip)
-        let (name_to_id, span_to_id) = Self::build_symbol_maps_from_data(&symbol_data, &symbol_ids);
-
-        // Store references
-        let refs_stored =
-            self.store_references(file_id, &data.references, &name_to_id, &span_to_id)?;
-
-        // Store imports
-        self.store_imports(file_id, &data.imports, data.language)?;
 
         // Compute and store file dependencies (reusing full_path from above)
         self.compute_dependencies(
@@ -719,159 +715,6 @@ impl Tethys {
         )?;
 
         Ok((data.symbols.len(), refs_stored))
-    }
-
-    /// Build lookup maps from inserted symbol data and their generated IDs.
-    ///
-    /// Pairs each `SymbolData` with its corresponding `SymbolId` returned by
-    /// `index_file_atomic`, avoiding a round-trip query to read symbols back.
-    fn build_symbol_maps_from_data(
-        symbols: &[SymbolData<'_>],
-        symbol_ids: &[SymbolId],
-    ) -> (HashMap<String, SymbolId>, HashMap<Span, SymbolId>) {
-        let mut name_to_id: HashMap<String, SymbolId> = HashMap::new();
-        let mut span_to_id: HashMap<Span, SymbolId> = HashMap::new();
-
-        for (sym, &id) in symbols.iter().zip(symbol_ids) {
-            if let Some(prev_id) = name_to_id.insert(sym.name.to_string(), id) {
-                trace!(
-                    name = %sym.name,
-                    new_id = %id,
-                    prev_id = %prev_id,
-                    "Duplicate symbol name in file, using newer"
-                );
-            }
-
-            if let Some(span) = sym.span {
-                span_to_id.insert(span, id);
-            }
-        }
-
-        (name_to_id, span_to_id)
-    }
-
-    /// Store extracted references in the database.
-    ///
-    /// Stores ALL references, including unresolved ones. For unresolved references
-    /// (cross-file symbols), `symbol_id` is set to `None` and `reference_name` is
-    /// populated for later resolution in Pass 2.
-    ///
-    /// Returns the count of references stored.
-    fn store_references(
-        &self,
-        file_id: FileId,
-        refs: &[common::ExtractedReference],
-        name_to_id: &HashMap<String, SymbolId>,
-        span_to_id: &HashMap<Span, SymbolId>,
-    ) -> Result<usize> {
-        let mut count = 0;
-
-        for r in refs {
-            let qualified_name = Self::build_qualified_name(&r.name, r.path.as_deref());
-
-            // Try same-file resolution: simple name first, then qualified name
-            let symbol_id = name_to_id
-                .get(&r.name)
-                .or_else(|| name_to_id.get(&qualified_name))
-                .copied();
-
-            // For unresolved references, store the name for Pass 2 cross-file resolution
-            let reference_name = if symbol_id.is_none() {
-                trace!(
-                    reference_name = %qualified_name,
-                    line = r.line,
-                    "Storing unresolved reference for later resolution"
-                );
-                Some(qualified_name)
-            } else {
-                None
-            };
-
-            let in_symbol_id = r
-                .containing_symbol_span
-                .and_then(|span| span_to_id.get(&span).copied());
-
-            self.db.insert_reference(&InsertReferenceParams {
-                symbol_id,
-                file_id,
-                kind: r.kind.to_db_kind().as_str(),
-                line: r.line,
-                column: r.column,
-                in_symbol_id,
-                reference_name: reference_name.as_deref(),
-            })?;
-            count += 1;
-        }
-
-        Ok(count)
-    }
-
-    /// Build a qualified name from a simple name and optional path segments.
-    ///
-    /// Examples:
-    /// - `("open", Some(["Index"]))` -> `"Index::open"`
-    /// - `("Foo", None)` -> `"Foo"`
-    /// - `("bar", Some([]))` -> `"bar"`
-    pub(crate) fn build_qualified_name(name: &str, path: Option<&[String]>) -> String {
-        match path {
-            Some(segments) if !segments.is_empty() => {
-                format!("{}::{}", segments.join("::"), name)
-            }
-            _ => name.to_string(),
-        }
-    }
-
-    /// Store extracted imports in the database for cross-file reference resolution.
-    ///
-    /// Imports are stored with language-appropriate path separators:
-    /// - Rust: `::` (e.g., `crate::db`, `std::collections`)
-    /// - C#: `.` (e.g., `MyApp.Services`, `System.Collections.Generic`)
-    ///
-    /// Clears old imports for this file before storing new ones (for re-indexing).
-    fn store_imports(
-        &self,
-        file_id: FileId,
-        imports: &[common::ImportStatement],
-        language: Language,
-    ) -> Result<()> {
-        // Clear old imports for this file (for re-indexing)
-        self.db.clear_imports_for_file(file_id)?;
-
-        // Stored import format is owned by the language's ModuleResolver.
-        let resolver = get_module_resolver(language);
-
-        for import in imports {
-            let source = resolver.join_import(&import.path);
-
-            // Handle glob imports
-            if import.is_glob {
-                self.db
-                    .insert_import(file_id, "*", &source, import.alias.as_deref())?;
-                continue;
-            }
-
-            // For explicit imports: store each imported name
-            if import.imported_names.is_empty() {
-                // Namespace/module import (C# style) or module import without braces
-                // Store with "*" to indicate "all from this module"
-                self.db
-                    .insert_import(file_id, "*", &source, import.alias.as_deref())?;
-            } else {
-                // Store each explicitly imported name
-                for name in &import.imported_names {
-                    self.db
-                        .insert_import(file_id, name, &source, import.alias.as_deref())?;
-                }
-            }
-        }
-
-        trace!(
-            file_id = %file_id,
-            import_count = imports.len(),
-            "Stored imports for file"
-        );
-
-        Ok(())
     }
 
     /// Compute and store file-level dependencies based on use statements and actual references.

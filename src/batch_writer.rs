@@ -352,17 +352,7 @@ fn store_references(
     Ok(count)
 }
 
-/// Build a qualified name from a simple name and optional path segments.
-///
-/// Matches the behavior of `Tethys::build_qualified_name`.
-fn build_qualified_name(name: &str, path: Option<&[String]>) -> String {
-    match path {
-        Some(segments) if !segments.is_empty() => {
-            format!("{}::{}", segments.join("::"), name)
-        }
-        _ => name.to_string(),
-    }
-}
+use crate::db::build_qualified_name;
 
 /// Store imports in the database.
 ///
