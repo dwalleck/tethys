@@ -52,7 +52,8 @@ pub(crate) fn normalize_path(path: &Path) -> String {
 impl Index {
     /// Insert or update a file record, returning the file ID.
     ///
-    /// Delegates to [`Self::index_file_atomic`] with an empty symbol list.
+    /// Delegates to [`Self::index_parsed_file_atomic`] with empty symbols,
+    /// references, and imports.
     #[cfg(test)]
     pub fn upsert_file(
         &mut self,
@@ -62,8 +63,16 @@ impl Index {
         size_bytes: u64,
         content_hash: Option<u64>,
     ) -> Result<FileId> {
-        let (file_id, _symbol_ids) =
-            self.index_file_atomic(path, language, mtime_ns, size_bytes, content_hash, &[])?;
+        let (file_id, _symbol_ids, _refs) = self.index_parsed_file_atomic(
+            path,
+            language,
+            mtime_ns,
+            size_bytes,
+            content_hash,
+            &[],
+            &[],
+            &[],
+        )?;
         Ok(file_id)
     }
 
@@ -104,35 +113,6 @@ impl Index {
         )
         .optional()
         .map_err(Into::into)
-    }
-
-    /// Atomically index a file with all its symbols in a transaction.
-    ///
-    /// Returns the file ID and the generated `SymbolId` for each inserted symbol,
-    /// in the same order as the input `symbols` slice.
-    ///
-    /// Thin wrapper over [`Self::index_parsed_file_atomic`] with no references
-    /// or imports; retained for callers that only write file + symbol rows.
-    pub fn index_file_atomic(
-        &mut self,
-        path: &Path,
-        language: Language,
-        mtime_ns: i64,
-        size_bytes: u64,
-        content_hash: Option<u64>,
-        symbols: &[SymbolData],
-    ) -> Result<(FileId, Vec<SymbolId>)> {
-        let (file_id, symbol_ids, _refs_stored) = self.index_parsed_file_atomic(
-            path,
-            language,
-            mtime_ns,
-            size_bytes,
-            content_hash,
-            symbols,
-            &[],
-            &[],
-        )?;
-        Ok((file_id, symbol_ids))
     }
 
     /// Atomically write a file's COMPLETE parse output — file row, symbols,
