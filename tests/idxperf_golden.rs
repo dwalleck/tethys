@@ -431,3 +431,28 @@ fn streaming_content_matches_golden_rows_at_both_batch_sizes() {
         "batch_size=1 must produce identical content to the default batch size"
     );
 }
+
+/// Claim C9: re-indexing WITHOUT a rebuild over an unchanged tree yields
+/// content identical to a fresh rebuild, across multiple runs. The fixture
+/// contains the exact accumulating shape from the d4d87f1 bug (a top-level
+/// unresolved type ref with NULL `in_symbol_id`, which the symbols-delete
+/// cascade never reaches) — re-breaking the refs DELETE in
+/// `index_parsed_file_atomic` makes this fail with duplicated ref rows.
+#[test]
+fn reindex_without_rebuild_equals_fresh_rebuild() {
+    let dir = TempDir::new().expect("tempdir");
+    write_fixture(dir.path());
+    let db = dir.path().join(".rivets/index/tethys.db");
+
+    let mut tethys = Tethys::new(dir.path()).expect("Tethys::new");
+    tethys.rebuild().expect("fresh rebuild");
+    let fresh = canonical_rows(&db);
+
+    tethys.index().expect("second index (no rebuild)");
+    let second = canonical_rows(&db);
+    assert_eq!(second, fresh, "first re-index must not change content");
+
+    tethys.index().expect("third index (no rebuild)");
+    let third = canonical_rows(&db);
+    assert_eq!(third, fresh, "content must stay stable across N re-indexes");
+}
