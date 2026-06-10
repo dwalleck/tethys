@@ -371,7 +371,7 @@ mod tests {
 
     /// One bad file in a streaming batch must not poison the others
     /// (plan slice 3 stress fixture: failure isolation). The bad file's
-    /// dangling parent_symbol_id violates the FK inside its own
+    /// dangling `parent_symbol_id` violates the FK inside its own
     /// transaction; the surrounding files commit normally.
     #[test]
     fn bad_file_in_batch_is_isolated() {
