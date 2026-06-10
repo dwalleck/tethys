@@ -28,6 +28,37 @@ use crate::types::{
     ArchPhaseResult, FileId, Import, IndexOptions, IndexStats, Language, SymbolKind,
 };
 
+/// Pre-built file→crate assignment index for O(depth) ancestor-walk lookups.
+///
+/// Shared by [`Tethys::run_architecture_phase`] and
+/// [`Tethys::build_file_crate_map`] (idxperf claim C8): the alternative —
+/// `cargo::get_crate_for_file` — costs an O(crates) linear scan plus a
+/// `canonicalize()` syscall per file. Skipping the canonicalize here is safe
+/// because both `workspace_root` (canonicalized in `Tethys::new`) and each
+/// `CrateInfo::path` (canonicalized in crate discovery) are canonical at
+/// construction time.
+struct CrateIndex<'a> {
+    by_path: HashMap<&'a Path, &'a crate::types::CrateInfo>,
+}
+
+impl<'a> CrateIndex<'a> {
+    fn new(crates: &'a [crate::types::CrateInfo]) -> Self {
+        Self {
+            by_path: crates.iter().map(|c| (c.path.as_path(), c)).collect(),
+        }
+    }
+
+    /// Longest-prefix crate match for an absolute file path.
+    ///
+    /// `Path::ancestors()` yields the path itself first, then progressively
+    /// shorter parents, so the first hit IS the longest-prefix match —
+    /// matching `get_crate_for_file`'s nested-crate semantics (a file in
+    /// `foo-utils/` must map to `foo-utils`, never to a sibling `foo`).
+    fn crate_for(&self, abs: &Path) -> Option<&'a crate::types::CrateInfo> {
+        abs.ancestors().find_map(|p| self.by_path.get(p).copied())
+    }
+}
+
 /// A dependency that couldn't be resolved because the target file wasn't indexed yet.
 ///
 /// These are collected during the first indexing pass and resolved in subsequent passes.
@@ -491,33 +522,39 @@ impl Tethys {
     /// Used by the K-hybrid filter in
     /// [`crate::db::Index::populate_file_deps_from_call_edges`]
     /// (rivets-3d0s). Cargo-known files use the canonical crate name from
-    /// [`crate::types::CrateInfo`]; orphan files (outside any
-    /// `Cargo.toml`-known crate) get a pseudo-crate name prefixed with
+    /// [`crate::types::CrateInfo`] via the shared [`CrateIndex`] ancestor
+    /// walk (idxperf claim C8 — no per-file `canonicalize()` syscalls);
+    /// orphan files (outside any `Cargo.toml`-known crate) get a
+    /// pseudo-crate name prefixed with
     /// [`crate::db::call_edges::ORPHAN_PSEUDO_CRATE_PREFIX`] based on
     /// their top-level directory (e.g., `bruno-examples/types.rs` becomes
     /// `orphan:bruno-examples`; files at the workspace root become
     /// `orphan:<filename>`). The pseudo-crate prefix is centralized as
     /// [`crate::db::ORPHAN_PSEUDO_CRATE_PREFIX`].
     fn build_file_crate_map(&self) -> Result<HashMap<crate::types::FileId, String>> {
+        let crate_index = CrateIndex::new(&self.crates);
         let map = self
             .db
             .list_all_files()?
             .into_iter()
             .map(|file| {
-                let abs_path = self.workspace_root.join(&file.path);
-                let crate_name = crate::cargo::get_crate_for_file(&abs_path, &self.crates)
-                    .map_or_else(
-                        || {
-                            let top = file
-                                .path
-                                .components()
-                                .next()
-                                .and_then(|c| c.as_os_str().to_str())
-                                .unwrap_or("");
-                            format!("{}{}", crate::db::ORPHAN_PSEUDO_CRATE_PREFIX, top)
-                        },
-                        |info| info.name.clone(),
-                    );
+                let abs_path = if file.path.is_absolute() {
+                    file.path.clone()
+                } else {
+                    self.workspace_root.join(&file.path)
+                };
+                let crate_name = crate_index.crate_for(&abs_path).map_or_else(
+                    || {
+                        let top = file
+                            .path
+                            .components()
+                            .next()
+                            .and_then(|c| c.as_os_str().to_str())
+                            .unwrap_or("");
+                        format!("{}{}", crate::db::ORPHAN_PSEUDO_CRATE_PREFIX, top)
+                    },
+                    |info| info.name.clone(),
+                );
                 (file.id, crate_name)
             })
             .collect();
@@ -1179,14 +1216,9 @@ impl Tethys {
             })
             .collect();
 
-        // Map each file to its containing crate by walking the file's ancestor
-        // directories and checking against a pre-built crate-path index. This is
-        // O(files * depth) vs the public `get_crate_for_file`'s O(files * crates)
-        // linear scan + per-file `canonicalize()` syscall. Safe to skip the
-        // canonicalize here because both `workspace_root` (lib.rs:113) and each
-        // `CrateInfo::path` (cargo.rs:121) are canonicalized at construction time.
-        let crate_index: HashMap<&Path, &crate::types::CrateInfo> =
-            self.crates.iter().map(|c| (c.path.as_path(), c)).collect();
+        // Map each file to its containing crate via the shared CrateIndex
+        // ancestor walk: O(files × depth), zero syscalls.
+        let crate_index = CrateIndex::new(&self.crates);
 
         let mut file_to_package: Vec<(crate::types::FileId, &str)> = Vec::new();
         for file in self.db.list_all_files()? {
@@ -1195,10 +1227,7 @@ impl Tethys {
             } else {
                 self.workspace_root.join(&file.path)
             };
-            // `Path::ancestors()` yields the path itself first, then progressively
-            // shorter parents, so `find_map` returns the longest-prefix match —
-            // matching `get_crate_for_file`'s nested-crate semantics.
-            if let Some(info) = abs.ancestors().find_map(|p| crate_index.get(p).copied()) {
+            if let Some(info) = crate_index.crate_for(&abs) {
                 file_to_package.push((file.id, info.name.as_str()));
             } else {
                 tracing::trace!(
@@ -1314,6 +1343,61 @@ mod tests {
         ]);
         let map = tethys.build_namespace_map().expect("map");
         assert!(map.is_empty());
+    }
+
+    // ========================================================================
+    // build_file_crate_map Tests (idxperf claim C8)
+    // ========================================================================
+
+    /// Stress fixture from the idxperf plan (slice 6): overlapping crate
+    /// name prefixes (`foo` vs `foo-utils` — defeats first-prefix-match
+    /// bugs), a file nested deep inside a crate, an orphan in a
+    /// subdirectory, and an orphan at the workspace root. Expected map
+    /// hand-computed before the `CrateIndex` implementation.
+    #[test]
+    fn fast_crate_map_matches_expected() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[workspace]\nmembers = [\"foo\", \"foo-utils\"]\nresolver = \"2\"\n",
+            ),
+            (
+                "foo/Cargo.toml",
+                "[package]\nname = \"foo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            ("foo/src/lib.rs", "pub fn a() {}\n"),
+            ("foo/src/deep/inner.rs", "pub fn b() {}\n"),
+            (
+                "foo-utils/Cargo.toml",
+                "[package]\nname = \"foo-utils\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            ("foo-utils/src/lib.rs", "pub fn c() {}\n"),
+            ("tools/helper.rs", "pub fn d() {}\n"),
+            ("loose.rs", "pub fn e() {}\n"),
+        ]);
+
+        let map = tethys.build_file_crate_map().expect("crate map");
+
+        let expected = [
+            ("foo/src/lib.rs", "foo"),
+            ("foo/src/deep/inner.rs", "foo"),
+            ("foo-utils/src/lib.rs", "foo-utils"),
+            ("tools/helper.rs", "orphan:tools"),
+            ("loose.rs", "orphan:loose.rs"),
+        ];
+        for (path, crate_name) in expected {
+            let file_id = tethys
+                .db
+                .get_file_id(Path::new(path))
+                .expect("query")
+                .unwrap_or_else(|| panic!("{path} must be indexed"));
+            assert_eq!(
+                map.get(&file_id).map(String::as_str),
+                Some(crate_name),
+                "wrong crate assignment for {path}"
+            );
+        }
+        assert_eq!(map.len(), 5, "exactly the five fixture files mapped");
     }
 
     // ========================================================================
