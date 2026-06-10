@@ -97,6 +97,7 @@ pub(crate) fn parse_reference_kind(s: &str) -> rusqlite::Result<ReferenceKind> {
         "inherit" => Ok(ReferenceKind::Inherit),
         "construct" => Ok(ReferenceKind::Construct),
         "field_access" => Ok(ReferenceKind::FieldAccess),
+        "macro" => Ok(ReferenceKind::Macro),
         unknown => Err(rusqlite::Error::FromSqlConversionFailure(
             0,
             rusqlite::types::Type::Text,

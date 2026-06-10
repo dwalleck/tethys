@@ -79,6 +79,7 @@ mod node_kinds {
     pub const STRUCT_EXPRESSION: &str = "struct_expression";
     pub const FIELD_EXPRESSION: &str = "field_expression";
     pub const SCOPED_TYPE_IDENTIFIER: &str = "scoped_type_identifier";
+    pub const MACRO_INVOCATION: &str = "macro_invocation";
 }
 
 /// Rust language support implementation.
@@ -125,6 +126,8 @@ pub struct UseStatement {
     pub alias: Option<String>,
     /// Line number where the use statement appears (1-indexed)
     pub line: u32,
+    /// Whether this is a re-export (`pub use`, `pub(crate) use`, ...).
+    pub is_reexport: bool,
 }
 
 impl UseStatement {
@@ -137,6 +140,7 @@ impl UseStatement {
             is_glob: self.is_glob,
             alias: self.alias.clone(),
             line: self.line,
+            is_reexport: self.is_reexport,
         }
     }
 }
@@ -158,8 +162,8 @@ fn extract_references_recursive(
     containing_span: Option<Span>,
 ) {
     use node_kinds::{
-        CALL_EXPRESSION, DECLARATION_LIST, FUNCTION_ITEM, IMPL_ITEM, STRUCT_EXPRESSION,
-        STRUCT_ITEM, TRAIT_ITEM, TYPE_IDENTIFIER, USE_DECLARATION,
+        CALL_EXPRESSION, DECLARATION_LIST, FUNCTION_ITEM, IMPL_ITEM, MACRO_INVOCATION,
+        STRUCT_EXPRESSION, STRUCT_ITEM, TRAIT_ITEM, TYPE_IDENTIFIER, USE_DECLARATION,
     };
 
     match node.kind() {
@@ -171,6 +175,18 @@ fn extract_references_recursive(
             if let Some(ref_data) = extract_call_reference(node, content, containing_span) {
                 refs.push(ref_data);
             }
+        }
+
+        MACRO_INVOCATION => {
+            // Macro invocation: `info!(...)` or `tracing::info!(...)`.
+            // Without this, a `use tracing::info;` consumed only by `info!`
+            // looks unused, and macro symbols look uncalled.
+            if let Some(ref_data) = extract_macro_reference(node, content, containing_span) {
+                refs.push(ref_data);
+            }
+            // The macro's token_tree contains raw tokens, not expression
+            // nodes — nothing further to extract inside.
+            return;
         }
 
         STRUCT_EXPRESSION => {
@@ -323,6 +339,53 @@ fn extract_call_reference(
     }
 }
 
+/// Extract a macro reference from a `macro_invocation` node.
+///
+/// The "macro" field is an `identifier` (`info!`) or `scoped_identifier`
+/// (`tracing::info!`). The `!` sigil is not part of the captured name.
+fn extract_macro_reference(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    containing_span: Option<Span>,
+) -> Option<ExtractedReference> {
+    use node_kinds::{IDENTIFIER, SCOPED_IDENTIFIER};
+
+    let mac = node.child_by_field_name("macro")?;
+
+    match mac.kind() {
+        IDENTIFIER => {
+            let Some(name) = node_text(&mac, content) else {
+                tracing::trace!(
+                    kind = mac.kind(),
+                    line = mac.start_position().row + 1,
+                    "Failed to extract identifier text from macro invocation, skipping"
+                );
+                return None;
+            };
+            Some(ExtractedReference {
+                name,
+                kind: ExtractedReferenceKind::Macro,
+                line: mac.start_position().row as u32 + 1,
+                column: mac.start_position().column as u32 + 1,
+                path: None,
+                containing_symbol_span: containing_span,
+            })
+        }
+        SCOPED_IDENTIFIER => {
+            let (path, name) = parse_scoped_identifier(&mac, content);
+            Some(ExtractedReference {
+                name,
+                kind: ExtractedReferenceKind::Macro,
+                line: mac.start_position().row as u32 + 1,
+                column: mac.start_position().column as u32 + 1,
+                path: if path.is_empty() { None } else { Some(path) },
+                containing_symbol_span: containing_span,
+            })
+        }
+        _ => None,
+    }
+}
+
 /// Extract a struct constructor reference from a `struct_expression` node.
 fn extract_struct_constructor(
     node: &tree_sitter::Node,
@@ -433,6 +496,14 @@ fn parse_use_declaration(node: &tree_sitter::Node, content: &[u8]) -> Option<Use
 
     let line = node.start_position().row as u32 + 1;
 
+    // A leading visibility modifier (`pub use`, `pub(crate) use`) marks a
+    // re-export: the names are API surface rather than local usage.
+    let is_reexport = {
+        let mut cursor = node.walk();
+        node.children(&mut cursor)
+            .any(|c| c.kind() == node_kinds::VISIBILITY_MODIFIER)
+    };
+
     // The use declaration has an argument child that contains the actual path/imports
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
@@ -447,15 +518,21 @@ fn parse_use_declaration(node: &tree_sitter::Node, content: &[u8]) -> Option<Use
                     is_glob: false,
                     alias: None,
                     line,
+                    is_reexport,
                 });
             }
             SCOPED_USE_LIST => {
                 // List use: `use std::collections::{HashMap, HashSet};`
-                return Some(parse_scoped_use_list(&child, content, line));
+                let mut stmt = parse_scoped_use_list(&child, content, line);
+                stmt.is_reexport = is_reexport;
+                return Some(stmt);
             }
             USE_AS_CLAUSE => {
                 // Alias use: `use std::collections::HashMap as Map;`
-                return parse_use_as_clause(&child, content, line);
+                return parse_use_as_clause(&child, content, line).map(|mut s| {
+                    s.is_reexport = is_reexport;
+                    s
+                });
             }
             IDENTIFIER | CRATE | SELF | SUPER => {
                 // Simple single-segment use (rare but possible)
@@ -466,11 +543,14 @@ fn parse_use_declaration(node: &tree_sitter::Node, content: &[u8]) -> Option<Use
                     is_glob: false,
                     alias: None,
                     line,
+                    is_reexport,
                 });
             }
             USE_WILDCARD => {
                 // Glob use: `use std::collections::*;` - the wildcard node contains the path
-                return Some(parse_use_wildcard(&child, content, line));
+                let mut stmt = parse_use_wildcard(&child, content, line);
+                stmt.is_reexport = is_reexport;
+                return Some(stmt);
             }
             USE_LIST => {
                 // Bare use list without path (rare)
@@ -481,6 +561,7 @@ fn parse_use_declaration(node: &tree_sitter::Node, content: &[u8]) -> Option<Use
                     is_glob: false,
                     alias: None,
                     line,
+                    is_reexport,
                 });
             }
             _ => {}
@@ -511,6 +592,9 @@ fn parse_use_wildcard(node: &tree_sitter::Node, content: &[u8], line: u32) -> Us
         is_glob: true,
         alias: None,
         line,
+        // Overridden by parse_use_declaration when a visibility modifier
+        // is present on the enclosing use declaration.
+        is_reexport: false,
     }
 }
 
@@ -591,6 +675,9 @@ fn parse_scoped_use_list(node: &tree_sitter::Node, content: &[u8], line: u32) ->
         is_glob,
         alias: None,
         line,
+        // Overridden by parse_use_declaration when a visibility modifier
+        // is present on the enclosing use declaration.
+        is_reexport: false,
     }
 }
 
@@ -649,6 +736,9 @@ fn parse_use_as_clause(
         is_glob: false,
         alias: Some(alias),
         line,
+        // Overridden by parse_use_declaration when a visibility modifier
+        // is present on the enclosing use declaration.
+        is_reexport: false,
     })
 }
 
@@ -1652,6 +1742,22 @@ impl User {
         assert_eq!(uses[0].alias, Some("Map".to_string()));
     }
 
+    #[test]
+    fn marks_pub_use_as_reexport() {
+        let code = "pub use crate::db::Index;\n\
+                    pub(crate) use crate::db::helpers;\n\
+                    use crate::db::Symbol;\n\
+                    pub use crate::types::{FileId, SymbolId};\n";
+        let tree = parse_rust(code);
+        let uses = extract_use_statements(&tree, code.as_bytes());
+
+        assert_eq!(uses.len(), 4);
+        assert!(uses[0].is_reexport, "pub use must be a re-export");
+        assert!(uses[1].is_reexport, "pub(crate) use must be a re-export");
+        assert!(!uses[2].is_reexport, "plain use must not be a re-export");
+        assert!(uses[3].is_reexport, "pub use with list must be a re-export");
+    }
+
     // ========================================================================
     // Reference Extraction Tests (Phase 2: Step 3)
     // ========================================================================
@@ -1712,6 +1818,57 @@ impl User {
             .iter()
             .find(|r| r.name == "new" && r.kind == ExtractedReferenceKind::Call);
         assert!(new_ref.is_some(), "should find associated function call");
+    }
+
+    #[test]
+    fn extracts_macro_invocation() {
+        let code = "fn main() { info!(\"hello\"); }";
+        let tree = parse_rust(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let mac_ref = refs.iter().find(|r| r.name == "info");
+        assert!(mac_ref.is_some(), "should find macro invocation info!");
+        let mac_ref = mac_ref.unwrap();
+        assert_eq!(mac_ref.kind, ExtractedReferenceKind::Macro);
+        assert!(mac_ref.path.is_none());
+        assert!(
+            mac_ref.containing_symbol_span.is_some(),
+            "macro inside fn must carry the containing span"
+        );
+    }
+
+    #[test]
+    fn extracts_scoped_macro_invocation() {
+        let code = "fn main() { tracing::info!(\"hello\"); }";
+        let tree = parse_rust(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let mac_ref = refs
+            .iter()
+            .find(|r| r.name == "info" && r.kind == ExtractedReferenceKind::Macro);
+        assert!(mac_ref.is_some(), "should find scoped macro invocation");
+        assert_eq!(
+            mac_ref.unwrap().path,
+            Some(vec!["tracing".to_string()]),
+            "scoped macro must carry its path"
+        );
+    }
+
+    #[test]
+    fn extracts_top_level_macro_invocation() {
+        // Macros can appear at item position (e.g., lazy_static!, declare_id!)
+        let code = "declare_id!(FileId);";
+        let tree = parse_rust(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let mac_ref = refs
+            .iter()
+            .find(|r| r.name == "declare_id" && r.kind == ExtractedReferenceKind::Macro);
+        assert!(mac_ref.is_some(), "should find item-position macro");
+        assert!(
+            mac_ref.unwrap().containing_symbol_span.is_none(),
+            "top-level macro has no containing symbol"
+        );
     }
 
     #[test]

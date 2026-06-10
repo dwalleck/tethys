@@ -46,9 +46,11 @@ mod reindex;
 mod resolve;
 mod resolver;
 mod types;
+mod unused_imports;
 
 pub use cargo::discover_crates;
 pub use error::{Error, IndexError, IndexErrorKind, Result};
+pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 pub use types::{
     ArchPhaseResult, ArchStats, CouplingDetail, CouplingMetrics, CouplingSort, CrateInfo, Cycle,
     DatabaseStats, Dependent, FileAnalysis, FileId, FunctionSignature, Impact, Import,

@@ -1062,7 +1062,8 @@ impl Tethys {
                     imported_names,
                     is_glob,
                     alias,
-                    line: 0, // Not needed for dependency computation
+                    line: 0,            // Not needed for dependency computation
+                    is_reexport: false, // Not persisted in the imports table
                 }
             })
             .collect()
@@ -1241,6 +1242,10 @@ impl Tethys {
             }
         };
 
+        // Parent name for context-aware exclusions (e.g., `src/bin` is Rust
+        // source, not build output).
+        let dir_name = dir.file_name().and_then(|n| n.to_str());
+
         for entry in entries {
             // Explicitly handle entry errors instead of silently skipping with flatten()
             let entry = match entry {
@@ -1259,7 +1264,7 @@ impl Tethys {
 
             // Skip hidden directories and common build directories
             if let Some(name) = path.file_name().and_then(|n| n.to_str())
-                && (name.starts_with('.') || Self::is_excluded_dir(name))
+                && (name.starts_with('.') || Self::is_excluded_dir(name, dir_name))
             {
                 continue;
             }
@@ -1280,11 +1285,19 @@ impl Tethys {
     }
 
     /// Check if a directory should be excluded from indexing.
-    fn is_excluded_dir(name: &str) -> bool {
-        matches!(
-            name,
-            "target" | "node_modules" | "vendor" | "bin" | "obj" | "build" | "dist" | "__pycache__"
-        )
+    ///
+    /// `parent_name` is the name of the directory containing `name`, used for
+    /// context-aware exclusions: `bin` is .NET build output everywhere EXCEPT
+    /// under `src`, where it is Cargo's binary-target source directory
+    /// (`src/bin/*.rs`). `obj` stays excluded unconditionally — .NET `obj`
+    /// directories contain *generated* `.cs` sources that must never be
+    /// indexed, and no language convention places real sources there.
+    fn is_excluded_dir(name: &str, parent_name: Option<&str>) -> bool {
+        match name {
+            "bin" => parent_name != Some("src"),
+            "target" | "node_modules" | "vendor" | "obj" | "build" | "dist" | "__pycache__" => true,
+            _ => false,
+        }
     }
 
     /// Final indexing phase: rebuild `arch_*` tables from current files + `file_deps`.
@@ -1466,12 +1479,12 @@ mod tests {
 
     #[test]
     fn is_excluded_dir_excludes_target() {
-        assert!(Tethys::is_excluded_dir("target"));
+        assert!(Tethys::is_excluded_dir("target", None));
     }
 
     #[test]
     fn is_excluded_dir_excludes_node_modules() {
-        assert!(Tethys::is_excluded_dir("node_modules"));
+        assert!(Tethys::is_excluded_dir("node_modules", None));
     }
 
     #[test]
@@ -1479,69 +1492,152 @@ mod tests {
         // .git is NOT in the exclusion list — it's handled separately by
         // the hidden-directory filter (starts with '.'). Verify it is not
         // matched here so the two filters stay orthogonal.
-        assert!(!Tethys::is_excluded_dir(".git"));
+        assert!(!Tethys::is_excluded_dir(".git", None));
     }
 
     #[test]
-    fn is_excluded_dir_excludes_bin() {
-        assert!(Tethys::is_excluded_dir("bin"));
+    fn is_excluded_dir_excludes_bin_outside_src() {
+        // .NET build output: <project>/bin
+        assert!(Tethys::is_excluded_dir("bin", None));
+        assert!(Tethys::is_excluded_dir("bin", Some("MyProject")));
     }
 
     #[test]
-    fn is_excluded_dir_excludes_obj() {
-        assert!(Tethys::is_excluded_dir("obj"));
+    fn is_excluded_dir_allows_bin_under_src() {
+        // Cargo binary targets live in src/bin/*.rs — real source, not
+        // build output. Excluding it makes every symbol reachable only
+        // from those binaries look dead.
+        assert!(!Tethys::is_excluded_dir("bin", Some("src")));
+    }
+
+    #[test]
+    fn is_excluded_dir_excludes_obj_even_under_src() {
+        // .NET obj dirs hold GENERATED .cs sources; never index them,
+        // regardless of where they appear.
+        assert!(Tethys::is_excluded_dir("obj", None));
+        assert!(Tethys::is_excluded_dir("obj", Some("src")));
     }
 
     #[test]
     fn is_excluded_dir_excludes_build() {
-        assert!(Tethys::is_excluded_dir("build"));
+        assert!(Tethys::is_excluded_dir("build", None));
     }
 
     #[test]
     fn is_excluded_dir_excludes_dist() {
-        assert!(Tethys::is_excluded_dir("dist"));
+        assert!(Tethys::is_excluded_dir("dist", None));
     }
 
     #[test]
     fn is_excluded_dir_excludes_vendor() {
-        assert!(Tethys::is_excluded_dir("vendor"));
+        assert!(Tethys::is_excluded_dir("vendor", None));
     }
 
     #[test]
     fn is_excluded_dir_excludes_pycache() {
-        assert!(Tethys::is_excluded_dir("__pycache__"));
+        assert!(Tethys::is_excluded_dir("__pycache__", None));
     }
 
     #[test]
     fn is_excluded_dir_allows_src() {
-        assert!(!Tethys::is_excluded_dir("src"));
+        assert!(!Tethys::is_excluded_dir("src", None));
     }
 
     #[test]
     fn is_excluded_dir_allows_lib() {
-        assert!(!Tethys::is_excluded_dir("lib"));
+        assert!(!Tethys::is_excluded_dir("lib", None));
     }
 
     #[test]
     fn is_excluded_dir_allows_tests() {
-        assert!(!Tethys::is_excluded_dir("tests"));
+        assert!(!Tethys::is_excluded_dir("tests", None));
     }
 
     #[test]
     fn is_excluded_dir_allows_my_module() {
-        assert!(!Tethys::is_excluded_dir("my_module"));
+        assert!(!Tethys::is_excluded_dir("my_module", None));
     }
 
     #[test]
     fn is_excluded_dir_is_case_sensitive() {
-        assert!(!Tethys::is_excluded_dir("Target"));
-        assert!(!Tethys::is_excluded_dir("NODE_MODULES"));
-        assert!(!Tethys::is_excluded_dir("Vendor"));
+        assert!(!Tethys::is_excluded_dir("Target", None));
+        assert!(!Tethys::is_excluded_dir("NODE_MODULES", None));
+        assert!(!Tethys::is_excluded_dir("Vendor", None));
     }
 
     #[test]
     fn is_excluded_dir_rejects_empty_string() {
-        assert!(!Tethys::is_excluded_dir(""));
+        assert!(!Tethys::is_excluded_dir("", None));
+    }
+
+    /// Re-indexing must not grow the refs table. The accumulating shape:
+    /// a top-level ref (`in_symbol_id` NULL — here a type alias to an
+    /// external type) survives the symbols-delete cascade because nothing
+    /// it points at gets deleted, so before the explicit
+    /// `DELETE FROM refs WHERE file_id` in `index_file_atomic`, every
+    /// re-index inserted a duplicate row next to it.
+    #[test]
+    fn reindex_does_not_accumulate_refs() {
+        let (_dir, mut tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "src/lib.rs",
+                // Top-level unresolved type ref (external type, no fn body)
+                // plus an ordinary resolved in-function call ref.
+                "pub type Alias = ExternalThing;\n\
+                 pub fn used() {}\n\
+                 pub fn caller() { used(); }\n",
+            ),
+        ]);
+
+        let first = tethys.db.get_stats().expect("stats").reference_count;
+        assert!(first > 0, "fixture must produce at least one ref");
+
+        tethys.index().expect("second index");
+        let second = tethys.db.get_stats().expect("stats").reference_count;
+        assert_eq!(
+            second, first,
+            "re-index must not accumulate refs (top-level unresolved refs previously duplicated)"
+        );
+
+        tethys.index().expect("third index");
+        let third = tethys.db.get_stats().expect("stats").reference_count;
+        assert_eq!(third, first, "ref count must stay stable across N re-indexes");
+    }
+
+    /// End-to-end fence for the src/bin fix: a Cargo binary target under
+    /// src/bin/ must be discovered and indexed, while a .NET-style bin/
+    /// directory at any other level stays excluded.
+    #[test]
+    fn index_includes_src_bin_but_excludes_other_bin_dirs() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            ("src/lib.rs", "pub fn shared() {}\n"),
+            ("src/bin/tool.rs", "fn main() { app::shared(); }\n"),
+            ("bin/Generated.cs", "namespace Gen { public class G { } }\n"),
+        ]);
+        assert!(
+            tethys
+                .db
+                .get_file_id(Path::new("src/bin/tool.rs"))
+                .expect("query")
+                .is_some(),
+            "src/bin/tool.rs must be indexed (Cargo binary target)"
+        );
+        assert!(
+            tethys
+                .db
+                .get_file_id(Path::new("bin/Generated.cs"))
+                .expect("query")
+                .is_none(),
+            "top-level bin/ must remain excluded (.NET build output)"
+        );
     }
 
     // ========================================================================

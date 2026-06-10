@@ -120,6 +120,9 @@ impl UsingDirective {
             is_glob: false,
             alias: self.alias.clone(),
             line: self.line,
+            // C# using directives never re-export (global usings widen
+            // scope within the project, not the public API).
+            is_reexport: false,
         }
     }
 }
