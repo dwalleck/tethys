@@ -1062,7 +1062,8 @@ impl Tethys {
                     imported_names,
                     is_glob,
                     alias,
-                    line: 0, // Not needed for dependency computation
+                    line: 0,            // Not needed for dependency computation
+                    is_reexport: false, // Not persisted in the imports table
                 }
             })
             .collect()

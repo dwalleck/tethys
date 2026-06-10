@@ -363,6 +363,8 @@ pub enum ReferenceKind {
     Construct,
     /// Field access on a struct/class instance
     FieldAccess,
+    /// Macro invocation (`info!(...)` in Rust)
+    Macro,
     /// Unknown reference kind from database (possible version mismatch or corruption).
     /// Contains the raw string value that could not be parsed.
     Unknown(String),
@@ -381,6 +383,7 @@ impl ReferenceKind {
             Self::Inherit => "inherit",
             Self::Construct => "construct",
             Self::FieldAccess => "field_access",
+            Self::Macro => "macro",
             Self::Unknown(_) => "unknown",
         }
     }
@@ -398,6 +401,7 @@ impl ReferenceKind {
             "inherit" => Some(Self::Inherit),
             "construct" => Some(Self::Construct),
             "field_access" => Some(Self::FieldAccess),
+            "macro" => Some(Self::Macro),
             _ => None,
         }
     }

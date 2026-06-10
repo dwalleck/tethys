@@ -55,6 +55,7 @@ tethys coupling --json
 | `reachable` | Analyze symbol reachability (forward/backward traversal) |
 | `search` | Search for symbols by name |
 | `stats` | Show index statistics |
+| `unused-imports` | Find imports whose names are never referenced (Rust) |
 
 ## Language Support
 

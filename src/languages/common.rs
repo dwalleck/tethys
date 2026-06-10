@@ -87,6 +87,8 @@ pub enum ExtractedReferenceKind {
     Type,
     /// Constructor invocation
     Constructor,
+    /// Macro invocation (`info!(...)` in Rust)
+    Macro,
 }
 
 impl ExtractedReferenceKind {
@@ -97,6 +99,7 @@ impl ExtractedReferenceKind {
             Self::Call => crate::types::ReferenceKind::Call,
             Self::Type => crate::types::ReferenceKind::Type,
             Self::Constructor => crate::types::ReferenceKind::Construct,
+            Self::Macro => crate::types::ReferenceKind::Macro,
         }
     }
 }
@@ -117,4 +120,11 @@ pub struct ImportStatement {
     pub alias: Option<String>,
     /// Line number (1-indexed)
     pub line: u32,
+    /// Whether this import re-exports its names (`pub use` in Rust).
+    ///
+    /// Re-exports are API surface, not local usage — analyses like
+    /// unused-import detection must skip them. Not persisted in the
+    /// imports table; only populated on freshly parsed statements
+    /// (always `false` when reconstructed from the database).
+    pub is_reexport: bool,
 }
