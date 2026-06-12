@@ -159,9 +159,15 @@ impl Tethys {
     /// directives (Type's methods), then resolve iff the deduped union is
     /// exactly one symbol (spec decision #3).
     ///
-    /// Each arm caps its contribution at 2 — two distinct candidates already
-    /// force a decline, so more are never needed to know "not unique". A name
-    /// resolvable by both arms to the SAME symbol dedupes to one candidate.
+    /// The types arm caps at 2; the static-member arm caps at 2 per `using
+    /// static` directive — two distinct candidates already force a decline, so
+    /// exact bounds don't matter, only "unique vs not". The dedup is keyed on
+    /// symbol id and is INTRA-arm: the type and member kind-sets are disjoint,
+    /// so one symbol can never appear in both arms (no cross-arm collision is
+    /// possible). It is defensive against the member arm surfacing the SAME
+    /// symbol twice — e.g. two distinct `using static` directives that resolve
+    /// to the same type+file (a file with multiple namespace blocks) — so such
+    /// a self-collision collapses to one candidate instead of false-declining.
     fn resolve_via_union_arm(
         &self,
         ref_name: &str,
@@ -201,9 +207,20 @@ impl Tethys {
 
         candidates.sort_by_key(|s| s.id.as_i64());
         candidates.dedup_by_key(|s| s.id.as_i64());
-        match candidates.as_slice() {
-            [symbol] => Ok(Some(symbol.clone())),
-            _ => Ok(None),
+        match candidates.len() {
+            1 => Ok(candidates.pop()),
+            0 => Ok(None),
+            n => {
+                // Restore the ambiguity trail the pre-union primitive emitted,
+                // and keep parity with the other refuse-ambiguity paths in
+                // db/symbols.rs which still `debug!` on multi-candidate decline.
+                debug!(
+                    ref_name = %ref_name,
+                    candidate_count = n,
+                    "Refusing ambiguous using-arm match (multiple candidates across types / static-member arms)"
+                );
+                Ok(None)
+            }
         }
     }
 
