@@ -169,3 +169,76 @@ namespace My.App
          the two workspace Sqrt collide so the fallback declines too"
     );
 }
+
+/// S4-A (PR #3 review): TWO distinct `using static` directives in one file. The
+/// member arm loops over every static using; here only `Helper` defines the
+/// bare name, so the union has exactly one candidate → resolves. Exercises the
+/// multi-directive loop with a single match (the four headline fences each use
+/// at most one static using).
+#[test]
+fn multiple_static_usings_single_match_resolves() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "cs/App.cs",
+            r"
+using static My.A.Helper;
+using static My.B.Tools;
+
+namespace My.App
+{
+    public class Runner { public void Go() { Assist(); } }
+}
+",
+        ),
+        (
+            "cs/Helper.cs",
+            "namespace My.A { public static class Helper { public static void Assist() { } } }\n",
+        ),
+        (
+            "cs/Tools.cs",
+            "namespace My.B { public static class Tools { public static void Other() { } } }\n",
+        ),
+    ]);
+    tethys.index().expect("index");
+    assert_eq!(
+        ref_target(&tethys, "Assist"),
+        Some("Helper::Assist".to_string()),
+        "only My.A.Helper defines Assist among the two static usings → unique → resolves"
+    );
+}
+
+/// S4-A (PR #3 review): TWO distinct `using static` directives whose types each
+/// define the SAME bare method name. The member arm accumulates one candidate
+/// per directive → two distinct symbols → decline (unique-or-decline across the
+/// directive loop, not first-wins).
+#[test]
+fn multiple_static_usings_cross_type_collision_declines() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "cs/App.cs",
+            r"
+using static My.A.Helper;
+using static My.B.Tools;
+
+namespace My.App
+{
+    public class Runner { public void Go() { Assist(); } }
+}
+",
+        ),
+        (
+            "cs/Helper.cs",
+            "namespace My.A { public static class Helper { public static void Assist() { } } }\n",
+        ),
+        (
+            "cs/Tools.cs",
+            "namespace My.B { public static class Tools { public static void Assist() { } } }\n",
+        ),
+    ]);
+    tethys.index().expect("index");
+    assert_eq!(
+        ref_target(&tethys, "Assist"),
+        None,
+        "Helper::Assist and Tools::Assist both in scope via two static usings → ambiguous → decline"
+    );
+}
