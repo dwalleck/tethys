@@ -1,0 +1,54 @@
+## files
+src/App.cs|csharp|333
+src/GlobalUsings.cs|csharp|25
+src/Globals.cs|csharp|58
+src/Models.cs|csharp|119
+src/Nested.cs|csharp|91
+src/Other.cs|csharp|59
+src/Scoped.cs|csharp|55
+src/UseScoped.cs|csharp|226
+## symbols
+src/App.cs|My.App||My.App|module|7|1|19|2||public||0
+src/App.cs|Runner||Runner|class|9|5|18|6||public||0
+src/App.cs|Go||Runner::Go|method|11|9|17|10|void Go()|public||0
+src/Globals.cs|My.Globals||My.Globals|module|1|1|4|2||public||0
+src/Globals.cs|GlobalThing||GlobalThing|class|3|5|3|33||public||0
+src/Models.cs|My.Models||My.Models|module|1|1|5|2||public||0
+src/Models.cs|Widget||Widget|class|3|5|3|28||public||0
+src/Models.cs|Helper||Helper|class|4|5|4|67||public||0
+src/Models.cs|Assist||Helper::Assist|function|4|34|4|65|void Assist()|public||0
+src/Nested.cs|Outer1||Outer1|module|1|1|7|2||public||0
+src/Nested.cs|Inner1||Inner1|module|3|5|6|6||public||0
+src/Nested.cs|NestedThing||NestedThing|class|5|9|5|37||public||0
+src/Other.cs|Other.Stuff||Other.Stuff|module|1|1|4|2||public||0
+src/Other.cs|UnusedThing||UnusedThing|class|3|5|3|33||public||0
+src/Scoped.cs|My.Scoped||My.Scoped|module|1|1|1|21||public||0
+src/Scoped.cs|FileScopedThing||FileScopedThing|class|3|1|3|33||public||0
+src/UseScoped.cs|My.App2||My.App2|module|4|1|14|2||public||0
+src/UseScoped.cs|Runner2||Runner2|class|6|5|13|6||public||0
+src/UseScoped.cs|Go2||Runner2::Go2|method|8|9|12|10|void Go2()|public||0
+## refs
+src/App.cs|construct|13|25|-1|-1||src/Models.cs:3:Widget|Runner::Go
+src/App.cs|call|14|13|-1|-1||src/Models.cs:4:Helper::Assist|Runner::Go
+src/App.cs|call|15|13|-1|-1||src/Models.cs:4:Helper::Assist|Runner::Go
+src/App.cs|call|16|13|-1|-1|Console::WriteLine|<unresolved>|Runner::Go
+src/UseScoped.cs|construct|10|25|-1|-1||src/Scoped.cs:3:FileScopedThing|Runner2::Go2
+src/UseScoped.cs|construct|11|25|-1|-1||src/Nested.cs:5:NestedThing|Runner2::Go2
+## imports
+src/App.cs|*|My.Models|
+src/App.cs|*|My.Models.Helper|
+src/App.cs|*|My.Models.Widget|W
+src/App.cs|*|Other.Stuff|
+src/App.cs|*|System|
+src/GlobalUsings.cs|*|My.Globals|
+src/UseScoped.cs|*|My.Scoped|
+src/UseScoped.cs|*|Outer1.Inner1|
+## file_deps
+src/App.cs|src/Models.cs|3
+src/UseScoped.cs|src/Nested.cs|1
+src/UseScoped.cs|src/Scoped.cs|1
+## call_edges
+src/App.cs:11:Runner::Go|src/Models.cs:3:Widget|1
+src/App.cs:11:Runner::Go|src/Models.cs:4:Helper::Assist|2
+src/UseScoped.cs:8:Runner2::Go2|src/Nested.cs:5:NestedThing|1
+src/UseScoped.cs:8:Runner2::Go2|src/Scoped.cs:3:FileScopedThing|1

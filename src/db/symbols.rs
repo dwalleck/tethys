@@ -323,33 +323,33 @@ impl Index {
         Ok(Some(first))
     }
 
-    /// Unique-or-decline name lookup scoped to a set of files, optionally
-    /// kind-filtered (the C# using-arm primitive — csharp-ns claims C3–C5).
-    ///
-    /// Returns the symbol only when EXACTLY one candidate matches across the
-    /// whole file set — the same refuse-ambiguity idiom as
-    /// [`Self::search_unique_symbol_by_name`], scoped. `kinds: None` means
-    /// any kind. Empty `file_paths` is a documented refusal: returns `None`
-    /// without touching SQL (load-bearing — an empty `IN ()` is a syntax
-    /// error, and "no files" must mean "no candidates", not an error).
-    ///
-    /// `file_paths` are chunked (500 per query) to stay clear of `SQLite`'s
-    /// host-parameter limit; uniqueness is aggregated ACROSS chunks.
-    pub fn search_unique_symbol_by_name_in_files(
+    /// Up to `limit` symbols named `name` (optionally kind-filtered) declared
+    /// in any of `file_paths` — the un-collapsed primitive behind
+    /// the resolve.rs candidate union (usgf) and the unique-or-decline
+    /// reductions above it. Empty `file_paths` is a documented refusal:
+    /// returns an empty `Vec` without touching SQL (load-bearing — an empty
+    /// `IN ()` is a syntax error). `file_paths` are chunked (500 per query)
+    /// against the `SQLite` host-parameter limit; the `limit` is applied
+    /// GLOBALLY across chunks.
+    pub fn search_symbols_by_name_in_files(
         &self,
         name: &str,
         kinds: Option<&[SymbolKind]>,
         file_paths: &[std::path::PathBuf],
-    ) -> Result<Option<Symbol>> {
-        if file_paths.is_empty() {
-            return Ok(None);
+        limit: usize,
+    ) -> Result<Vec<Symbol>> {
+        if file_paths.is_empty() || limit == 0 {
+            return Ok(Vec::new());
         }
         let conn = self.connection()?;
         let kind_strs: Option<Vec<&'static str>> =
             kinds.map(|ks| ks.iter().map(SymbolKind::as_str).collect());
 
-        let mut found: Option<Symbol> = None;
+        let mut out: Vec<Symbol> = Vec::new();
         for chunk in file_paths.chunks(500) {
+            if out.len() >= limit {
+                break;
+            }
             let path_marks = vec!["?"; chunk.len()].join(", ");
             let kind_clause = match &kind_strs {
                 Some(ks) => format!(" AND kind IN ({})", vec!["?"; ks.len()].join(", ")),
@@ -359,7 +359,7 @@ impl Index {
                 "SELECT {SYMBOLS_COLUMNS} FROM symbols
                  WHERE name = ?
                    AND file_id IN (SELECT id FROM files WHERE path IN ({path_marks})){kind_clause}
-                 LIMIT 2"
+                 LIMIT {limit}"
             );
             let params: Vec<String> = std::iter::once(name.to_string())
                 .chain(chunk.iter().map(|p| super::files::normalize_path(p)))
@@ -369,18 +369,79 @@ impl Index {
             let mut stmt = conn.prepare(&sql)?;
             let rows = stmt.query_map(rusqlite::params_from_iter(params.iter()), row_to_symbol)?;
             for row in rows {
-                let sym = row?;
-                if found.is_some() {
-                    debug!(
-                        symbol_name = %name,
-                        "Refusing ambiguous file-scoped name match (multiple candidates)"
-                    );
-                    return Ok(None);
+                out.push(row?);
+                if out.len() >= limit {
+                    break;
                 }
-                found = Some(sym);
             }
         }
-        Ok(found)
+        Ok(out)
+    }
+
+    /// Up to `limit` members named `name` belonging to type `type_name`,
+    /// declared in any of `file_paths`, kind-filtered to `member_kinds` —
+    /// the `using static Type;` member-resolution primitive (usgf).
+    ///
+    /// Scopes to the type via an EXACT `qualified_name = 'Type::name'` match
+    /// (the type-scoping handle is `qualified_name`, not `parent_symbol_id`,
+    /// which is `None` for functions; probe). Exact match avoids the
+    /// `LIKE 'Type::%'` underscore-wildcard hazard for identifiers
+    /// containing `_`. Two members sharing `Type::name` (overloads) return
+    /// both → the caller declines.
+    ///
+    /// Empty `file_paths`, empty `type_name`, OR empty `member_kinds` is a
+    /// documented refusal: returns an empty `Vec` without SQL (load-bearing —
+    /// empty `type_name` would otherwise match every `::name` across types, and
+    /// empty `member_kinds` would emit `kind IN ()`, a `SQLite` syntax error).
+    pub fn search_type_members_by_name(
+        &self,
+        name: &str,
+        type_name: &str,
+        file_paths: &[std::path::PathBuf],
+        member_kinds: &[SymbolKind],
+        limit: usize,
+    ) -> Result<Vec<Symbol>> {
+        // Empty type_name is a load-bearing runtime refusal (not a
+        // debug_assert): a trailing-dot using like `using static My.Models.;`
+        // can reach here with an empty suffix, and `'::name'` would otherwise
+        // over-match every member of that name across all types. Empty
+        // member_kinds is refused for the same reason empty file_paths is:
+        // the `kind IN (...)` clause would become `IN ()`, a SQLite syntax error.
+        if file_paths.is_empty() || type_name.is_empty() || member_kinds.is_empty() || limit == 0 {
+            return Ok(Vec::new());
+        }
+        let conn = self.connection()?;
+        let qualified = format!("{type_name}::{name}");
+        let kind_marks = vec!["?"; member_kinds.len()].join(", ");
+
+        let mut out: Vec<Symbol> = Vec::new();
+        for chunk in file_paths.chunks(500) {
+            if out.len() >= limit {
+                break;
+            }
+            let path_marks = vec!["?"; chunk.len()].join(", ");
+            let sql = format!(
+                "SELECT {SYMBOLS_COLUMNS} FROM symbols
+                 WHERE qualified_name = ?
+                   AND kind IN ({kind_marks})
+                   AND file_id IN (SELECT id FROM files WHERE path IN ({path_marks}))
+                 LIMIT {limit}"
+            );
+            let params: Vec<String> = std::iter::once(qualified.clone())
+                .chain(member_kinds.iter().map(|k| k.as_str().to_string()))
+                .chain(chunk.iter().map(|p| super::files::normalize_path(p)))
+                .collect();
+
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map(rusqlite::params_from_iter(params.iter()), row_to_symbol)?;
+            for row in rows {
+                out.push(row?);
+                if out.len() >= limit {
+                    break;
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// Find a symbol at a specific file and line.
@@ -703,8 +764,21 @@ mod search_by_name_ambiguity_tests {
     }
 
     // ========================================================================
-    // search_unique_symbol_by_name_in_files Tests (csharp-ns claims C3–C5)
+    // file-scoped unique-or-decline Tests (csharp-ns claims C3–C5)
     // ========================================================================
+
+    /// The unique-or-decline reduction the resolve.rs types arm applies over
+    /// [`Index::search_symbols_by_name_in_files`] (cap 2). Kept test-only —
+    /// the production union does this inline across both arms.
+    fn unique_in_files(
+        index: &Index,
+        name: &str,
+        kinds: Option<&[SymbolKind]>,
+        file_paths: &[std::path::PathBuf],
+    ) -> Result<Option<Symbol>> {
+        let mut found = index.search_symbols_by_name_in_files(name, kinds, file_paths, 2)?;
+        Ok((found.len() == 1).then(|| found.pop().unwrap()))
+    }
 
     fn insert_sym(index: &mut Index, file_path: &str, name: &str, kind: SymbolKind) -> SymbolId {
         let file_id = index
@@ -767,14 +841,14 @@ mod search_by_name_ambiguity_tests {
         };
         let class_id = insert("Widget", SymbolKind::Class);
         let _method_id = insert("Widget", SymbolKind::Method);
-        let result = index
-            .search_unique_symbol_by_name_in_files(
-                "Widget",
-                Some(&[SymbolKind::Class, SymbolKind::Struct]),
-                &paths(&["a/W.cs"]),
-            )
-            .expect("query")
-            .expect("class must match through the kind filter");
+        let result = unique_in_files(
+            &index,
+            "Widget",
+            Some(&[SymbolKind::Class, SymbolKind::Struct]),
+            &paths(&["a/W.cs"]),
+        )
+        .expect("query")
+        .expect("class must match through the kind filter");
         assert_eq!(result.id, class_id);
     }
 
@@ -784,13 +858,13 @@ mod search_by_name_ambiguity_tests {
         let (_dir, mut index) = fresh_index();
         insert_sym(&mut index, "a/W1.cs", "Widget", SymbolKind::Class);
         insert_sym(&mut index, "b/W2.cs", "Widget", SymbolKind::Class);
-        let result = index
-            .search_unique_symbol_by_name_in_files(
-                "Widget",
-                Some(&[SymbolKind::Class]),
-                &paths(&["a/W1.cs", "b/W2.cs"]),
-            )
-            .expect("query");
+        let result = unique_in_files(
+            &index,
+            "Widget",
+            Some(&[SymbolKind::Class]),
+            &paths(&["a/W1.cs", "b/W2.cs"]),
+        )
+        .expect("query");
         assert!(result.is_none(), "ambiguity must decline, got {result:?}");
     }
 
@@ -799,9 +873,7 @@ mod search_by_name_ambiguity_tests {
     fn in_files_out_of_scope_symbol_is_invisible() {
         let (_dir, mut index) = fresh_index();
         insert_sym(&mut index, "elsewhere/W.cs", "Widget", SymbolKind::Class);
-        let result = index
-            .search_unique_symbol_by_name_in_files("Widget", None, &paths(&["a/W1.cs"]))
-            .expect("query");
+        let result = unique_in_files(&index, "Widget", None, &paths(&["a/W1.cs"])).expect("query");
         assert!(result.is_none());
     }
 
@@ -810,9 +882,7 @@ mod search_by_name_ambiguity_tests {
     fn in_files_empty_path_set_declines() {
         let (_dir, mut index) = fresh_index();
         insert_sym(&mut index, "a/W.cs", "Widget", SymbolKind::Class);
-        let result = index
-            .search_unique_symbol_by_name_in_files("Widget", None, &[])
-            .expect("query");
+        let result = unique_in_files(&index, "Widget", None, &[]).expect("query");
         assert!(result.is_none());
     }
 
@@ -828,8 +898,7 @@ mod search_by_name_ambiguity_tests {
             .map(|i| std::path::PathBuf::from(format!("dir/file{i:04}.cs")))
             .collect();
 
-        let result = index
-            .search_unique_symbol_by_name_in_files("Widget", Some(&[SymbolKind::Class]), &many)
+        let result = unique_in_files(&index, "Widget", Some(&[SymbolKind::Class]), &many)
             .expect("query")
             .expect("single match across chunks must resolve");
         assert_eq!(result.id, target);
@@ -837,12 +906,165 @@ mod search_by_name_ambiguity_tests {
         // Second candidate lands in a different chunk (index 0010 vs 0777
         // straddles the 500-path chunk boundary): cross-chunk ambiguity.
         insert_sym(&mut index, "dir/file0010.cs", "Widget", SymbolKind::Class);
-        let result = index
-            .search_unique_symbol_by_name_in_files("Widget", Some(&[SymbolKind::Class]), &many)
-            .expect("query");
+        let result =
+            unique_in_files(&index, "Widget", Some(&[SymbolKind::Class]), &many).expect("query");
         assert!(
             result.is_none(),
             "cross-chunk ambiguity must decline, got {result:?}"
         );
+    }
+
+    // ========================================================================
+    // search_type_members_by_name Tests (usgf claim C4 primitive)
+    // ========================================================================
+
+    const METHOD_KINDS: &[SymbolKind] = &[SymbolKind::Function, SymbolKind::Method];
+
+    /// Insert several `(type, name, kind)` members into ONE file via a single
+    /// upsert. (Re-upserting a path routes through `index_file_atomic`, which
+    /// clears the file's prior symbols — so all members of a file must be
+    /// inserted against one upsert.)
+    fn insert_members(
+        index: &mut Index,
+        file: &str,
+        members: &[(&str, &str, SymbolKind)],
+    ) -> Vec<SymbolId> {
+        let file_id = index
+            .upsert_file(std::path::Path::new(file), Language::CSharp, 0, 0, None)
+            .expect("file");
+        members
+            .iter()
+            .map(|(type_name, name, kind)| {
+                index
+                    .insert_symbol(&InsertSymbolParams {
+                        file_id,
+                        name,
+                        module_path: "",
+                        qualified_name: &format!("{type_name}::{name}"),
+                        kind: *kind,
+                        line: 1,
+                        column: 1,
+                        span: None,
+                        signature: None,
+                        visibility: Visibility::Public,
+                        parent_symbol_id: None,
+                        is_test: false,
+                    })
+                    .expect("symbol")
+            })
+            .collect()
+    }
+
+    /// Prefix-scoping bug class: `Helper::Zap` and `Other::Zap` both in scope;
+    /// `using static Ns.Helper` must match ONLY `Helper::Zap`.
+    #[test]
+    fn type_members_scope_to_the_type_prefix() {
+        let (_dir, mut index) = fresh_index();
+        let ids = insert_members(
+            &mut index,
+            "a/Both.cs",
+            &[
+                ("Helper", "Zap", SymbolKind::Function),
+                ("Other", "Zap", SymbolKind::Function),
+            ],
+        );
+        let hits = index
+            .search_type_members_by_name("Zap", "Helper", &paths(&["a/Both.cs"]), METHOD_KINDS, 2)
+            .expect("query");
+        assert_eq!(hits.len(), 1, "only Helper::Zap, not Other::Zap");
+        assert_eq!(hits[0].id, ids[0]);
+    }
+
+    /// Kind filter: a non-callable symbol with the same `qualified_name` is excluded.
+    #[test]
+    fn type_members_kind_filtered() {
+        let (_dir, mut index) = fresh_index();
+        // A class literally qualified-named "Helper::Inner" (nested type shape)
+        // must not be returned by a method lookup.
+        insert_members(
+            &mut index,
+            "a/T.cs",
+            &[("Helper", "Inner", SymbolKind::Class)],
+        );
+        let hits = index
+            .search_type_members_by_name("Inner", "Helper", &paths(&["a/T.cs"]), METHOD_KINDS, 2)
+            .expect("query");
+        assert!(
+            hits.is_empty(),
+            "class kind excluded by method-kinds filter"
+        );
+    }
+
+    /// Overloads (two `Helper::Assist`) return both → caller declines.
+    #[test]
+    fn type_members_overloads_return_both() {
+        let (_dir, mut index) = fresh_index();
+        insert_members(
+            &mut index,
+            "a/H.cs",
+            &[
+                ("Helper", "Assist", SymbolKind::Function),
+                ("Helper", "Assist", SymbolKind::Method),
+            ],
+        );
+        let hits = index
+            .search_type_members_by_name("Assist", "Helper", &paths(&["a/H.cs"]), METHOD_KINDS, 2)
+            .expect("query");
+        assert_eq!(hits.len(), 2, "overloads surface as multiple candidates");
+    }
+
+    /// Documented refusals: empty files, empty `type_name`, and empty
+    /// `member_kinds` each return empty without touching SQL.
+    #[test]
+    fn type_members_empty_inputs_decline() {
+        let (_dir, mut index) = fresh_index();
+        insert_members(
+            &mut index,
+            "a/H.cs",
+            &[("Helper", "Assist", SymbolKind::Function)],
+        );
+        assert!(
+            index
+                .search_type_members_by_name("Assist", "Helper", &[], METHOD_KINDS, 2)
+                .expect("query")
+                .is_empty(),
+            "empty files → empty"
+        );
+        assert!(
+            index
+                .search_type_members_by_name("Assist", "", &paths(&["a/H.cs"]), METHOD_KINDS, 2)
+                .expect("query")
+                .is_empty(),
+            "empty type_name → empty (no '::name' over-match across types)"
+        );
+        // Empty member_kinds must refuse, not emit `kind IN ()` (a SQLite
+        // syntax error). A non-empty match exists, so a missing guard would
+        // surface as a query error rather than the empty Vec asserted here.
+        assert!(
+            index
+                .search_type_members_by_name("Assist", "Helper", &paths(&["a/H.cs"]), &[], 2)
+                .expect("empty member_kinds must not error")
+                .is_empty(),
+            "empty member_kinds → empty (no `kind IN ()`)"
+        );
+    }
+
+    /// Cross-chunk: the one match lands in a late chunk past the 500 boundary.
+    #[test]
+    fn type_members_chunking_finds_late_match() {
+        let (_dir, mut index) = fresh_index();
+        let target = insert_members(
+            &mut index,
+            "dir/file0777.cs",
+            &[("Helper", "Assist", SymbolKind::Function)],
+        )[0];
+        let many: Vec<std::path::PathBuf> = (0..1200)
+            .map(|i| std::path::PathBuf::from(format!("dir/file{i:04}.cs")))
+            .collect();
+        let hits = index
+            .search_type_members_by_name("Assist", "Helper", &many, METHOD_KINDS, 2)
+            .expect("query");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, target);
     }
 }
