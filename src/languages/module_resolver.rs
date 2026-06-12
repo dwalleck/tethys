@@ -86,9 +86,10 @@ pub(crate) struct GlobResolution {
 
 /// A `using static Namespace.Type;` directive recognized by type-detection:
 /// the named type plus the files declaring its namespace. The driver scopes
-/// the member lookup to symbols whose `qualified_name` begins `Type::`
-/// within these files (the type-scoping handle is `qualified_name`, not
-/// `parent_symbol_id`, which is `None` for functions).
+/// the member lookup to the symbol whose `qualified_name` is EXACTLY
+/// `Type::<member>` within these files (the type-scoping handle is
+/// `qualified_name`, not `parent_symbol_id`, which is `None` for functions; an
+/// exact match, not a `Type::` prefix scan, to avoid the `LIKE` wildcard hazard).
 pub(crate) struct StaticMemberImport {
     pub type_name: String,
     pub files: Vec<PathBuf>,
@@ -529,8 +530,8 @@ mod tests {
         // Both `My.Models` and `My.Models.Sub` are namespaces. For
         // `My.Models.Sub`, rsplit gives prefix `My.Models` (in map) + suffix
         // `Sub` → emits type `Sub`. This over-fires, but the driver's later
-        // `Sub::%` member query finds nothing (Sub is a namespace, not a
-        // type with members), so it is harmless.
+        // exact `Sub::<name>` member query finds nothing (Sub is a namespace,
+        // not a type with members), so it is harmless.
         let root = Path::new("/ws");
         let mut map = NamespaceMap::new();
         map.insert("My.Models".to_string(), vec![PathBuf::from("a.cs")]);
