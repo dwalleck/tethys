@@ -389,9 +389,10 @@ impl Index {
     /// containing `_`. Two members sharing `Type::name` (overloads) return
     /// both → the caller declines.
     ///
-    /// Empty `file_paths` OR empty `type_name` is a documented refusal:
-    /// returns an empty `Vec` without SQL (load-bearing — empty `type_name`
-    /// would otherwise match every `::name` across types).
+    /// Empty `file_paths`, empty `type_name`, OR empty `member_kinds` is a
+    /// documented refusal: returns an empty `Vec` without SQL (load-bearing —
+    /// empty `type_name` would otherwise match every `::name` across types, and
+    /// empty `member_kinds` would emit `kind IN ()`, a `SQLite` syntax error).
     pub fn search_type_members_by_name(
         &self,
         name: &str,
@@ -403,8 +404,10 @@ impl Index {
         // Empty type_name is a load-bearing runtime refusal (not a
         // debug_assert): a trailing-dot using like `using static My.Models.;`
         // can reach here with an empty suffix, and `'::name'` would otherwise
-        // over-match every member of that name across all types.
-        if file_paths.is_empty() || type_name.is_empty() || limit == 0 {
+        // over-match every member of that name across all types. Empty
+        // member_kinds is refused for the same reason empty file_paths is:
+        // the `kind IN (...)` clause would become `IN ()`, a SQLite syntax error.
+        if file_paths.is_empty() || type_name.is_empty() || member_kinds.is_empty() || limit == 0 {
             return Ok(Vec::new());
         }
         let conn = self.connection()?;
@@ -1010,7 +1013,8 @@ mod search_by_name_ambiguity_tests {
         assert_eq!(hits.len(), 2, "overloads surface as multiple candidates");
     }
 
-    /// Documented refusals: empty files and empty `type_name` return empty, no SQL.
+    /// Documented refusals: empty files, empty `type_name`, and empty
+    /// `member_kinds` each return empty without touching SQL.
     #[test]
     fn type_members_empty_inputs_decline() {
         let (_dir, mut index) = fresh_index();
@@ -1032,6 +1036,16 @@ mod search_by_name_ambiguity_tests {
                 .expect("query")
                 .is_empty(),
             "empty type_name → empty (no '::name' over-match across types)"
+        );
+        // Empty member_kinds must refuse, not emit `kind IN ()` (a SQLite
+        // syntax error). A non-empty match exists, so a missing guard would
+        // surface as a query error rather than the empty Vec asserted here.
+        assert!(
+            index
+                .search_type_members_by_name("Assist", "Helper", &paths(&["a/H.cs"]), &[], 2)
+                .expect("empty member_kinds must not error")
+                .is_empty(),
+            "empty member_kinds → empty (no `kind IN ()`)"
         );
     }
 
