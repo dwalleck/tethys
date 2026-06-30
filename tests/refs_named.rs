@@ -6,7 +6,7 @@
 //! the design's falsification claims against a REAL index each builds itself
 //! (the on-disk index can be stale — never query an ambient DB).
 
-#![allow(clippy::needless_raw_string_hashes)]
+#![allow(clippy::needless_raw_string_hashes, clippy::doc_markdown)]
 
 mod common;
 

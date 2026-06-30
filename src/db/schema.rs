@@ -191,6 +191,7 @@ LEFT JOIN (
 ";
 
 #[cfg(test)]
+#[allow(clippy::doc_markdown)]
 mod schema_tests {
     use super::SCHEMA;
     use rusqlite::Connection;
