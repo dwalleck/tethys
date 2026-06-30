@@ -21,6 +21,10 @@ fn count_named(conn: &rusqlite::Connection, name: &str, kind: &str) -> i64 {
     .expect("query refs_named")
 }
 
+fn scalar(conn: &rusqlite::Connection, sql: &str) -> i64 {
+    conn.query_row(sql, [], |row| row.get(0)).expect("scalar query")
+}
+
 /// Slice 2 — claim C1 (narrowed): a name query over `refs_named` returns the
 /// call sites that RESOLVED (keyed by `symbols.name`) or are BARE-unresolved
 /// (keyed by `reference_name`), INCLUDING cross-file callers.
@@ -87,5 +91,51 @@ pub fn use_it() {
         count_named(&conn, "lonely", "call"),
         0,
         "a defined-but-never-called function has zero call refs"
+    );
+}
+
+/// Slice 5 — claim C4: the view cannot introduce panic-points false positives.
+///
+/// `panic_points` filters `WHERE reference_name IN ('unwrap','expect')` with NO
+/// `symbol_id` guard, so a resolved ref becomes a panic site iff it gains such
+/// a `reference_name`. The view never writes `reference_name`, so this stays 0.
+///
+/// DEVIATION from the plan: the planned fence asserted panic-points CLI output
+/// directly, but that output is entangled with name-only method misresolution
+/// (tethys-53iv): here BOTH `Option::unwrap()` and the in-crate `Thing::unwrap`
+/// call resolve to the same in-crate symbol, so the CLI reports 0 regardless —
+/// a brittle thing to pin. This invariant is the robust form: it fails under a
+/// future `reference_name`-overload impl (resolved unwrap refs would gain the
+/// name → count > 0) but not under unrelated resolver changes.
+#[test]
+fn view_cannot_make_resolved_refs_into_panic_points() {
+    let (_dir, mut tethys) = workspace_with_files(&[(
+        "src/lib.rs",
+        r"
+pub struct Thing;
+impl Thing {
+    pub fn unwrap(&self) {}
+}
+pub fn use_external() {
+    let x: Option<i32> = Some(1);
+    x.unwrap();
+}
+pub fn use_internal() {
+    let t = Thing;
+    t.unwrap();
+}
+",
+    )]);
+    tethys.index().expect("index should succeed");
+    let conn = open_db(&tethys);
+
+    assert_eq!(
+        scalar(
+            &conn,
+            "SELECT COUNT(*) FROM refs WHERE symbol_id IS NOT NULL
+                 AND reference_name IN ('unwrap', 'expect')"
+        ),
+        0,
+        "no RESOLVED ref may carry a panic-keyword reference_name (would be a panic-points FP)"
     );
 }
