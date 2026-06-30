@@ -118,6 +118,12 @@ Unit test in `schema_tests`: assert `count_object("refs_named","view")==1`; inse
 
 ## Slice 6: C5 — file_deps invariance (sweep guard)
 
+> **FOLDED into Slice 7 (as-built, 2026-06-30).** Investigation during the build
+> showed the view has no code path into `file_deps` (dep detection runs in Pass 1,
+> pre-resolution, off parsed names), so the planned phantom-dep fixture was
+> unconstructible without tripping a PRE-EXISTING name-collision dep (filed
+> tethys-msn0). C5 is now covered by Slice 7's root invariant. See design.md.
+
 **Claim:** C5 — adding the view does not introduce phantom file dependencies; an unused cross-file import whose name collides with a same-file resolved symbol does NOT create a dependency edge.
 **Oracle:** the pre-PR `file_deps` for the fixture (the unused import yields no edge).
 **Stress fixture:** `workspace_with_files`: `a.rs` defines `pub struct Bar;`; `b.rs` has `use crate::a::Bar;` but NEVER references the imported `Bar`, while `b.rs` defines and references its OWN same-file `struct Bar`/`fn` named so a resolved same-file ref named `Bar` exists. Expected: no `file_dep` from `b.rs` → `a.rs` (import is unused). **Bug targeted:** overload-`reference_name` leaks the same-file resolved `Bar` name into `refs_set` (indexing.rs:1003) → import judged "used" → phantom `b→a` edge appears → fixture fails.
