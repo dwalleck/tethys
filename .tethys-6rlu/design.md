@@ -43,7 +43,8 @@ name-query surface for external/ad-hoc SQL. No change to store or resolve paths.
 Ref **resolution state** (the governing sum type):
 - **resolved-at-store, same-file** (`symbol_id` Some, `reference_name` NULL today) → C1 (these are same-file call sites; view surfaces via `s.name`)
 - **unresolved→resolved in Pass 2, cross-file** (`reference_name` nulled by resolve) → C1 (cross-module callers of `node_text` etc.)
-- **never resolved, external** (`symbol_id` NULL, `reference_name` set — e.g. `unwrap`) → C2
+- **never resolved, external, BARE** (`symbol_id` NULL, `reference_name` = bare name — e.g. `unwrap`) → C2
+- **unresolved, QUALIFIED** (`symbol_id` NULL, `reference_name` = qualified path — e.g. `crate::helper`, `PathBuf::from`) → keyed by the **qualified path**, NOT the bare tail. A bare-name query (`name='helper'`) does NOT match these. Documented limitation, pinned by C1's fixture. For external qualified refs (`PathBuf::from`) this is arguably correct; for in-crate ones (`crate::helper`) it only persists because they fail to resolve — resolving them removes the limitation (tracked **tethys-3i35**).
 - **`symbol_id` NULL AND `reference_name` NULL** → asserted impossible by the store invariant (references.rs:46 `symbol_id.is_some() || reference_name.is_some()`); view `name` would be NULL. Out of scope (cannot occur); noted, no claim.
 
 Ref **kind**: `call` (C1), `type` / struct-constructor / others — the view's
@@ -70,7 +71,7 @@ the view is safe and (b) producing regression fences that fail if a future refac
 
 ## Claims
 
-1. **C1 — name-query soundness.** For an in-crate symbol X, `SELECT count(*) FROM refs_named WHERE name=X AND kind='call'` equals X's real call-site count.
+1. **C1 — name-query soundness (resolved + bare-unresolved).** For an in-crate symbol X, `SELECT count(*) FROM refs_named WHERE name=X AND kind='call'` equals the count of X's call sites that either **resolved** (keyed by `symbols.name`) or are **bare unresolved** (keyed by `reference_name`). Unresolved **qualified** calls (`crate::X()`) are keyed by their qualified path and are NOT matched by a bare-name query — documented limitation; removing it depends on resolving such calls (**tethys-3i35**). [Narrowed at Slice 2, 2026-06-30, after the original claim overreached — the prove-it probe's 5 functions were all fully resolved, so the unresolved-qualified shape was never exercised.]
 2. **C2 — no loss for unresolved.** For an unresolved/external name X, `refs_named WHERE name=X` returns exactly the rows `refs WHERE reference_name=X` returned (LEFT JOIN keeps `symbol_id IS NULL` rows).
 3. **C3 — additive (refs untouched).** A full dump of `refs` (all rows/columns) is byte-identical before and after the change.
 4. **C4 — panic-points unchanged.** `tethys panic-points` output is identical before/after (no new false positives).
@@ -82,7 +83,7 @@ the view is safe and (b) producing regression fences that fail if a future refac
 
 | # | Claim | Falsifier (input → falsifying result) | Oracle (independent) | Cost | Status | Regression fence |
 |---|-------|----------------------------------------|----------------------|------|--------|------------------|
-| C1 | name-query soundness | Index a fixture with a free fn `foo` called K times across files; if `refs_named WHERE name='foo' AND kind='call'` ≠ K → false | ripgrep textual call-site count (`prove-it.md`: 5 fns, counts 1–59, exact) | 5m | **passed** (real view on fresh index) | CI test `refs_named::name_count_matches_callsites` — builds its OWN index from fixture (never an ambient DB; see "What I learned") |
+| C1 | name-query soundness (resolved + bare-unresolved) | Index a fixture where free fn `foo` has K resolved/bare-unresolved call sites; if `refs_named WHERE name='foo' AND kind='call'` ≠ K → false. The fixture ALSO pins that an unresolved `crate::foo()` is keyed by `crate::foo` (limitation, tethys-3i35), so the test documents the boundary instead of papering over it. | ripgrep textual call-site count (`prove-it.md`: 5 fns, all resolved, counts 1–59, exact) + the row-level dump | 5m | **passed** (prove-it 5/5; Slice-2 fixture green after narrowing) | CI test `refs_named::name_query_counts_all_callsites_including_cross_file` — builds its OWN index (never an ambient DB) |
 | C2 | no loss for unresolved | Replace LEFT with INNER JOIN; if `refs_named WHERE name='unwrap'` drops to 0 (vs 54) → false | pre-change `refs WHERE reference_name='unwrap'` (=54, distinct query path) | 5m | **passed** (view=54 == ref_name=54) | CI test `refs_named::unresolved_names_preserved` |
 | C3 | refs untouched | `.dump refs` before/after; non-empty diff → false | sqlite `.dump` checksum | 10m | pending | CI test `refs_named::refs_table_unchanged` (snapshot of refs dump) |
 | C4 | panic-points unchanged | Fixture defines in-crate method `unwrap` that's called; if post-change `panic-points` lists it → false | pre-change `panic-points` output | 20m | pending | CI test `panic_points::no_fp_from_in_crate_unwrap` (fixture embeds the bug class) |
