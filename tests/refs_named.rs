@@ -139,3 +139,43 @@ pub fn use_internal() {
         "no RESOLVED ref may carry a panic-keyword reference_name (would be a panic-points FP)"
     );
 }
+
+/// Slice 7 — claims C3, C6 (and C5 by folding): the root invariant the whole
+/// "additive view, not overload" design rests on — `reference_name` still means
+/// "unresolved". This is what keeps `refs` byte-stable (C3), the unresolved set
+/// stable (C6), and the file_deps streaming path's input stable (C5, see
+/// design). Bug targeted: ANY `reference_name`-overload impl writes names onto
+/// resolved refs → first count > 0 → fails.
+#[test]
+fn resolved_refs_carry_no_reference_name() {
+    let (_dir, mut tethys) = workspace_with_files(&[(
+        "src/lib.rs",
+        r"
+pub fn helper() {}
+
+pub fn entry() {
+    helper();
+    let x: Option<i32> = Some(1);
+    x.unwrap();
+}
+",
+    )]);
+    tethys.index().expect("index should succeed");
+    let conn = open_db(&tethys);
+
+    assert_eq!(
+        scalar(
+            &conn,
+            "SELECT COUNT(*) FROM refs WHERE symbol_id IS NOT NULL AND reference_name IS NOT NULL"
+        ),
+        0,
+        "a resolved ref must not carry a reference_name (reference_name == unresolved marker)"
+    );
+    assert!(
+        scalar(
+            &conn,
+            "SELECT COUNT(*) FROM refs WHERE symbol_id IS NULL AND reference_name IS NOT NULL"
+        ) > 0,
+        "unresolved refs (e.g. the external .unwrap()) must still carry their name"
+    );
+}

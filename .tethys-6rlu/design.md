@@ -66,7 +66,7 @@ the view is safe and (b) producing regression fences that fail if a future refac
 | Consumer | Uses | Under option 1 (overload) | Under the view |
 |---|---|---|---|
 | `panic_points.rs:51,103` | `WHERE reference_name IN ('unwrap','expect')`, **no symbol_id guard** | in-crate symbol named `unwrap`/`expect` resolves → gains name → **false panic site** | unchanged (C4) |
-| `indexing.rs:1003` → `compute_dependencies_from_stored` | `refs_set` = `reference_name`s of file's refs; decides `is_used` per import → `file_deps` | resolved same-file names leak into `refs_set` → import wrongly "used" → **phantom file_dep** | unchanged (C5) |
+| `indexing.rs:896/234` (file_deps) | dep detection runs in **Pass 1, before resolution**. Non-streaming (`compute_dependencies`) uses **in-memory parsed `r.name`** (never the DB column); streaming (`compute_dependencies_from_stored`:1003) uses DB `reference_name`. | streaming path only: same-file names stored-with-name leak into `refs_set` → **phantom file_dep** (non-streaming path immune) | **structurally unchanged** — the view touches neither storage nor parsed refs; the streaming path's `reference_name` input is pinned by C6/C7 (Slice 7). [Corrected at Slice 6: original "view prevents a phantom dep" was wrong; see C5.] |
 | `references.rs:119` (LSP unresolved select) | `WHERE symbol_id IS NULL AND reference_name IS NOT NULL` | safe — `symbol_id` guard already present | unchanged (C6) |
 
 ## Claims
@@ -75,7 +75,7 @@ the view is safe and (b) producing regression fences that fail if a future refac
 2. **C2 — no loss for unresolved.** For an unresolved/external name X, `refs_named WHERE name=X` returns exactly the rows `refs WHERE reference_name=X` returned (LEFT JOIN keeps `symbol_id IS NULL` rows).
 3. **C3 — additive (refs untouched).** A full dump of `refs` (all rows/columns) is byte-identical before and after the change.
 4. **C4 — panic-points unchanged.** `tethys panic-points` output is identical before/after (no new false positives).
-5. **C5 — file_deps unchanged.** The `file_deps` table is identical before/after (no phantom dependencies).
+5. **C5 — file_deps unchanged (covered by C6/C7; no separate fence).** The view cannot affect `file_deps`: detection runs in Pass 1 *before* resolution — the non-streaming path uses in-memory parsed `r.name` (never the DB `reference_name`), and the streaming path's DB `reference_name` input is exactly what Slice 7 (C6/C7) pins. [Revised at Slice 6, 2026-06-30: the original premise (view adds/prevents a phantom dep) was wrong; the bug-class fixture also tripped a pre-existing name-collision phantom dep — **tethys-msn0**.]
 6. **C6 — Pass-2/LSP select unchanged.** The unresolved set `WHERE symbol_id IS NULL AND reference_name IS NOT NULL` is identical before/after.
 7. **C7 — name collision = union.** For a name X shared by N symbols, `refs_named WHERE name=X` returns the union of refs resolving to any symbol named X plus unresolved refs named X, with no double-count.
 
@@ -87,7 +87,7 @@ the view is safe and (b) producing regression fences that fail if a future refac
 | C2 | no loss for unresolved | Replace LEFT with INNER JOIN; if `refs_named WHERE name='unwrap'` drops to 0 (vs 54) → false | pre-change `refs WHERE reference_name='unwrap'` (=54, distinct query path) | 5m | **passed** (view=54 == ref_name=54) | CI test `refs_named::unresolved_names_preserved` |
 | C3 | refs untouched | `.dump refs` before/after; non-empty diff → false | sqlite `.dump` checksum | 10m | pending | CI test `refs_named::refs_table_unchanged` (snapshot of refs dump) |
 | C4 | panic-points unchanged | Fixture defines in-crate method `unwrap` that's called; if post-change `panic-points` lists it → false | pre-change `panic-points` output | 20m | pending | CI test `panic_points::no_fp_from_in_crate_unwrap` (fixture embeds the bug class) |
-| C5 | file_deps unchanged | Fixture: file imports `Bar` (unused) AND has a same-file resolved symbol `Bar`; if a `file_dep` to Bar's module appears → false | pre-change `file_deps` dump | 20m | pending | CI test `file_deps::no_phantom_from_resolved_name` (fixture embeds the bug class) |
+| C5 | file_deps unchanged | **Covered by C6/C7, no separate fence.** View has no code path into dep detection (runs Pass 1, pre-resolution, off parsed names); the streaming path's `reference_name` input is pinned by Slice 7. The planned phantom-dep fixture was unconstructible without tripping a pre-existing name-collision dep (tethys-msn0). | structural argument + C6/C7 invariant | — | folded | Slice 7 (`refs_named::resolved_refs_carry_no_reference_name`) |
 | C6 | Pass-2/LSP select unchanged | Count `symbol_id IS NULL AND reference_name IS NOT NULL` before/after; differ → false | pre-change count | 10m | pending | CI test `references::unresolved_set_stable` |
 | C7 | collision = union | Name X on 2 symbols; if `refs_named WHERE name=X` ≠ (refs→symbols(name=X)) ∪ (reference_name=X) or double-counts → false | two-term SQL decomposition (separate query) | 15m | pending | CI test `refs_named::collision_is_union` |
 
