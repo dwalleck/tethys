@@ -314,4 +314,36 @@ mod schema_tests {
             "unresolved ref must survive the LEFT JOIN and be name-queryable"
         );
     }
+
+    /// Slice 4 stress fixture (tethys-6rlu C7): a name shared by two symbols
+    /// (a function and a method) returns the UNION of refs to both, each ref
+    /// once. Bug targeted: (a) a join picking only one symbol → 1; (b) a
+    /// non-COALESCE/`OR` form double-counting a row → 3.
+    #[test]
+    fn refs_named_name_collision_is_union_without_double_count() {
+        let conn = open_test_conn();
+        conn.execute_batch(
+            "INSERT INTO files (id, path, language, mtime_ns, size_bytes, indexed_at)
+                 VALUES (1, 'a.rs', 'rust', 0, 0, 0), (2, 'b.rs', 'rust', 0, 0, 0);
+             INSERT INTO symbols (id, file_id, name, module_path, qualified_name,
+                                  kind, line, column, visibility) VALUES
+                 (10, 1, 'dup', '', 'dup', 'function', 1, 1, 'pub'),
+                 (20, 2, 'dup', 'B', 'B::dup', 'method', 1, 1, 'pub');
+             INSERT INTO refs (id, symbol_id, file_id, kind, line, column) VALUES
+                 (300, 10, 1, 'call', 5, 1),
+                 (301, 20, 2, 'call', 6, 1);",
+        )
+        .expect("seed collision fixture");
+
+        let (total, distinct): (i64, i64) = conn
+            .query_row(
+                "SELECT COUNT(*), COUNT(DISTINCT id) FROM refs_named
+                     WHERE name = 'dup' AND kind = 'call'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("query refs_named");
+        assert_eq!(total, 2, "both 'dup' symbols' refs must appear (union)");
+        assert_eq!(distinct, total, "no ref may be double-counted");
+    }
 }
