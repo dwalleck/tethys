@@ -285,4 +285,33 @@ mod schema_tests {
             "resolved ref must surface its symbol's name, not NULL"
         );
     }
+
+    /// Slice 3 stress fixture (tethys-6rlu C2): an UNRESOLVED ref (symbol_id
+    /// NULL, reference_name set) must still appear in the view, keyed by its
+    /// reference_name. Bug targeted: an INNER JOIN instead of LEFT would drop
+    /// every symbol_id-NULL row, returning 0.
+    #[test]
+    fn refs_named_left_join_keeps_unresolved_ref() {
+        let conn = open_test_conn();
+        seed_refs_fixture(&conn);
+        // Unresolved call ref: symbol_id omitted (NULL), reference_name set.
+        conn.execute(
+            "INSERT INTO refs (id, file_id, kind, line, column, reference_name)
+                 VALUES (200, 1, 'call', 9, 1, 'extern_fn')",
+            [],
+        )
+        .expect("insert unresolved ref");
+
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM refs_named WHERE name = 'extern_fn' AND kind = 'call'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("query refs_named");
+        assert_eq!(
+            count, 1,
+            "unresolved ref must survive the LEFT JOIN and be name-queryable"
+        );
+    }
 }
