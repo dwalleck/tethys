@@ -699,11 +699,17 @@ impl Tethys {
         )?;
 
         // Build lookup maps from inserted data + generated IDs (no DB round-trip)
-        let (name_to_id, span_to_id) = Self::build_symbol_maps_from_data(&symbol_data, &symbol_ids);
+        let (name_to_id, macro_name_to_id, span_to_id) =
+            Self::build_symbol_maps_from_data(&symbol_data, &symbol_ids);
 
         // Store references
-        let refs_stored =
-            self.store_references(file_id, &data.references, &name_to_id, &span_to_id)?;
+        let refs_stored = self.store_references(
+            file_id,
+            &data.references,
+            &name_to_id,
+            &macro_name_to_id,
+            &span_to_id,
+        )?;
 
         // Store imports
         self.store_imports(file_id, &data.imports, data.language)?;
@@ -728,8 +734,18 @@ impl Tethys {
     fn build_symbol_maps_from_data(
         symbols: &[SymbolData<'_>],
         symbol_ids: &[SymbolId],
-    ) -> (HashMap<String, SymbolId>, HashMap<Span, SymbolId>) {
+    ) -> (
+        HashMap<String, SymbolId>,
+        HashMap<String, SymbolId>,
+        HashMap<Span, SymbolId>,
+    ) {
         let mut name_to_id: HashMap<String, SymbolId> = HashMap::new();
+        // Macro definitions only, keyed by name. Macro invocations (`foo!()`)
+        // live in Rust's macro namespace and must resolve to a `macro_rules!`
+        // definition, never to a same-named fn/type — so they get a dedicated
+        // map instead of the general `name_to_id` (which a colliding fn could
+        // overwrite, forging a phantom `foo!` -> `fn foo` call edge).
+        let mut macro_name_to_id: HashMap<String, SymbolId> = HashMap::new();
         let mut span_to_id: HashMap<Span, SymbolId> = HashMap::new();
 
         for (sym, &id) in symbols.iter().zip(symbol_ids) {
@@ -742,12 +758,16 @@ impl Tethys {
                 );
             }
 
+            if sym.kind == SymbolKind::Macro {
+                macro_name_to_id.insert(sym.name.to_string(), id);
+            }
+
             if let Some(span) = sym.span {
                 span_to_id.insert(span, id);
             }
         }
 
-        (name_to_id, span_to_id)
+        (name_to_id, macro_name_to_id, span_to_id)
     }
 
     /// Store extracted references in the database.
@@ -762,6 +782,7 @@ impl Tethys {
         file_id: FileId,
         refs: &[common::ExtractedReference],
         name_to_id: &HashMap<String, SymbolId>,
+        macro_name_to_id: &HashMap<String, SymbolId>,
         span_to_id: &HashMap<Span, SymbolId>,
     ) -> Result<usize> {
         let mut count = 0;
@@ -769,11 +790,17 @@ impl Tethys {
         for r in refs {
             let qualified_name = Self::build_qualified_name(&r.name, r.path.as_deref());
 
-            // Try same-file resolution: simple name first, then qualified name
-            let symbol_id = name_to_id
-                .get(&r.name)
-                .or_else(|| name_to_id.get(&qualified_name))
-                .copied();
+            // Try same-file resolution. A macro invocation (`foo!()`) binds only
+            // to a same-file `macro_rules! foo`; resolving it to a same-named fn
+            // would forge a phantom call edge (e.g. `write!` -> `fn write`).
+            let symbol_id = if r.kind == common::ExtractedReferenceKind::Macro {
+                macro_name_to_id.get(&r.name).copied()
+            } else {
+                name_to_id
+                    .get(&r.name)
+                    .or_else(|| name_to_id.get(&qualified_name))
+                    .copied()
+            };
 
             // For unresolved references, store the name for Pass 2 cross-file resolution
             let reference_name = if symbol_id.is_none() {
@@ -912,17 +939,9 @@ impl Tethys {
             namespaces: None,
         };
 
-        // Build a set of actually referenced names (both direct names and path prefixes)
-        let mut referenced_names: HashSet<&str> = HashSet::new();
-        for r in refs {
-            referenced_names.insert(&r.name);
-            // Also add the first path component if present (for `Foo::bar()` style calls)
-            if let Some(path) = &r.path
-                && let Some(first) = path.first()
-            {
-                referenced_names.insert(first);
-            }
-        }
+        // Names referenced in this file: direct names plus first path segments.
+        // Shared with unused-import detection via `common::referenced_names`.
+        let referenced_names = common::referenced_names(refs);
 
         // Track which files we depend on (dedupe)
         let mut depended_files: HashSet<PathBuf> = HashSet::new();
@@ -1062,7 +1081,8 @@ impl Tethys {
                     imported_names,
                     is_glob,
                     alias,
-                    line: 0, // Not needed for dependency computation
+                    line: 0,            // Not needed for dependency computation
+                    is_reexport: false, // Not persisted in the imports table
                 }
             })
             .collect()
@@ -1241,6 +1261,10 @@ impl Tethys {
             }
         };
 
+        // Parent name for context-aware exclusions (e.g., `src/bin` is Rust
+        // source, not build output).
+        let dir_name = dir.file_name().and_then(|n| n.to_str());
+
         for entry in entries {
             // Explicitly handle entry errors instead of silently skipping with flatten()
             let entry = match entry {
@@ -1259,7 +1283,7 @@ impl Tethys {
 
             // Skip hidden directories and common build directories
             if let Some(name) = path.file_name().and_then(|n| n.to_str())
-                && (name.starts_with('.') || Self::is_excluded_dir(name))
+                && (name.starts_with('.') || Self::is_excluded_dir(name, dir_name))
             {
                 continue;
             }
@@ -1280,11 +1304,19 @@ impl Tethys {
     }
 
     /// Check if a directory should be excluded from indexing.
-    fn is_excluded_dir(name: &str) -> bool {
-        matches!(
-            name,
-            "target" | "node_modules" | "vendor" | "bin" | "obj" | "build" | "dist" | "__pycache__"
-        )
+    ///
+    /// `parent_name` is the name of the directory containing `name`, used for
+    /// context-aware exclusions: `bin` is .NET build output everywhere EXCEPT
+    /// under `src`, where it is Cargo's binary-target source directory
+    /// (`src/bin/*.rs`). `obj` stays excluded unconditionally — .NET `obj`
+    /// directories contain *generated* `.cs` sources that must never be
+    /// indexed, and no language convention places real sources there.
+    fn is_excluded_dir(name: &str, parent_name: Option<&str>) -> bool {
+        match name {
+            "bin" => parent_name != Some("src"),
+            "target" | "node_modules" | "vendor" | "obj" | "build" | "dist" | "__pycache__" => true,
+            _ => false,
+        }
     }
 
     /// Final indexing phase: rebuild `arch_*` tables from current files + `file_deps`.
@@ -1466,12 +1498,12 @@ mod tests {
 
     #[test]
     fn is_excluded_dir_excludes_target() {
-        assert!(Tethys::is_excluded_dir("target"));
+        assert!(Tethys::is_excluded_dir("target", None));
     }
 
     #[test]
     fn is_excluded_dir_excludes_node_modules() {
-        assert!(Tethys::is_excluded_dir("node_modules"));
+        assert!(Tethys::is_excluded_dir("node_modules", None));
     }
 
     #[test]
@@ -1479,69 +1511,213 @@ mod tests {
         // .git is NOT in the exclusion list — it's handled separately by
         // the hidden-directory filter (starts with '.'). Verify it is not
         // matched here so the two filters stay orthogonal.
-        assert!(!Tethys::is_excluded_dir(".git"));
+        assert!(!Tethys::is_excluded_dir(".git", None));
     }
 
     #[test]
-    fn is_excluded_dir_excludes_bin() {
-        assert!(Tethys::is_excluded_dir("bin"));
+    fn is_excluded_dir_excludes_bin_outside_src() {
+        // .NET build output: <project>/bin
+        assert!(Tethys::is_excluded_dir("bin", None));
+        assert!(Tethys::is_excluded_dir("bin", Some("MyProject")));
     }
 
     #[test]
-    fn is_excluded_dir_excludes_obj() {
-        assert!(Tethys::is_excluded_dir("obj"));
+    fn is_excluded_dir_allows_bin_under_src() {
+        // Cargo binary targets live in src/bin/*.rs — real source, not
+        // build output. Excluding it makes every symbol reachable only
+        // from those binaries look dead.
+        assert!(!Tethys::is_excluded_dir("bin", Some("src")));
+    }
+
+    #[test]
+    fn is_excluded_dir_excludes_obj_even_under_src() {
+        // .NET obj dirs hold GENERATED .cs sources; never index them,
+        // regardless of where they appear.
+        assert!(Tethys::is_excluded_dir("obj", None));
+        assert!(Tethys::is_excluded_dir("obj", Some("src")));
     }
 
     #[test]
     fn is_excluded_dir_excludes_build() {
-        assert!(Tethys::is_excluded_dir("build"));
+        assert!(Tethys::is_excluded_dir("build", None));
     }
 
     #[test]
     fn is_excluded_dir_excludes_dist() {
-        assert!(Tethys::is_excluded_dir("dist"));
+        assert!(Tethys::is_excluded_dir("dist", None));
     }
 
     #[test]
     fn is_excluded_dir_excludes_vendor() {
-        assert!(Tethys::is_excluded_dir("vendor"));
+        assert!(Tethys::is_excluded_dir("vendor", None));
     }
 
     #[test]
     fn is_excluded_dir_excludes_pycache() {
-        assert!(Tethys::is_excluded_dir("__pycache__"));
+        assert!(Tethys::is_excluded_dir("__pycache__", None));
     }
 
     #[test]
     fn is_excluded_dir_allows_src() {
-        assert!(!Tethys::is_excluded_dir("src"));
+        assert!(!Tethys::is_excluded_dir("src", None));
     }
 
     #[test]
     fn is_excluded_dir_allows_lib() {
-        assert!(!Tethys::is_excluded_dir("lib"));
+        assert!(!Tethys::is_excluded_dir("lib", None));
     }
 
     #[test]
     fn is_excluded_dir_allows_tests() {
-        assert!(!Tethys::is_excluded_dir("tests"));
+        assert!(!Tethys::is_excluded_dir("tests", None));
     }
 
     #[test]
     fn is_excluded_dir_allows_my_module() {
-        assert!(!Tethys::is_excluded_dir("my_module"));
+        assert!(!Tethys::is_excluded_dir("my_module", None));
     }
 
     #[test]
     fn is_excluded_dir_is_case_sensitive() {
-        assert!(!Tethys::is_excluded_dir("Target"));
-        assert!(!Tethys::is_excluded_dir("NODE_MODULES"));
-        assert!(!Tethys::is_excluded_dir("Vendor"));
+        assert!(!Tethys::is_excluded_dir("Target", None));
+        assert!(!Tethys::is_excluded_dir("NODE_MODULES", None));
+        assert!(!Tethys::is_excluded_dir("Vendor", None));
     }
 
     #[test]
     fn is_excluded_dir_rejects_empty_string() {
-        assert!(!Tethys::is_excluded_dir(""));
+        assert!(!Tethys::is_excluded_dir("", None));
+    }
+
+    /// Re-indexing must not grow the refs table. The accumulating shape:
+    /// a top-level ref (`in_symbol_id` NULL — here a type alias to an
+    /// external type) survives the symbols-delete cascade because nothing
+    /// it points at gets deleted, so before the explicit
+    /// `DELETE FROM refs WHERE file_id` in `index_file_atomic`, every
+    /// re-index inserted a duplicate row next to it.
+    #[test]
+    fn reindex_does_not_accumulate_refs() {
+        let (_dir, mut tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "src/lib.rs",
+                // Top-level unresolved type ref (external type, no fn body)
+                // plus an ordinary resolved in-function call ref.
+                "pub type Alias = ExternalThing;\n\
+                 pub fn used() {}\n\
+                 pub fn caller() { used(); }\n",
+            ),
+        ]);
+
+        let first = tethys.db.get_stats().expect("stats").reference_count;
+        assert!(first > 0, "fixture must produce at least one ref");
+
+        tethys.index().expect("second index");
+        let second = tethys.db.get_stats().expect("stats").reference_count;
+        assert_eq!(
+            second, first,
+            "re-index must not accumulate refs (top-level unresolved refs previously duplicated)"
+        );
+
+        tethys.index().expect("third index");
+        let third = tethys.db.get_stats().expect("stats").reference_count;
+        assert_eq!(
+            third, first,
+            "ref count must stay stable across N re-indexes"
+        );
+    }
+
+    /// End-to-end fence for the src/bin fix: a Cargo binary target under
+    /// src/bin/ must be discovered and indexed, while a .NET-style bin/
+    /// directory at any other level stays excluded.
+    #[test]
+    fn index_includes_src_bin_but_excludes_other_bin_dirs() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            ("src/lib.rs", "pub fn shared() {}\n"),
+            ("src/bin/tool.rs", "fn main() { app::shared(); }\n"),
+            ("bin/Generated.cs", "namespace Gen { public class G { } }\n"),
+        ]);
+        assert!(
+            tethys
+                .db
+                .get_file_id(Path::new("src/bin/tool.rs"))
+                .expect("query")
+                .is_some(),
+            "src/bin/tool.rs must be indexed (Cargo binary target)"
+        );
+        assert!(
+            tethys
+                .db
+                .get_file_id(Path::new("bin/Generated.cs"))
+                .expect("query")
+                .is_none(),
+            "top-level bin/ must remain excluded (.NET build output)"
+        );
+    }
+
+    /// A macro invocation (`write!(...)`) must NOT resolve to a same-named
+    /// `fn write`: macros live in a separate namespace. Before the kind-aware
+    /// resolution fix, the Macro-kind ref resolved by bare name to the fn,
+    /// forging a phantom `caller -> write` call edge that corrupted
+    /// callers/reachable/impact/coupling.
+    #[test]
+    fn macro_invocation_does_not_bind_to_same_named_fn() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "src/lib.rs",
+                "use std::fmt::Write;\n\
+                 pub fn write() {}\n\
+                 pub fn caller() {\n\
+                 \x20   let mut s = String::new();\n\
+                 \x20   let _ = write!(s, \"x\");\n\
+                 }\n",
+            ),
+        ]);
+
+        let deps = tethys.get_symbol_dependencies("caller").expect("deps");
+        assert!(
+            !deps.iter().any(|s| s.name == "write"),
+            "macro invocation must not forge a phantom edge to fn write: {:?}",
+            deps.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    /// The intended enrichment is preserved: invoking a workspace
+    /// `macro_rules!` definition still links the caller to that macro (a real
+    /// dependency edge). Macro refs enrich the call graph — they just can't
+    /// bind to a same-named non-macro symbol.
+    #[test]
+    fn macro_invocation_resolves_to_workspace_macro_definition() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "src/lib.rs",
+                "macro_rules! shout { () => {} }\n\
+                 pub fn caller() { shout!(); }\n",
+            ),
+        ]);
+
+        let deps = tethys.get_symbol_dependencies("caller").expect("deps");
+        assert!(
+            deps.iter()
+                .any(|s| s.name == "shout" && s.kind == SymbolKind::Macro),
+            "macro invocation should resolve to the workspace macro definition: {:?}",
+            deps.iter().map(|s| (&s.name, &s.kind)).collect::<Vec<_>>()
+        );
     }
 
     // ========================================================================

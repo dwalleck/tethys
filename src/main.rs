@@ -153,6 +153,19 @@ enum Commands {
         #[arg(long)]
         file: Option<String>,
     },
+
+    /// Find imports whose names are never referenced (Rust files)
+    UnusedImports {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Include possible-trait findings (hidden by default: a trait
+        /// import used only via method-call syntax leaves no reference
+        /// to its own name, so these are usually false positives)
+        #[arg(long)]
+        all: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -229,6 +242,7 @@ fn main() -> ExitCode {
             json,
             file,
         } => cli::panic_points::run(&workspace, include_tests, json, file.as_deref()),
+        Commands::UnusedImports { json, all } => cli::unused_imports::run(&workspace, json, all),
     };
 
     match result {

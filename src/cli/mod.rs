@@ -12,6 +12,7 @@ pub mod panic_points;
 pub mod reachable;
 pub mod search;
 pub mod stats;
+pub mod unused_imports;
 
 use std::io;
 use std::process::Command;

@@ -46,6 +46,7 @@ mod reindex;
 mod resolve;
 mod resolver;
 mod types;
+mod unused_imports;
 
 pub use cargo::discover_crates;
 pub use error::{Error, IndexError, IndexErrorKind, Result};
@@ -58,6 +59,7 @@ pub use types::{
     ReferenceKind, Span, StalenessReport, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp,
     Visibility,
 };
+pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};

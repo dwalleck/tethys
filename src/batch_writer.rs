@@ -48,11 +48,11 @@ use tracing::{debug, error, trace, warn};
 
 use crate::db::{Index, InsertReferenceParams, SymbolData};
 use crate::error::{Error, Result};
-use crate::languages::common::{ExtractedReference, ImportStatement};
+use crate::languages::common::{ExtractedReference, ExtractedReferenceKind, ImportStatement};
 use crate::languages::module_resolver::get_module_resolver;
 use crate::parallel::OwnedSymbolData;
 use crate::parallel::ParsedFileData;
-use crate::types::{FileId, Language, Span, SymbolId};
+use crate::types::{FileId, Language, Span, SymbolId, SymbolKind};
 
 /// Statistics about the batch writing process.
 #[derive(Debug, Default, Clone)]
@@ -262,11 +262,18 @@ impl BatchWriter {
         )?;
 
         // Build lookup maps directly from input data + generated IDs
-        let (name_to_id, span_to_id) = build_symbol_maps_from_insert(&data.symbols, &symbol_ids);
+        let (name_to_id, macro_name_to_id, span_to_id) =
+            build_symbol_maps_from_insert(&data.symbols, &symbol_ids);
 
         // Store references
-        let refs_stored =
-            store_references(db, file_id, &data.references, &name_to_id, &span_to_id)?;
+        let refs_stored = store_references(
+            db,
+            file_id,
+            &data.references,
+            &name_to_id,
+            &macro_name_to_id,
+            &span_to_id,
+        )?;
 
         // Store imports
         store_imports(db, file_id, &data.imports, data.language)?;
@@ -285,8 +292,15 @@ impl BatchWriter {
 fn build_symbol_maps_from_insert(
     symbols: &[OwnedSymbolData],
     symbol_ids: &[SymbolId],
-) -> (HashMap<String, SymbolId>, HashMap<Span, SymbolId>) {
+) -> (
+    HashMap<String, SymbolId>,
+    HashMap<String, SymbolId>,
+    HashMap<Span, SymbolId>,
+) {
     let mut name_to_id: HashMap<String, SymbolId> = HashMap::new();
+    // Macro definitions only — see the `store_references` comment below: macro
+    // invocations must bind to a `macro_rules!` definition, never a same-named fn.
+    let mut macro_name_to_id: HashMap<String, SymbolId> = HashMap::new();
     let mut span_to_id: HashMap<Span, SymbolId> = HashMap::new();
 
     for (sym, &id) in symbols.iter().zip(symbol_ids) {
@@ -298,12 +312,16 @@ fn build_symbol_maps_from_insert(
             );
         }
 
+        if sym.kind == SymbolKind::Macro {
+            macro_name_to_id.insert(sym.name.clone(), id);
+        }
+
         if let Some(span) = sym.span {
             span_to_id.insert(span, id);
         }
     }
 
-    (name_to_id, span_to_id)
+    (name_to_id, macro_name_to_id, span_to_id)
 }
 
 /// Store extracted references in the database.
@@ -312,6 +330,7 @@ fn store_references(
     file_id: FileId,
     refs: &[ExtractedReference],
     name_to_id: &HashMap<String, SymbolId>,
+    macro_name_to_id: &HashMap<String, SymbolId>,
     span_to_id: &HashMap<Span, SymbolId>,
 ) -> Result<usize> {
     let mut count = 0;
@@ -319,11 +338,17 @@ fn store_references(
     for r in refs {
         let qualified_name = build_qualified_name(&r.name, r.path.as_deref());
 
-        // Try same-file resolution: simple name first, then qualified name
-        let symbol_id = name_to_id
-            .get(&r.name)
-            .or_else(|| name_to_id.get(&qualified_name))
-            .copied();
+        // Try same-file resolution. A macro invocation (`foo!()`) binds only to
+        // a same-file `macro_rules! foo`; resolving it to a same-named fn would
+        // forge a phantom call edge (e.g. `write!` -> `fn write`).
+        let symbol_id = if r.kind == ExtractedReferenceKind::Macro {
+            macro_name_to_id.get(&r.name).copied()
+        } else {
+            name_to_id
+                .get(&r.name)
+                .or_else(|| name_to_id.get(&qualified_name))
+                .copied()
+        };
 
         // For unresolved references, store the name for Pass 2 cross-file resolution
         let reference_name = if symbol_id.is_none() {

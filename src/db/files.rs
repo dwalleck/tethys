@@ -141,7 +141,16 @@ impl Index {
                     row.get(0)
                 })?;
 
-            // Clear old symbols and imports for this file (for re-indexing)
+            // Clear old symbols, imports, AND refs for this file (for re-indexing).
+            //
+            // Refs must be deleted by file_id explicitly: the symbols delete
+            // below only cascades refs whose symbol_id/in_symbol_id point at
+            // THIS file's symbols. A ref contained in this file at top level
+            // (in_symbol_id NULL) that is unresolved or resolved to another
+            // file's symbol survives the cascade — without this delete it
+            // duplicates on every re-index, inflating call counts and
+            // fabricating usage evidence.
+            tx.execute("DELETE FROM refs WHERE file_id = ?1", [id])?;
             tx.execute("DELETE FROM symbols WHERE file_id = ?1", [id])?;
             tx.execute("DELETE FROM imports WHERE file_id = ?1", [id])?;
             id
