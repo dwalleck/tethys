@@ -62,6 +62,19 @@ CREATE INDEX IF NOT EXISTS idx_refs_file ON refs(file_id);
 CREATE INDEX IF NOT EXISTS idx_refs_in_symbol ON refs(in_symbol_id);
 CREATE INDEX IF NOT EXISTS idx_refs_unresolved ON refs(symbol_id) WHERE symbol_id IS NULL;
 
+-- Name-queryable view over refs (tethys-6rlu).
+-- reference_name is populated ONLY for unresolved refs; resolution nulls it
+-- (see resolve_reference). This view restores name-queryability by falling back
+-- to the resolved symbol's name, so `WHERE name = 'foo'` finds refs to in-crate
+-- symbols too. LEFT JOIN so unresolved refs (symbol_id NULL) still appear.
+-- External/ad-hoc consumers should query refs_named, not refs.reference_name.
+CREATE VIEW IF NOT EXISTS refs_named AS
+    SELECT r.id, r.symbol_id, r.file_id, r.kind, r.line, r.column,
+           r.in_symbol_id, r.reference_name,
+           COALESCE(r.reference_name, s.name) AS name
+    FROM refs r
+    LEFT JOIN symbols s ON r.symbol_id = s.id;
+
 -- File-level dependencies (denormalized for fast queries)
 CREATE TABLE IF NOT EXISTS file_deps (
     from_file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -178,6 +191,7 @@ LEFT JOIN (
 ";
 
 #[cfg(test)]
+#[allow(clippy::doc_markdown)]
 mod schema_tests {
     use super::SCHEMA;
     use rusqlite::Connection;
@@ -218,5 +232,119 @@ mod schema_tests {
             .query_row("SELECT COUNT(*) FROM arch_coupling", [], |row| row.get(0))
             .expect("query view");
         assert_eq!(count, 0, "empty arch_packages → empty view");
+    }
+
+    /// Insert one file, one symbol, and (optionally resolved) refs for the
+    /// refs_named tests. Foreign keys are ON, so rows must be self-consistent.
+    fn seed_refs_fixture(conn: &Connection) {
+        conn.execute_batch(
+            "INSERT INTO files (id, path, language, mtime_ns, size_bytes, indexed_at)
+                 VALUES (1, 'a.rs', 'rust', 0, 0, 0);
+             INSERT INTO symbols (id, file_id, name, module_path, qualified_name,
+                                  kind, line, column, visibility)
+                 VALUES (10, 1, 'alpha', '', 'alpha', 'function', 1, 1, 'pub');",
+        )
+        .expect("seed file+symbol");
+    }
+
+    #[test]
+    fn schema_creates_refs_named_view() {
+        let conn = open_test_conn();
+        let exists: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_schema WHERE type = 'view' AND name = 'refs_named'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("query schema");
+        assert_eq!(exists, 1, "refs_named view must be created by SCHEMA");
+    }
+
+    /// Slice 1 stress fixture (tethys-6rlu C1 structural): a RESOLVED ref
+    /// (symbol_id set, reference_name NULL) must surface its symbol's name.
+    /// Bug targeted: a view reading only reference_name yields NULL here.
+    #[test]
+    fn refs_named_resolves_name_from_symbol_for_resolved_ref() {
+        let conn = open_test_conn();
+        seed_refs_fixture(&conn);
+        // Resolved call ref: symbol_id -> 'alpha', reference_name omitted (NULL).
+        conn.execute(
+            "INSERT INTO refs (id, symbol_id, file_id, kind, line, column)
+                 VALUES (100, 10, 1, 'call', 5, 1)",
+            [],
+        )
+        .expect("insert resolved ref");
+
+        let name: Option<String> = conn
+            .query_row("SELECT name FROM refs_named WHERE id = 100", [], |row| {
+                row.get(0)
+            })
+            .expect("query refs_named");
+        assert_eq!(
+            name.as_deref(),
+            Some("alpha"),
+            "resolved ref must surface its symbol's name, not NULL"
+        );
+    }
+
+    /// Slice 3 stress fixture (tethys-6rlu C2): an UNRESOLVED ref (symbol_id
+    /// NULL, reference_name set) must still appear in the view, keyed by its
+    /// reference_name. Bug targeted: an INNER JOIN instead of LEFT would drop
+    /// every symbol_id-NULL row, returning 0.
+    #[test]
+    fn refs_named_left_join_keeps_unresolved_ref() {
+        let conn = open_test_conn();
+        seed_refs_fixture(&conn);
+        // Unresolved call ref: symbol_id omitted (NULL), reference_name set.
+        conn.execute(
+            "INSERT INTO refs (id, file_id, kind, line, column, reference_name)
+                 VALUES (200, 1, 'call', 9, 1, 'extern_fn')",
+            [],
+        )
+        .expect("insert unresolved ref");
+
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM refs_named WHERE name = 'extern_fn' AND kind = 'call'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("query refs_named");
+        assert_eq!(
+            count, 1,
+            "unresolved ref must survive the LEFT JOIN and be name-queryable"
+        );
+    }
+
+    /// Slice 4 stress fixture (tethys-6rlu C7): a name shared by two symbols
+    /// (a function and a method) returns the UNION of refs to both, each ref
+    /// once. Bug targeted: (a) a join picking only one symbol → 1; (b) a
+    /// non-COALESCE/`OR` form double-counting a row → 3.
+    #[test]
+    fn refs_named_name_collision_is_union_without_double_count() {
+        let conn = open_test_conn();
+        conn.execute_batch(
+            "INSERT INTO files (id, path, language, mtime_ns, size_bytes, indexed_at)
+                 VALUES (1, 'a.rs', 'rust', 0, 0, 0), (2, 'b.rs', 'rust', 0, 0, 0);
+             INSERT INTO symbols (id, file_id, name, module_path, qualified_name,
+                                  kind, line, column, visibility) VALUES
+                 (10, 1, 'dup', '', 'dup', 'function', 1, 1, 'pub'),
+                 (20, 2, 'dup', 'B', 'B::dup', 'method', 1, 1, 'pub');
+             INSERT INTO refs (id, symbol_id, file_id, kind, line, column) VALUES
+                 (300, 10, 1, 'call', 5, 1),
+                 (301, 20, 2, 'call', 6, 1);",
+        )
+        .expect("seed collision fixture");
+
+        let (total, distinct): (i64, i64) = conn
+            .query_row(
+                "SELECT COUNT(*), COUNT(DISTINCT id) FROM refs_named
+                     WHERE name = 'dup' AND kind = 'call'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("query refs_named");
+        assert_eq!(total, 2, "both 'dup' symbols' refs must appear (union)");
+        assert_eq!(distinct, total, "no ref may be double-counted");
     }
 }
