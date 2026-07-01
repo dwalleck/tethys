@@ -22,7 +22,8 @@ fn count_named(conn: &rusqlite::Connection, name: &str, kind: &str) -> i64 {
 }
 
 fn scalar(conn: &rusqlite::Connection, sql: &str) -> i64 {
-    conn.query_row(sql, [], |row| row.get(0)).expect("scalar query")
+    conn.query_row(sql, [], |row| row.get(0))
+        .expect("scalar query")
 }
 
 /// Slice 2 — claim C1 (narrowed): a name query over `refs_named` returns the

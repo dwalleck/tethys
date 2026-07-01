@@ -22,7 +22,10 @@ pub fn run(workspace: &Path, json: bool, all: bool) -> Result<(), tethys::Error>
     let tethys = Tethys::new(workspace)?;
 
     let findings = tethys.find_unused_imports()?;
-    debug!(finding_count = findings.len(), "Unused import scan complete");
+    debug!(
+        finding_count = findings.len(),
+        "Unused import scan complete"
+    );
 
     let definite_count = findings
         .iter()

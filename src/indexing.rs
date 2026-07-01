@@ -1624,7 +1624,10 @@ mod tests {
 
         tethys.index().expect("third index");
         let third = tethys.db.get_stats().expect("stats").reference_count;
-        assert_eq!(third, first, "ref count must stay stable across N re-indexes");
+        assert_eq!(
+            third, first,
+            "ref count must stay stable across N re-indexes"
+        );
     }
 
     /// End-to-end fence for the src/bin fix: a Cargo binary target under

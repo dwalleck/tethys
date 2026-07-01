@@ -115,18 +115,18 @@ impl Tethys {
         let parsed: Vec<ParsedForAnalysis> = rust_files
             .par_iter()
             .filter_map(|file_path| {
-                let data =
-                    match Self::parse_file_static(&workspace_root, file_path, Language::Rust) {
-                        Ok(d) => d,
-                        Err(e) => {
-                            warn!(
-                                file = %file_path.display(),
-                                error = %e,
-                                "Skipping file in unused-import analysis (parse failed)"
-                            );
-                            return None;
-                        }
-                    };
+                let data = match Self::parse_file_static(&workspace_root, file_path, Language::Rust)
+                {
+                    Ok(d) => d,
+                    Err(e) => {
+                        warn!(
+                            file = %file_path.display(),
+                            error = %e,
+                            "Skipping file in unused-import analysis (parse failed)"
+                        );
+                        return None;
+                    }
+                };
                 // Re-read for the textual guard. parse_file_static reads
                 // internally but doesn't return the content; a second read
                 // of an OS-cached file is cheap and keeps its signature
@@ -156,9 +156,7 @@ impl Tethys {
         }
 
         // Deterministic output regardless of parallel parse order.
-        findings.sort_by(|a, b| {
-            (&a.file, a.line, &a.name).cmp(&(&b.file, b.line, &b.name))
-        });
+        findings.sort_by(|a, b| (&a.file, a.line, &a.name).cmp(&(&b.file, b.line, &b.name)));
 
         Ok(findings)
     }
@@ -268,10 +266,7 @@ impl Tethys {
         import: &ImportStatement,
         module_ctx: &ModuleContext<'_>,
     ) -> Result<UnusedImportConfidence> {
-        let starts_uppercase = imported_name
-            .chars()
-            .next()
-            .is_some_and(char::is_uppercase);
+        let starts_uppercase = imported_name.chars().next().is_some_and(char::is_uppercase);
         if !starts_uppercase {
             return Ok(UnusedImportConfidence::Definite);
         }
@@ -389,16 +384,12 @@ mod tests {
         (dir, tethys)
     }
 
-    const CARGO_TOML: &str =
-        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
+    const CARGO_TOML: &str = "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 
     #[test]
     fn unused_lowercase_import_is_definite() {
         let (_dir, tethys) = workspace(&[
-            (
-                "Cargo.toml",
-                CARGO_TOML,
-            ),
+            ("Cargo.toml", CARGO_TOML),
             (
                 "src/lib.rs",
                 "pub mod util;\nuse crate::util::helper;\n\npub fn entry() {}\n",
@@ -427,7 +418,10 @@ mod tests {
         ]);
 
         let findings = tethys.find_unused_imports().expect("scan");
-        assert!(findings.is_empty(), "called import must not be reported: {findings:?}");
+        assert!(
+            findings.is_empty(),
+            "called import must not be reported: {findings:?}"
+        );
     }
 
     #[test]
@@ -511,11 +505,17 @@ mod tests {
     fn glob_import_is_never_reported() {
         let (_dir, tethys) = workspace(&[
             ("Cargo.toml", CARGO_TOML),
-            ("src/lib.rs", "use std::collections::*;\n\npub fn entry() {}\n"),
+            (
+                "src/lib.rs",
+                "use std::collections::*;\n\npub fn entry() {}\n",
+            ),
         ]);
 
         let findings = tethys.find_unused_imports().expect("scan");
-        assert!(findings.is_empty(), "glob imports are skipped: {findings:?}");
+        assert!(
+            findings.is_empty(),
+            "glob imports are skipped: {findings:?}"
+        );
     }
 
     #[test]
@@ -605,7 +605,10 @@ mod tests {
 
         let findings = tethys.find_unused_imports().expect("scan");
         assert_eq!(findings.len(), 1, "{findings:?}");
-        assert_eq!(findings[0].name, "Cfg", "report the bound name, not the original");
+        assert_eq!(
+            findings[0].name, "Cfg",
+            "report the bound name, not the original"
+        );
     }
 
     #[test]

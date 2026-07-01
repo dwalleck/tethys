@@ -50,7 +50,6 @@ mod unused_imports;
 
 pub use cargo::discover_crates;
 pub use error::{Error, IndexError, IndexErrorKind, Result};
-pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 pub use types::{
     ArchPhaseResult, ArchStats, CouplingDetail, CouplingMetrics, CouplingSort, CrateInfo, Cycle,
     DatabaseStats, Dependent, FileAnalysis, FileId, FunctionSignature, Impact, Import,
@@ -60,6 +59,7 @@ pub use types::{
     ReferenceKind, Span, StalenessReport, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp,
     Visibility,
 };
+pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
