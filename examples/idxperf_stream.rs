@@ -16,9 +16,6 @@ fn main() {
         .expect("rebuild_with_options(streaming)");
     println!(
         "streaming: {} files, {} symbols, {} refs in {:?}",
-        stats.files_indexed,
-        stats.symbols_found,
-        stats.references_found,
-        stats.duration
+        stats.files_indexed, stats.symbols_found, stats.references_found, stats.duration
     );
 }

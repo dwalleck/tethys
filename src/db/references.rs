@@ -283,13 +283,10 @@ mod apply_resolutions_tests {
         let commits = Arc::new(AtomicUsize::new(0));
         {
             let counter = Arc::clone(&commits);
-            index
-                .connection()
-                .expect("conn")
-                .commit_hook(Some(move || {
-                    counter.fetch_add(1, Ordering::SeqCst);
-                    false
-                }));
+            index.connection().expect("conn").commit_hook(Some(move || {
+                counter.fetch_add(1, Ordering::SeqCst);
+                false
+            }));
         }
 
         let pairs: Vec<(i64, SymbolId)> = ref_ids.iter().map(|&r| (r, sym_id)).collect();
@@ -325,13 +322,10 @@ mod apply_resolutions_tests {
         let commits = Arc::new(AtomicUsize::new(0));
         {
             let counter = Arc::clone(&commits);
-            index
-                .connection()
-                .expect("conn")
-                .commit_hook(Some(move || {
-                    counter.fetch_add(1, Ordering::SeqCst);
-                    false
-                }));
+            index.connection().expect("conn").commit_hook(Some(move || {
+                counter.fetch_add(1, Ordering::SeqCst);
+                false
+            }));
         }
         index.apply_resolutions(&[]).expect("apply empty");
         index

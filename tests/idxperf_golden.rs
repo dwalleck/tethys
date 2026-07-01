@@ -47,7 +47,10 @@ fn write_fixture(root: &Path) {
 /// Canonical dump of every table, ids replaced by natural keys, volatile
 /// columns (`indexed_at`, `mtime_ns`) excluded, sorted, duplicates preserved.
 /// Row formats mirror `.idxperf/probe-dump.py`.
-#[expect(clippy::too_many_lines, reason = "one query block per table; splitting hides the dump's completeness")]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one query block per table; splitting hides the dump's completeness"
+)]
 fn canonical_rows(db_path: &Path) -> Vec<String> {
     let conn = Connection::open(db_path).expect("open db");
     let mut out = Vec::new();
@@ -98,7 +101,9 @@ fn canonical_rows(db_path: &Path) -> Vec<String> {
     }
     let symkey = |id: Option<i64>, syms: &std::collections::HashMap<i64, String>| -> String {
         id.map_or(String::new(), |i| {
-            syms.get(&i).cloned().unwrap_or_else(|| format!("DANGLING:{i}"))
+            syms.get(&i)
+                .cloned()
+                .unwrap_or_else(|| format!("DANGLING:{i}"))
         })
     };
 
@@ -206,7 +211,11 @@ fn canonical_rows(db_path: &Path) -> Vec<String> {
             .expect("prep deps");
         let rows = stmt
             .query_map([], |r| {
-                Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, i64>(2)?,
+                ))
             })
             .expect("deps");
         for row in rows {
@@ -225,7 +234,11 @@ fn canonical_rows(db_path: &Path) -> Vec<String> {
             .expect("prep edges");
         let rows = stmt
             .query_map([], |r| {
-                Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, i64>(2)?,
+                ))
             })
             .expect("edges");
         for row in rows {
@@ -301,7 +314,11 @@ fn canonical_rows(db_path: &Path) -> Vec<String> {
             .expect("prep pdep");
         let rows = stmt
             .query_map([], |r| {
-                Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?))
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, i64>(2)?,
+                ))
             })
             .expect("pdep");
         for row in rows {
@@ -392,7 +409,9 @@ fn index_batch(root: &Path) -> Vec<String> {
 
 fn index_streaming(root: &Path, options: IndexOptions) -> Vec<String> {
     let mut tethys = Tethys::new(root).expect("Tethys::new");
-    tethys.rebuild_with_options(options).expect("rebuild (streaming)");
+    tethys
+        .rebuild_with_options(options)
+        .expect("rebuild (streaming)");
     canonical_rows(&root.join(".rivets/index/tethys.db"))
 }
 
@@ -405,7 +424,10 @@ fn batch_content_matches_golden_rows() {
     let rows = index_batch(dir.path());
     assert_eq!(
         rows,
-        EXPECTED_BATCH.iter().map(ToString::to_string).collect::<Vec<_>>(),
+        EXPECTED_BATCH
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
         "batch canonical content drifted from the golden set"
     );
 }

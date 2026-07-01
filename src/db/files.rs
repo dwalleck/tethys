@@ -525,11 +525,9 @@ mod index_parsed_file_atomic_tests {
         let conn = index.connection().expect("conn");
         // Ref to "dup" resolved to the LAST dup symbol (symbol_ids[1]).
         let resolved_target: i64 = conn
-            .query_row(
-                "SELECT symbol_id FROM refs WHERE line = 21",
-                [],
-                |row| row.get(0),
-            )
+            .query_row("SELECT symbol_id FROM refs WHERE line = 21", [], |row| {
+                row.get(0)
+            })
             .expect("resolved ref");
         assert_eq!(
             resolved_target,
@@ -567,9 +565,11 @@ mod index_parsed_file_atomic_tests {
         assert_eq!(glob_rows, 1);
         // Attribute landed on the second dup symbol.
         let attr_sym: i64 = conn
-            .query_row("SELECT symbol_id FROM attributes WHERE name = 'derive'", [], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT symbol_id FROM attributes WHERE name = 'derive'",
+                [],
+                |row| row.get(0),
+            )
             .expect("attr");
         assert_eq!(attr_sym, symbol_ids[1].as_i64());
     }

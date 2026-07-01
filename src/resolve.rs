@@ -1332,8 +1332,7 @@ mod memo_tests {
             "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
         )
         .expect("toml");
-        std::fs::write(root.join("src/lib.rs"), "pub mod util;\npub mod caller;\n")
-            .expect("lib");
+        std::fs::write(root.join("src/lib.rs"), "pub mod util;\npub mod caller;\n").expect("lib");
         std::fs::write(
             root.join("src/util.rs"),
             "pub fn target_fn() {}\n\
