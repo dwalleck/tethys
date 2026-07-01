@@ -23,7 +23,6 @@
 //! - Imports that may be traits used invisibly through method-call syntax
 //!   are downgraded to [`UnusedImportConfidence::MaybeTrait`].
 
-use std::collections::HashSet;
 use std::path::PathBuf;
 
 use rayon::prelude::*;
@@ -171,17 +170,10 @@ impl Tethys {
         findings: &mut Vec<UnusedImport>,
     ) -> Result<()> {
         // Names actually referenced in the file: direct names plus the first
-        // path segment of qualified references (`db::open()` marks `db`
-        // used). Mirrors the L2 used-import check in compute_dependencies.
-        let mut referenced: HashSet<&str> = HashSet::new();
-        for r in &file.data.references {
-            referenced.insert(&r.name);
-            if let Some(path) = &r.path
-                && let Some(first) = path.first()
-            {
-                referenced.insert(first);
-            }
-        }
+        // path segment of qualified references (`db::open()` marks `db` used).
+        // Shared with compute_dependencies via `common::referenced_names` so
+        // both agree on which imports count as used.
+        let referenced = crate::languages::common::referenced_names(&file.data.references);
 
         let resolver = get_module_resolver(Language::Rust);
         let full_path = self.workspace_root.join(&file.relative_path);
@@ -225,12 +217,24 @@ impl Tethys {
                 }
 
                 // Textual guard: if the bound name appears as a whole word
-                // anywhere beyond the file's use statements, assume it is
-                // used through something the extractor can't see (macro
-                // body, fn-as-value, doc link) and stay silent.
-                let expected_use_occurrences =
-                    count_in_use_statements(&file.data.imports, bound_name);
-                if count_word_occurrences(&file.content, bound_name) > expected_use_occurrences {
+                // beyond the file's use statements AND its own same-name
+                // definitions, assume it is used through something the
+                // extractor can't see (macro body, fn-as-value, doc link) and
+                // stay silent.
+                //
+                // Same-name definitions count as non-usage: a `mod db;`
+                // declaration paired with a redundant `use crate::db::{self};`
+                // puts the module name in the file twice (the decl + the use
+                // path) with zero real uses. The declaration is not a use, so
+                // it must not mask the redundant import.
+                let non_usage_occurrences = count_in_use_statements(&file.data.imports, bound_name)
+                    + file
+                        .data
+                        .symbols
+                        .iter()
+                        .filter(|s| s.name == bound_name)
+                        .count();
+                if count_word_occurrences(&file.content, bound_name) > non_usage_occurrences {
                     continue;
                 }
 
@@ -663,5 +667,26 @@ mod tests {
             findings.is_empty(),
             "doc-comment mention must suppress (intra-doc links use imports): {findings:?}"
         );
+    }
+
+    #[test]
+    fn self_import_of_locally_declared_module_is_reported() {
+        // `use crate::db::{self};` is redundant when the same file already
+        // declares `mod db;` (the module name is in scope from the decl).
+        // The textual guard must not count the `mod db;` declaration itself
+        // as a use, or the redundant self-import is silently missed.
+        let (_dir, tethys) = workspace(&[
+            ("Cargo.toml", CARGO_TOML),
+            (
+                "src/lib.rs",
+                "pub mod db;\nuse crate::db::{self};\n\npub fn entry() {}\n",
+            ),
+            ("src/db.rs", "pub fn thing() {}\n"),
+        ]);
+
+        let findings = tethys.find_unused_imports().expect("scan");
+        assert_eq!(findings.len(), 1, "{findings:?}");
+        assert_eq!(findings[0].name, "db");
+        assert_eq!(findings[0].confidence, UnusedImportConfidence::Definite);
     }
 }
