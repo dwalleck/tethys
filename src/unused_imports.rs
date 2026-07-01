@@ -23,7 +23,6 @@
 //! - Imports that may be traits used invisibly through method-call syntax
 //!   are downgraded to [`UnusedImportConfidence::MaybeTrait`].
 
-use std::collections::HashSet;
 use std::path::PathBuf;
 
 use rayon::prelude::*;
@@ -116,18 +115,18 @@ impl Tethys {
         let parsed: Vec<ParsedForAnalysis> = rust_files
             .par_iter()
             .filter_map(|file_path| {
-                let data =
-                    match Self::parse_file_static(&workspace_root, file_path, Language::Rust) {
-                        Ok(d) => d,
-                        Err(e) => {
-                            warn!(
-                                file = %file_path.display(),
-                                error = %e,
-                                "Skipping file in unused-import analysis (parse failed)"
-                            );
-                            return None;
-                        }
-                    };
+                let data = match Self::parse_file_static(&workspace_root, file_path, Language::Rust)
+                {
+                    Ok(d) => d,
+                    Err(e) => {
+                        warn!(
+                            file = %file_path.display(),
+                            error = %e,
+                            "Skipping file in unused-import analysis (parse failed)"
+                        );
+                        return None;
+                    }
+                };
                 // Re-read for the textual guard. parse_file_static reads
                 // internally but doesn't return the content; a second read
                 // of an OS-cached file is cheap and keeps its signature
@@ -157,9 +156,7 @@ impl Tethys {
         }
 
         // Deterministic output regardless of parallel parse order.
-        findings.sort_by(|a, b| {
-            (&a.file, a.line, &a.name).cmp(&(&b.file, b.line, &b.name))
-        });
+        findings.sort_by(|a, b| (&a.file, a.line, &a.name).cmp(&(&b.file, b.line, &b.name)));
 
         Ok(findings)
     }
@@ -171,17 +168,10 @@ impl Tethys {
         findings: &mut Vec<UnusedImport>,
     ) -> Result<()> {
         // Names actually referenced in the file: direct names plus the first
-        // path segment of qualified references (`db::open()` marks `db`
-        // used). Mirrors the L2 used-import check in compute_dependencies.
-        let mut referenced: HashSet<&str> = HashSet::new();
-        for r in &file.data.references {
-            referenced.insert(&r.name);
-            if let Some(path) = &r.path
-                && let Some(first) = path.first()
-            {
-                referenced.insert(first);
-            }
-        }
+        // path segment of qualified references (`db::open()` marks `db` used).
+        // Shared with compute_dependencies via `common::referenced_names` so
+        // both agree on which imports count as used.
+        let referenced = crate::languages::common::referenced_names(&file.data.references);
 
         let resolver = get_module_resolver(Language::Rust);
         let full_path = self.workspace_root.join(&file.relative_path);
@@ -225,12 +215,24 @@ impl Tethys {
                 }
 
                 // Textual guard: if the bound name appears as a whole word
-                // anywhere beyond the file's use statements, assume it is
-                // used through something the extractor can't see (macro
-                // body, fn-as-value, doc link) and stay silent.
-                let expected_use_occurrences =
-                    count_in_use_statements(&file.data.imports, bound_name);
-                if count_word_occurrences(&file.content, bound_name) > expected_use_occurrences {
+                // beyond the file's use statements AND its own same-name
+                // definitions, assume it is used through something the
+                // extractor can't see (macro body, fn-as-value, doc link) and
+                // stay silent.
+                //
+                // Same-name definitions count as non-usage: a `mod db;`
+                // declaration paired with a redundant `use crate::db::{self};`
+                // puts the module name in the file twice (the decl + the use
+                // path) with zero real uses. The declaration is not a use, so
+                // it must not mask the redundant import.
+                let non_usage_occurrences = count_in_use_statements(&file.data.imports, bound_name)
+                    + file
+                        .data
+                        .symbols
+                        .iter()
+                        .filter(|s| s.name == bound_name)
+                        .count();
+                if count_word_occurrences(&file.content, bound_name) > non_usage_occurrences {
                     continue;
                 }
 
@@ -264,10 +266,7 @@ impl Tethys {
         import: &ImportStatement,
         module_ctx: &ModuleContext<'_>,
     ) -> Result<UnusedImportConfidence> {
-        let starts_uppercase = imported_name
-            .chars()
-            .next()
-            .is_some_and(char::is_uppercase);
+        let starts_uppercase = imported_name.chars().next().is_some_and(char::is_uppercase);
         if !starts_uppercase {
             return Ok(UnusedImportConfidence::Definite);
         }
@@ -385,16 +384,12 @@ mod tests {
         (dir, tethys)
     }
 
-    const CARGO_TOML: &str =
-        "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
+    const CARGO_TOML: &str = "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 
     #[test]
     fn unused_lowercase_import_is_definite() {
         let (_dir, tethys) = workspace(&[
-            (
-                "Cargo.toml",
-                CARGO_TOML,
-            ),
+            ("Cargo.toml", CARGO_TOML),
             (
                 "src/lib.rs",
                 "pub mod util;\nuse crate::util::helper;\n\npub fn entry() {}\n",
@@ -423,7 +418,10 @@ mod tests {
         ]);
 
         let findings = tethys.find_unused_imports().expect("scan");
-        assert!(findings.is_empty(), "called import must not be reported: {findings:?}");
+        assert!(
+            findings.is_empty(),
+            "called import must not be reported: {findings:?}"
+        );
     }
 
     #[test]
@@ -507,11 +505,17 @@ mod tests {
     fn glob_import_is_never_reported() {
         let (_dir, tethys) = workspace(&[
             ("Cargo.toml", CARGO_TOML),
-            ("src/lib.rs", "use std::collections::*;\n\npub fn entry() {}\n"),
+            (
+                "src/lib.rs",
+                "use std::collections::*;\n\npub fn entry() {}\n",
+            ),
         ]);
 
         let findings = tethys.find_unused_imports().expect("scan");
-        assert!(findings.is_empty(), "glob imports are skipped: {findings:?}");
+        assert!(
+            findings.is_empty(),
+            "glob imports are skipped: {findings:?}"
+        );
     }
 
     #[test]
@@ -601,7 +605,10 @@ mod tests {
 
         let findings = tethys.find_unused_imports().expect("scan");
         assert_eq!(findings.len(), 1, "{findings:?}");
-        assert_eq!(findings[0].name, "Cfg", "report the bound name, not the original");
+        assert_eq!(
+            findings[0].name, "Cfg",
+            "report the bound name, not the original"
+        );
     }
 
     #[test]
@@ -663,5 +670,26 @@ mod tests {
             findings.is_empty(),
             "doc-comment mention must suppress (intra-doc links use imports): {findings:?}"
         );
+    }
+
+    #[test]
+    fn self_import_of_locally_declared_module_is_reported() {
+        // `use crate::db::{self};` is redundant when the same file already
+        // declares `mod db;` (the module name is in scope from the decl).
+        // The textual guard must not count the `mod db;` declaration itself
+        // as a use, or the redundant self-import is silently missed.
+        let (_dir, tethys) = workspace(&[
+            ("Cargo.toml", CARGO_TOML),
+            (
+                "src/lib.rs",
+                "pub mod db;\nuse crate::db::{self};\n\npub fn entry() {}\n",
+            ),
+            ("src/db.rs", "pub fn thing() {}\n"),
+        ]);
+
+        let findings = tethys.find_unused_imports().expect("scan");
+        assert_eq!(findings.len(), 1, "{findings:?}");
+        assert_eq!(findings[0].name, "db");
+        assert_eq!(findings[0].confidence, UnusedImportConfidence::Definite);
     }
 }

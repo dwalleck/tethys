@@ -792,17 +792,9 @@ impl Tethys {
             namespaces: None,
         };
 
-        // Build a set of actually referenced names (both direct names and path prefixes)
-        let mut referenced_names: HashSet<&str> = HashSet::new();
-        for r in refs {
-            referenced_names.insert(&r.name);
-            // Also add the first path component if present (for `Foo::bar()` style calls)
-            if let Some(path) = &r.path
-                && let Some(first) = path.first()
-            {
-                referenced_names.insert(first);
-            }
-        }
+        // Names referenced in this file: direct names plus first path segments.
+        // Shared with unused-import detection via `common::referenced_names`.
+        let referenced_names = common::referenced_names(refs);
 
         // Track which files we depend on (dedupe)
         let mut depended_files: HashSet<PathBuf> = HashSet::new();
@@ -1532,7 +1524,10 @@ mod tests {
 
         tethys.index().expect("third index");
         let third = tethys.db.get_stats().expect("stats").reference_count;
-        assert_eq!(third, first, "ref count must stay stable across N re-indexes");
+        assert_eq!(
+            third, first,
+            "ref count must stay stable across N re-indexes"
+        );
     }
 
     /// End-to-end fence for the src/bin fix: a Cargo binary target under
@@ -1564,6 +1559,64 @@ mod tests {
                 .expect("query")
                 .is_none(),
             "top-level bin/ must remain excluded (.NET build output)"
+        );
+    }
+
+    /// A macro invocation (`write!(...)`) must NOT resolve to a same-named
+    /// `fn write`: macros live in a separate namespace. Before the kind-aware
+    /// resolution fix, the Macro-kind ref resolved by bare name to the fn,
+    /// forging a phantom `caller -> write` call edge that corrupted
+    /// callers/reachable/impact/coupling.
+    #[test]
+    fn macro_invocation_does_not_bind_to_same_named_fn() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "src/lib.rs",
+                "use std::fmt::Write;\n\
+                 pub fn write() {}\n\
+                 pub fn caller() {\n\
+                 \x20   let mut s = String::new();\n\
+                 \x20   let _ = write!(s, \"x\");\n\
+                 }\n",
+            ),
+        ]);
+
+        let deps = tethys.get_symbol_dependencies("caller").expect("deps");
+        assert!(
+            !deps.iter().any(|s| s.name == "write"),
+            "macro invocation must not forge a phantom edge to fn write: {:?}",
+            deps.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    /// The intended enrichment is preserved: invoking a workspace
+    /// `macro_rules!` definition still links the caller to that macro (a real
+    /// dependency edge). Macro refs enrich the call graph — they just can't
+    /// bind to a same-named non-macro symbol.
+    #[test]
+    fn macro_invocation_resolves_to_workspace_macro_definition() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "src/lib.rs",
+                "macro_rules! shout { () => {} }\n\
+                 pub fn caller() { shout!(); }\n",
+            ),
+        ]);
+
+        let deps = tethys.get_symbol_dependencies("caller").expect("deps");
+        assert!(
+            deps.iter()
+                .any(|s| s.name == "shout" && s.kind == SymbolKind::Macro),
+            "macro invocation should resolve to the workspace macro definition: {:?}",
+            deps.iter().map(|s| (&s.name, &s.kind)).collect::<Vec<_>>()
         );
     }
 

@@ -19,8 +19,23 @@ use crate::languages::module_resolver::{
 use crate::lsp::{self, LspProvider};
 use crate::types::{
     Dependent, FileId, Import, Language, LspCompletedSession, LspOutcome, LspSessionResult,
-    Reference, ReferenceKind, Symbol, SymbolId, UnresolvedRefForLsp,
+    Reference, ReferenceKind, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp,
 };
+
+/// Whether a reference of `ref_kind` is allowed to bind to a symbol of
+/// `symbol_kind`.
+///
+/// A macro invocation (`foo!()`) lives in Rust's macro namespace and must
+/// resolve only to a macro definition — never to a same-named fn/type/const.
+/// Without this gate, `write!(...)` resolves by bare name to a workspace
+/// `fn write`, forging a phantom call edge that corrupts
+/// callers/reachable/impact/coupling. Every other reference kind is
+/// unconstrained here (a kind-mismatched candidate is simply skipped, so
+/// resolution falls through to the next strategy — for a macro, that means it
+/// stays unresolved unless a real macro definition is found).
+fn ref_binds_to_symbol_kind(ref_kind: &ReferenceKind, symbol_kind: SymbolKind) -> bool {
+    !matches!(ref_kind, ReferenceKind::Macro) || symbol_kind == SymbolKind::Macro
+}
 
 /// Per-file context used during cross-file reference resolution (Pass 2).
 ///
@@ -159,7 +174,14 @@ impl Tethys {
                 continue;
             };
 
-            let outcome = if let Some(cached) = memo.get(ref_name.as_str()) {
+            // Macro invocations bypass the name-keyed memo: a `write!()` macro
+            // and a `write()` call share `reference_name` but resolve in
+            // different namespaces (see `ref_binds_to_symbol_kind`), so a shared
+            // memo entry would cross-contaminate them. Macro refs are rare, so
+            // resolving them fresh costs little and keeps the memo sound.
+            let outcome = if matches!(ref_.kind, ReferenceKind::Macro) {
+                self.try_resolve_reference(&ref_, ref_name, &ctx)?
+            } else if let Some(cached) = memo.get(ref_name.as_str()) {
                 *cached
             } else {
                 let outcome = self.try_resolve_reference(&ref_, ref_name, &ctx)?;
@@ -220,7 +242,10 @@ impl Tethys {
         let is_qualified = ref_name.contains("::");
 
         // Try explicit imports
-        if let Some(symbol) = self.resolve_via_explicit_import(ref_name, ctx, is_qualified)? {
+        if let Some(symbol) = self
+            .resolve_via_explicit_import(ref_name, ctx, is_qualified)?
+            .filter(|s| ref_binds_to_symbol_kind(&ref_.kind, s.kind))
+        {
             trace!(
                 ref_id = ref_.id,
                 ref_name = %ref_name,
@@ -238,8 +263,9 @@ impl Tethys {
                 // Pre-seam behavior, verbatim: iterate stored order, first
                 // match wins, any symbol kind.
                 for source_module in ctx.glob_imports {
-                    if let Some(symbol) =
-                        self.resolve_symbol_in_module(ref_name, source_module, ctx, is_qualified)?
+                    if let Some(symbol) = self
+                        .resolve_symbol_in_module(ref_name, source_module, ctx, is_qualified)?
+                        .filter(|s| ref_binds_to_symbol_kind(&ref_.kind, s.kind))
                     {
                         trace!(
                             ref_id = ref_.id,
@@ -287,8 +313,9 @@ impl Tethys {
         // file path scopes simple-name lookups to the same crate first; without
         // that scope, names like `Error` resolve to the first matching symbol
         // workspace-wide (rivets-0gom).
-        if let Some(symbol) =
-            self.fallback_symbol_search(ref_name, is_qualified, ctx.current_file_path)?
+        if let Some(symbol) = self
+            .fallback_symbol_search(ref_name, is_qualified, ctx.current_file_path)?
+            .filter(|s| ref_binds_to_symbol_kind(&ref_.kind, s.kind))
         {
             trace!(
                 ref_id = ref_.id,
@@ -302,7 +329,11 @@ impl Tethys {
         // Qualified-path module fallback (rivets-044i). Only fires for refs that
         // both (a) contain `::` and (b) survived every prior path. Interprets the
         // prefix as a module path, looks the tail up in the resolved file.
-        if is_qualified && let Some(symbol) = self.qualified_module_fallback(ref_name, ctx)? {
+        if is_qualified
+            && let Some(symbol) = self
+                .qualified_module_fallback(ref_name, ctx)?
+                .filter(|s| ref_binds_to_symbol_kind(&ref_.kind, s.kind))
+        {
             trace!(
                 ref_id = ref_.id,
                 ref_name = %ref_name,

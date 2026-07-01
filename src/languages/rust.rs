@@ -523,16 +523,11 @@ fn parse_use_declaration(node: &tree_sitter::Node, content: &[u8]) -> Option<Use
             }
             SCOPED_USE_LIST => {
                 // List use: `use std::collections::{HashMap, HashSet};`
-                let mut stmt = parse_scoped_use_list(&child, content, line);
-                stmt.is_reexport = is_reexport;
-                return Some(stmt);
+                return Some(parse_scoped_use_list(&child, content, line, is_reexport));
             }
             USE_AS_CLAUSE => {
                 // Alias use: `use std::collections::HashMap as Map;`
-                return parse_use_as_clause(&child, content, line).map(|mut s| {
-                    s.is_reexport = is_reexport;
-                    s
-                });
+                return parse_use_as_clause(&child, content, line, is_reexport);
             }
             IDENTIFIER | CRATE | SELF | SUPER => {
                 // Simple single-segment use (rare but possible)
@@ -548,9 +543,7 @@ fn parse_use_declaration(node: &tree_sitter::Node, content: &[u8]) -> Option<Use
             }
             USE_WILDCARD => {
                 // Glob use: `use std::collections::*;` - the wildcard node contains the path
-                let mut stmt = parse_use_wildcard(&child, content, line);
-                stmt.is_reexport = is_reexport;
-                return Some(stmt);
+                return Some(parse_use_wildcard(&child, content, line, is_reexport));
             }
             USE_LIST => {
                 // Bare use list without path (rare)
@@ -572,7 +565,12 @@ fn parse_use_declaration(node: &tree_sitter::Node, content: &[u8]) -> Option<Use
 }
 
 /// Parse a `use_wildcard` node like `std::collections::*`.
-fn parse_use_wildcard(node: &tree_sitter::Node, content: &[u8], line: u32) -> UseStatement {
+fn parse_use_wildcard(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    line: u32,
+    is_reexport: bool,
+) -> UseStatement {
     use node_kinds::SCOPED_IDENTIFIER;
 
     let mut path = Vec::new();
@@ -592,9 +590,7 @@ fn parse_use_wildcard(node: &tree_sitter::Node, content: &[u8], line: u32) -> Us
         is_glob: true,
         alias: None,
         line,
-        // Overridden by parse_use_declaration when a visibility modifier
-        // is present on the enclosing use declaration.
-        is_reexport: false,
+        is_reexport,
     }
 }
 
@@ -638,7 +634,12 @@ fn collect_scoped_path(node: &tree_sitter::Node, content: &[u8], segments: &mut 
 }
 
 /// Parse a scoped use list like `std::collections::{HashMap, HashSet}` or `std::collections::*`.
-fn parse_scoped_use_list(node: &tree_sitter::Node, content: &[u8], line: u32) -> UseStatement {
+fn parse_scoped_use_list(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    line: u32,
+    is_reexport: bool,
+) -> UseStatement {
     use node_kinds::{USE_LIST, USE_WILDCARD};
 
     let mut path = Vec::new();
@@ -675,9 +676,7 @@ fn parse_scoped_use_list(node: &tree_sitter::Node, content: &[u8], line: u32) ->
         is_glob,
         alias: None,
         line,
-        // Overridden by parse_use_declaration when a visibility modifier
-        // is present on the enclosing use declaration.
-        is_reexport: false,
+        is_reexport,
     }
 }
 
@@ -714,6 +713,7 @@ fn parse_use_as_clause(
     node: &tree_sitter::Node,
     content: &[u8],
     line: u32,
+    is_reexport: bool,
 ) -> Option<UseStatement> {
     use node_kinds::SCOPED_IDENTIFIER;
 
@@ -736,9 +736,7 @@ fn parse_use_as_clause(
         is_glob: false,
         alias: Some(alias),
         line,
-        // Overridden by parse_use_declaration when a visibility modifier
-        // is present on the enclosing use declaration.
-        is_reexport: false,
+        is_reexport,
     })
 }
 

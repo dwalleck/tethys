@@ -75,6 +75,28 @@ pub struct ExtractedReference {
     pub containing_symbol_span: Option<Span>,
 }
 
+/// Names considered "referenced" for used-import analysis: each reference's
+/// bare name plus the first segment of every qualified path (`db::open()`
+/// marks `db` used).
+///
+/// Single owner of the L2 "first path segment marks an import used" invariant,
+/// shared by dependency computation (`compute_dependencies`) and unused-import
+/// detection (`analyze_file`) so the two can never disagree about which
+/// imports count as used.
+#[must_use]
+pub(crate) fn referenced_names(refs: &[ExtractedReference]) -> std::collections::HashSet<&str> {
+    let mut names = std::collections::HashSet::new();
+    for r in refs {
+        names.insert(r.name.as_str());
+        if let Some(path) = &r.path
+            && let Some(first) = path.first()
+        {
+            names.insert(first.as_str());
+        }
+    }
+    names
+}
+
 /// Kind of reference extracted from source code.
 ///
 /// Note: This is distinct from `types::ReferenceKind` which is the domain model

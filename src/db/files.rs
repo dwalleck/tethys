@@ -9,9 +9,9 @@ use tracing::trace;
 
 use super::{FILES_COLUMNS, Index, SymbolData, row_to_indexed_file};
 use crate::error::Result;
-use crate::languages::common::{ExtractedReference, ImportStatement};
+use crate::languages::common::{ExtractedReference, ExtractedReferenceKind, ImportStatement};
 use crate::languages::module_resolver::get_module_resolver;
-use crate::types::{FileId, IndexedFile, Language, Span, SymbolId};
+use crate::types::{FileId, IndexedFile, Language, Span, SymbolId, SymbolKind};
 
 /// Build a qualified name from a simple name and optional path segments.
 ///
@@ -267,6 +267,11 @@ impl Index {
         // Same-file resolution maps, built from the data just inserted (no
         // read-back query). Duplicate names: last wins, preserved behavior.
         let mut name_to_id: HashMap<&str, SymbolId> = HashMap::new();
+        // Macro definitions only: a macro invocation (`foo!()`) must bind to a
+        // `macro_rules! foo`, never a same-named fn/type — so it routes through
+        // this map instead of `name_to_id` (which a colliding fn could
+        // overwrite, forging a phantom `foo!` -> `fn foo` call edge).
+        let mut macro_name_to_id: HashMap<&str, SymbolId> = HashMap::new();
         let mut span_to_id: HashMap<Span, SymbolId> = HashMap::new();
         for (sym, &id) in symbols.iter().zip(&symbol_ids) {
             if let Some(prev_id) = name_to_id.insert(sym.name, id) {
@@ -276,6 +281,9 @@ impl Index {
                     prev_id = %prev_id,
                     "Duplicate symbol name in file, using newer"
                 );
+            }
+            if sym.kind == SymbolKind::Macro {
+                macro_name_to_id.insert(sym.name, id);
             }
             if let Some(span) = sym.span {
                 span_to_id.insert(span, id);
@@ -291,10 +299,16 @@ impl Index {
             )?;
             for r in references {
                 let qualified_name = build_qualified_name(&r.name, r.path.as_deref());
-                let symbol_id = name_to_id
-                    .get(r.name.as_str())
-                    .or_else(|| name_to_id.get(qualified_name.as_str()))
-                    .copied();
+                // Macro invocations resolve only to macro definitions (see
+                // `macro_name_to_id`); every other kind uses the general map.
+                let symbol_id = if r.kind == ExtractedReferenceKind::Macro {
+                    macro_name_to_id.get(r.name.as_str()).copied()
+                } else {
+                    name_to_id
+                        .get(r.name.as_str())
+                        .or_else(|| name_to_id.get(qualified_name.as_str()))
+                        .copied()
+                };
                 // Unresolved refs keep their name for Pass 2 resolution.
                 let reference_name = if symbol_id.is_none() {
                     Some(qualified_name)
