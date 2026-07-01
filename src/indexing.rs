@@ -699,11 +699,17 @@ impl Tethys {
         )?;
 
         // Build lookup maps from inserted data + generated IDs (no DB round-trip)
-        let (name_to_id, span_to_id) = Self::build_symbol_maps_from_data(&symbol_data, &symbol_ids);
+        let (name_to_id, macro_name_to_id, span_to_id) =
+            Self::build_symbol_maps_from_data(&symbol_data, &symbol_ids);
 
         // Store references
-        let refs_stored =
-            self.store_references(file_id, &data.references, &name_to_id, &span_to_id)?;
+        let refs_stored = self.store_references(
+            file_id,
+            &data.references,
+            &name_to_id,
+            &macro_name_to_id,
+            &span_to_id,
+        )?;
 
         // Store imports
         self.store_imports(file_id, &data.imports, data.language)?;
@@ -728,8 +734,18 @@ impl Tethys {
     fn build_symbol_maps_from_data(
         symbols: &[SymbolData<'_>],
         symbol_ids: &[SymbolId],
-    ) -> (HashMap<String, SymbolId>, HashMap<Span, SymbolId>) {
+    ) -> (
+        HashMap<String, SymbolId>,
+        HashMap<String, SymbolId>,
+        HashMap<Span, SymbolId>,
+    ) {
         let mut name_to_id: HashMap<String, SymbolId> = HashMap::new();
+        // Macro definitions only, keyed by name. Macro invocations (`foo!()`)
+        // live in Rust's macro namespace and must resolve to a `macro_rules!`
+        // definition, never to a same-named fn/type — so they get a dedicated
+        // map instead of the general `name_to_id` (which a colliding fn could
+        // overwrite, forging a phantom `foo!` -> `fn foo` call edge).
+        let mut macro_name_to_id: HashMap<String, SymbolId> = HashMap::new();
         let mut span_to_id: HashMap<Span, SymbolId> = HashMap::new();
 
         for (sym, &id) in symbols.iter().zip(symbol_ids) {
@@ -742,12 +758,16 @@ impl Tethys {
                 );
             }
 
+            if sym.kind == SymbolKind::Macro {
+                macro_name_to_id.insert(sym.name.to_string(), id);
+            }
+
             if let Some(span) = sym.span {
                 span_to_id.insert(span, id);
             }
         }
 
-        (name_to_id, span_to_id)
+        (name_to_id, macro_name_to_id, span_to_id)
     }
 
     /// Store extracted references in the database.
@@ -762,6 +782,7 @@ impl Tethys {
         file_id: FileId,
         refs: &[common::ExtractedReference],
         name_to_id: &HashMap<String, SymbolId>,
+        macro_name_to_id: &HashMap<String, SymbolId>,
         span_to_id: &HashMap<Span, SymbolId>,
     ) -> Result<usize> {
         let mut count = 0;
@@ -769,11 +790,17 @@ impl Tethys {
         for r in refs {
             let qualified_name = Self::build_qualified_name(&r.name, r.path.as_deref());
 
-            // Try same-file resolution: simple name first, then qualified name
-            let symbol_id = name_to_id
-                .get(&r.name)
-                .or_else(|| name_to_id.get(&qualified_name))
-                .copied();
+            // Try same-file resolution. A macro invocation (`foo!()`) binds only
+            // to a same-file `macro_rules! foo`; resolving it to a same-named fn
+            // would forge a phantom call edge (e.g. `write!` -> `fn write`).
+            let symbol_id = if r.kind == common::ExtractedReferenceKind::Macro {
+                macro_name_to_id.get(&r.name).copied()
+            } else {
+                name_to_id
+                    .get(&r.name)
+                    .or_else(|| name_to_id.get(&qualified_name))
+                    .copied()
+            };
 
             // For unresolved references, store the name for Pass 2 cross-file resolution
             let reference_name = if symbol_id.is_none() {
@@ -912,17 +939,9 @@ impl Tethys {
             namespaces: None,
         };
 
-        // Build a set of actually referenced names (both direct names and path prefixes)
-        let mut referenced_names: HashSet<&str> = HashSet::new();
-        for r in refs {
-            referenced_names.insert(&r.name);
-            // Also add the first path component if present (for `Foo::bar()` style calls)
-            if let Some(path) = &r.path
-                && let Some(first) = path.first()
-            {
-                referenced_names.insert(first);
-            }
-        }
+        // Names referenced in this file: direct names plus first path segments.
+        // Shared with unused-import detection via `common::referenced_names`.
+        let referenced_names = common::referenced_names(refs);
 
         // Track which files we depend on (dedupe)
         let mut depended_files: HashSet<PathBuf> = HashSet::new();
@@ -1637,6 +1656,64 @@ mod tests {
                 .expect("query")
                 .is_none(),
             "top-level bin/ must remain excluded (.NET build output)"
+        );
+    }
+
+    /// A macro invocation (`write!(...)`) must NOT resolve to a same-named
+    /// `fn write`: macros live in a separate namespace. Before the kind-aware
+    /// resolution fix, the Macro-kind ref resolved by bare name to the fn,
+    /// forging a phantom `caller -> write` call edge that corrupted
+    /// callers/reachable/impact/coupling.
+    #[test]
+    fn macro_invocation_does_not_bind_to_same_named_fn() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "src/lib.rs",
+                "use std::fmt::Write;\n\
+                 pub fn write() {}\n\
+                 pub fn caller() {\n\
+                 \x20   let mut s = String::new();\n\
+                 \x20   let _ = write!(s, \"x\");\n\
+                 }\n",
+            ),
+        ]);
+
+        let deps = tethys.get_symbol_dependencies("caller").expect("deps");
+        assert!(
+            !deps.iter().any(|s| s.name == "write"),
+            "macro invocation must not forge a phantom edge to fn write: {:?}",
+            deps.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    /// The intended enrichment is preserved: invoking a workspace
+    /// `macro_rules!` definition still links the caller to that macro (a real
+    /// dependency edge). Macro refs enrich the call graph — they just can't
+    /// bind to a same-named non-macro symbol.
+    #[test]
+    fn macro_invocation_resolves_to_workspace_macro_definition() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "src/lib.rs",
+                "macro_rules! shout { () => {} }\n\
+                 pub fn caller() { shout!(); }\n",
+            ),
+        ]);
+
+        let deps = tethys.get_symbol_dependencies("caller").expect("deps");
+        assert!(
+            deps.iter()
+                .any(|s| s.name == "shout" && s.kind == SymbolKind::Macro),
+            "macro invocation should resolve to the workspace macro definition: {:?}",
+            deps.iter().map(|s| (&s.name, &s.kind)).collect::<Vec<_>>()
         );
     }
 
