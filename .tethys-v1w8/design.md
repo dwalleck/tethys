@@ -64,7 +64,7 @@ claims C8–C12 rather than as a removed-invariant sweep.
 7. **C7** `self::`/`super::`/`crate::` prefixed re-exports resolve with parity to plain imports of the same path — inheriting (not extending) known resolver bugs tethys-nkjd (super::) and tethys-xzdr (bare crate).
 8. **C8** Re-export refs carry `in_symbol_id NULL` and produce zero `call_edges` rows.
 9. **C9** Re-export refs produce zero panic-point rows even when the re-exported name is `unwrap` or `expect`.
-10. **C10** `file_deps` gains the previously-missing edge for a re-export-only import, and re-running does not duplicate existing edges.
+10. **C10** `file_deps` gains the previously-missing edge for a re-export-only import, and re-running does not duplicate existing edges. AMENDED during slice 6: delivered by slice 2's emission itself — the extracted reexport ref's name feeds compute_dependencies' usage-corroboration set, so resolvable import paths gain the edge with no dep-computation change. Two residuals pinned as current behavior with tracker citations: bare single-segment paths still decline (tethys-z9mr — this, not corroboration, explains probe F4's missing lib.rs→unused_imports.rs edge), and aliased re-export-only imports fail the alias-keyed lookup (tethys-sp24). Streaming parity verified by pipeline order: compute_all_dependencies runs before Pass 2 nulls reference_name.
 11. **C11** `unused-imports` self-index output is unchanged pre/post.
 12. **C12** A fixture symbol whose only reference is its re-export has exactly 1 inbound ref post-change (the dead-code false positive dies).
 13. **C13** Re-indexing the same workspace twice yields identical refs / file_deps / call_edges counts.

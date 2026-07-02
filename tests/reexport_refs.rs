@@ -261,6 +261,103 @@ fn reindexing_twice_is_idempotent_for_reexport_refs() {
     assert_eq!(first.1, 1, "exactly one reexport ref both times");
 }
 
+/// C10: a re-export-only import (name never used in the file's body) creates
+/// a file_deps edge — a re-export IS a real file-level dependency. Before
+/// tethys-v1w8 this edge was silently missing: resolved reexport refs fell
+/// between both dep paths (no call edge by design; reference_name nulled on
+/// resolution so the L2 corroboration set missed them).
+///
+/// The plain-unused control (c.rs) pins no-spill: an unused NON-pub import
+/// must still produce no edge (the tethys-msn0 corroboration family).
+///
+/// Bug this fails under: sourcing file deps only from call_edges (edge
+/// missing), or blanket-adding resolved ref names to the corroboration set
+/// (c.rs would gain a phantom edge — the 6rlu-rejected design).
+#[test]
+fn reexport_only_import_creates_file_dep() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        ("src/lib.rs", "pub mod a;\npub mod b;\npub mod c;\n"),
+        ("src/a.rs", "pub use crate::b::only_reexported;\n"),
+        ("src/b.rs", "pub fn only_reexported() {}\n"),
+        // Plain unused import: must NOT gain an edge.
+        ("src/c.rs", "use crate::b::only_reexported;\n"),
+    ]);
+    tethys.index().expect("index");
+    let dep = |conn: &rusqlite::Connection, from: &str, to: &str| {
+        scalar(
+            conn,
+            &format!(
+                "SELECT COUNT(*) FROM file_deps d
+                 JOIN files f1 ON d.from_file_id = f1.id
+                 JOIN files f2 ON d.to_file_id = f2.id
+                 WHERE f1.path = '{from}' AND f2.path = '{to}'"
+            ),
+        )
+    };
+    {
+        let conn = open_db(&tethys);
+        assert_eq!(
+            dep(&conn, "src/a.rs", "src/b.rs"),
+            1,
+            "re-export-only import must create a file dep (C10)"
+        );
+        assert_eq!(
+            dep(&conn, "src/c.rs", "src/b.rs"),
+            0,
+            "plain unused import must stay edge-less (no corroboration spill)"
+        );
+    }
+
+    // Re-index: the edge neither duplicates nor disappears.
+    tethys.index().expect("second index");
+    let conn = open_db(&tethys);
+    assert_eq!(
+        dep(&conn, "src/a.rs", "src/b.rs"),
+        1,
+        "edge stable across re-index"
+    );
+}
+
+/// C10 residual, pinned as current behavior: a re-export-only import whose
+/// path is a bare single segment (`pub use b2::via_bare;` from src/d.rs) gets
+/// NO file_dep — the usage corroboration passes (the reexport ref supplies
+/// the name), but `resolve_import_segments` declines the single-segment
+/// relative path (tethys-z9mr). This is the exact shape behind the missing
+/// `lib.rs → unused_imports.rs` edge on the tethys self-index (probe F4).
+///
+/// TRIPWIRE: when tethys-z9mr lands, this edge appears — flip the
+/// expectation to 1. (Aliased re-exports have a separate corroboration gap:
+/// tethys-sp24.)
+#[test]
+fn bare_segment_reexport_only_import_still_lacks_file_dep() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        ("src/lib.rs", "pub mod b2;\npub mod d;\n"),
+        ("src/b2.rs", "pub fn via_bare() {}\n"),
+        ("src/d.rs", "pub use b2::via_bare;\n"),
+    ]);
+    tethys.index().expect("index");
+    let conn = open_db(&tethys);
+
+    assert_eq!(
+        scalar(
+            &conn,
+            "SELECT COUNT(*) FROM file_deps d
+             JOIN files f1 ON d.from_file_id = f1.id
+             JOIN files f2 ON d.to_file_id = f2.id
+             WHERE f1.path = 'src/d.rs' AND f2.path = 'src/b2.rs'",
+        ),
+        0,
+        "bare-segment path declined (tethys-z9mr): no dep today — flip when z9mr lands"
+    );
+    // The ref itself DID resolve (unique name → fallback), proving the gap
+    // is the import-path decline, not emission or corroboration.
+    assert_eq!(
+        resolved_reexport_targets(&conn, "via_bare").len(),
+        1,
+        "the reexport ref resolves via unique-name fallback even though the dep is missing"
+    );
+}
+
 /// C8 + C9: reexport refs are structurally invisible to in-symbol consumers.
 /// Module-level use declarations have no enclosing symbol, so their refs
 /// carry `in_symbol_id NULL` — `populate_call_edges` (`WHERE in_symbol_id IS
