@@ -6,7 +6,7 @@
 //! C12/C13 in sibling tests below) against a REAL index each test builds
 //! itself — never an ambient DB.
 
-#![allow(clippy::needless_raw_string_hashes)]
+#![allow(clippy::needless_raw_string_hashes, clippy::doc_markdown)]
 
 mod common;
 
