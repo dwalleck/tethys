@@ -1,5 +1,6 @@
 //! Import CRUD operations for the Tethys index.
 
+#[cfg(test)]
 use rusqlite::params;
 use tracing::trace;
 
@@ -12,6 +13,11 @@ impl Index {
     ///
     /// Records that `file_id` imports `symbol_name` from `source_module`.
     /// Uses upsert semantics: if the import already exists, this is a no-op.
+    ///
+    /// Test-only: production imports are written inside the per-file
+    /// transaction by [`Index::index_parsed_file_atomic`]; fixtures (e.g.,
+    /// the K-hybrid filter tests) use this to author import rows directly.
+    #[cfg(test)]
     pub fn insert_import(
         &self,
         file_id: FileId,
@@ -53,16 +59,5 @@ impl Index {
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(imports)
-    }
-
-    /// Clear all imports for a file (for re-indexing).
-    ///
-    /// Call this before re-indexing a file to remove stale imports.
-    pub fn clear_imports_for_file(&self, file_id: FileId) -> Result<()> {
-        trace!(file_id = %file_id, "Clearing imports for file");
-        let conn = self.connection()?;
-
-        conn.execute("DELETE FROM imports WHERE file_id = ?1", [file_id.as_i64()])?;
-        Ok(())
     }
 }

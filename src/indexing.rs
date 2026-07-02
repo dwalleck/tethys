@@ -18,15 +18,46 @@ use tracing::{debug, info, trace, warn};
 
 use crate::Tethys;
 use crate::batch_writer::BatchWriter;
-use crate::db::{InsertReferenceParams, SymbolData};
+use crate::db::SymbolData;
 use crate::error::{Error, IndexError, IndexErrorKind, Result};
 use crate::languages::module_resolver::{ModuleContext, NamespaceMap, get_module_resolver};
 use crate::languages::{self, common};
 use crate::lsp;
 use crate::parallel::{OwnedSymbolData, ParsedFileData};
 use crate::types::{
-    ArchPhaseResult, FileId, Import, IndexOptions, IndexStats, Language, Span, SymbolId, SymbolKind,
+    ArchPhaseResult, FileId, Import, IndexOptions, IndexStats, Language, SymbolKind,
 };
+
+/// Pre-built file→crate assignment index for O(depth) ancestor-walk lookups.
+///
+/// Shared by [`Tethys::run_architecture_phase`] and
+/// [`Tethys::build_file_crate_map`] (idxperf claim C8): the alternative —
+/// `cargo::get_crate_for_file` — costs an O(crates) linear scan plus a
+/// `canonicalize()` syscall per file. Skipping the canonicalize here is safe
+/// because both `workspace_root` (canonicalized in `Tethys::new`) and each
+/// `CrateInfo::path` (canonicalized in crate discovery) are canonical at
+/// construction time.
+struct CrateIndex<'a> {
+    by_path: HashMap<&'a Path, &'a crate::types::CrateInfo>,
+}
+
+impl<'a> CrateIndex<'a> {
+    fn new(crates: &'a [crate::types::CrateInfo]) -> Self {
+        Self {
+            by_path: crates.iter().map(|c| (c.path.as_path(), c)).collect(),
+        }
+    }
+
+    /// Longest-prefix crate match for an absolute file path.
+    ///
+    /// `Path::ancestors()` yields the path itself first, then progressively
+    /// shorter parents, so the first hit IS the longest-prefix match —
+    /// matching `get_crate_for_file`'s nested-crate semantics (a file in
+    /// `foo-utils/` must map to `foo-utils`, never to a sibling `foo`).
+    fn crate_for(&self, abs: &Path) -> Option<&'a crate::types::CrateInfo> {
+        abs.ancestors().find_map(|p| self.by_path.get(p).copied())
+    }
+}
 
 /// A dependency that couldn't be resolved because the target file wasn't indexed yet.
 ///
@@ -491,33 +522,39 @@ impl Tethys {
     /// Used by the K-hybrid filter in
     /// [`crate::db::Index::populate_file_deps_from_call_edges`]
     /// (rivets-3d0s). Cargo-known files use the canonical crate name from
-    /// [`crate::types::CrateInfo`]; orphan files (outside any
-    /// `Cargo.toml`-known crate) get a pseudo-crate name prefixed with
+    /// [`crate::types::CrateInfo`] via the shared [`CrateIndex`] ancestor
+    /// walk (idxperf claim C8 — no per-file `canonicalize()` syscalls);
+    /// orphan files (outside any `Cargo.toml`-known crate) get a
+    /// pseudo-crate name prefixed with
     /// [`crate::db::call_edges::ORPHAN_PSEUDO_CRATE_PREFIX`] based on
     /// their top-level directory (e.g., `bruno-examples/types.rs` becomes
     /// `orphan:bruno-examples`; files at the workspace root become
     /// `orphan:<filename>`). The pseudo-crate prefix is centralized as
     /// [`crate::db::ORPHAN_PSEUDO_CRATE_PREFIX`].
     fn build_file_crate_map(&self) -> Result<HashMap<crate::types::FileId, String>> {
+        let crate_index = CrateIndex::new(&self.crates);
         let map = self
             .db
             .list_all_files()?
             .into_iter()
             .map(|file| {
-                let abs_path = self.workspace_root.join(&file.path);
-                let crate_name = crate::cargo::get_crate_for_file(&abs_path, &self.crates)
-                    .map_or_else(
-                        || {
-                            let top = file
-                                .path
-                                .components()
-                                .next()
-                                .and_then(|c| c.as_os_str().to_str())
-                                .unwrap_or("");
-                            format!("{}{}", crate::db::ORPHAN_PSEUDO_CRATE_PREFIX, top)
-                        },
-                        |info| info.name.clone(),
-                    );
+                let abs_path = if file.path.is_absolute() {
+                    file.path.clone()
+                } else {
+                    self.workspace_root.join(&file.path)
+                };
+                let crate_name = crate_index.crate_for(&abs_path).map_or_else(
+                    || {
+                        let top = file
+                            .path
+                            .components()
+                            .next()
+                            .and_then(|c| c.as_os_str().to_str())
+                            .unwrap_or("");
+                        format!("{}{}", crate::db::ORPHAN_PSEUDO_CRATE_PREFIX, top)
+                    },
+                    |info| info.name.clone(),
+                );
                 (file.id, crate_name)
             })
             .collect();
@@ -667,7 +704,11 @@ impl Tethys {
     /// Write a single parsed file to the database and compute its dependencies.
     ///
     /// This is Phase 1b of indexing - the sequential database write that must
-    /// happen after parallel parsing.
+    /// happen after parallel parsing. The complete write (file row, symbols,
+    /// attributes, references with same-file resolution, imports) happens in
+    /// ONE transaction via [`crate::db::Index::index_parsed_file_atomic`] —
+    /// the per-row autocommit pattern this replaced was ~96% of indexing
+    /// wall time (see `.idxperf/probe-findings.md`).
     pub(crate) fn write_parsed_file(
         &mut self,
         data: &ParsedFileData,
@@ -688,31 +729,17 @@ impl Tethys {
             })
             .collect();
 
-        // Insert file and symbols atomically
-        let (file_id, symbol_ids) = self.db.index_file_atomic(
+        // Insert file, symbols, references, and imports atomically
+        let (file_id, _symbol_ids, refs_stored) = self.db.index_parsed_file_atomic(
             &data.relative_path,
             data.language,
             data.mtime_ns,
             data.size_bytes,
             None,
             &symbol_data,
-        )?;
-
-        // Build lookup maps from inserted data + generated IDs (no DB round-trip)
-        let (name_to_id, macro_name_to_id, span_to_id) =
-            Self::build_symbol_maps_from_data(&symbol_data, &symbol_ids);
-
-        // Store references
-        let refs_stored = self.store_references(
-            file_id,
             &data.references,
-            &name_to_id,
-            &macro_name_to_id,
-            &span_to_id,
+            &data.imports,
         )?;
-
-        // Store imports
-        self.store_imports(file_id, &data.imports, data.language)?;
 
         // Compute and store file dependencies (reusing full_path from above)
         self.compute_dependencies(
@@ -725,180 +752,6 @@ impl Tethys {
         )?;
 
         Ok((data.symbols.len(), refs_stored))
-    }
-
-    /// Build lookup maps from inserted symbol data and their generated IDs.
-    ///
-    /// Pairs each `SymbolData` with its corresponding `SymbolId` returned by
-    /// `index_file_atomic`, avoiding a round-trip query to read symbols back.
-    fn build_symbol_maps_from_data(
-        symbols: &[SymbolData<'_>],
-        symbol_ids: &[SymbolId],
-    ) -> (
-        HashMap<String, SymbolId>,
-        HashMap<String, SymbolId>,
-        HashMap<Span, SymbolId>,
-    ) {
-        let mut name_to_id: HashMap<String, SymbolId> = HashMap::new();
-        // Macro definitions only, keyed by name. Macro invocations (`foo!()`)
-        // live in Rust's macro namespace and must resolve to a `macro_rules!`
-        // definition, never to a same-named fn/type — so they get a dedicated
-        // map instead of the general `name_to_id` (which a colliding fn could
-        // overwrite, forging a phantom `foo!` -> `fn foo` call edge).
-        let mut macro_name_to_id: HashMap<String, SymbolId> = HashMap::new();
-        let mut span_to_id: HashMap<Span, SymbolId> = HashMap::new();
-
-        for (sym, &id) in symbols.iter().zip(symbol_ids) {
-            if let Some(prev_id) = name_to_id.insert(sym.name.to_string(), id) {
-                trace!(
-                    name = %sym.name,
-                    new_id = %id,
-                    prev_id = %prev_id,
-                    "Duplicate symbol name in file, using newer"
-                );
-            }
-
-            if sym.kind == SymbolKind::Macro {
-                macro_name_to_id.insert(sym.name.to_string(), id);
-            }
-
-            if let Some(span) = sym.span {
-                span_to_id.insert(span, id);
-            }
-        }
-
-        (name_to_id, macro_name_to_id, span_to_id)
-    }
-
-    /// Store extracted references in the database.
-    ///
-    /// Stores ALL references, including unresolved ones. For unresolved references
-    /// (cross-file symbols), `symbol_id` is set to `None` and `reference_name` is
-    /// populated for later resolution in Pass 2.
-    ///
-    /// Returns the count of references stored.
-    fn store_references(
-        &self,
-        file_id: FileId,
-        refs: &[common::ExtractedReference],
-        name_to_id: &HashMap<String, SymbolId>,
-        macro_name_to_id: &HashMap<String, SymbolId>,
-        span_to_id: &HashMap<Span, SymbolId>,
-    ) -> Result<usize> {
-        let mut count = 0;
-
-        for r in refs {
-            let qualified_name = Self::build_qualified_name(&r.name, r.path.as_deref());
-
-            // Try same-file resolution. A macro invocation (`foo!()`) binds only
-            // to a same-file `macro_rules! foo`; resolving it to a same-named fn
-            // would forge a phantom call edge (e.g. `write!` -> `fn write`).
-            let symbol_id = if r.kind == common::ExtractedReferenceKind::Macro {
-                macro_name_to_id.get(&r.name).copied()
-            } else {
-                name_to_id
-                    .get(&r.name)
-                    .or_else(|| name_to_id.get(&qualified_name))
-                    .copied()
-            };
-
-            // For unresolved references, store the name for Pass 2 cross-file resolution
-            let reference_name = if symbol_id.is_none() {
-                trace!(
-                    reference_name = %qualified_name,
-                    line = r.line,
-                    "Storing unresolved reference for later resolution"
-                );
-                Some(qualified_name)
-            } else {
-                None
-            };
-
-            let in_symbol_id = r
-                .containing_symbol_span
-                .and_then(|span| span_to_id.get(&span).copied());
-
-            self.db.insert_reference(&InsertReferenceParams {
-                symbol_id,
-                file_id,
-                kind: r.kind.to_db_kind().as_str(),
-                line: r.line,
-                column: r.column,
-                in_symbol_id,
-                reference_name: reference_name.as_deref(),
-            })?;
-            count += 1;
-        }
-
-        Ok(count)
-    }
-
-    /// Build a qualified name from a simple name and optional path segments.
-    ///
-    /// Examples:
-    /// - `("open", Some(["Index"]))` -> `"Index::open"`
-    /// - `("Foo", None)` -> `"Foo"`
-    /// - `("bar", Some([]))` -> `"bar"`
-    pub(crate) fn build_qualified_name(name: &str, path: Option<&[String]>) -> String {
-        match path {
-            Some(segments) if !segments.is_empty() => {
-                format!("{}::{}", segments.join("::"), name)
-            }
-            _ => name.to_string(),
-        }
-    }
-
-    /// Store extracted imports in the database for cross-file reference resolution.
-    ///
-    /// Imports are stored with language-appropriate path separators:
-    /// - Rust: `::` (e.g., `crate::db`, `std::collections`)
-    /// - C#: `.` (e.g., `MyApp.Services`, `System.Collections.Generic`)
-    ///
-    /// Clears old imports for this file before storing new ones (for re-indexing).
-    fn store_imports(
-        &self,
-        file_id: FileId,
-        imports: &[common::ImportStatement],
-        language: Language,
-    ) -> Result<()> {
-        // Clear old imports for this file (for re-indexing)
-        self.db.clear_imports_for_file(file_id)?;
-
-        // Stored import format is owned by the language's ModuleResolver.
-        let resolver = get_module_resolver(language);
-
-        for import in imports {
-            let source = resolver.join_import(&import.path);
-
-            // Handle glob imports
-            if import.is_glob {
-                self.db
-                    .insert_import(file_id, "*", &source, import.alias.as_deref())?;
-                continue;
-            }
-
-            // For explicit imports: store each imported name
-            if import.imported_names.is_empty() {
-                // Namespace/module import (C# style) or module import without braces
-                // Store with "*" to indicate "all from this module"
-                self.db
-                    .insert_import(file_id, "*", &source, import.alias.as_deref())?;
-            } else {
-                // Store each explicitly imported name
-                for name in &import.imported_names {
-                    self.db
-                        .insert_import(file_id, name, &source, import.alias.as_deref())?;
-                }
-            }
-        }
-
-        trace!(
-            file_id = %file_id,
-            import_count = imports.len(),
-            "Stored imports for file"
-        );
-
-        Ok(())
     }
 
     /// Compute and store file-level dependencies based on use statements and actual references.
@@ -1355,14 +1208,9 @@ impl Tethys {
             })
             .collect();
 
-        // Map each file to its containing crate by walking the file's ancestor
-        // directories and checking against a pre-built crate-path index. This is
-        // O(files * depth) vs the public `get_crate_for_file`'s O(files * crates)
-        // linear scan + per-file `canonicalize()` syscall. Safe to skip the
-        // canonicalize here because both `workspace_root` (lib.rs:113) and each
-        // `CrateInfo::path` (cargo.rs:121) are canonicalized at construction time.
-        let crate_index: HashMap<&Path, &crate::types::CrateInfo> =
-            self.crates.iter().map(|c| (c.path.as_path(), c)).collect();
+        // Map each file to its containing crate via the shared CrateIndex
+        // ancestor walk: O(files × depth), zero syscalls.
+        let crate_index = CrateIndex::new(&self.crates);
 
         let mut file_to_package: Vec<(crate::types::FileId, &str)> = Vec::new();
         for file in self.db.list_all_files()? {
@@ -1371,10 +1219,7 @@ impl Tethys {
             } else {
                 self.workspace_root.join(&file.path)
             };
-            // `Path::ancestors()` yields the path itself first, then progressively
-            // shorter parents, so `find_map` returns the longest-prefix match —
-            // matching `get_crate_for_file`'s nested-crate semantics.
-            if let Some(info) = abs.ancestors().find_map(|p| crate_index.get(p).copied()) {
+            if let Some(info) = crate_index.crate_for(&abs) {
                 file_to_package.push((file.id, info.name.as_str()));
             } else {
                 tracing::trace!(
@@ -1490,6 +1335,61 @@ mod tests {
         ]);
         let map = tethys.build_namespace_map().expect("map");
         assert!(map.is_empty());
+    }
+
+    // ========================================================================
+    // build_file_crate_map Tests (idxperf claim C8)
+    // ========================================================================
+
+    /// Stress fixture from the idxperf plan (slice 6): overlapping crate
+    /// name prefixes (`foo` vs `foo-utils` — defeats first-prefix-match
+    /// bugs), a file nested deep inside a crate, an orphan in a
+    /// subdirectory, and an orphan at the workspace root. Expected map
+    /// hand-computed before the `CrateIndex` implementation.
+    #[test]
+    fn fast_crate_map_matches_expected() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[workspace]\nmembers = [\"foo\", \"foo-utils\"]\nresolver = \"2\"\n",
+            ),
+            (
+                "foo/Cargo.toml",
+                "[package]\nname = \"foo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            ("foo/src/lib.rs", "pub fn a() {}\n"),
+            ("foo/src/deep/inner.rs", "pub fn b() {}\n"),
+            (
+                "foo-utils/Cargo.toml",
+                "[package]\nname = \"foo-utils\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            ("foo-utils/src/lib.rs", "pub fn c() {}\n"),
+            ("tools/helper.rs", "pub fn d() {}\n"),
+            ("loose.rs", "pub fn e() {}\n"),
+        ]);
+
+        let map = tethys.build_file_crate_map().expect("crate map");
+
+        let expected = [
+            ("foo/src/lib.rs", "foo"),
+            ("foo/src/deep/inner.rs", "foo"),
+            ("foo-utils/src/lib.rs", "foo-utils"),
+            ("tools/helper.rs", "orphan:tools"),
+            ("loose.rs", "orphan:loose.rs"),
+        ];
+        for (path, crate_name) in expected {
+            let file_id = tethys
+                .db
+                .get_file_id(Path::new(path))
+                .expect("query")
+                .unwrap_or_else(|| panic!("{path} must be indexed"));
+            assert_eq!(
+                map.get(&file_id).map(String::as_str),
+                Some(crate_name),
+                "wrong crate assignment for {path}"
+            );
+        }
+        assert_eq!(map.len(), 5, "exactly the five fixture files mapped");
     }
 
     // ========================================================================
