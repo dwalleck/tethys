@@ -167,8 +167,19 @@ fn extract_references_recursive(
     };
 
     match node.kind() {
-        // Skip use declarations - they're handled separately
-        USE_DECLARATION => return,
+        // Use declarations: plain `use` stays ref-less (an unused import must
+        // not keep a symbol alive), but a re-export (`pub use`) references its
+        // targets by making them API surface (tethys-v1w8).
+        USE_DECLARATION => {
+            // `pub use` inside a function body is not valid Rust; if
+            // tree-sitter parses one anyway, stay conservative and emit
+            // nothing rather than fabricate an in-symbol reference.
+            if containing_span.is_none() {
+                push_reexport_refs(node, content, refs);
+            }
+            // Nothing else to extract inside a use declaration.
+            return;
+        }
 
         CALL_EXPRESSION => {
             // Function/method call
@@ -269,6 +280,43 @@ fn extract_references_recursive(
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         extract_references_recursive(&child, content, refs, containing_span);
+    }
+}
+
+/// Emit one `Reexport` reference per named leaf of a re-export declaration
+/// (`pub use ...`), at the declaration site with no containing symbol.
+///
+/// Plain (non-`pub`) use declarations emit nothing. Globs are deferred
+/// (tethys-pv7w); group-alias members are dropped upstream by use-list
+/// parsing (tethys-rylk — parity kept, not fixed here). A module re-export
+/// (`pub use a::mod_name;`) is indistinguishable from an item re-export at
+/// parse time and emits a ref that simply stays unresolved downstream.
+fn push_reexport_refs(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    refs: &mut Vec<ExtractedReference>,
+) {
+    // Sanity hint, not load-bearing: a non-use node yields no UseStatement
+    // and the function degrades to a no-op in release builds.
+    debug_assert!(
+        node.kind() == node_kinds::USE_DECLARATION,
+        "push_reexport_refs expects a use_declaration node"
+    );
+    if let Some(use_stmt) = parse_use_declaration(node, content)
+        && use_stmt.is_reexport
+        && !use_stmt.is_glob
+    {
+        let column = node.start_position().column as u32 + 1;
+        for name in use_stmt.imported_names {
+            refs.push(ExtractedReference {
+                name,
+                kind: ExtractedReferenceKind::Reexport,
+                line: use_stmt.line,
+                column,
+                path: None,
+                containing_symbol_span: None,
+            });
+        }
     }
 }
 
@@ -1754,6 +1802,59 @@ impl User {
         assert!(uses[1].is_reexport, "pub(crate) use must be a re-export");
         assert!(!uses[2].is_reexport, "plain use must not be a re-export");
         assert!(uses[3].is_reexport, "pub use with list must be a re-export");
+    }
+
+    /// tethys-v1w8 slice-2 stress fixture: one reexport ref per named leaf,
+    /// original names for top-level aliases, and no refs from globs, plain
+    /// uses, or (invalid-Rust) fn-scoped `pub use`. Group-alias members are
+    /// dropped upstream by use-list parsing (tethys-rylk) — this test pins
+    /// PARITY with `parse_use_declaration`, not the eventual fixed behavior.
+    #[test]
+    fn reexport_refs_one_per_named_leaf_with_parity_gaps() {
+        let code = "pub use a::B;\n\
+                    pub(crate) use c::D;\n\
+                    pub use e::{F, G as H, i::J};\n\
+                    pub use k::*;\n\
+                    use l::M;\n\
+                    pub use n::Trait as _;\n\
+                    fn f() { use o::P; }\n";
+        let tree = parse_rust(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let mut reexports: Vec<(String, u32)> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::Reexport)
+            .map(|r| (r.name.clone(), r.line))
+            .collect();
+        reexports.sort();
+
+        assert_eq!(
+            reexports,
+            vec![
+                ("B".to_string(), 1),
+                ("D".to_string(), 2),
+                ("F".to_string(), 3),
+                ("J".to_string(), 3),
+                ("Trait".to_string(), 6),
+            ],
+            "expected exactly the named non-glob re-export leaves \
+             (G is dropped by use-list alias parsing: tethys-rylk)"
+        );
+
+        // Re-export sites are module-level: no enclosing symbol, ever —
+        // this is what keeps them out of call_edges and panic-points.
+        assert!(
+            refs.iter()
+                .filter(|r| r.kind == ExtractedReferenceKind::Reexport)
+                .all(|r| r.containing_symbol_span.is_none()),
+            "reexport refs must not carry a containing symbol span"
+        );
+
+        // Plain `use l::M` and fn-scoped `use o::P` must emit nothing at all.
+        assert!(
+            !refs.iter().any(|r| r.name == "M" || r.name == "P"),
+            "plain and fn-scoped use declarations must stay ref-less"
+        );
     }
 
     // ========================================================================
