@@ -201,6 +201,76 @@ impl Tethys {
         Ok(())
     }
 
+    /// `UniqueAcrossAll` union arm (C#): collect candidate symbols across the
+    /// file's plain namespace usings (types) AND `using static Type;`
+    /// directives (Type's methods), then resolve iff the deduped union is
+    /// exactly one symbol (spec decision #3).
+    ///
+    /// The types arm caps at 2; the static-member arm caps at 2 per `using
+    /// static` directive — two distinct candidates already force a decline, so
+    /// exact bounds don't matter, only "unique vs not". The dedup is keyed on
+    /// symbol id and is INTRA-arm: the type and member kind-sets are disjoint,
+    /// so one symbol can never appear in both arms (no cross-arm collision is
+    /// possible). It is defensive against the member arm surfacing the SAME
+    /// symbol twice — e.g. two distinct `using static` directives that resolve
+    /// to the same type+file (a file with multiple namespace blocks) — so such
+    /// a self-collision collapses to one candidate instead of false-declining.
+    fn resolve_via_union_arm(
+        &self,
+        ref_name: &str,
+        glob: &crate::languages::module_resolver::GlobResolution,
+        ctx: &ResolveContext<'_>,
+    ) -> Result<Option<Symbol>> {
+        // Types arm: namespace usings → files → type symbols by name.
+        let mut candidate_files = Vec::new();
+        for source_module in ctx.glob_imports {
+            candidate_files.extend(
+                ctx.resolver
+                    .resolve_import_files(source_module, ctx.module_ctx),
+            );
+        }
+        let mut candidates =
+            self.db
+                .search_symbols_by_name_in_files(ref_name, glob.kinds, &candidate_files, 2)?;
+
+        // Static-member arm: `using static Ns.Type;` → Type's methods scoped
+        // to the namespace's files.
+        if let Some(member_kinds) = glob.member_kinds {
+            for source_module in ctx.glob_imports {
+                if let Some(smi) = ctx
+                    .resolver
+                    .static_member_import(source_module, ctx.module_ctx)
+                {
+                    candidates.extend(self.db.search_type_members_by_name(
+                        ref_name,
+                        &smi.type_name,
+                        &smi.files,
+                        member_kinds,
+                        2,
+                    )?);
+                }
+            }
+        }
+
+        candidates.sort_by_key(|s| s.id.as_i64());
+        candidates.dedup_by_key(|s| s.id.as_i64());
+        match candidates.len() {
+            1 => Ok(candidates.pop()),
+            0 => Ok(None),
+            n => {
+                // Restore the ambiguity trail the pre-union primitive emitted,
+                // and keep parity with the other refuse-ambiguity paths in
+                // db/symbols.rs which still `debug!` on multi-candidate decline.
+                debug!(
+                    ref_name = %ref_name,
+                    candidate_count = n,
+                    "Refusing ambiguous using-arm match (multiple candidates across types / static-member arms)"
+                );
+                Ok(None)
+            }
+        }
+    }
+
     /// Build lookup maps from imports for reference resolution.
     fn build_import_maps(imports: &[Import]) -> (HashMap<&str, (&str, &str)>, Vec<&str>) {
         let mut explicit_imports: HashMap<&str, (&str, &str)> = HashMap::new();
@@ -281,29 +351,16 @@ impl Tethys {
                     }
                 }
             }
-            // C# using-arm: candidates collected across ALL of the file's
-            // usings, one kind-filtered unique-or-decline lookup (spec
-            // decisions #3/#4). Simple names only — qualified refs keep
-            // their pre-existing path through the fallback arms, so no
-            // resolution-order change can flip an existing target.
+            // C# using-arm: UNION candidates across all usings, then one
+            // unique-or-decline. Simple names only; qualified refs keep their
+            // pre-existing fallback path. See [`Self::resolve_via_union_arm`].
             GlobPolicy::UniqueAcrossAll if !is_qualified => {
-                let mut candidate_files = Vec::new();
-                for source_module in ctx.glob_imports {
-                    candidate_files.extend(
-                        ctx.resolver
-                            .resolve_import_files(source_module, ctx.module_ctx),
-                    );
-                }
-                if let Some(symbol) = self.db.search_unique_symbol_by_name_in_files(
-                    ref_name,
-                    glob.kinds,
-                    &candidate_files,
-                )? {
+                if let Some(symbol) = self.resolve_via_union_arm(ref_name, &glob, ctx)? {
                     trace!(
                         ref_id = ref_.id,
                         ref_name = %ref_name,
                         symbol_id = %symbol.id,
-                        "Resolved reference via namespace imports"
+                        "Resolved reference via namespace / static-member imports"
                     );
                     return Ok(Some(symbol.id));
                 }

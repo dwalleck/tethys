@@ -76,8 +76,23 @@ pub(crate) enum GlobPolicy {
 /// DB access, the resolver owns the policy.
 pub(crate) struct GlobResolution {
     pub policy: GlobPolicy,
-    /// Symbol kinds the arm may match; `None` = all kinds (Rust).
+    /// Symbol kinds the types arm may match; `None` = all kinds (Rust).
     pub kinds: Option<&'static [SymbolKind]>,
+    /// Symbol kinds the static-member arm may match; `None` = the language
+    /// has no static-member usings (Rust). C#: callable members
+    /// (`Function`/`Method`) imported by `using static Type;`.
+    pub member_kinds: Option<&'static [SymbolKind]>,
+}
+
+/// A `using static Namespace.Type;` directive recognized by type-detection:
+/// the named type plus the files declaring its namespace. The driver scopes
+/// the member lookup to the symbol whose `qualified_name` is EXACTLY
+/// `Type::<member>` within these files (the type-scoping handle is
+/// `qualified_name`, not `parent_symbol_id`, which is `None` for functions; an
+/// exact match, not a `Type::` prefix scan, to avoid the `LIKE` wildcard hazard).
+pub(crate) struct StaticMemberImport {
+    pub type_name: String,
+    pub files: Vec<PathBuf>,
 }
 
 /// One prefix-split of a qualified reference name: candidate files in
@@ -160,12 +175,32 @@ pub(crate) trait ModuleResolver: Send + Sync {
     }
 
     /// Glob-arm semantics for this language. Default is the pre-seam Rust
-    /// behavior: first match in stored-import order, any symbol kind.
+    /// behavior: first match in stored-import order, any symbol kind, no
+    /// static-member arm.
     fn glob_resolution(&self) -> GlobResolution {
         GlobResolution {
             policy: GlobPolicy::FirstMatch,
             kinds: None,
+            member_kinds: None,
         }
+    }
+
+    /// Recognize a `using static Namespace.Type;` directive by type-detection.
+    ///
+    /// Returns `Some` when `source_module` splits into a namespace prefix
+    /// present in [`ModuleContext::namespaces`] plus a type suffix; the
+    /// driver then resolves bare member names against that type's members in
+    /// the namespace's files. Default `None` — languages without
+    /// static-member usings (Rust). A plain namespace using (`source_module`
+    /// IS a namespace) and an external prefix both yield `None` here; a
+    /// sub-namespace prefix may over-fire harmlessly (the later `Type::`
+    /// member query finds nothing).
+    fn static_member_import(
+        &self,
+        _source_module: &str,
+        _ctx: &ModuleContext<'_>,
+    ) -> Option<StaticMemberImport> {
+        None
     }
 
     /// Candidate lookups for a qualified reference name (canonical `::`
@@ -339,15 +374,35 @@ impl ModuleResolver for CSharpModuleResolver {
     fn glob_resolution(&self) -> GlobResolution {
         GlobResolution {
             policy: GlobPolicy::UniqueAcrossAll,
-            // Plain usings import TYPES (spec decision #3); bare members
-            // need `using static` (tethys-usgf). No Record variant exists.
+            // Plain usings import TYPES (spec decision #3). No Record variant.
             kinds: Some(&[
                 SymbolKind::Class,
                 SymbolKind::Struct,
                 SymbolKind::Interface,
                 SymbolKind::Enum,
             ]),
+            // `using static Type;` imports callable members (usgf). Const /
+            // static-field / enum members aren't indexed (tethys-cfme).
+            member_kinds: Some(&[SymbolKind::Function, SymbolKind::Method]),
         }
+    }
+
+    fn static_member_import(
+        &self,
+        source_module: &str,
+        ctx: &ModuleContext<'_>,
+    ) -> Option<StaticMemberImport> {
+        // `using static Ns.Type;` stores source_module = "Ns.Type". Split on
+        // the LAST '.': the prefix must be a known namespace, the suffix is
+        // the type. A plain `using Ns;` (no '.', or source_module IS a
+        // namespace) doesn't reach here as a type import.
+        let map = ctx.namespaces?;
+        let (prefix, type_name) = source_module.rsplit_once('.')?;
+        let files = map.get(prefix)?;
+        Some(StaticMemberImport {
+            type_name: type_name.to_string(),
+            files: files.clone(),
+        })
     }
 
     fn qualified_splits(&self, _ref_name: &str, _ctx: &ModuleContext<'_>) -> Vec<QualifiedSplit> {
@@ -373,10 +428,11 @@ mod tests {
         let g = RustModuleResolver.glob_resolution();
         assert_eq!(g.policy, GlobPolicy::FirstMatch);
         assert!(g.kinds.is_none());
+        assert!(g.member_kinds.is_none(), "Rust has no static-member arm");
     }
 
     #[test]
-    fn csharp_glob_resolution_is_unique_types_only() {
+    fn csharp_glob_resolution_is_unique_types_plus_members() {
         let g = CSharpModuleResolver.glob_resolution();
         assert_eq!(g.policy, GlobPolicy::UniqueAcrossAll);
         assert_eq!(
@@ -389,6 +445,115 @@ mod tests {
                     SymbolKind::Enum
                 ][..]
             )
+        );
+        assert_eq!(
+            g.member_kinds,
+            Some(&[SymbolKind::Function, SymbolKind::Method][..])
+        );
+    }
+
+    fn ns_ctx<'a>(root: &'a Path, map: &'a NamespaceMap) -> ModuleContext<'a> {
+        ModuleContext {
+            current_file: root,
+            crates: &[],
+            anchor: None,
+            namespaces: Some(map),
+        }
+    }
+
+    #[test]
+    fn static_member_import_splits_on_last_dot() {
+        let root = Path::new("/ws");
+        let mut map = NamespaceMap::new();
+        map.insert("My.Models".to_string(), vec![PathBuf::from("a/Helper.cs")]);
+        let c = ns_ctx(root, &map);
+        // `using static My.Models.Helper;` → type Helper in My.Models's files.
+        // A split-on-FIRST bug would give prefix "My" (not in map) → None.
+        let smi = CSharpModuleResolver
+            .static_member_import("My.Models.Helper", &c)
+            .expect("static using recognized");
+        assert_eq!(smi.type_name, "Helper");
+        assert_eq!(smi.files, vec![PathBuf::from("a/Helper.cs")]);
+    }
+
+    #[test]
+    fn static_member_import_plain_namespace_yields_none() {
+        let root = Path::new("/ws");
+        let mut map = NamespaceMap::new();
+        map.insert("My.Models".to_string(), vec![PathBuf::from("a/Helper.cs")]);
+        let c = ns_ctx(root, &map);
+        // `using My.Models;` (source_module IS the namespace): rsplit gives
+        // prefix "My" (not in map) → None. The types arm handles it.
+        assert!(
+            CSharpModuleResolver
+                .static_member_import("My.Models", &c)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn static_member_import_external_prefix_yields_none() {
+        let root = Path::new("/ws");
+        let map = NamespaceMap::new();
+        let c = ns_ctx(root, &map);
+        assert!(
+            CSharpModuleResolver
+                .static_member_import("System.Math", &c)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn static_member_import_single_segment_yields_none() {
+        let root = Path::new("/ws");
+        let map = NamespaceMap::new();
+        let c = ns_ctx(root, &map);
+        assert!(
+            CSharpModuleResolver
+                .static_member_import("Foo", &c)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn static_member_import_none_map_yields_none() {
+        let root = Path::new("/ws");
+        assert!(
+            CSharpModuleResolver
+                .static_member_import("My.Models.Helper", &ctx(root))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn static_member_import_sub_namespace_over_fires_harmlessly() {
+        // Both `My.Models` and `My.Models.Sub` are namespaces. For
+        // `My.Models.Sub`, rsplit gives prefix `My.Models` (in map) + suffix
+        // `Sub` → emits type `Sub`. This over-fires, but the driver's later
+        // exact `Sub::<name>` member query finds nothing (Sub is a namespace,
+        // not a type with members), so it is harmless.
+        let root = Path::new("/ws");
+        let mut map = NamespaceMap::new();
+        map.insert("My.Models".to_string(), vec![PathBuf::from("a.cs")]);
+        map.insert("My.Models.Sub".to_string(), vec![PathBuf::from("b.cs")]);
+        let c = ns_ctx(root, &map);
+        let smi = CSharpModuleResolver
+            .static_member_import("My.Models.Sub", &c)
+            .expect("over-fires by design");
+        assert_eq!(smi.type_name, "Sub");
+        assert_eq!(smi.files, vec![PathBuf::from("a.cs")]);
+    }
+
+    #[test]
+    fn rust_static_member_import_always_none() {
+        let root = Path::new("/ws");
+        let mut map = NamespaceMap::new();
+        map.insert("My.Models".to_string(), vec![PathBuf::from("a.cs")]);
+        let c = ns_ctx(root, &map);
+        assert!(
+            RustModuleResolver
+                .static_member_import("My.Models.Helper", &c)
+                .is_none()
         );
     }
 
