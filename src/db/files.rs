@@ -628,9 +628,14 @@ mod index_parsed_file_atomic_tests {
         );
     }
 
-    /// C5 fence: a constraint violation mid-file rolls back EVERYTHING —
-    /// no file row, no symbols, no refs, no imports. A buggy implementation
-    /// that writes refs/imports outside the transaction leaves orphans.
+    /// C5 fence (fresh-file arm): a constraint violation while writing a
+    /// brand-new file rolls back the file row and its symbols. The
+    /// symbol-insert loop runs BEFORE the refs/imports loops, so this input
+    /// aborts before any ref or import is ever written — the zero-row checks
+    /// on refs/imports/attributes here only confirm nothing partial leaked,
+    /// NOT that those writes are transactional. The re-index arm
+    /// (`failed_reindex_preserves_prior_refs_imports_attributes`) is what
+    /// actually fences refs/imports/attributes atomicity.
     #[test]
     fn failed_file_write_leaves_no_rows() {
         let (_dir, mut index) = temp_index();
@@ -670,6 +675,102 @@ mod index_parsed_file_atomic_tests {
                 .expect("count");
             assert_eq!(count, 0, "{table} must have zero rows after rollback");
         }
+    }
+
+    /// C5 fence (re-index arm): refs, imports, and attributes are part of
+    /// the SAME atomic unit as the file row and symbols. A first successful
+    /// write populates all four child tables; a failing re-index of that
+    /// file (dangling parent FK) must roll back its interior DELETEs, leaving
+    /// the original rows intact. This is the coverage the fresh-file arm
+    /// cannot provide — that path aborts before any ref/import is written, so
+    /// only here can a regression that ran the refs/imports DELETE (or their
+    /// re-insert) outside the transaction be caught (it would lose the
+    /// originals on rollback).
+    #[test]
+    fn failed_reindex_preserves_prior_refs_imports_attributes() {
+        let (_dir, mut index) = temp_index();
+
+        let span = Span::new(1, 1, 2, 2).expect("span");
+        let attrs = [ExtractedAttribute {
+            name: "derive".to_string(),
+            args: Some("Clone".to_string()),
+            line: 1,
+        }];
+        let mut decorated = sym("decorated", 1, Some(span));
+        decorated.attributes = &attrs;
+        let symbols = vec![decorated];
+        // Unresolved cross-file ref inside `decorated` -> a ref row carrying
+        // a reference_name and a non-null in_symbol_id.
+        let references = vec![call_ref("external_thing", 2, Some(span))];
+        let imports = vec![ImportStatement {
+            path: vec!["std".into()],
+            imported_names: vec!["Thing".into()],
+            is_glob: false,
+            alias: None,
+            line: 1,
+            is_reexport: false,
+        }];
+
+        index
+            .index_parsed_file_atomic(
+                Path::new("src/f.rs"),
+                Language::Rust,
+                1,
+                1,
+                None,
+                &symbols,
+                &references,
+                &imports,
+            )
+            .expect("initial write");
+
+        let counts = |index: &Index| -> (i64, i64, i64, i64) {
+            let conn = index.connection().expect("conn");
+            conn.query_row(
+                "SELECT (SELECT COUNT(*) FROM symbols),
+                        (SELECT COUNT(*) FROM refs),
+                        (SELECT COUNT(*) FROM imports),
+                        (SELECT COUNT(*) FROM attributes)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            )
+            .expect("counts")
+        };
+        let before = counts(&index);
+        assert_eq!(
+            before,
+            (1, 1, 1, 1),
+            "initial write must populate symbols + refs + imports + attributes"
+        );
+
+        // Re-index the SAME file, now with a poisoned symbol: the interior
+        // DELETEs run, then the symbol re-insert fails on the dangling FK.
+        let mut bad = sym("bad", 1, None);
+        bad.parent_symbol_id = Some(SymbolId::from(999_999));
+        let result = index.index_parsed_file_atomic(
+            Path::new("src/f.rs"),
+            Language::Rust,
+            2,
+            2,
+            None,
+            &[bad],
+            &[],
+            &[],
+        );
+        assert!(result.is_err(), "poisoned re-index must fail");
+
+        assert_eq!(
+            counts(&index),
+            before,
+            "failed re-index must preserve the original refs/imports/attributes (interior DELETEs rolled back)"
+        );
+        assert!(
+            index
+                .get_file_id(Path::new("src/f.rs"))
+                .expect("query")
+                .is_some(),
+            "the original file row must survive a failed re-index"
+        );
     }
 
     #[test]
