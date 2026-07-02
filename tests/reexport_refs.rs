@@ -129,8 +129,7 @@ fn reexport_resolves_like_bare_usage_despite_same_named_decoy() {
 /// force-binding them to a same-named local symbol.
 #[test]
 fn external_reexport_stored_unresolved() {
-    let (_dir, mut tethys) =
-        workspace_with_files(&[("src/lib.rs", "pub use serde::Serialize;\n")]);
+    let (_dir, mut tethys) = workspace_with_files(&[("src/lib.rs", "pub use serde::Serialize;\n")]);
     tethys.index().expect("index");
     let conn = open_db(&tethys);
 
@@ -238,7 +237,10 @@ fn reindexing_twice_is_idempotent_for_reexport_refs() {
             "pub mod inner;\npub mod user;\npub use crate::inner::x;\n",
         ),
         ("src/inner.rs", "pub fn x() {}\n"),
-        ("src/user.rs", "use crate::inner::x;\npub fn go() {\n    x();\n}\n"),
+        (
+            "src/user.rs",
+            "use crate::inner::x;\npub fn go() {\n    x();\n}\n",
+        ),
     ]);
     tethys.index().expect("first index");
     let counts = |conn: &rusqlite::Connection| {
@@ -431,7 +433,10 @@ fn path_prefix_reexports_resolve_like_plain_imports() {
             "src/lib.rs",
             "pub mod inner;\npub use inner::ha;\npub use self::inner::hb;\npub use crate::inner::hc;\n",
         ),
-        ("src/inner.rs", "pub fn ha() {}\npub fn hb() {}\npub fn hc() {}\n"),
+        (
+            "src/inner.rs",
+            "pub fn ha() {}\npub fn hb() {}\npub fn hc() {}\n",
+        ),
     ]);
     tethys.index().expect("index");
     let conn = open_db(&tethys);
