@@ -323,18 +323,26 @@ impl Index {
         Ok(Some(first))
     }
 
-    /// Up to `limit` symbols named `name` (optionally kind-filtered) declared
-    /// in any of `file_paths` — the un-collapsed primitive behind
-    /// the resolve.rs candidate union (usgf) and the unique-or-decline
-    /// reductions above it. Empty `file_paths` is a documented refusal:
-    /// returns an empty `Vec` without touching SQL (load-bearing — an empty
-    /// `IN ()` is a syntax error). `file_paths` are chunked (500 per query)
-    /// against the `SQLite` host-parameter limit; the `limit` is applied
-    /// GLOBALLY across chunks.
-    pub fn search_symbols_by_name_in_files(
+    /// Shared machinery for the file-scoped symbol lookups: run `predicate_sql`
+    /// (a `WHERE` fragment whose bound params are `leading_params`, in order)
+    /// against `symbols`, scoped to `file_paths`, collecting up to `limit`
+    /// matches. Empty `file_paths` / `limit == 0` is a documented refusal:
+    /// returns an empty `Vec` without touching SQL (an empty `IN ()` is a
+    /// syntax error). `file_paths` are chunked (500 per query) against the
+    /// `SQLite` host-parameter limit; `limit` is applied GLOBALLY across chunks.
+    ///
+    /// Paths are normalized and DEDUPED first — load-bearing, not an
+    /// optimization. [`NamespaceMap`](crate::languages::module_resolver) values
+    /// are deliberately not deduped (one entry per declaration), so a file
+    /// declaring a namespace twice arrives here as a duplicate path. A
+    /// duplicate that straddles the chunk boundary would otherwise spend the
+    /// global `limit` budget on the SAME symbol twice, hiding a DISTINCT
+    /// candidate in a later chunk — turning a rightful ambiguity decline into a
+    /// wrong resolution once the caller dedups by id (usgf review).
+    fn search_symbols_chunked(
         &self,
-        name: &str,
-        kinds: Option<&[SymbolKind]>,
+        predicate_sql: &str,
+        leading_params: &[String],
         file_paths: &[std::path::PathBuf],
         limit: usize,
     ) -> Result<Vec<Symbol>> {
@@ -342,32 +350,28 @@ impl Index {
             return Ok(Vec::new());
         }
         let conn = self.connection()?;
-        let kind_strs: Option<Vec<&'static str>> =
-            kinds.map(|ks| ks.iter().map(SymbolKind::as_str).collect());
+        let mut paths: Vec<String> = file_paths
+            .iter()
+            .map(|p| super::files::normalize_path(p))
+            .collect();
+        paths.sort_unstable();
+        paths.dedup();
 
         let mut out: Vec<Symbol> = Vec::new();
-        for chunk in file_paths.chunks(500) {
+        for chunk in paths.chunks(500) {
             if out.len() >= limit {
                 break;
             }
             let path_marks = vec!["?"; chunk.len()].join(", ");
-            let kind_clause = match &kind_strs {
-                Some(ks) => format!(" AND kind IN ({})", vec!["?"; ks.len()].join(", ")),
-                None => String::new(),
-            };
             let sql = format!(
                 "SELECT {SYMBOLS_COLUMNS} FROM symbols
-                 WHERE name = ?
-                   AND file_id IN (SELECT id FROM files WHERE path IN ({path_marks})){kind_clause}
+                 WHERE {predicate_sql}
+                   AND file_id IN (SELECT id FROM files WHERE path IN ({path_marks}))
                  LIMIT {limit}"
             );
-            let params: Vec<String> = std::iter::once(name.to_string())
-                .chain(chunk.iter().map(|p| super::files::normalize_path(p)))
-                .chain(kind_strs.iter().flatten().map(|k| (*k).to_string()))
-                .collect();
-
+            let params: Vec<&String> = leading_params.iter().chain(chunk.iter()).collect();
             let mut stmt = conn.prepare(&sql)?;
-            let rows = stmt.query_map(rusqlite::params_from_iter(params.iter()), row_to_symbol)?;
+            let rows = stmt.query_map(rusqlite::params_from_iter(params), row_to_symbol)?;
             for row in rows {
                 out.push(row?);
                 if out.len() >= limit {
@@ -376,6 +380,29 @@ impl Index {
             }
         }
         Ok(out)
+    }
+
+    /// Up to `limit` symbols named `name` (optionally kind-filtered) declared
+    /// in any of `file_paths` — the un-collapsed primitive behind the
+    /// resolve.rs candidate union (usgf) and the unique-or-decline reductions
+    /// above it. See [`Self::search_symbols_chunked`] for the chunking,
+    /// global-`limit`, and path-dedup contract (empty inputs decline).
+    pub fn search_symbols_by_name_in_files(
+        &self,
+        name: &str,
+        kinds: Option<&[SymbolKind]>,
+        file_paths: &[std::path::PathBuf],
+        limit: usize,
+    ) -> Result<Vec<Symbol>> {
+        let predicate = match kinds {
+            Some(ks) => format!("name = ? AND kind IN ({})", vec!["?"; ks.len()].join(", ")),
+            None => String::from("name = ?"),
+        };
+        let mut leading = vec![name.to_string()];
+        if let Some(ks) = kinds {
+            leading.extend(ks.iter().map(|k| k.as_str().to_string()));
+        }
+        self.search_symbols_chunked(&predicate, &leading, file_paths, limit)
     }
 
     /// Up to `limit` members named `name` belonging to type `type_name`,
@@ -405,43 +432,19 @@ impl Index {
         // debug_assert): a trailing-dot using like `using static My.Models.;`
         // can reach here with an empty suffix, and `'::name'` would otherwise
         // over-match every member of that name across all types. Empty
-        // member_kinds is refused for the same reason empty file_paths is:
-        // the `kind IN (...)` clause would become `IN ()`, a SQLite syntax error.
-        if file_paths.is_empty() || type_name.is_empty() || member_kinds.is_empty() || limit == 0 {
+        // member_kinds is refused because the `kind IN (...)` clause would
+        // become `IN ()`, a SQLite syntax error. (Empty file_paths / limit ==
+        // 0 are refused by search_symbols_chunked.)
+        if type_name.is_empty() || member_kinds.is_empty() {
             return Ok(Vec::new());
         }
-        let conn = self.connection()?;
-        let qualified = format!("{type_name}::{name}");
-        let kind_marks = vec!["?"; member_kinds.len()].join(", ");
-
-        let mut out: Vec<Symbol> = Vec::new();
-        for chunk in file_paths.chunks(500) {
-            if out.len() >= limit {
-                break;
-            }
-            let path_marks = vec!["?"; chunk.len()].join(", ");
-            let sql = format!(
-                "SELECT {SYMBOLS_COLUMNS} FROM symbols
-                 WHERE qualified_name = ?
-                   AND kind IN ({kind_marks})
-                   AND file_id IN (SELECT id FROM files WHERE path IN ({path_marks}))
-                 LIMIT {limit}"
-            );
-            let params: Vec<String> = std::iter::once(qualified.clone())
-                .chain(member_kinds.iter().map(|k| k.as_str().to_string()))
-                .chain(chunk.iter().map(|p| super::files::normalize_path(p)))
-                .collect();
-
-            let mut stmt = conn.prepare(&sql)?;
-            let rows = stmt.query_map(rusqlite::params_from_iter(params.iter()), row_to_symbol)?;
-            for row in rows {
-                out.push(row?);
-                if out.len() >= limit {
-                    break;
-                }
-            }
-        }
-        Ok(out)
+        let predicate = format!(
+            "qualified_name = ? AND kind IN ({})",
+            vec!["?"; member_kinds.len()].join(", ")
+        );
+        let mut leading = vec![format!("{type_name}::{name}")];
+        leading.extend(member_kinds.iter().map(|k| k.as_str().to_string()));
+        self.search_symbols_chunked(&predicate, &leading, file_paths, limit)
     }
 
     /// Find a symbol at a specific file and line.
@@ -1066,5 +1069,81 @@ mod search_by_name_ambiguity_tests {
             .expect("query");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].id, target);
+    }
+
+    // ========================================================================
+    // Duplicate-path budget-waste regression (usgf review)
+    // ========================================================================
+
+    /// A duplicate path — `NamespaceMap` values are deliberately not deduped,
+    /// so a file declaring a namespace twice arrives duplicated — that
+    /// straddles the 500-path chunk boundary must NOT spend the global `limit`
+    /// on the SAME symbol twice and hide a DISTINCT candidate in a later chunk.
+    ///
+    /// Before the path-dedup fix this returned `[X, X]`; the union arm's
+    /// id-dedup then collapsed it to one → a WRONG resolution of a genuine
+    /// cross-file ambiguity. It must surface BOTH distinct symbols so the
+    /// caller declines. (The old `search_unique_symbol_by_name_in_files`
+    /// declined here; the refactor must not flip that safe→unsafe.)
+    #[test]
+    fn duplicate_path_across_chunk_boundary_does_not_mask_ambiguity() {
+        let (_dir, mut index) = fresh_index();
+        let x = insert_sym(&mut index, "dup/x.cs", "Zap", SymbolKind::Class);
+        let y = insert_sym(&mut index, "dup/y.cs", "Zap", SymbolKind::Class);
+        // `x` appears twice with its occurrences on either side of the 500
+        // boundary, and the distinct candidate `y` after the second `x`.
+        let mut file_paths = vec![std::path::PathBuf::from("dup/x.cs")];
+        file_paths.extend((0..510).map(|i| std::path::PathBuf::from(format!("filler/f{i:04}.cs"))));
+        file_paths.push(std::path::PathBuf::from("dup/x.cs"));
+        file_paths.push(std::path::PathBuf::from("dup/y.cs"));
+
+        let hits = index
+            .search_symbols_by_name_in_files("Zap", Some(&[SymbolKind::Class]), &file_paths, 2)
+            .expect("query");
+        let ids: std::collections::HashSet<i64> = hits.iter().map(|s| s.id.as_i64()).collect();
+        assert_eq!(
+            ids.len(),
+            2,
+            "a duplicate path must not consume the ambiguity budget; both X and Y must surface"
+        );
+        assert!(ids.contains(&x.as_i64()) && ids.contains(&y.as_i64()));
+    }
+
+    /// Same regression through the static-member primitive: `smi.files` (a
+    /// clone of a non-deduped `NamespaceMap` value) can carry a duplicate that
+    /// straddles the chunk boundary. A partial type spread across two files
+    /// gives two DISTINCT `Helper::Assist` members; both must surface rather
+    /// than one being masked when the first file's path is duplicated past the
+    /// boundary (without the fix the dup consumes the budget → only one seen →
+    /// the caller wrongly resolves what should decline as an overload).
+    #[test]
+    fn type_members_duplicate_path_does_not_mask_overload() {
+        let (_dir, mut index) = fresh_index();
+        let a1 = insert_members(
+            &mut index,
+            "dup/H1.cs",
+            &[("Helper", "Assist", SymbolKind::Function)],
+        )[0];
+        let a2 = insert_members(
+            &mut index,
+            "dup/H2.cs",
+            &[("Helper", "Assist", SymbolKind::Method)],
+        )[0];
+        // H1 duplicated across the boundary; the distinct H2 comes after it.
+        let mut file_paths = vec![std::path::PathBuf::from("dup/H1.cs")];
+        file_paths.extend((0..510).map(|i| std::path::PathBuf::from(format!("filler/f{i:04}.cs"))));
+        file_paths.push(std::path::PathBuf::from("dup/H1.cs"));
+        file_paths.push(std::path::PathBuf::from("dup/H2.cs"));
+
+        let hits = index
+            .search_type_members_by_name("Assist", "Helper", &file_paths, METHOD_KINDS, 2)
+            .expect("query");
+        let seen: std::collections::HashSet<i64> = hits.iter().map(|s| s.id.as_i64()).collect();
+        assert_eq!(
+            seen.len(),
+            2,
+            "both partial-type overloads must surface (→ caller declines); a dup path must not mask one"
+        );
+        assert!(seen.contains(&a1.as_i64()) && seen.contains(&a2.as_i64()));
     }
 }

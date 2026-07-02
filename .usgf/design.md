@@ -29,10 +29,12 @@ files: namespaces[prefix] }`. Pure string + map lookup — no DB, C10 holds.
 fn search_symbols_by_name_in_files(&self, name, kinds, files, limit) -> Vec<Symbol>;  // un-collapsed
 fn search_type_members_by_name(&self, name, type_name, files, member_kinds, limit) -> Vec<Symbol>;
 ```
-The second matches `name = ? AND qualified_name LIKE 'Type::%' AND kind IN
-(member_kinds) AND file_id IN (files)` — the `Type::` prefix scopes to the
+The second matches `qualified_name = 'Type::name' AND kind IN (member_kinds)
+AND file_id IN (files)` — an EXACT `qualified_name` match scopes to the
 static-imported type (handle is qualified_name, NOT parent_symbol_id, which
-is None for functions; probe Q2). The existing
+is None for functions; probe Q2). (Shipped as an exact `=` rather than the
+`LIKE 'Type::%'` sketched here — index-friendly and dodges the `_`
+wildcard hazard; see `acceptance.md` Deviations log #1.) The existing
 `search_unique_symbol_by_name_in_files` is refactored to delegate to the
 un-collapsed version (behavior-preserving; dump oracle confirms).
 
@@ -83,8 +85,8 @@ FirstMatch branch (Rust) is untouched → Rust byte-identical structurally.
 Named buggy implementations (non-vacuity): C1 — split on FIRST `.` instead
 of last (`My`/`Models.Helper`); C2 — static arm never added to candidates;
 C3 — separate Option-returning calls per arm picking one instead of unioning
-(misses cross-arm collision); C4 — member lookup omits the `qualified_name
-LIKE 'Type::%'` clause (matches Other::Zap too); C5 — type-detection emits a
+(misses cross-arm collision); C4 — member lookup omits the exact
+`qualified_name = 'Type::name'` scoping clause (matches Other::Zap too); C5 — type-detection emits a
 candidate even when the prefix isn't in the map (external over-fires); C6 —
 types-arm refactor drops a candidate or changes ordering (csharp-gt Assist
 flips target or unresolves); C7 — member_kinds leak into the Rust path; C8 —
