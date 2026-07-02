@@ -44,6 +44,15 @@ A `use` (Rust) or `using` (C#) statement recorded per file. The corroboration in
 that reference resolution and cross-crate call edges are checked against.
 _Avoid_: use statement, using directive
 
+**Re-export reference**:
+The reference kind emitted at a `pub use` site (Rust), one per named non-glob leaf,
+binding the re-exported symbol through the same explicit-import machinery as a bare
+usage. It carries no containing symbol (`in_symbol_id` NULL), so call edges and
+panic points never see it, yet it still counts as an inbound reference — which is
+what stops a symbol consumed only via re-export from looking dead. A plain
+(non-`pub`) `use` emits no reference.
+_Avoid_: re-export (bare, when you mean the reference)
+
 **Indexed file**:
 A source file recorded in the index with its language, mtime, and size. The unit
 that reindexing and staleness track.

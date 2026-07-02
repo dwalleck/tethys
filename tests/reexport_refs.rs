@@ -121,6 +121,88 @@ fn reexport_resolves_like_bare_usage_despite_same_named_decoy() {
     );
 }
 
+/// C3 (resolution half) — the F8 fence `aliased_reexport_targets_original`:
+/// a top-level aliased re-export (`pub use crate::inner::original_fn as
+/// aliased_fn;`) records its ref under the ORIGINAL name and resolves to the
+/// original symbol; the alias lives on the imports row only, and no second ref
+/// is emitted under the alias. The emission-side half (original name, not
+/// alias) is pinned inline by `reexport_refs_one_per_named_leaf_with_parity_gaps`;
+/// this pins the resolution target and its parity with a bare body usage (C2).
+///
+/// Bug this fails under: recording the ref under the alias name (so
+/// `original_fn` gets no ref while `aliased_fn` resolves to nothing), or
+/// emitting a duplicate ref per aliased site.
+#[test]
+fn aliased_reexport_targets_original() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "pub mod inner;\npub mod user;\n\
+             pub use crate::inner::original_fn as aliased_fn;\n",
+        ),
+        ("src/inner.rs", "pub fn original_fn() {}\n"),
+        (
+            "src/user.rs",
+            "use crate::inner::original_fn;\npub fn go() {\n    original_fn();\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index");
+    let conn = open_db(&tethys);
+
+    // The ref resolves under the ORIGINAL name to inner.rs's definition...
+    let targets = resolved_reexport_targets(&conn, "original_fn");
+    assert_eq!(
+        targets.len(),
+        1,
+        "aliased reexport must resolve under the original name (C3)"
+    );
+    let (reexport_symbol, ref file) = targets[0];
+    assert_eq!(
+        file, "src/inner.rs",
+        "aliased reexport must follow its import path to the definition"
+    );
+
+    // ...never under the alias, and never as a second ref.
+    assert!(
+        resolved_reexport_targets(&conn, "aliased_fn").is_empty(),
+        "the alias must not be a reference target (it lives on the imports row only)"
+    );
+    assert_eq!(
+        scalar(&conn, "SELECT COUNT(*) FROM refs WHERE kind = 'reexport'"),
+        1,
+        "exactly one reexport ref for an aliased site — no duplicate under the alias"
+    );
+
+    // Parity: the aliased reexport binds the same symbol as a bare body usage
+    // of the original name (C2).
+    let call_symbol: i64 = conn
+        .query_row(
+            "SELECT r.symbol_id FROM refs r
+             JOIN files f ON r.file_id = f.id
+             WHERE r.kind = 'call' AND f.path = 'src/user.rs' AND r.symbol_id IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )
+        .expect("resolved call ref in user.rs");
+    assert_eq!(
+        reexport_symbol, call_symbol,
+        "aliased reexport and bare usage must resolve to the same symbol"
+    );
+
+    // The alias is preserved on the imports row, keyed by the original name
+    // (C3: "the alias stays on the imports row only").
+    assert_eq!(
+        scalar(
+            &conn,
+            "SELECT COUNT(*) FROM imports i JOIN files f ON i.file_id = f.id
+             WHERE f.path = 'src/lib.rs' AND i.symbol_name = 'original_fn'
+             AND i.alias = 'aliased_fn'",
+        ),
+        1,
+        "the alias is recorded on the imports row, keyed by the original name"
+    );
+}
+
 /// C5: a re-export of a non-workspace name stores an UNRESOLVED ref —
 /// symbol_id NULL, reference_name populated — per the existing convention
 /// for unresolved references.

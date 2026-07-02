@@ -60,7 +60,7 @@ claims C8–C12 rather than as a removed-invariant sweep.
 3. **C3** `pub use m::B as C` (top-level alias) records the ref under original name `B` and resolves to `B`'s symbol; the alias stays on the imports row only. AMENDED during slice 2: group-member aliases (`pub use m::{A, B as C}`) are dropped by current use-list parsing before the emitter sees them — pre-existing extraction gap filed as tethys-rylk; parity preserved, not fixed here.
 4. **C4** Nested-group members behave with parity to current import parsing — inheriting tethys-pdea's known intermediate-segment drop, not fixing or worsening it.
 5. **C5** A re-export of a non-workspace name stores an unresolved ref (`symbol_id NULL`, `reference_name` populated), per the existing unresolved-ref convention.
-6. **C6** Glob (S6) re-exports produce no refs in this change; module (S8) re-exports — AMENDED during slice 2: syntactically indistinguishable from item re-exports at parse time, so they emit a ref that stays UNRESOLVED (symbol_id NULL) when no same-named symbol exists in the target — no symbol gains a ref, so consumer-visible intent (dead-code/call_edges/panic-points unaffected) is unchanged. Full glob/module semantics deferred to tethys-pv7w (filed, blocks-linked).
+6. **C6** Glob (S6) re-exports produce no refs in this change; module (S8) re-exports — AMENDED during slice 2: syntactically indistinguishable from item re-exports at parse time, so they emit a ref resolved like any other — it stays UNRESOLVED (symbol_id NULL) when the target name has no in-crate symbol, but a single-segment module re-export (`pub use m2;`) binds the same-file module declaration symbol (kind='module'), as pinned by `glob_reexport_emits_nothing_and_module_reexport_binds_module`. That module symbol legitimately gains one inbound ref; call_edges and panic-points stay blind either way (the ref carries in_symbol_id NULL). Full glob/module semantics deferred to tethys-pv7w (filed, blocks-linked).
 7. **C7** `self::`/`super::`/`crate::` prefixed re-exports resolve with parity to plain imports of the same path — inheriting (not extending) known resolver bugs tethys-nkjd (super::) and tethys-xzdr (bare crate).
 8. **C8** Re-export refs carry `in_symbol_id NULL` and produce zero `call_edges` rows.
 9. **C9** Re-export refs produce zero panic-point rows even when the re-exported name is `unwrap` or `expect`.
@@ -105,9 +105,12 @@ All pending falsifiers ran and passed; fences live in `tests/reexport_refs.rs`
 `src/types.rs` (round-trip), and `tests/idxperf_golden.rs` (both arms).
 Full suite: 748 passed / 0 failed, clippy clean.
 
-- F6–F12, F17: fence tests as named (collision fence renamed
+- F6–F8, F10–F12, F17: fence tests as named (collision fence renamed
   `reexport_resolves_like_bare_usage_despite_same_named_decoy`, pinning BOTH
-  parity arms; TRIPWIREs cite tethys-z9mr).
+  parity arms; TRIPWIREs cite tethys-z9mr). F9 (C4 nested-group parity) is not
+  a standalone test — the `i::J` leaf of
+  `reexport_refs_one_per_named_leaf_with_parity_gaps` asserts it by shared code
+  path with `parse_use_declaration`.
 - F13/F14: `reexport_refs_stay_out_of_call_edges_and_panic_points`.
 - F15: `reexport_only_import_creates_file_dep` +
   `bare_segment_reexport_only_import_still_lacks_file_dep` (C10 as amended).
