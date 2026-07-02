@@ -150,6 +150,117 @@ fn external_reexport_stored_unresolved() {
     );
 }
 
+/// C12 — the headline: a symbol whose ONLY reference is its re-export has
+/// exactly one inbound ref (the dead-code false positive dies).
+///
+/// Bug this fails under: any emission or resolution failure (count 0), or
+/// double emission per site (count 2).
+#[test]
+fn reexport_only_symbol_has_exactly_one_inbound_ref() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "pub mod inner;\npub use crate::inner::only_via_reexport;\n",
+        ),
+        ("src/inner.rs", "pub fn only_via_reexport() {}\n"),
+    ]);
+    tethys.index().expect("index");
+    let conn = open_db(&tethys);
+
+    let inbound = scalar(
+        &conn,
+        "SELECT COUNT(*) FROM refs r JOIN symbols s ON r.symbol_id = s.id
+         WHERE s.name = 'only_via_reexport'",
+    );
+    assert_eq!(
+        inbound, 1,
+        "a reexport-only symbol must have exactly one inbound ref"
+    );
+    assert_eq!(
+        scalar(
+            &conn,
+            "SELECT COUNT(*) FROM refs r JOIN symbols s ON r.symbol_id = s.id
+             WHERE s.name = 'only_via_reexport' AND r.kind = 'reexport'",
+        ),
+        1,
+        "and that ref is the reexport itself"
+    );
+}
+
+/// C6: a glob re-export emits no refs (deferred to tethys-pv7w), while a
+/// single-segment module re-export (`pub use m2;`) — indistinguishable from
+/// an item re-export at parse time — binds to the module's declaration
+/// symbol (pinned empirically during slice 4: the `pub mod m2;` symbol in
+/// the same file wins the same-file name map).
+///
+/// Bug this fails under: a naive emitter producing a `*` ref for globs, or
+/// per-name refs synthesized for the glob target's symbols before pv7w.
+#[test]
+fn glob_reexport_emits_nothing_and_module_reexport_binds_module() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "pub mod inner;\npub mod m2;\npub use inner::*;\npub use m2;\n",
+        ),
+        ("src/inner.rs", "pub fn g1() {}\npub fn g2() {}\n"),
+        ("src/m2.rs", "pub fn unrelated() {}\n"),
+    ]);
+    tethys.index().expect("index");
+    let conn = open_db(&tethys);
+
+    assert_eq!(
+        scalar(&conn, "SELECT COUNT(*) FROM refs WHERE kind = 'reexport'"),
+        1,
+        "glob re-export must emit nothing; only the module re-export ref exists"
+    );
+    let (kind, file): (String, String) = conn
+        .query_row(
+            "SELECT s.kind, f.path FROM refs r
+             JOIN symbols s ON r.symbol_id = s.id
+             JOIN files f ON s.file_id = f.id
+             WHERE r.kind = 'reexport'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("resolved module reexport ref");
+    assert_eq!(kind, "module", "module re-export binds the module symbol");
+    assert_eq!(file, "src/lib.rs", "…the `pub mod m2;` declaration symbol");
+}
+
+/// C13: re-indexing the same unchanged workspace leaves refs, file_deps and
+/// call_edges counts identical — reexport refs don't accumulate (the
+/// d4d87f1/tethys-wsix stale-row class).
+#[test]
+fn reindexing_twice_is_idempotent_for_reexport_refs() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "pub mod inner;\npub mod user;\npub use crate::inner::x;\n",
+        ),
+        ("src/inner.rs", "pub fn x() {}\n"),
+        ("src/user.rs", "use crate::inner::x;\npub fn go() {\n    x();\n}\n"),
+    ]);
+    tethys.index().expect("first index");
+    let counts = |conn: &rusqlite::Connection| {
+        (
+            scalar(conn, "SELECT COUNT(*) FROM refs"),
+            scalar(conn, "SELECT COUNT(*) FROM refs WHERE kind = 'reexport'"),
+            scalar(conn, "SELECT COUNT(*) FROM file_deps"),
+            scalar(conn, "SELECT COUNT(*) FROM call_edges"),
+        )
+    };
+    let first = counts(&open_db(&tethys));
+
+    tethys.index().expect("second index");
+    let second = counts(&open_db(&tethys));
+
+    assert_eq!(
+        first, second,
+        "second index of an unchanged workspace must not change any counts"
+    );
+    assert_eq!(first.1, 1, "exactly one reexport ref both times");
+}
+
 /// C7: `self::` and `crate::` prefixed re-exports resolve with parity to the
 /// plain-path form — all three land on the defining file via the imports
 /// table (pinned empirically during slice 3; unlike qualified CALLS, import
