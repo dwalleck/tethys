@@ -261,6 +261,65 @@ fn reindexing_twice_is_idempotent_for_reexport_refs() {
     assert_eq!(first.1, 1, "exactly one reexport ref both times");
 }
 
+/// C8 + C9: reexport refs are structurally invisible to in-symbol consumers.
+/// Module-level use declarations have no enclosing symbol, so their refs
+/// carry `in_symbol_id NULL` — `populate_call_edges` (`WHERE in_symbol_id IS
+/// NOT NULL`) and panic-points (JOIN on `in_symbol_id`) never see them.
+///
+/// The fixture re-exports an EXTERNAL name `expect` — the exact panic-points
+/// predicate shape (unresolved → reference_name='expect') — next to a real
+/// `.expect()` method call as the positive control, so the fence
+/// distinguishes "reexport leaked into panic-points" from "panic-points
+/// broke".
+///
+/// Bug this fails under: emission attributing a file-level pseudo-symbol to
+/// `in_symbol_id` (call_edges gains an edge; panic count becomes 2).
+#[test]
+fn reexport_refs_stay_out_of_call_edges_and_panic_points() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "pub mod inner;\npub mod user;\npub use ext::expect;\npub use crate::inner::target;\n",
+        ),
+        ("src/inner.rs", "pub fn target() {}\n"),
+        (
+            "src/user.rs",
+            "use crate::inner::target;\npub fn go() {\n    target();\n    let v: Option<i32> = None;\n    let _ = v.expect(\"control panic point\");\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index");
+    let conn = open_db(&tethys);
+
+    // Every reexport ref is top-level: no enclosing symbol, ever.
+    assert_eq!(
+        scalar(
+            &conn,
+            "SELECT COUNT(*) FROM refs WHERE kind = 'reexport' AND in_symbol_id IS NOT NULL",
+        ),
+        0,
+        "reexport refs must never carry an enclosing symbol"
+    );
+
+    // C8: exactly one call edge (go -> target); the resolved reexport of
+    // `target` contributed none.
+    assert_eq!(
+        scalar(&conn, "SELECT COUNT(*) FROM call_edges"),
+        1,
+        "only the body call produces a call edge"
+    );
+
+    // C9: exactly one panic point — the .expect() control in go(). The
+    // re-exported external `expect` (reference_name='expect', the predicate
+    // shape) must not appear.
+    let (production, tests) = tethys.count_panic_points().expect("panic points");
+    assert_eq!(
+        (production, tests),
+        (1, 0),
+        "the control .expect() is the only panic point; the reexport of an \
+         external `expect` adds none"
+    );
+}
+
 /// C7: `self::` and `crate::` prefixed re-exports resolve with parity to the
 /// plain-path form — all three land on the defining file via the imports
 /// table (pinned empirically during slice 3; unlike qualified CALLS, import
