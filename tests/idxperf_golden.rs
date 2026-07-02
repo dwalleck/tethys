@@ -342,9 +342,12 @@ fn canonical_rows(db_path: &Path) -> Vec<String> {
 /// fences: the cross-file call resolves via the qualified-module fallback;
 /// the C# `Helper.Assist` call resolves via qualified-name lookup; the
 /// top-level `ExternalThing` ref stays unresolved with NULL `in_symbol_id`
-/// (the d4d87f1 accumulating shape); `pub use` produces an import row but
-/// no reference; file deps come from call edges (the resolver declines the
-/// bare single-segment `util` import path, so no L2 dep row exists to merge).
+/// (the d4d87f1 accumulating shape); `pub use` produces an import row AND a
+/// resolved `reexport` ref with no containing symbol (tethys-v1w8 — the ref
+/// resolves through the same explicit-import machinery as a bare body call,
+/// and its NULL `in_symbol_id` keeps it out of call_edges); file deps come
+/// from call edges (the resolver declines the bare single-segment `util`
+/// import path, so no L2 dep row exists to merge).
 const EXPECTED_BATCH: &[&str] = &[
     "dep|cs/Use.cs|cs/Lib.cs|1",
     "dep|src/lib.rs|src/util.rs|1",
@@ -362,6 +365,7 @@ const EXPECTED_BATCH: &[&str] = &[
     "imp|src/lib.rs|shared_fn|util|",
     "pkg|app||manifest",
     "ref|cs/Use.cs|9|13|call||cs/Lib.cs:5:9:Assist|cs/Use.cs:7:9:Go",
+    "ref|src/lib.rs|2|1|reexport||src/util.rs:1:1:shared_fn|",
     "ref|src/lib.rs|3|18|type|ExternalThing||",
     "ref|src/lib.rs|5|5|call||src/util.rs:1:1:shared_fn|src/lib.rs:4:1:caller",
     "sym|cs/Lib.cs|1|1|App.Cs||App.Cs|module|7|2||public||0",

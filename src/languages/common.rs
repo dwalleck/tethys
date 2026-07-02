@@ -111,6 +111,9 @@ pub enum ExtractedReferenceKind {
     Constructor,
     /// Macro invocation (`info!(...)` in Rust)
     Macro,
+    /// Re-export site (`pub use` in Rust): the target is referenced by being
+    /// made part of the re-exporting module's public surface.
+    Reexport,
 }
 
 impl ExtractedReferenceKind {
@@ -122,6 +125,7 @@ impl ExtractedReferenceKind {
             Self::Type => crate::types::ReferenceKind::Type,
             Self::Constructor => crate::types::ReferenceKind::Construct,
             Self::Macro => crate::types::ReferenceKind::Macro,
+            Self::Reexport => crate::types::ReferenceKind::Reexport,
         }
     }
 }
