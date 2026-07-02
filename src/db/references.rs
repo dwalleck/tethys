@@ -12,6 +12,13 @@ use super::{Index, REFS_COLUMNS, row_to_reference};
 use crate::error::Result;
 use crate::types::{FileId, RefId, Reference, SymbolId};
 
+/// Single source of truth for the "resolve a reference" UPDATE, shared by the
+/// batched Pass 2 path ([`Index::apply_resolutions`]) and the single-row
+/// Pass 3/LSP path ([`Index::resolve_reference`]) so a future change to how a
+/// resolution is recorded cannot silently diverge between the two.
+const RESOLVE_REFERENCE_SQL: &str =
+    "UPDATE refs SET symbol_id = ?2, reference_name = NULL WHERE id = ?1";
+
 /// Parameters for inserting a reference into the index.
 ///
 /// Test-only: production references are written inside the per-file
@@ -155,9 +162,7 @@ impl Index {
         let mut conn = self.connection()?;
         let tx = conn.transaction()?;
         {
-            let mut stmt = tx.prepare_cached(
-                "UPDATE refs SET symbol_id = ?2, reference_name = NULL WHERE id = ?1",
-            )?;
+            let mut stmt = tx.prepare_cached(RESOLVE_REFERENCE_SQL)?;
             for (ref_id, symbol_id) in resolutions {
                 stmt.execute(params![ref_id, symbol_id.as_i64()])?;
             }
@@ -179,10 +184,7 @@ impl Index {
         );
         let conn = self.connection()?;
 
-        conn.execute(
-            "UPDATE refs SET symbol_id = ?2, reference_name = NULL WHERE id = ?1",
-            params![ref_id, symbol_id.as_i64()],
-        )?;
+        conn.execute(RESOLVE_REFERENCE_SQL, params![ref_id, symbol_id.as_i64()])?;
         Ok(())
     }
 

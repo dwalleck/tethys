@@ -169,8 +169,12 @@ impl Tethys {
         // differently.
         let mut memo: HashMap<String, Option<SymbolId>> = HashMap::new();
 
-        for ref_ in refs {
-            let Some(ref_name) = &ref_.reference_name else {
+        for mut ref_ in refs {
+            // Move the owned name out of the ref: it is used only as the memo
+            // key and as the lookup string. `try_resolve_reference` does not
+            // read `ref_.reference_name`, so taking it here lets a memo miss
+            // hand ownership to the map instead of cloning the String.
+            let Some(ref_name) = ref_.reference_name.take() else {
                 continue;
             };
 
@@ -180,12 +184,12 @@ impl Tethys {
             // memo entry would cross-contaminate them. Macro refs are rare, so
             // resolving them fresh costs little and keeps the memo sound.
             let outcome = if matches!(ref_.kind, ReferenceKind::Macro) {
-                self.try_resolve_reference(&ref_, ref_name, &ctx)?
+                self.try_resolve_reference(&ref_, &ref_name, &ctx)?
             } else if let Some(cached) = memo.get(ref_name.as_str()) {
                 *cached
             } else {
-                let outcome = self.try_resolve_reference(&ref_, ref_name, &ctx)?;
-                memo.insert(ref_name.clone(), outcome);
+                let outcome = self.try_resolve_reference(&ref_, &ref_name, &ctx)?;
+                memo.insert(ref_name, outcome);
                 outcome
             };
 
