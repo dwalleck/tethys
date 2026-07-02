@@ -57,6 +57,25 @@ impl<'a> CrateIndex<'a> {
     fn crate_for(&self, abs: &Path) -> Option<&'a crate::types::CrateInfo> {
         abs.ancestors().find_map(|p| self.by_path.get(p).copied())
     }
+
+    /// Longest-prefix crate match for a stored file path.
+    ///
+    /// Resolves the (workspace-relative) `file_path` to absolute against
+    /// `workspace_root` before the ancestor walk, tolerating an
+    /// already-absolute stored path. Both callers store the identical
+    /// resolution rule here so it can never drift between them.
+    fn crate_for_file(
+        &self,
+        file_path: &Path,
+        workspace_root: &Path,
+    ) -> Option<&'a crate::types::CrateInfo> {
+        let abs = if file_path.is_absolute() {
+            file_path.to_path_buf()
+        } else {
+            workspace_root.join(file_path)
+        };
+        self.crate_for(&abs)
+    }
 }
 
 /// A dependency that couldn't be resolved because the target file wasn't indexed yet.
@@ -538,23 +557,20 @@ impl Tethys {
             .list_all_files()?
             .into_iter()
             .map(|file| {
-                let abs_path = if file.path.is_absolute() {
-                    file.path.clone()
-                } else {
-                    self.workspace_root.join(&file.path)
-                };
-                let crate_name = crate_index.crate_for(&abs_path).map_or_else(
-                    || {
-                        let top = file
-                            .path
-                            .components()
-                            .next()
-                            .and_then(|c| c.as_os_str().to_str())
-                            .unwrap_or("");
-                        format!("{}{}", crate::db::ORPHAN_PSEUDO_CRATE_PREFIX, top)
-                    },
-                    |info| info.name.clone(),
-                );
+                let crate_name = crate_index
+                    .crate_for_file(&file.path, &self.workspace_root)
+                    .map_or_else(
+                        || {
+                            let top = file
+                                .path
+                                .components()
+                                .next()
+                                .and_then(|c| c.as_os_str().to_str())
+                                .unwrap_or("");
+                            format!("{}{}", crate::db::ORPHAN_PSEUDO_CRATE_PREFIX, top)
+                        },
+                        |info| info.name.clone(),
+                    );
                 (file.id, crate_name)
             })
             .collect();
@@ -1214,12 +1230,7 @@ impl Tethys {
 
         let mut file_to_package: Vec<(crate::types::FileId, &str)> = Vec::new();
         for file in self.db.list_all_files()? {
-            let abs = if file.path.is_absolute() {
-                file.path.clone()
-            } else {
-                self.workspace_root.join(&file.path)
-            };
-            if let Some(info) = crate_index.crate_for(&abs) {
+            if let Some(info) = crate_index.crate_for_file(&file.path, &self.workspace_root) {
                 file_to_package.push((file.id, info.name.as_str()));
             } else {
                 tracing::trace!(
