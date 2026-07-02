@@ -98,6 +98,36 @@ Cheapest falsifiers (F1–F5) have **run and passed** before this design is
 presented — including one that killed a draft claim ("file_deps unchanged"
 died to F4 and was rewritten as C10).
 
+### Verification results (checkpointed-build, 2026-07-01)
+
+All pending falsifiers ran and passed; fences live in `tests/reexport_refs.rs`
+(7 tests), `src/languages/rust.rs` (emission stress test),
+`src/types.rs` (round-trip), and `tests/idxperf_golden.rs` (both arms).
+Full suite: 748 passed / 0 failed, clippy clean.
+
+- F6–F12, F17: fence tests as named (collision fence renamed
+  `reexport_resolves_like_bare_usage_despite_same_named_decoy`, pinning BOTH
+  parity arms; TRIPWIREs cite tethys-z9mr).
+- F13/F14: `reexport_refs_stay_out_of_call_edges_and_panic_points`.
+- F15: `reexport_only_import_creates_file_dep` +
+  `bare_segment_reexport_only_import_still_lacks_file_dep` (C10 as amended).
+- F16 (C11): self-oracle Definite=0 post-change; structural immunity for
+  valid Rust (a reexport ref can only mark an import used via a duplicate
+  binding, which does not compile); existing fence
+  `pub_use_reexport_is_never_reported` green. Worktree pre/post diff waived
+  on that argument.
+- F19 (C14): kind histogram on the frozen self-index copy EXACT vs baseline
+  (call 6007, construct 227, macro 1669, type 2648) + reexport 80; golden
+  diff review showed only the one reexport row.
+- Wall budget: self-index 353 ms ≤ 500 ms budget (443 ms pre-change baseline).
+- Final probe: Q1a 80/80, Q1b one ref per name at every site, Q2 = [] (all
+  9 baseline dead-code false positives eliminated).
+
+New issues filed during the build: tethys-rylk (group-alias members dropped
+by use-list parsing), tethys-z9mr (single-segment relative path decline),
+tethys-sp24 (aliased re-export corroboration gap). Deferred: tethys-pv7w
+(glob/module semantics).
+
 Non-vacuity (named buggy implementations per fence): per-statement instead of
 per-name emission (F6); qualified reference_name that never resolves (F7);
 recording the alias name (F8); accidental nested-group "fix" breaking parity
