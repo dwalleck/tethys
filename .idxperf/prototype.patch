@@ -1,0 +1,70 @@
+diff --git a/src/indexing.rs b/src/indexing.rs
+index 5480688..f62a56b 100644
+--- a/src/indexing.rs
++++ b/src/indexing.rs
+@@ -701,12 +701,59 @@ impl Tethys {
+         // Build lookup maps from inserted data + generated IDs (no DB round-trip)
+         let (name_to_id, span_to_id) = Self::build_symbol_maps_from_data(&symbol_data, &symbol_ids);
+ 
+-        // Store references
+-        let refs_stored =
+-            self.store_references(file_id, &data.references, &name_to_id, &span_to_id)?;
+-
+-        // Store imports
+-        self.store_imports(file_id, &data.imports, data.language)?;
++        // ===== idxperf PROTOTYPE (cheapest falsifier — NOT the real design) =====
++        // Inline refs+imports inserts under one explicit transaction to measure
++        // the fdatasync-amortization hypothesis. Will be reverted.
++        let refs_stored = {
++            let conn = self.db.connection()?;
++            conn.execute_batch("BEGIN")?;
++            let mut count = 0usize;
++            {
++                let mut stmt = conn.prepare_cached(
++                    "INSERT INTO refs (symbol_id, file_id, kind, line, column, in_symbol_id, reference_name)
++                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
++                )?;
++                for r in &data.references {
++                    let qualified_name = Self::build_qualified_name(&r.name, r.path.as_deref());
++                    let symbol_id = name_to_id
++                        .get(&r.name)
++                        .or_else(|| name_to_id.get(&qualified_name))
++                        .copied();
++                    let reference_name = if symbol_id.is_none() { Some(qualified_name) } else { None };
++                    let in_symbol_id = r
++                        .containing_symbol_span
++                        .and_then(|span| span_to_id.get(&span).copied());
++                    stmt.execute(rusqlite::params![
++                        symbol_id.map(crate::types::SymbolId::as_i64),
++                        file_id.as_i64(),
++                        r.kind.to_db_kind().as_str(),
++                        r.line,
++                        r.column,
++                        in_symbol_id.map(crate::types::SymbolId::as_i64),
++                        reference_name.as_deref()
++                    ])?;
++                    count += 1;
++                }
++                let mut imp = conn.prepare_cached(
++                    "INSERT OR REPLACE INTO imports (file_id, symbol_name, source_module, alias)
++                     VALUES (?1, ?2, ?3, ?4)",
++                )?;
++                let resolver = get_module_resolver(data.language);
++                for import in &data.imports {
++                    let source = resolver.join_import(&import.path);
++                    if import.is_glob || import.imported_names.is_empty() {
++                        imp.execute(rusqlite::params![file_id.as_i64(), "*", source, import.alias.as_deref()])?;
++                    } else {
++                        for name in &import.imported_names {
++                            imp.execute(rusqlite::params![file_id.as_i64(), name, source, import.alias.as_deref()])?;
++                        }
++                    }
++                }
++            }
++            conn.execute_batch("COMMIT")?;
++            count
++        };
++        // ===== end PROTOTYPE =====
+ 
+         // Compute and store file dependencies (reusing full_path from above)
+         self.compute_dependencies(

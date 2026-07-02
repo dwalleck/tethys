@@ -363,6 +363,11 @@ pub enum ReferenceKind {
     Construct,
     /// Field access on a struct/class instance
     FieldAccess,
+    /// Macro invocation (`info!(...)` in Rust)
+    Macro,
+    /// Re-export site (`pub use` in Rust): the target symbol is referenced by
+    /// being made part of the re-exporting module's public surface.
+    Reexport,
     /// Unknown reference kind from database (possible version mismatch or corruption).
     /// Contains the raw string value that could not be parsed.
     Unknown(String),
@@ -381,6 +386,8 @@ impl ReferenceKind {
             Self::Inherit => "inherit",
             Self::Construct => "construct",
             Self::FieldAccess => "field_access",
+            Self::Macro => "macro",
+            Self::Reexport => "reexport",
             Self::Unknown(_) => "unknown",
         }
     }
@@ -398,6 +405,8 @@ impl ReferenceKind {
             "inherit" => Some(Self::Inherit),
             "construct" => Some(Self::Construct),
             "field_access" => Some(Self::FieldAccess),
+            "macro" => Some(Self::Macro),
+            "reexport" => Some(Self::Reexport),
             _ => None,
         }
     }
@@ -1799,6 +1808,26 @@ mod tests {
         assert_eq!(
             ReferenceKind::parse("field_access"),
             Some(ReferenceKind::FieldAccess)
+        );
+    }
+
+    #[test]
+    fn reference_kind_parse_reexport() {
+        assert_eq!(
+            ReferenceKind::parse("reexport"),
+            Some(ReferenceKind::Reexport)
+        );
+    }
+
+    /// `as_str` → `parse` identity for the reexport kind: the DB write path
+    /// stores `as_str()` and the read path goes through `parse`, so a mismatch
+    /// between the two arms would silently drop every reexport ref on read.
+    #[test]
+    fn reference_kind_reexport_round_trips_through_str() {
+        assert_eq!(ReferenceKind::Reexport.as_str(), "reexport");
+        assert_eq!(
+            ReferenceKind::parse(ReferenceKind::Reexport.as_str()),
+            Some(ReferenceKind::Reexport)
         );
     }
 

@@ -46,6 +46,7 @@ mod reindex;
 mod resolve;
 mod resolver;
 mod types;
+mod unused_imports;
 
 pub use cargo::discover_crates;
 pub use error::{Error, IndexError, IndexErrorKind, Result};
@@ -58,6 +59,7 @@ pub use types::{
     ReferenceKind, Span, StalenessReport, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp,
     Visibility,
 };
+pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
@@ -1039,13 +1041,13 @@ mod tests {
 
     #[test]
     fn build_qualified_name_with_single_segment_path() {
-        let result = Tethys::build_qualified_name("open", Some(&["Index".to_string()]));
+        let result = crate::db::build_qualified_name("open", Some(&["Index".to_string()]));
         assert_eq!(result, "Index::open");
     }
 
     #[test]
     fn build_qualified_name_with_multi_segment_path() {
-        let result = Tethys::build_qualified_name(
+        let result = crate::db::build_qualified_name(
             "open",
             Some(&["crate".to_string(), "db".to_string(), "Index".to_string()]),
         );
@@ -1054,13 +1056,13 @@ mod tests {
 
     #[test]
     fn build_qualified_name_with_empty_path() {
-        let result = Tethys::build_qualified_name("foo", Some(&[]));
+        let result = crate::db::build_qualified_name("foo", Some(&[]));
         assert_eq!(result, "foo");
     }
 
     #[test]
     fn build_qualified_name_with_none_path() {
-        let result = Tethys::build_qualified_name("bar", None);
+        let result = crate::db::build_qualified_name("bar", None);
         assert_eq!(result, "bar");
     }
 

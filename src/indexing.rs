@@ -18,15 +18,65 @@ use tracing::{debug, info, trace, warn};
 
 use crate::Tethys;
 use crate::batch_writer::BatchWriter;
-use crate::db::{InsertReferenceParams, SymbolData};
+use crate::db::SymbolData;
 use crate::error::{Error, IndexError, IndexErrorKind, Result};
 use crate::languages::module_resolver::{ModuleContext, NamespaceMap, get_module_resolver};
 use crate::languages::{self, common};
 use crate::lsp;
 use crate::parallel::{OwnedSymbolData, ParsedFileData};
 use crate::types::{
-    ArchPhaseResult, FileId, Import, IndexOptions, IndexStats, Language, Span, SymbolId, SymbolKind,
+    ArchPhaseResult, FileId, Import, IndexOptions, IndexStats, Language, SymbolKind,
 };
+
+/// Pre-built file→crate assignment index for O(depth) ancestor-walk lookups.
+///
+/// Shared by [`Tethys::run_architecture_phase`] and
+/// [`Tethys::build_file_crate_map`] (idxperf claim C8): the alternative —
+/// `cargo::get_crate_for_file` — costs an O(crates) linear scan plus a
+/// `canonicalize()` syscall per file. Skipping the canonicalize here is safe
+/// because both `workspace_root` (canonicalized in `Tethys::new`) and each
+/// `CrateInfo::path` (canonicalized in crate discovery) are canonical at
+/// construction time.
+struct CrateIndex<'a> {
+    by_path: HashMap<&'a Path, &'a crate::types::CrateInfo>,
+}
+
+impl<'a> CrateIndex<'a> {
+    fn new(crates: &'a [crate::types::CrateInfo]) -> Self {
+        Self {
+            by_path: crates.iter().map(|c| (c.path.as_path(), c)).collect(),
+        }
+    }
+
+    /// Longest-prefix crate match for an absolute file path.
+    ///
+    /// `Path::ancestors()` yields the path itself first, then progressively
+    /// shorter parents, so the first hit IS the longest-prefix match —
+    /// matching `get_crate_for_file`'s nested-crate semantics (a file in
+    /// `foo-utils/` must map to `foo-utils`, never to a sibling `foo`).
+    fn crate_for(&self, abs: &Path) -> Option<&'a crate::types::CrateInfo> {
+        abs.ancestors().find_map(|p| self.by_path.get(p).copied())
+    }
+
+    /// Longest-prefix crate match for a stored file path.
+    ///
+    /// Resolves the (workspace-relative) `file_path` to absolute against
+    /// `workspace_root` before the ancestor walk, tolerating an
+    /// already-absolute stored path. Both callers store the identical
+    /// resolution rule here so it can never drift between them.
+    fn crate_for_file(
+        &self,
+        file_path: &Path,
+        workspace_root: &Path,
+    ) -> Option<&'a crate::types::CrateInfo> {
+        let abs = if file_path.is_absolute() {
+            file_path.to_path_buf()
+        } else {
+            workspace_root.join(file_path)
+        };
+        self.crate_for(&abs)
+    }
+}
 
 /// A dependency that couldn't be resolved because the target file wasn't indexed yet.
 ///
@@ -491,21 +541,24 @@ impl Tethys {
     /// Used by the K-hybrid filter in
     /// [`crate::db::Index::populate_file_deps_from_call_edges`]
     /// (rivets-3d0s). Cargo-known files use the canonical crate name from
-    /// [`crate::types::CrateInfo`]; orphan files (outside any
-    /// `Cargo.toml`-known crate) get a pseudo-crate name prefixed with
+    /// [`crate::types::CrateInfo`] via the shared [`CrateIndex`] ancestor
+    /// walk (idxperf claim C8 — no per-file `canonicalize()` syscalls);
+    /// orphan files (outside any `Cargo.toml`-known crate) get a
+    /// pseudo-crate name prefixed with
     /// [`crate::db::call_edges::ORPHAN_PSEUDO_CRATE_PREFIX`] based on
     /// their top-level directory (e.g., `bruno-examples/types.rs` becomes
     /// `orphan:bruno-examples`; files at the workspace root become
     /// `orphan:<filename>`). The pseudo-crate prefix is centralized as
     /// [`crate::db::ORPHAN_PSEUDO_CRATE_PREFIX`].
     fn build_file_crate_map(&self) -> Result<HashMap<crate::types::FileId, String>> {
+        let crate_index = CrateIndex::new(&self.crates);
         let map = self
             .db
             .list_all_files()?
             .into_iter()
             .map(|file| {
-                let abs_path = self.workspace_root.join(&file.path);
-                let crate_name = crate::cargo::get_crate_for_file(&abs_path, &self.crates)
+                let crate_name = crate_index
+                    .crate_for_file(&file.path, &self.workspace_root)
                     .map_or_else(
                         || {
                             let top = file
@@ -667,7 +720,11 @@ impl Tethys {
     /// Write a single parsed file to the database and compute its dependencies.
     ///
     /// This is Phase 1b of indexing - the sequential database write that must
-    /// happen after parallel parsing.
+    /// happen after parallel parsing. The complete write (file row, symbols,
+    /// attributes, references with same-file resolution, imports) happens in
+    /// ONE transaction via [`crate::db::Index::index_parsed_file_atomic`] —
+    /// the per-row autocommit pattern this replaced was ~96% of indexing
+    /// wall time (see `.idxperf/probe-findings.md`).
     pub(crate) fn write_parsed_file(
         &mut self,
         data: &ParsedFileData,
@@ -688,25 +745,17 @@ impl Tethys {
             })
             .collect();
 
-        // Insert file and symbols atomically
-        let (file_id, symbol_ids) = self.db.index_file_atomic(
+        // Insert file, symbols, references, and imports atomically
+        let (file_id, _symbol_ids, refs_stored) = self.db.index_parsed_file_atomic(
             &data.relative_path,
             data.language,
             data.mtime_ns,
             data.size_bytes,
             None,
             &symbol_data,
+            &data.references,
+            &data.imports,
         )?;
-
-        // Build lookup maps from inserted data + generated IDs (no DB round-trip)
-        let (name_to_id, span_to_id) = Self::build_symbol_maps_from_data(&symbol_data, &symbol_ids);
-
-        // Store references
-        let refs_stored =
-            self.store_references(file_id, &data.references, &name_to_id, &span_to_id)?;
-
-        // Store imports
-        self.store_imports(file_id, &data.imports, data.language)?;
 
         // Compute and store file dependencies (reusing full_path from above)
         self.compute_dependencies(
@@ -719,159 +768,6 @@ impl Tethys {
         )?;
 
         Ok((data.symbols.len(), refs_stored))
-    }
-
-    /// Build lookup maps from inserted symbol data and their generated IDs.
-    ///
-    /// Pairs each `SymbolData` with its corresponding `SymbolId` returned by
-    /// `index_file_atomic`, avoiding a round-trip query to read symbols back.
-    fn build_symbol_maps_from_data(
-        symbols: &[SymbolData<'_>],
-        symbol_ids: &[SymbolId],
-    ) -> (HashMap<String, SymbolId>, HashMap<Span, SymbolId>) {
-        let mut name_to_id: HashMap<String, SymbolId> = HashMap::new();
-        let mut span_to_id: HashMap<Span, SymbolId> = HashMap::new();
-
-        for (sym, &id) in symbols.iter().zip(symbol_ids) {
-            if let Some(prev_id) = name_to_id.insert(sym.name.to_string(), id) {
-                trace!(
-                    name = %sym.name,
-                    new_id = %id,
-                    prev_id = %prev_id,
-                    "Duplicate symbol name in file, using newer"
-                );
-            }
-
-            if let Some(span) = sym.span {
-                span_to_id.insert(span, id);
-            }
-        }
-
-        (name_to_id, span_to_id)
-    }
-
-    /// Store extracted references in the database.
-    ///
-    /// Stores ALL references, including unresolved ones. For unresolved references
-    /// (cross-file symbols), `symbol_id` is set to `None` and `reference_name` is
-    /// populated for later resolution in Pass 2.
-    ///
-    /// Returns the count of references stored.
-    fn store_references(
-        &self,
-        file_id: FileId,
-        refs: &[common::ExtractedReference],
-        name_to_id: &HashMap<String, SymbolId>,
-        span_to_id: &HashMap<Span, SymbolId>,
-    ) -> Result<usize> {
-        let mut count = 0;
-
-        for r in refs {
-            let qualified_name = Self::build_qualified_name(&r.name, r.path.as_deref());
-
-            // Try same-file resolution: simple name first, then qualified name
-            let symbol_id = name_to_id
-                .get(&r.name)
-                .or_else(|| name_to_id.get(&qualified_name))
-                .copied();
-
-            // For unresolved references, store the name for Pass 2 cross-file resolution
-            let reference_name = if symbol_id.is_none() {
-                trace!(
-                    reference_name = %qualified_name,
-                    line = r.line,
-                    "Storing unresolved reference for later resolution"
-                );
-                Some(qualified_name)
-            } else {
-                None
-            };
-
-            let in_symbol_id = r
-                .containing_symbol_span
-                .and_then(|span| span_to_id.get(&span).copied());
-
-            self.db.insert_reference(&InsertReferenceParams {
-                symbol_id,
-                file_id,
-                kind: r.kind.to_db_kind().as_str(),
-                line: r.line,
-                column: r.column,
-                in_symbol_id,
-                reference_name: reference_name.as_deref(),
-            })?;
-            count += 1;
-        }
-
-        Ok(count)
-    }
-
-    /// Build a qualified name from a simple name and optional path segments.
-    ///
-    /// Examples:
-    /// - `("open", Some(["Index"]))` -> `"Index::open"`
-    /// - `("Foo", None)` -> `"Foo"`
-    /// - `("bar", Some([]))` -> `"bar"`
-    pub(crate) fn build_qualified_name(name: &str, path: Option<&[String]>) -> String {
-        match path {
-            Some(segments) if !segments.is_empty() => {
-                format!("{}::{}", segments.join("::"), name)
-            }
-            _ => name.to_string(),
-        }
-    }
-
-    /// Store extracted imports in the database for cross-file reference resolution.
-    ///
-    /// Imports are stored with language-appropriate path separators:
-    /// - Rust: `::` (e.g., `crate::db`, `std::collections`)
-    /// - C#: `.` (e.g., `MyApp.Services`, `System.Collections.Generic`)
-    ///
-    /// Clears old imports for this file before storing new ones (for re-indexing).
-    fn store_imports(
-        &self,
-        file_id: FileId,
-        imports: &[common::ImportStatement],
-        language: Language,
-    ) -> Result<()> {
-        // Clear old imports for this file (for re-indexing)
-        self.db.clear_imports_for_file(file_id)?;
-
-        // Stored import format is owned by the language's ModuleResolver.
-        let resolver = get_module_resolver(language);
-
-        for import in imports {
-            let source = resolver.join_import(&import.path);
-
-            // Handle glob imports
-            if import.is_glob {
-                self.db
-                    .insert_import(file_id, "*", &source, import.alias.as_deref())?;
-                continue;
-            }
-
-            // For explicit imports: store each imported name
-            if import.imported_names.is_empty() {
-                // Namespace/module import (C# style) or module import without braces
-                // Store with "*" to indicate "all from this module"
-                self.db
-                    .insert_import(file_id, "*", &source, import.alias.as_deref())?;
-            } else {
-                // Store each explicitly imported name
-                for name in &import.imported_names {
-                    self.db
-                        .insert_import(file_id, name, &source, import.alias.as_deref())?;
-                }
-            }
-        }
-
-        trace!(
-            file_id = %file_id,
-            import_count = imports.len(),
-            "Stored imports for file"
-        );
-
-        Ok(())
     }
 
     /// Compute and store file-level dependencies based on use statements and actual references.
@@ -912,17 +808,9 @@ impl Tethys {
             namespaces: None,
         };
 
-        // Build a set of actually referenced names (both direct names and path prefixes)
-        let mut referenced_names: HashSet<&str> = HashSet::new();
-        for r in refs {
-            referenced_names.insert(&r.name);
-            // Also add the first path component if present (for `Foo::bar()` style calls)
-            if let Some(path) = &r.path
-                && let Some(first) = path.first()
-            {
-                referenced_names.insert(first);
-            }
-        }
+        // Names referenced in this file: direct names plus first path segments.
+        // Shared with unused-import detection via `common::referenced_names`.
+        let referenced_names = common::referenced_names(refs);
 
         // Track which files we depend on (dedupe)
         let mut depended_files: HashSet<PathBuf> = HashSet::new();
@@ -1062,7 +950,8 @@ impl Tethys {
                     imported_names,
                     is_glob,
                     alias,
-                    line: 0, // Not needed for dependency computation
+                    line: 0,            // Not needed for dependency computation
+                    is_reexport: false, // Not persisted in the imports table
                 }
             })
             .collect()
@@ -1241,6 +1130,10 @@ impl Tethys {
             }
         };
 
+        // Parent name for context-aware exclusions (e.g., `src/bin` is Rust
+        // source, not build output).
+        let dir_name = dir.file_name().and_then(|n| n.to_str());
+
         for entry in entries {
             // Explicitly handle entry errors instead of silently skipping with flatten()
             let entry = match entry {
@@ -1259,7 +1152,7 @@ impl Tethys {
 
             // Skip hidden directories and common build directories
             if let Some(name) = path.file_name().and_then(|n| n.to_str())
-                && (name.starts_with('.') || Self::is_excluded_dir(name))
+                && (name.starts_with('.') || Self::is_excluded_dir(name, dir_name))
             {
                 continue;
             }
@@ -1280,11 +1173,19 @@ impl Tethys {
     }
 
     /// Check if a directory should be excluded from indexing.
-    fn is_excluded_dir(name: &str) -> bool {
-        matches!(
-            name,
-            "target" | "node_modules" | "vendor" | "bin" | "obj" | "build" | "dist" | "__pycache__"
-        )
+    ///
+    /// `parent_name` is the name of the directory containing `name`, used for
+    /// context-aware exclusions: `bin` is .NET build output everywhere EXCEPT
+    /// under `src`, where it is Cargo's binary-target source directory
+    /// (`src/bin/*.rs`). `obj` stays excluded unconditionally — .NET `obj`
+    /// directories contain *generated* `.cs` sources that must never be
+    /// indexed, and no language convention places real sources there.
+    fn is_excluded_dir(name: &str, parent_name: Option<&str>) -> bool {
+        match name {
+            "bin" => parent_name != Some("src"),
+            "target" | "node_modules" | "vendor" | "obj" | "build" | "dist" | "__pycache__" => true,
+            _ => false,
+        }
     }
 
     /// Final indexing phase: rebuild `arch_*` tables from current files + `file_deps`.
@@ -1323,26 +1224,13 @@ impl Tethys {
             })
             .collect();
 
-        // Map each file to its containing crate by walking the file's ancestor
-        // directories and checking against a pre-built crate-path index. This is
-        // O(files * depth) vs the public `get_crate_for_file`'s O(files * crates)
-        // linear scan + per-file `canonicalize()` syscall. Safe to skip the
-        // canonicalize here because both `workspace_root` (lib.rs:113) and each
-        // `CrateInfo::path` (cargo.rs:121) are canonicalized at construction time.
-        let crate_index: HashMap<&Path, &crate::types::CrateInfo> =
-            self.crates.iter().map(|c| (c.path.as_path(), c)).collect();
+        // Map each file to its containing crate via the shared CrateIndex
+        // ancestor walk: O(files × depth), zero syscalls.
+        let crate_index = CrateIndex::new(&self.crates);
 
         let mut file_to_package: Vec<(crate::types::FileId, &str)> = Vec::new();
         for file in self.db.list_all_files()? {
-            let abs = if file.path.is_absolute() {
-                file.path.clone()
-            } else {
-                self.workspace_root.join(&file.path)
-            };
-            // `Path::ancestors()` yields the path itself first, then progressively
-            // shorter parents, so `find_map` returns the longest-prefix match —
-            // matching `get_crate_for_file`'s nested-crate semantics.
-            if let Some(info) = abs.ancestors().find_map(|p| crate_index.get(p).copied()) {
+            if let Some(info) = crate_index.crate_for_file(&file.path, &self.workspace_root) {
                 file_to_package.push((file.id, info.name.as_str()));
             } else {
                 tracing::trace!(
@@ -1461,17 +1349,72 @@ mod tests {
     }
 
     // ========================================================================
+    // build_file_crate_map Tests (idxperf claim C8)
+    // ========================================================================
+
+    /// Stress fixture from the idxperf plan (slice 6): overlapping crate
+    /// name prefixes (`foo` vs `foo-utils` — defeats first-prefix-match
+    /// bugs), a file nested deep inside a crate, an orphan in a
+    /// subdirectory, and an orphan at the workspace root. Expected map
+    /// hand-computed before the `CrateIndex` implementation.
+    #[test]
+    fn fast_crate_map_matches_expected() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[workspace]\nmembers = [\"foo\", \"foo-utils\"]\nresolver = \"2\"\n",
+            ),
+            (
+                "foo/Cargo.toml",
+                "[package]\nname = \"foo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            ("foo/src/lib.rs", "pub fn a() {}\n"),
+            ("foo/src/deep/inner.rs", "pub fn b() {}\n"),
+            (
+                "foo-utils/Cargo.toml",
+                "[package]\nname = \"foo-utils\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            ("foo-utils/src/lib.rs", "pub fn c() {}\n"),
+            ("tools/helper.rs", "pub fn d() {}\n"),
+            ("loose.rs", "pub fn e() {}\n"),
+        ]);
+
+        let map = tethys.build_file_crate_map().expect("crate map");
+
+        let expected = [
+            ("foo/src/lib.rs", "foo"),
+            ("foo/src/deep/inner.rs", "foo"),
+            ("foo-utils/src/lib.rs", "foo-utils"),
+            ("tools/helper.rs", "orphan:tools"),
+            ("loose.rs", "orphan:loose.rs"),
+        ];
+        for (path, crate_name) in expected {
+            let file_id = tethys
+                .db
+                .get_file_id(Path::new(path))
+                .expect("query")
+                .unwrap_or_else(|| panic!("{path} must be indexed"));
+            assert_eq!(
+                map.get(&file_id).map(String::as_str),
+                Some(crate_name),
+                "wrong crate assignment for {path}"
+            );
+        }
+        assert_eq!(map.len(), 5, "exactly the five fixture files mapped");
+    }
+
+    // ========================================================================
     // is_excluded_dir Tests
     // ========================================================================
 
     #[test]
     fn is_excluded_dir_excludes_target() {
-        assert!(Tethys::is_excluded_dir("target"));
+        assert!(Tethys::is_excluded_dir("target", None));
     }
 
     #[test]
     fn is_excluded_dir_excludes_node_modules() {
-        assert!(Tethys::is_excluded_dir("node_modules"));
+        assert!(Tethys::is_excluded_dir("node_modules", None));
     }
 
     #[test]
@@ -1479,69 +1422,213 @@ mod tests {
         // .git is NOT in the exclusion list — it's handled separately by
         // the hidden-directory filter (starts with '.'). Verify it is not
         // matched here so the two filters stay orthogonal.
-        assert!(!Tethys::is_excluded_dir(".git"));
+        assert!(!Tethys::is_excluded_dir(".git", None));
     }
 
     #[test]
-    fn is_excluded_dir_excludes_bin() {
-        assert!(Tethys::is_excluded_dir("bin"));
+    fn is_excluded_dir_excludes_bin_outside_src() {
+        // .NET build output: <project>/bin
+        assert!(Tethys::is_excluded_dir("bin", None));
+        assert!(Tethys::is_excluded_dir("bin", Some("MyProject")));
     }
 
     #[test]
-    fn is_excluded_dir_excludes_obj() {
-        assert!(Tethys::is_excluded_dir("obj"));
+    fn is_excluded_dir_allows_bin_under_src() {
+        // Cargo binary targets live in src/bin/*.rs — real source, not
+        // build output. Excluding it makes every symbol reachable only
+        // from those binaries look dead.
+        assert!(!Tethys::is_excluded_dir("bin", Some("src")));
+    }
+
+    #[test]
+    fn is_excluded_dir_excludes_obj_even_under_src() {
+        // .NET obj dirs hold GENERATED .cs sources; never index them,
+        // regardless of where they appear.
+        assert!(Tethys::is_excluded_dir("obj", None));
+        assert!(Tethys::is_excluded_dir("obj", Some("src")));
     }
 
     #[test]
     fn is_excluded_dir_excludes_build() {
-        assert!(Tethys::is_excluded_dir("build"));
+        assert!(Tethys::is_excluded_dir("build", None));
     }
 
     #[test]
     fn is_excluded_dir_excludes_dist() {
-        assert!(Tethys::is_excluded_dir("dist"));
+        assert!(Tethys::is_excluded_dir("dist", None));
     }
 
     #[test]
     fn is_excluded_dir_excludes_vendor() {
-        assert!(Tethys::is_excluded_dir("vendor"));
+        assert!(Tethys::is_excluded_dir("vendor", None));
     }
 
     #[test]
     fn is_excluded_dir_excludes_pycache() {
-        assert!(Tethys::is_excluded_dir("__pycache__"));
+        assert!(Tethys::is_excluded_dir("__pycache__", None));
     }
 
     #[test]
     fn is_excluded_dir_allows_src() {
-        assert!(!Tethys::is_excluded_dir("src"));
+        assert!(!Tethys::is_excluded_dir("src", None));
     }
 
     #[test]
     fn is_excluded_dir_allows_lib() {
-        assert!(!Tethys::is_excluded_dir("lib"));
+        assert!(!Tethys::is_excluded_dir("lib", None));
     }
 
     #[test]
     fn is_excluded_dir_allows_tests() {
-        assert!(!Tethys::is_excluded_dir("tests"));
+        assert!(!Tethys::is_excluded_dir("tests", None));
     }
 
     #[test]
     fn is_excluded_dir_allows_my_module() {
-        assert!(!Tethys::is_excluded_dir("my_module"));
+        assert!(!Tethys::is_excluded_dir("my_module", None));
     }
 
     #[test]
     fn is_excluded_dir_is_case_sensitive() {
-        assert!(!Tethys::is_excluded_dir("Target"));
-        assert!(!Tethys::is_excluded_dir("NODE_MODULES"));
-        assert!(!Tethys::is_excluded_dir("Vendor"));
+        assert!(!Tethys::is_excluded_dir("Target", None));
+        assert!(!Tethys::is_excluded_dir("NODE_MODULES", None));
+        assert!(!Tethys::is_excluded_dir("Vendor", None));
     }
 
     #[test]
     fn is_excluded_dir_rejects_empty_string() {
-        assert!(!Tethys::is_excluded_dir(""));
+        assert!(!Tethys::is_excluded_dir("", None));
+    }
+
+    /// Re-indexing must not grow the refs table. The accumulating shape:
+    /// a top-level ref (`in_symbol_id` NULL — here a type alias to an
+    /// external type) survives the symbols-delete cascade because nothing
+    /// it points at gets deleted, so before the explicit
+    /// `DELETE FROM refs WHERE file_id` in `index_file_atomic`, every
+    /// re-index inserted a duplicate row next to it.
+    #[test]
+    fn reindex_does_not_accumulate_refs() {
+        let (_dir, mut tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "src/lib.rs",
+                // Top-level unresolved type ref (external type, no fn body)
+                // plus an ordinary resolved in-function call ref.
+                "pub type Alias = ExternalThing;\n\
+                 pub fn used() {}\n\
+                 pub fn caller() { used(); }\n",
+            ),
+        ]);
+
+        let first = tethys.db.get_stats().expect("stats").reference_count;
+        assert!(first > 0, "fixture must produce at least one ref");
+
+        tethys.index().expect("second index");
+        let second = tethys.db.get_stats().expect("stats").reference_count;
+        assert_eq!(
+            second, first,
+            "re-index must not accumulate refs (top-level unresolved refs previously duplicated)"
+        );
+
+        tethys.index().expect("third index");
+        let third = tethys.db.get_stats().expect("stats").reference_count;
+        assert_eq!(
+            third, first,
+            "ref count must stay stable across N re-indexes"
+        );
+    }
+
+    /// End-to-end fence for the src/bin fix: a Cargo binary target under
+    /// src/bin/ must be discovered and indexed, while a .NET-style bin/
+    /// directory at any other level stays excluded.
+    #[test]
+    fn index_includes_src_bin_but_excludes_other_bin_dirs() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            ("src/lib.rs", "pub fn shared() {}\n"),
+            ("src/bin/tool.rs", "fn main() { app::shared(); }\n"),
+            ("bin/Generated.cs", "namespace Gen { public class G { } }\n"),
+        ]);
+        assert!(
+            tethys
+                .db
+                .get_file_id(Path::new("src/bin/tool.rs"))
+                .expect("query")
+                .is_some(),
+            "src/bin/tool.rs must be indexed (Cargo binary target)"
+        );
+        assert!(
+            tethys
+                .db
+                .get_file_id(Path::new("bin/Generated.cs"))
+                .expect("query")
+                .is_none(),
+            "top-level bin/ must remain excluded (.NET build output)"
+        );
+    }
+
+    /// A macro invocation (`write!(...)`) must NOT resolve to a same-named
+    /// `fn write`: macros live in a separate namespace. Before the kind-aware
+    /// resolution fix, the Macro-kind ref resolved by bare name to the fn,
+    /// forging a phantom `caller -> write` call edge that corrupted
+    /// callers/reachable/impact/coupling.
+    #[test]
+    fn macro_invocation_does_not_bind_to_same_named_fn() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "src/lib.rs",
+                "use std::fmt::Write;\n\
+                 pub fn write() {}\n\
+                 pub fn caller() {\n\
+                 \x20   let mut s = String::new();\n\
+                 \x20   let _ = write!(s, \"x\");\n\
+                 }\n",
+            ),
+        ]);
+
+        let deps = tethys.get_symbol_dependencies("caller").expect("deps");
+        assert!(
+            !deps.iter().any(|s| s.name == "write"),
+            "macro invocation must not forge a phantom edge to fn write: {:?}",
+            deps.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    /// The intended enrichment is preserved: invoking a workspace
+    /// `macro_rules!` definition still links the caller to that macro (a real
+    /// dependency edge). Macro refs enrich the call graph — they just can't
+    /// bind to a same-named non-macro symbol.
+    #[test]
+    fn macro_invocation_resolves_to_workspace_macro_definition() {
+        let (_dir, tethys) = indexed_workspace(&[
+            (
+                "Cargo.toml",
+                "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            ),
+            (
+                "src/lib.rs",
+                "macro_rules! shout { () => {} }\n\
+                 pub fn caller() { shout!(); }\n",
+            ),
+        ]);
+
+        let deps = tethys.get_symbol_dependencies("caller").expect("deps");
+        assert!(
+            deps.iter()
+                .any(|s| s.name == "shout" && s.kind == SymbolKind::Macro),
+            "macro invocation should resolve to the workspace macro definition: {:?}",
+            deps.iter().map(|s| (&s.name, &s.kind)).collect::<Vec<_>>()
+        );
     }
 
     // ========================================================================

@@ -19,8 +19,23 @@ use crate::languages::module_resolver::{
 use crate::lsp::{self, LspProvider};
 use crate::types::{
     Dependent, FileId, Import, Language, LspCompletedSession, LspOutcome, LspSessionResult,
-    Reference, ReferenceKind, Symbol, SymbolId, UnresolvedRefForLsp,
+    Reference, ReferenceKind, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp,
 };
+
+/// Whether a reference of `ref_kind` is allowed to bind to a symbol of
+/// `symbol_kind`.
+///
+/// A macro invocation (`foo!()`) lives in Rust's macro namespace and must
+/// resolve only to a macro definition — never to a same-named fn/type/const.
+/// Without this gate, `write!(...)` resolves by bare name to a workspace
+/// `fn write`, forging a phantom call edge that corrupts
+/// callers/reachable/impact/coupling. Every other reference kind is
+/// unconstrained here (a kind-mismatched candidate is simply skipped, so
+/// resolution falls through to the next strategy — for a macro, that means it
+/// stays unresolved unless a real macro definition is found).
+fn ref_binds_to_symbol_kind(ref_kind: &ReferenceKind, symbol_kind: SymbolKind) -> bool {
+    !matches!(ref_kind, ReferenceKind::Macro) || symbol_kind == SymbolKind::Macro
+}
 
 /// Per-file context used during cross-file reference resolution (Pass 2).
 ///
@@ -60,8 +75,6 @@ impl Tethys {
             "Starting cross-file reference resolution (Pass 2)"
         );
 
-        let mut resolved_count = 0;
-
         // Namespace→files map for the C# using-arm, built once per resolve
         // run (one Module-kind query; empty for Rust-only workspaces).
         let namespace_map = self.build_namespace_map()?;
@@ -72,9 +85,18 @@ impl Tethys {
             by_file.entry(ref_.file_id).or_default().push(ref_);
         }
 
+        // Resolutions are collected during the scan and applied in ONE
+        // transaction afterwards (idxperf claim C7). No resolution lookup
+        // reads the refs table mid-pass (probe-verified), so deferring the
+        // writes cannot change any outcome — and the batched commit lands
+        // before populate_call_edges and Pass 3 read refs.
+        let mut resolutions: Vec<(i64, SymbolId)> = Vec::new();
         for (file_id, refs) in by_file {
-            resolved_count += self.resolve_refs_for_file(file_id, refs, &namespace_map)?;
+            self.resolve_refs_for_file(file_id, refs, &namespace_map, &mut resolutions)?;
         }
+
+        let resolved_count = resolutions.len();
+        self.db.apply_resolutions(&resolutions)?;
 
         Ok(resolved_count)
     }
@@ -95,7 +117,8 @@ impl Tethys {
         file_id: FileId,
         refs: Vec<Reference>,
         namespace_map: &NamespaceMap,
-    ) -> Result<usize> {
+        resolutions: &mut Vec<(i64, SymbolId)>,
+    ) -> Result<()> {
         let imports = self.db.get_imports_for_file(file_id)?;
         // Do NOT short-circuit on imports.is_empty(): try_resolve_reference's
         // fallback_symbol_search (same-crate prefix + unscoped unique lookup) and
@@ -109,7 +132,7 @@ impl Tethys {
                 file_id = %file_id,
                 "File not found during reference resolution - possible database inconsistency"
             );
-            return Ok(0);
+            return Ok(());
         };
         let current_file_path = self.workspace_root.join(&file_record.path);
 
@@ -137,21 +160,45 @@ impl Tethys {
             module_ctx: &module_ctx,
         };
 
-        let mut resolved_count = 0;
+        // Memoize outcomes by the FULL reference_name string within this
+        // file (idxperf claim C6): resolution depends only on the file's
+        // import context (constant here) and the name, so the first
+        // outcome — including a negative one — holds for every duplicate.
+        // Keying by anything shorter (e.g., the name's tail) would collapse
+        // `alpha` and `Holder::alpha`, which legitimately resolve
+        // differently.
+        let mut memo: HashMap<String, Option<SymbolId>> = HashMap::new();
 
-        for ref_ in refs {
-            let Some(ref_name) = &ref_.reference_name else {
+        for mut ref_ in refs {
+            // Move the owned name out of the ref: it is used only as the memo
+            // key and as the lookup string. `try_resolve_reference` does not
+            // read `ref_.reference_name`, so taking it here lets a memo miss
+            // hand ownership to the map instead of cloning the String.
+            let Some(ref_name) = ref_.reference_name.take() else {
                 continue;
             };
 
-            let resolved = self.try_resolve_reference(&ref_, ref_name, &ctx)?;
+            // Macro invocations bypass the name-keyed memo: a `write!()` macro
+            // and a `write()` call share `reference_name` but resolve in
+            // different namespaces (see `ref_binds_to_symbol_kind`), so a shared
+            // memo entry would cross-contaminate them. Macro refs are rare, so
+            // resolving them fresh costs little and keeps the memo sound.
+            let outcome = if matches!(ref_.kind, ReferenceKind::Macro) {
+                self.try_resolve_reference(&ref_, &ref_name, &ctx)?
+            } else if let Some(cached) = memo.get(ref_name.as_str()) {
+                *cached
+            } else {
+                let outcome = self.try_resolve_reference(&ref_, &ref_name, &ctx)?;
+                memo.insert(ref_name, outcome);
+                outcome
+            };
 
-            if resolved {
-                resolved_count += 1;
+            if let Some(symbol_id) = outcome {
+                resolutions.push((ref_.id, symbol_id));
             }
         }
 
-        Ok(resolved_count)
+        Ok(())
     }
 
     /// `UniqueAcrossAll` union arm (C#): collect candidate symbols across the
@@ -253,24 +300,33 @@ impl Tethys {
     }
 
     /// Try to resolve a single reference using imports and fallback search.
+    ///
+    /// Pure lookup: returns the resolved target's `SymbolId` (or `None`)
+    /// without writing — the caller collects outcomes and applies them in
+    /// one batched transaction. The outcome depends only on the file's
+    /// import context and `ref_name`, which is what makes per-file
+    /// memoization sound; `ref_` is used for trace logging only, so a memo
+    /// hit skipping this fn loses nothing but a duplicate trace line.
     fn try_resolve_reference(
         &self,
         ref_: &Reference,
         ref_name: &str,
         ctx: &ResolveContext<'_>,
-    ) -> Result<bool> {
+    ) -> Result<Option<SymbolId>> {
         let is_qualified = ref_name.contains("::");
 
         // Try explicit imports
-        if let Some(symbol) = self.resolve_via_explicit_import(ref_name, ctx, is_qualified)? {
+        if let Some(symbol) = self
+            .resolve_via_explicit_import(ref_name, ctx, is_qualified)?
+            .filter(|s| ref_binds_to_symbol_kind(&ref_.kind, s.kind))
+        {
             trace!(
                 ref_id = ref_.id,
                 ref_name = %ref_name,
                 symbol_id = %symbol.id,
                 "Resolved reference via explicit import"
             );
-            self.db.resolve_reference(ref_.id, symbol.id)?;
-            return Ok(true);
+            return Ok(Some(symbol.id));
         }
 
         // Try glob imports — consumption semantics are declared by the
@@ -281,8 +337,9 @@ impl Tethys {
                 // Pre-seam behavior, verbatim: iterate stored order, first
                 // match wins, any symbol kind.
                 for source_module in ctx.glob_imports {
-                    if let Some(symbol) =
-                        self.resolve_symbol_in_module(ref_name, source_module, ctx, is_qualified)?
+                    if let Some(symbol) = self
+                        .resolve_symbol_in_module(ref_name, source_module, ctx, is_qualified)?
+                        .filter(|s| ref_binds_to_symbol_kind(&ref_.kind, s.kind))
                     {
                         trace!(
                             ref_id = ref_.id,
@@ -290,8 +347,7 @@ impl Tethys {
                             symbol_id = %symbol.id,
                             "Resolved reference via glob import"
                         );
-                        self.db.resolve_reference(ref_.id, symbol.id)?;
-                        return Ok(true);
+                        return Ok(Some(symbol.id));
                     }
                 }
             }
@@ -306,8 +362,7 @@ impl Tethys {
                         symbol_id = %symbol.id,
                         "Resolved reference via namespace / static-member imports"
                     );
-                    self.db.resolve_reference(ref_.id, symbol.id)?;
-                    return Ok(true);
+                    return Ok(Some(symbol.id));
                 }
             }
             // Qualified ref under UniqueAcrossAll: decline here; the
@@ -319,8 +374,9 @@ impl Tethys {
         // file path scopes simple-name lookups to the same crate first; without
         // that scope, names like `Error` resolve to the first matching symbol
         // workspace-wide (rivets-0gom).
-        if let Some(symbol) =
-            self.fallback_symbol_search(ref_name, is_qualified, ctx.current_file_path)?
+        if let Some(symbol) = self
+            .fallback_symbol_search(ref_name, is_qualified, ctx.current_file_path)?
+            .filter(|s| ref_binds_to_symbol_kind(&ref_.kind, s.kind))
         {
             trace!(
                 ref_id = ref_.id,
@@ -328,22 +384,24 @@ impl Tethys {
                 symbol_id = %symbol.id,
                 "Resolved reference via fallback search"
             );
-            self.db.resolve_reference(ref_.id, symbol.id)?;
-            return Ok(true);
+            return Ok(Some(symbol.id));
         }
 
         // Qualified-path module fallback (rivets-044i). Only fires for refs that
         // both (a) contain `::` and (b) survived every prior path. Interprets the
         // prefix as a module path, looks the tail up in the resolved file.
-        if is_qualified && let Some(symbol) = self.qualified_module_fallback(ref_name, ctx)? {
+        if is_qualified
+            && let Some(symbol) = self
+                .qualified_module_fallback(ref_name, ctx)?
+                .filter(|s| ref_binds_to_symbol_kind(&ref_.kind, s.kind))
+        {
             trace!(
                 ref_id = ref_.id,
                 ref_name = %ref_name,
                 symbol_id = %symbol.id,
                 "Resolved reference via qualified module fallback"
             );
-            self.db.resolve_reference(ref_.id, symbol.id)?;
-            return Ok(true);
+            return Ok(Some(symbol.id));
         }
 
         trace!(
@@ -351,7 +409,7 @@ impl Tethys {
             file_id = %ctx.file_id,
             "Reference remains unresolved (likely external crate)"
         );
-        Ok(false)
+        Ok(None)
     }
 
     /// Resolve a qualified reference via the file's [`ModuleResolver`]
@@ -1307,5 +1365,93 @@ mod tests {
         assert_eq!(explicit.len(), 1);
         let (_, source_module) = explicit["Error"];
         assert_eq!(source_module, "crate::error");
+    }
+}
+
+#[cfg(test)]
+mod memo_tests {
+    use crate::Tethys;
+    use rusqlite::params;
+
+    /// Plan slice 5 stress fixture. One file makes:
+    /// - three calls to `target_fn` (unique cross-file name) — memo hits
+    ///   must yield the SAME resolved target for all three;
+    /// - one call to `alpha` (ambiguous: free fn + method share the name)
+    ///   — must DECLINE (unresolved);
+    /// - one call to `Holder::alpha` (qualified) — must resolve to the
+    ///   method. A buggy memo keyed by the name's tail would collapse this
+    ///   with `alpha`'s negative outcome and lose the resolution;
+    /// - two calls to `no_such_thing` — negative outcome cached, both stay
+    ///   unresolved.
+    #[test]
+    fn memo_preserves_per_name_outcomes() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        std::fs::create_dir_all(root.join("src")).expect("mkdir");
+        std::fs::write(
+            root.join("Cargo.toml"),
+            "[package]\nname = \"app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        )
+        .expect("toml");
+        std::fs::write(root.join("src/lib.rs"), "pub mod util;\npub mod caller;\n").expect("lib");
+        std::fs::write(
+            root.join("src/util.rs"),
+            "pub fn target_fn() {}\n\
+             pub fn alpha() {}\n\
+             pub struct Holder;\n\
+             impl Holder {\n    pub fn alpha(&self) {}\n}\n",
+        )
+        .expect("util");
+        std::fs::write(
+            root.join("src/caller.rs"),
+            "pub fn go() {\n    target_fn();\n    target_fn();\n    target_fn();\n    alpha();\n    Holder::alpha();\n    no_such_thing();\n    no_such_thing();\n}\n",
+        )
+        .expect("caller");
+
+        let mut tethys = Tethys::new(root).expect("Tethys::new");
+        tethys.index().expect("index");
+
+        let conn = tethys.db.connection().expect("conn");
+        let target_at = |line: i64| -> Option<String> {
+            conn.query_row(
+                "SELECT s.qualified_name FROM refs r
+                 LEFT JOIN symbols s ON s.id = r.symbol_id
+                 JOIN files f ON f.id = r.file_id
+                 WHERE f.path = 'src/caller.rs' AND r.line = ?1",
+                params![line],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .expect("ref lookup")
+        };
+
+        // Lines 2-4: target_fn ×3 — all resolved, all to the same target.
+        for line in [2, 3, 4] {
+            assert_eq!(
+                target_at(line).as_deref(),
+                Some("target_fn"),
+                "target_fn ref at line {line} must resolve to util's target_fn"
+            );
+        }
+        // Line 5: bare `alpha` is ambiguous (free fn + method) — declined.
+        assert_eq!(
+            target_at(5),
+            None,
+            "ambiguous simple name must remain unresolved"
+        );
+        // Line 6: qualified `Holder::alpha` resolves to the method. A memo
+        // keyed by the tail would have returned line 5's negative outcome.
+        assert_eq!(
+            target_at(6).as_deref(),
+            Some("Holder::alpha"),
+            "qualified ref must resolve independently of the bare name's outcome"
+        );
+        // Lines 7-8: unknown name — negative outcome cached, both unresolved.
+        for line in [7, 8] {
+            assert_eq!(
+                target_at(line),
+                None,
+                "unknown name at line {line} must remain unresolved"
+            );
+        }
     }
 }
