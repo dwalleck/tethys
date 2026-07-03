@@ -7,9 +7,10 @@ ZBUS="${1:-/home/dwalleck/repos/amazon-q-developer-cli/crates/zbus/src}"
 
 find "$ZBUS" -name '*.rs' | sort | while read -r f; do
   awk -v file="${f#"$ZBUS"/}" '
-    /#\[deprecated\(/ && !/\)\]/ { in_attr = 1; pending = 1; next }
+    /^[ \t]*\/\// { if (!pending && !in_attr) next }   # comments may mention the attr textually
+    /#\[deprecated\(/ && !/\)\]/ && !/^[ \t]*\/\// { in_attr = 1; pending = 1; next }
     in_attr { if (/\)\]/) in_attr = 0; next }
-    /#\[deprecated/ { pending = 1; next }
+    /#\[deprecated/ && !/^[ \t]*\/\// { pending = 1; next }
     pending && !/^\s*#\[/ && !/^\s*\/\// && !/^\s*$/ {
       gsub(/^[ \t]+/, "");
       printf "%s:%d  %s\n", file, NR, substr($0, 1, 70);

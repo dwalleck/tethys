@@ -49,6 +49,7 @@ mod types;
 mod unused_imports;
 
 pub use cargo::discover_crates;
+pub use db::DeprecatedSymbol;
 pub use error::{Error, IndexError, IndexErrorKind, Result};
 pub use types::{
     ArchPhaseResult, ArchStats, CouplingDetail, CouplingMetrics, CouplingSort, CrateInfo, Cycle,
@@ -887,6 +888,29 @@ impl Tethys {
         file_filter: Option<&str>,
     ) -> Result<Vec<types::PanicPoint>> {
         self.db.get_panic_points(include_tests, file_filter)
+    }
+
+    /// All symbols in the index carrying a `#[deprecated]` attribute
+    /// (Rust; C# `[Obsolete]` detection is tracked separately as tethys-haw5),
+    /// with `since`/`note` parsed from the attribute when present.
+    ///
+    /// Requires a built index — `Tethys::new` errors when the database is
+    /// missing, matching the other analysis entry points.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use tethys::Tethys;
+    /// use std::path::Path;
+    ///
+    /// let tethys = Tethys::new(Path::new("/path/to/workspace"))?;
+    /// for dep in tethys.get_deprecated_symbols()? {
+    ///     println!("{} {} ({}:{})", dep.kind, dep.name, dep.file, dep.line);
+    /// }
+    /// # Ok::<(), tethys::Error>(())
+    /// ```
+    pub fn get_deprecated_symbols(&self) -> Result<Vec<DeprecatedSymbol>> {
+        self.db.get_deprecated_symbols()
     }
 
     /// Count panic points grouped by test/production code.

@@ -15,11 +15,13 @@
 //! - `call_edges` - Call edge bulk operations
 //! - `file_deps` - File dependency CRUD operations
 //! - `panic_points` - Panic point CRUD operations
+//! - `deprecated` - Deprecated-callers analysis queries
 //! - `graph` - Graph traversal operations (`SymbolGraphOps`, `FileGraphOps`)
 //! - `architecture` - Architecture analysis (packages, coupling metrics)
 
 mod architecture;
 mod call_edges;
+mod deprecated;
 mod file_deps;
 mod files;
 mod graph;
@@ -29,6 +31,8 @@ mod panic_points;
 mod references;
 mod schema;
 mod symbols;
+
+pub use deprecated::DeprecatedSymbol;
 
 // Re-export helper functions and SQL constants used by other modules
 pub(crate) use architecture::PackageInsert;
