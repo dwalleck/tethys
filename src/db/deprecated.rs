@@ -41,7 +41,7 @@ pub struct DeprecatedSymbol {
 /// unique-name resolution matched rustc while every ambiguous one was a
 /// phantom. Errors are suppressions, not accusations — Maybe means "verify
 /// by hand", never "definitely calls deprecated code".
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum Tier {
     /// Every same-named symbol in the index is deprecated (uniqueness is the
     /// n=1 case): whichever candidate the ref really binds to, the site uses
@@ -53,7 +53,7 @@ pub enum Tier {
 }
 
 /// How a site was associated with the deprecated symbol.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum Via {
     /// Pass-2-resolved reference (`refs.symbol_id` points at the symbol).
@@ -128,11 +128,20 @@ impl Index {
     }
 
     /// Full deprecated-callers report: every deprecated symbol with its
-    /// resolved reference sites, tiered per [`Tier`].
+    /// reference sites, tiered per [`Tier`].
     ///
-    /// Reads `refs` directly (not `call_edges`) so top-level references —
-    /// `in_symbol_id NULL`, e.g. calls inside `#[cfg(test)] mod tests` — are
-    /// included; `populate_call_edges` skips those.
+    /// Two association paths:
+    /// - resolved refs (`refs.symbol_id` = the symbol) — read from `refs`
+    ///   directly, not `call_edges`, so top-level references
+    ///   (`in_symbol_id NULL`, e.g. calls inside `#[cfg(test)] mod tests`)
+    ///   are included; `populate_call_edges` skips those;
+    /// - unresolved refs whose qualified `reference_name` ends with
+    ///   `::<symbol name>` — the cross-file `crate::`/`super::` shape Pass 2
+    ///   declines (tethys-3i35 / tethys-z9mr). Qualified-only by
+    ///   measurement: on zbus 4.4.0 every bare unresolved name-match was
+    ///   noise (36/36 refuted by rustc). A qualified match whose last
+    ///   segment fits several deprecated symbols is attached to each —
+    ///   honest under Maybe semantics ("possibly calls this one").
     pub fn get_deprecated_callers(&self) -> Result<Vec<DeprecatedFinding>> {
         let symbols = self.get_deprecated_symbols()?;
         let conn = self.connection()?;
@@ -163,14 +172,62 @@ impl Index {
              ORDER BY f.path, r.line, r.column",
         )?;
 
+        // Path B: one pass over unresolved refs (partial index
+        // idx_refs_unresolved), matching the qualified name's last segment
+        // against deprecated symbol names in a hash map — O(u + d), never
+        // the O(d × u) nested LIKE join.
+        let mut by_name: std::collections::HashMap<&str, Vec<usize>> =
+            std::collections::HashMap::new();
+        for (i, symbol) in symbols.iter().enumerate() {
+            by_name.entry(symbol.name.as_str()).or_default().push(i);
+        }
+        let mut unresolved_stmt = conn.prepare(
+            "SELECT r.reference_name, f.path, r.line, r.column, cs.name
+             FROM refs r
+             JOIN files f ON f.id = r.file_id
+             LEFT JOIN symbols cs ON cs.id = r.in_symbol_id
+             WHERE r.symbol_id IS NULL
+               AND r.reference_name LIKE '%::%'
+             ORDER BY f.path, r.line, r.column",
+        )?;
+        let mut recovered: Vec<Vec<CallSite>> = vec![Vec::new(); symbols.len()];
+        let unresolved_rows = unresolved_stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, u32>(2)?,
+                row.get::<_, u32>(3)?,
+                row.get::<_, Option<String>>(4)?,
+            ))
+        })?;
+        for row in unresolved_rows {
+            let (reference_name, file, line, column, caller) = row?;
+            let Some(last_segment) = reference_name.rsplit("::").next() else {
+                continue;
+            };
+            let Some(indices) = by_name.get(last_segment) else {
+                continue;
+            };
+            for &i in indices {
+                recovered[i].push(CallSite {
+                    file: file.clone(),
+                    line,
+                    column,
+                    caller: caller.clone(),
+                    tier: Tier::Maybe,
+                    via: Via::UnresolvedQualified,
+                });
+            }
+        }
+
         let mut findings = Vec::with_capacity(symbols.len());
-        for symbol in symbols {
+        for (symbol, path_b_sites) in symbols.into_iter().zip(recovered) {
             let tier = if ambiguous_names.contains(&symbol.name) {
                 Tier::Maybe
             } else {
                 Tier::Definite
             };
-            let sites = sites_stmt
+            let mut sites = sites_stmt
                 .query_map([symbol.symbol_id], |row| {
                     Ok(CallSite {
                         file: row.get(0)?,
@@ -182,6 +239,10 @@ impl Index {
                     })
                 })?
                 .collect::<std::result::Result<Vec<_>, _>>()?;
+            sites.extend(path_b_sites);
+            sites.sort_by(|a, b| {
+                (&a.file, a.line, a.column, a.via).cmp(&(&b.file, b.line, b.column, b.via))
+            });
             findings.push(DeprecatedFinding { symbol, sites });
         }
         Ok(findings)

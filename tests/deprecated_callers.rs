@@ -9,7 +9,7 @@
 
 mod common;
 
-use common::workspace_with_files;
+use common::{open_db, workspace_with_files};
 use tethys::{DeprecatedFinding, Tier, Via};
 
 /// Fixture shared by the C3/C5/C7 tests: unique-name deprecated fn with an
@@ -221,5 +221,152 @@ fn detects_all_kinds() {
             ),
         ],
         "all symbol kinds detected with parsed since/note"
+    );
+}
+
+/// Fixture for C4/C6: root-level deprecated fns whose only callers use
+/// `crate::`/`super::` paths (the shape Pass 2 declines — tethys-3i35 /
+/// tethys-z9mr), a suffix-boundary decoy (`xold_bare`), a bare ambiguous
+/// decoy that the resolver declines, and a zero-caller symbol.
+fn build_path_b_fixture() -> (tempfile::TempDir, Vec<DeprecatedFinding>) {
+    let (dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "pub mod consumer;\npub mod gadget;\n\
+             #[deprecated(note = \"q\")]\npub fn old_q() {}\n\
+             #[deprecated]\npub fn old_clean() {}\n\
+             #[deprecated]\npub fn old_bare() {}\n\
+             pub fn xold_bare() {}\n\
+             #[deprecated]\npub fn old_amb() {}\n\
+             pub mod nested {\n\
+             \x20   pub fn use_super() {\n\
+             \x20       super::old_q();\n\
+             \x20   }\n\
+             }\n",
+        ),
+        (
+            "src/gadget.rs",
+            "pub struct Gadget;\n\
+             impl Gadget {\n    pub fn old_amb(&self) -> u32 {\n        1\n    }\n}\n",
+        ),
+        (
+            "src/consumer.rs",
+            "pub fn use_q() {\n    crate::old_q();\n}\n\
+             pub fn use_x() {\n    crate::xold_bare();\n}\n\
+             pub fn use_amb(g: &crate::gadget::Gadget) -> u32 {\n    g.old_amb()\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+    (dir, findings)
+}
+
+/// C4: unresolved refs whose qualified name ends `::<deprecated name>` are
+/// recovered as Maybe sites (via = unresolved-qualified); bare unresolved
+/// names and non-matching suffixes are NOT (zbus measurement: bare matches
+/// were 36/36 noise; suffix must respect the `::` boundary).
+///
+/// Empirical note (this fixture): the same-file `super::old_q()` call
+/// RESOLVES via Pass 2 (Definite/Resolved — correct, rustc agrees); only
+/// the cross-file `crate::old_q()` is declined and needs Path B recovery.
+#[test]
+fn qualified_unresolved_recovered_as_maybe() {
+    let (_dir, findings) = build_path_b_fixture();
+
+    let old_q = finding(&findings, "old_q", "src/lib.rs");
+    let mut sites: Vec<(String, Tier, Via)> = old_q
+        .sites
+        .iter()
+        .map(|s| (format!("{}:{}", s.file, s.line), s.tier, s.via))
+        .collect();
+    sites.sort();
+    assert_eq!(
+        sites,
+        vec![
+            (
+                "src/consumer.rs:2".to_string(),
+                Tier::Maybe,
+                Via::UnresolvedQualified,
+            ),
+            ("src/lib.rs:14".to_string(), Tier::Definite, Via::Resolved),
+        ],
+        "cross-file crate:: caller recovered as Maybe; same-file super:: caller stays resolved"
+    );
+}
+
+/// C4 boundary: `crate::xold_bare` must not match deprecated `old_bare`
+/// (kills suffix matching without the `::` separator), and the declined
+/// bare method call `g.old_amb()` must not surface (qualified-only sweep).
+#[test]
+fn path_b_respects_suffix_boundary_and_excludes_bare() {
+    let (_dir, findings) = build_path_b_fixture();
+
+    let old_bare = finding(&findings, "old_bare", "src/lib.rs");
+    assert!(
+        old_bare.sites.is_empty(),
+        "crate::xold_bare must not suffix-match old_bare; got {:?}",
+        old_bare.sites
+    );
+
+    let old_amb = finding(&findings, "old_amb", "src/lib.rs");
+    assert!(
+        old_amb.sites.is_empty(),
+        "bare unresolved g.old_amb() is excluded (qualified-only); got {:?}",
+        old_amb.sites
+    );
+}
+
+/// Budget fence (plan S4): the unresolved-refs sweep must run off the
+/// partial index `idx_refs_unresolved` — a full refs scan would break the
+/// O(u) single-pass budget at production scale (refs ≈ 10^7, u ≈ 10^6).
+#[test]
+fn path_b_uses_partial_unresolved_index() {
+    let (_dir, tethys) = build_path_b_fixture_raw();
+    let conn = open_db(&tethys);
+    let plan: Vec<String> = conn
+        .prepare(
+            "EXPLAIN QUERY PLAN
+             SELECT r.reference_name FROM refs r
+             WHERE r.symbol_id IS NULL AND r.reference_name LIKE '%::%'",
+        )
+        .expect("explain should prepare")
+        .query_map([], |row| row.get::<_, String>(3))
+        .expect("explain should run")
+        .collect::<Result<_, _>>()
+        .expect("explain rows");
+    assert!(
+        plan.iter().any(|d| d.contains("idx_refs_unresolved")),
+        "unresolved sweep must use the partial index; plan: {plan:?}"
+    );
+}
+
+/// Same fixture as [`build_path_b_fixture`] but returning the Tethys handle
+/// for direct DB inspection.
+fn build_path_b_fixture_raw() -> (tempfile::TempDir, tethys::Tethys) {
+    let (dir, mut tethys) =
+        workspace_with_files(&[("src/lib.rs", "#[deprecated]\npub fn old_q() {}\n")]);
+    tethys.index().expect("index failed");
+    (dir, tethys)
+}
+
+/// C6: zero-site deprecated symbols are still reported (clean — migration
+/// done), and a symbol whose ONLY caller is a `crate::`-qualified path is
+/// NOT clean.
+#[test]
+fn clean_list_exact() {
+    let (_dir, findings) = build_path_b_fixture();
+
+    let mut clean: Vec<&str> = findings
+        .iter()
+        .filter(|f| f.sites.is_empty())
+        .map(|f| f.symbol.name.as_str())
+        .collect();
+    clean.sort_unstable();
+    assert_eq!(
+        clean,
+        vec!["old_amb", "old_bare", "old_clean"],
+        "old_q has a qualified-unresolved caller and must NOT be clean"
     );
 }
