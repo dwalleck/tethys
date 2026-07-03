@@ -351,6 +351,48 @@ fn build_path_b_fixture_raw() -> (tempfile::TempDir, tethys::Tethys) {
     (dir, tethys)
 }
 
+/// C9: report content is deterministic — byte-identical JSON across a full
+/// re-index (row ids change, output must not), with two same-line calls
+/// forcing the column tie-break to actually fire (a fixture whose primary
+/// sort keys are always unique would let a missing tie-break pass).
+#[test]
+fn json_deterministic_across_reindex_with_same_line_tie() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "pub mod caller;\n#[deprecated]\npub fn old_twice() {}\n",
+        ),
+        (
+            "src/caller.rs",
+            "use crate::old_twice;\npub fn double() {\n    old_twice(); old_twice();\n}\n",
+        ),
+    ]);
+    tethys.index().expect("first index failed");
+    let first = serde_json::to_string_pretty(&tethys.get_deprecated_callers().expect("query 1"))
+        .expect("serialize 1");
+
+    tethys.index().expect("re-index failed");
+    let second = serde_json::to_string_pretty(&tethys.get_deprecated_callers().expect("query 2"))
+        .expect("serialize 2");
+    assert_eq!(first, second, "re-index must not change report bytes");
+
+    let findings = tethys.get_deprecated_callers().expect("query 3");
+    let old_twice = finding(&findings, "old_twice", "src/lib.rs");
+    let coords: Vec<(u32, u32)> = old_twice.sites.iter().map(|s| (s.line, s.column)).collect();
+    assert_eq!(coords.len(), 2, "both same-line calls must appear");
+    assert_eq!(coords[0].0, coords[1].0, "same line");
+    assert!(
+        coords[0].1 < coords[1].1,
+        "column tie-break must order same-line sites; got {coords:?}"
+    );
+
+    // JSON stays machine-parseable and uses the documented enum spellings.
+    let value: serde_json::Value = serde_json::from_str(&first).expect("parse");
+    let site = &value[0]["sites"][0];
+    assert_eq!(site["tier"], "Definite");
+    assert_eq!(site["via"], "resolved");
+}
+
 /// C6: zero-site deprecated symbols are still reported (clean — migration
 /// done), and a symbol whose ONLY caller is a `crate::`-qualified path is
 /// NOT clean.

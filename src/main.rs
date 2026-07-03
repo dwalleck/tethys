@@ -154,6 +154,14 @@ enum Commands {
         file: Option<String>,
     },
 
+    /// List call sites of `#[deprecated]` symbols (Rust; C# `[Obsolete]`
+    /// is out of scope pending tethys-haw5)
+    DeprecatedCallers {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Find imports whose names are never referenced (Rust files)
     UnusedImports {
         /// Output as JSON
@@ -242,6 +250,7 @@ fn main() -> ExitCode {
             json,
             file,
         } => cli::panic_points::run(&workspace, include_tests, json, file.as_deref()),
+        Commands::DeprecatedCallers { json } => cli::deprecated_callers::run(&workspace, json),
         Commands::UnusedImports { json, all } => cli::unused_imports::run(&workspace, json, all),
     };
 

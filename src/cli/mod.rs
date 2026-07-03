@@ -6,6 +6,7 @@ pub mod affected_tests;
 pub mod callers;
 pub mod coupling;
 pub mod cycles;
+pub mod deprecated_callers;
 pub mod impact;
 pub mod index;
 pub mod panic_points;
