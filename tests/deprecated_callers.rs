@@ -318,6 +318,62 @@ fn path_b_respects_suffix_boundary_and_excludes_bare() {
     );
 }
 
+/// C10: a workspace with zero deprecated symbols yields an empty findings
+/// set (the CLI renders "No deprecated symbols found." and exits 0 — the
+/// tethys self-index is the live example).
+#[test]
+fn empty_workspace_reports_nothing() {
+    let (_dir, mut tethys) = workspace_with_files(&[(
+        "src/lib.rs",
+        "pub fn modern() {}\npub fn caller() {\n    modern();\n}\n",
+    )]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+    assert!(
+        findings.is_empty(),
+        "no #[deprecated] attribute exists (grep oracle: zero occurrences); got {findings:?}"
+    );
+}
+
+/// C11: C# `[Obsolete]` symbols yield no findings (attribute extraction is
+/// tethys-haw5's scope) while Rust findings in the same mixed workspace
+/// still appear — the C# file must neither surface nor abort the analysis.
+#[test]
+fn csharp_obsolete_out_of_scope_in_mixed_workspace() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "#[deprecated]\npub fn old_rust() {}\npub fn go() {\n    old_rust();\n}\n",
+        ),
+        (
+            "Legacy.cs",
+            "using System;\n\nnamespace App\n{\n    [Obsolete(\"use NewService\")]\n    public class LegacyService\n    {\n        public void Run() { }\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+
+    assert_eq!(
+        findings.len(),
+        1,
+        "only the Rust symbol should surface; got {:?}",
+        findings
+            .iter()
+            .map(|f| (&f.symbol.name, &f.symbol.file))
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(findings[0].symbol.name, "old_rust");
+    assert_eq!(
+        findings[0].sites.len(),
+        1,
+        "the Rust call site still appears"
+    );
+}
+
 /// Budget fence (plan S4): the unresolved-refs sweep must run off the
 /// partial index `idx_refs_unresolved` — a full refs scan would break the
 /// O(u) single-pass budget at production scale (refs ≈ 10^7, u ≈ 10^6).
