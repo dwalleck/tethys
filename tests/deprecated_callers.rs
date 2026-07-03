@@ -318,6 +318,48 @@ fn path_b_respects_suffix_boundary_and_excludes_bare() {
     );
 }
 
+/// C8 fence: the zbus phantom pattern. A bare same-file call on ANOTHER
+/// type's same-named method can be misattributed to the deprecated method
+/// by name-only resolution (tethys-53iv). Whatever it binds to, such a
+/// site must never tier Definite — Definite is reserved for names with no
+/// non-deprecated candidate.
+#[test]
+fn same_file_phantoms_never_definite() {
+    let (_dir, mut tethys) = workspace_with_files(&[(
+        "src/lib.rs",
+        // Header::path (non-deprecated) first, deprecated Message::path
+        // second: same-file last-wins binding attributes `h.path()` to the
+        // deprecated method — the phantom edge this fence guards.
+        "pub struct Header;\n\
+         impl Header {\n    pub fn path(&self) -> u32 {\n        2\n    }\n}\n\
+         pub struct Message;\n\
+         impl Message {\n\
+         \x20   #[deprecated(note = \"use header\")]\n\
+         \x20   pub fn path(&self) -> u32 {\n        1\n    }\n}\n\
+         pub fn debug_fmt(h: &Header) -> u32 {\n    h.path()\n}\n",
+    )]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+
+    let path = finding(&findings, "path", "src/lib.rs");
+    assert!(
+        path.sites.iter().all(|s| s.tier == Tier::Maybe),
+        "phantom-capable sites must never be Definite; got {:?}",
+        path.sites
+    );
+    // TRIPWIRE (tethys-53iv): today the h.path() call IS misattributed to
+    // the deprecated method (1 phantom site). When 53iv lands and the
+    // resolver kind-gates or declines this binding, this count drops to 0 —
+    // flip this assertion then; the Maybe-only fence above must keep passing.
+    assert_eq!(
+        path.sites.len(),
+        1,
+        "documents current 53iv same-file phantom binding; see TRIPWIRE note"
+    );
+}
+
 /// C10: a workspace with zero deprecated symbols yields an empty findings
 /// set (the CLI renders "No deprecated symbols found." and exits 0 — the
 /// tethys self-index is the live example).
