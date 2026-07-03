@@ -127,6 +127,7 @@ A failure names the claim via the test name.
 4. **Recovering bare ambiguous declined calls / fixing same-file phantoms** — resolver work, `tethys-53iv` and `tethys-9z7i` (verified open); this analysis only *tiers around* them.
 5. **Lint-gate semantics** — exit code is always 0 on success; parity with panic-points/unused-imports (settled rationale, not deferred work).
 6. **Dedupe of multi-ref lines** — v1 reports refs as stored; determinism (C9) makes output stable.
+7. **`use` statements importing deprecated items** (rustc warns on these; found during S3's oracle run) — excluded by definition: import lines vanish with their call sites during migration, and a call-less deprecated import is already flagged by unused-imports (settled rationale, not deferred work).
 
 ## Known residual risk (accepted)
 

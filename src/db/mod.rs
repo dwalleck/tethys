@@ -32,7 +32,7 @@ mod references;
 mod schema;
 mod symbols;
 
-pub use deprecated::DeprecatedSymbol;
+pub use deprecated::{CallSite, DeprecatedFinding, DeprecatedSymbol, Tier, Via};
 
 // Re-export helper functions and SQL constants used by other modules
 pub(crate) use architecture::PackageInsert;

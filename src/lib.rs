@@ -49,7 +49,7 @@ mod types;
 mod unused_imports;
 
 pub use cargo::discover_crates;
-pub use db::DeprecatedSymbol;
+pub use db::{CallSite, DeprecatedFinding, DeprecatedSymbol, Tier, Via};
 pub use error::{Error, IndexError, IndexErrorKind, Result};
 pub use types::{
     ArchPhaseResult, ArchStats, CouplingDetail, CouplingMetrics, CouplingSort, CrateInfo, Cycle,
@@ -911,6 +911,27 @@ impl Tethys {
     /// ```
     pub fn get_deprecated_symbols(&self) -> Result<Vec<DeprecatedSymbol>> {
         self.db.get_deprecated_symbols()
+    }
+
+    /// Full deprecated-callers report: every `#[deprecated]` symbol with its
+    /// reference sites, tiered by resolution trustworthiness (see [`Tier`]).
+    ///
+    /// An entry with empty `sites` means "clean — no known callers remain".
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use tethys::Tethys;
+    /// use std::path::Path;
+    ///
+    /// let tethys = Tethys::new(Path::new("/path/to/workspace"))?;
+    /// for finding in tethys.get_deprecated_callers()? {
+    ///     println!("{}: {} site(s)", finding.symbol.name, finding.sites.len());
+    /// }
+    /// # Ok::<(), tethys::Error>(())
+    /// ```
+    pub fn get_deprecated_callers(&self) -> Result<Vec<DeprecatedFinding>> {
+        self.db.get_deprecated_callers()
     }
 
     /// Count panic points grouped by test/production code.

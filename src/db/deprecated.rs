@@ -1,9 +1,12 @@
 //! Deprecated-callers analysis queries (tethys-jdly).
 //!
-//! Lists symbols carrying `#[deprecated]` and parses the attribute's
-//! `since`/`note` payload out of the raw `attributes.args` text. Reference
-//! sites and tiering build on this in later slices. Design and falsification
-//! table: `.tethys-jdly/design.md`.
+//! Lists symbols carrying `#[deprecated]` with `since`/`note` parsed from
+//! the raw `attributes.args` text, and joins each to its reference sites,
+//! tiered by resolution trustworthiness. Sites are refs (calls, type uses) —
+//! `use` statements importing a deprecated item are excluded by definition:
+//! they vanish with their call sites during migration, and a call-less
+//! deprecated import is already flagged by unused-imports. Design and
+//! falsification table: `.tethys-jdly/design.md`.
 
 use serde::Serialize;
 use tracing::trace;
@@ -29,6 +32,66 @@ pub struct DeprecatedSymbol {
     pub since: Option<String>,
     /// `note` value (or the whole name-value string) from the attribute.
     pub note: Option<String>,
+}
+
+/// Confidence tier for a reported deprecated-use site (design C5).
+///
+/// Tiering exists because Pass-2 name-only resolution fabricates edges for
+/// ambiguous names (tethys-53iv): on real data (zbus 4.4.0), every
+/// unique-name resolution matched rustc while every ambiguous one was a
+/// phantom. Errors are suppressions, not accusations — Maybe means "verify
+/// by hand", never "definitely calls deprecated code".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub enum Tier {
+    /// Every same-named symbol in the index is deprecated (uniqueness is the
+    /// n=1 case): whichever candidate the ref really binds to, the site uses
+    /// deprecated code.
+    Definite,
+    /// A same-named non-deprecated symbol exists, so name-only resolution
+    /// could have misattributed this ref — or the ref is unresolved.
+    Maybe,
+}
+
+/// How a site was associated with the deprecated symbol.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Via {
+    /// Pass-2-resolved reference (`refs.symbol_id` points at the symbol).
+    Resolved,
+    /// Unresolved reference whose qualified name ends in `::<symbol name>` —
+    /// the `crate::`/`super::` shape Pass 2 declines (tethys-3i35). Always
+    /// [`Tier::Maybe`].
+    UnresolvedQualified,
+}
+
+/// One reference site of a deprecated symbol.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CallSite {
+    /// Workspace-relative path of the referencing file.
+    pub file: String,
+    /// 1-based reference line.
+    pub line: u32,
+    /// 1-based reference column (tie-break for same-line sites).
+    pub column: u32,
+    /// Enclosing symbol name; `None` for top-level references (e.g. calls
+    /// inside `#[cfg(test)] mod tests` items the extractor doesn't nest).
+    pub caller: Option<String>,
+    /// Confidence tier (see [`Tier`]).
+    pub tier: Tier,
+    /// Association mechanism (see [`Via`]).
+    pub via: Via,
+}
+
+/// A deprecated symbol together with its (possibly empty) reference sites.
+///
+/// An empty `sites` vec is meaningful output, not absence: it is the
+/// "clean — migration done" verdict (design C6).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct DeprecatedFinding {
+    /// The symbol carrying `#[deprecated]`.
+    pub symbol: DeprecatedSymbol,
+    /// Reference sites, ordered by (file, line, column).
+    pub sites: Vec<CallSite>,
 }
 
 impl Index {
@@ -62,6 +125,66 @@ impl Index {
             })
         })?;
         Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
+    }
+
+    /// Full deprecated-callers report: every deprecated symbol with its
+    /// resolved reference sites, tiered per [`Tier`].
+    ///
+    /// Reads `refs` directly (not `call_edges`) so top-level references —
+    /// `in_symbol_id NULL`, e.g. calls inside `#[cfg(test)] mod tests` — are
+    /// included; `populate_call_edges` skips those.
+    pub fn get_deprecated_callers(&self) -> Result<Vec<DeprecatedFinding>> {
+        let symbols = self.get_deprecated_symbols()?;
+        let conn = self.connection()?;
+
+        // Names shared with at least one NON-deprecated symbol: sites on
+        // these names tier Maybe (a phantom binding is possible). One
+        // statement, no per-symbol round-trips.
+        let mut ambiguous_stmt = conn.prepare(
+            "SELECT DISTINCT s2.name
+             FROM symbols s2
+             WHERE s2.name IN (SELECT s.name
+                               FROM attributes a
+                               JOIN symbols s ON s.id = a.symbol_id
+                               WHERE a.name = 'deprecated')
+               AND s2.id NOT IN (SELECT symbol_id FROM attributes
+                                 WHERE name = 'deprecated')",
+        )?;
+        let ambiguous_names: std::collections::HashSet<String> = ambiguous_stmt
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<std::result::Result<_, _>>()?;
+
+        let mut sites_stmt = conn.prepare(
+            "SELECT f.path, r.line, r.column, cs.name
+             FROM refs r
+             JOIN files f ON f.id = r.file_id
+             LEFT JOIN symbols cs ON cs.id = r.in_symbol_id
+             WHERE r.symbol_id = ?1
+             ORDER BY f.path, r.line, r.column",
+        )?;
+
+        let mut findings = Vec::with_capacity(symbols.len());
+        for symbol in symbols {
+            let tier = if ambiguous_names.contains(&symbol.name) {
+                Tier::Maybe
+            } else {
+                Tier::Definite
+            };
+            let sites = sites_stmt
+                .query_map([symbol.symbol_id], |row| {
+                    Ok(CallSite {
+                        file: row.get(0)?,
+                        line: row.get(1)?,
+                        column: row.get(2)?,
+                        caller: row.get(3)?,
+                        tier,
+                        via: Via::Resolved,
+                    })
+                })?
+                .collect::<std::result::Result<Vec<_>, _>>()?;
+            findings.push(DeprecatedFinding { symbol, sites });
+        }
+        Ok(findings)
     }
 }
 
