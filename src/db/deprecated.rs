@@ -271,9 +271,9 @@ impl Index {
 
         let mut findings = Vec::with_capacity(symbols.len());
         for (symbol, path_b_sites) in symbols.into_iter().zip(recovered) {
-            // Tuple lookup, not clone-and-build: (name, language) borrows
-            // suffice via the set's Borrow impl only for owned tuples, so
-            // build the key once per symbol (d is small — tens, not 10^5).
+            // The set stores owned (String, String) tuples, and HashSet's
+            // Borrow-based lookup can't be fed (&str, &str) — so build one
+            // owned key per symbol (d is small — tens, not 10^5).
             let key = (symbol.name.clone(), symbol.language.clone());
             let tier = if ambiguous_names.contains(&key) {
                 Tier::Maybe
@@ -689,10 +689,6 @@ mod tests {
     /// parsing, escape mangling.
     #[test]
     fn parses_all_obsolete_args_shapes() {
-        #[allow(clippy::unnecessary_wraps)] // table rows want uniform cells
-        fn s(v: &str) -> Option<String> {
-            Some(v.to_string())
-        }
         // (input, expected note, expected error flag)
         let cases: &[(Option<&str>, Option<String>, Option<bool>)] = &[
             (None, None, None),

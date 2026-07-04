@@ -732,7 +732,7 @@ fn csharp_resolved_construction_and_clean_definite() {
 
 /// haw5 S5 (design C6, demotion direction): a same-language same-named
 /// non-obsolete method demotes every resolved site of the obsolete one to
-/// Maybe — name-only resolution could have misattributed.
+/// Maybe — name-only reference resolution could have misattributed.
 #[test]
 fn csharp_same_named_decoy_demotes_to_maybe() {
     let (_dir, findings) = build_csharp_fixture(true);
@@ -760,8 +760,8 @@ fn csharp_same_named_decoy_demotes_to_maybe() {
 /// via=unresolved-qualified — and fans out to BOTH obsolete candidates
 /// sharing the name, per Maybe semantics ("possibly calls this one").
 /// CI form of the design-time falsifier that passed 19/19 on real data
-/// (Tethys.Results, `GetValueOrDefault`). Kills: Path B requiring resolution,
-/// single-candidate attachment, Path B gated to Rust.
+/// (Tethys.Results, `GetValueOrDefault`). Kills: Path B requiring reference
+/// resolution, single-candidate attachment, Path B gated to Rust.
 #[test]
 fn csharp_variable_receiver_surfaces_as_maybe_for_all_candidates() {
     let (_dir, mut tethys) = workspace_with_files(&[
@@ -995,5 +995,185 @@ fn no_cross_language_attachment() {
         legacy.sites.is_empty(),
         "C# bleed ref must not attach to a Rust symbol; got {:?}",
         legacy.sites
+    );
+}
+
+/// haw5 (design C5, end-to-end direction): the four `[Obsolete]` spellings
+/// are detected from REAL C# source through the extractor — unlike
+/// `detects_obsolete_spellings_and_decoys` (db/deprecated.rs), which inserts
+/// attribute rows directly and would miss an extraction regression. The
+/// qualified spellings arrive as tree-sitter `qualified_name` nodes, a
+/// different node kind than plain `identifier`. Kills: extractor storing
+/// only the last path segment or mangling qualified names, substring
+/// matching against a parsed `[NotObsolete]` decoy.
+#[test]
+fn csharp_obsolete_spelling_variants_detected_from_source() {
+    let (_dir, mut tethys) = workspace_with_files(&[(
+        "Spellings.cs",
+        "using System;\n\nnamespace Lib\n{\n    public class Spellings\n    {\n        \
+         [Obsolete]\n        public static void Bare() { }\n\n        \
+         [ObsoleteAttribute(\"m\", true)]\n        public static void Suffixed() { }\n\n        \
+         [System.Obsolete(\"x\")]\n        public static void Qualified() { }\n\n        \
+         [System.ObsoleteAttribute(error: true)]\n        public static void QualifiedSuffixed() { }\n\n        \
+         [NotObsolete(\"boom\")]\n        public static void Decoy() { }\n\n        \
+         [Serializable]\n        public static void Marker() { }\n    }\n}\n",
+    )]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+
+    let entries: Vec<(&str, Option<&str>, Option<bool>)> = findings
+        .iter()
+        .map(|f| {
+            (
+                f.symbol.name.as_str(),
+                f.symbol.note.as_deref(),
+                f.symbol.error,
+            )
+        })
+        .collect();
+    // Single file → ordered by line: exactly the four spellings, parsed;
+    // NotObsolete and Serializable decoys never appear.
+    assert_eq!(
+        entries,
+        [
+            ("Bare", None, None),
+            ("Suffixed", Some("m"), Some(true)),
+            ("Qualified", Some("x"), None),
+            ("QualifiedSuffixed", None, Some(true)),
+        ],
+        "four spellings detected from parsed source with args; decoys absent"
+    );
+
+    // Design C1 "name as written": qualified spellings are stored verbatim,
+    // never collapsed to a last segment (detection above would still pass
+    // for a collapsed "Obsolete", so this row-level assert is the fence).
+    let conn = open_db(&tethys);
+    let stored: Vec<String> = conn
+        .prepare("SELECT name FROM attributes ORDER BY line")
+        .expect("prepare stored-name dump")
+        .query_map([], |r| r.get(0))
+        .expect("query stored names")
+        .collect::<Result<_, _>>()
+        .expect("collect stored names");
+    assert_eq!(
+        stored,
+        [
+            "Obsolete",
+            "ObsoleteAttribute",
+            "System.Obsolete",
+            "System.ObsoleteAttribute",
+            "NotObsolete",
+            "Serializable",
+        ],
+        "attribute names stored as written in source"
+    );
+}
+
+/// haw5 (design C9, ambiguity half): tier demotion is same-language only —
+/// a non-deprecated symbol sharing a deprecated symbol's name across the
+/// language boundary must NOT demote resolved sites to Maybe, in either
+/// direction. The Path B half of C9 is fenced by
+/// `no_cross_language_attachment`; without THIS fence, dropping the
+/// language column from the ambiguity CTE (name-only ambiguity) would pass
+/// the whole suite. Kills exactly that revert.
+#[test]
+fn cross_language_same_name_does_not_demote_tier() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            // Deprecated `refresh` with a resolved same-file caller; bare
+            // `Publish` exists only as the cross-language decoy for the C#
+            // direction (never called).
+            "#[deprecated(note = \"stale\")]\npub fn refresh() {}\n\
+             pub fn go() {\n    refresh();\n}\n\
+             pub fn Publish() {}\n",
+        ),
+        (
+            "Svc.cs",
+            // Obsolete static `Publish` (cross-file caller below); instance
+            // `refresh` exists only as the cross-language decoy for the
+            // Rust direction (never called).
+            "using System;\n\nnamespace Lib\n{\n    public class Svc\n    {\n        \
+             [Obsolete(\"use Post\")]\n        public static void Publish() { }\n\n        \
+             public void refresh() { }\n    }\n}\n",
+        ),
+        (
+            "Caller.cs",
+            "using Lib;\n\nnamespace App\n{\n    public class User\n    {\n        \
+             public void Go()\n        {\n            Svc.Publish();\n        }\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+
+    let refresh = finding(&findings, "refresh", "src/lib.rs");
+    assert!(!refresh.sites.is_empty(), "resolved Rust caller expected");
+    assert!(
+        refresh.sites.iter().all(|s| s.tier == Tier::Definite),
+        "C# Svc.refresh must not demote the Rust finding; got {:?}",
+        refresh.sites
+    );
+
+    let publish = finding(&findings, "Publish", "Svc.cs");
+    assert!(!publish.sites.is_empty(), "resolved C# caller expected");
+    assert!(
+        publish.sites.iter().all(|s| s.tier == Tier::Definite),
+        "Rust fn Publish must not demote the C# finding; got {:?}",
+        publish.sites
+    );
+}
+
+/// AC1 + AC3 at the binary level: a C# `[Obsolete("msg", true)]` method with
+/// a cross-file caller lists that call site through the CLI — and human mode
+/// renders the error flag as `(error — msg)`. Every other CLI-level C#
+/// fixture is a zero-site clean class, so without this fence a regression in
+/// the C# rendering path (or in `deprecation_meta`'s error piece, which has
+/// no unit test) would pass CI. The JSON run also pins the site key set on a
+/// C# entry — `cli_json_key_set_identical_across_languages` can only check
+/// site keys on its Rust entry.
+#[test]
+fn cli_csharp_error_flag_and_call_site_rendered() {
+    let (dir, mut tethys) = workspace_with_files(&[
+        (
+            "Legacy.cs",
+            "using System;\n\nnamespace Lib\n{\n    public class Legacy\n    {\n        \
+             [Obsolete(\"use New\", true)]\n        public static void Old() { }\n    }\n}\n",
+        ),
+        (
+            "Caller.cs",
+            "using Lib;\n\nnamespace App\n{\n    public class User\n    {\n        \
+             public void Go()\n        {\n            Legacy.Old();\n        }\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+
+    let stdout = run_cli(&dir, &[]);
+    assert!(
+        stdout.contains("(error — use New)"),
+        "human mode must render the error flag with the message (AC3):\n{stdout}"
+    );
+    assert!(
+        stdout.contains("[Definite] Caller.cs:9 in Go"),
+        "C# call site must show tier, file:line, caller (AC1):\n{stdout}"
+    );
+
+    let json = run_cli(&dir, &["--json"]);
+    let value: serde_json::Value = serde_json::from_str(&json).expect("stdout parses as JSON");
+    let site = &value["deprecated"][0]["sites"][0];
+    let mut site_keys: Vec<&str> = site
+        .as_object()
+        .expect("site object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    site_keys.sort_unstable();
+    assert_eq!(
+        site_keys,
+        ["caller", "column", "file", "line", "tier", "via"],
+        "C# site key set matches the Rust one (AC4)"
     );
 }

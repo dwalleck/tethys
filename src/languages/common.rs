@@ -32,9 +32,9 @@ pub struct ExtractedSymbol {
     pub is_test: bool,
     /// Attributes attached to this symbol (e.g. `#[derive(Clone)]`, `#[source]`).
     ///
-    /// Empty when no attributes precede the symbol. Currently populated by the
-    /// Populated by the Rust and C# extractors (C#: type, method, and
-    /// constructor declarations; namespaces cannot carry attributes).
+    /// Empty when no attributes precede the symbol. Populated by the Rust
+    /// and C# extractors (C#: type, method, and constructor declarations;
+    /// namespaces cannot carry attributes).
     pub attributes: Vec<ExtractedAttribute>,
 }
 
