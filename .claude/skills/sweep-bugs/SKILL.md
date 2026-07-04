@@ -81,7 +81,7 @@ discover on its own:
   no scope creep beyond the bug.
 - Watch CI per PR (Monitor; emit on pass AND fail). Same CI quirks as
   `/ship` §5: commitlint single-scope, push/PR twin runs, auto-merge
-  disabled.
+  now enabled (`gh pr merge --auto --merge` queues merge-on-green).
 - **Freeze main pushes while the queue drains**: every push to origin/main
   (including your own tracker chore commits) flips every queued PR to
   BEHIND and forces another update-branch + full CI cycle. Batch ALL

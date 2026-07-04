@@ -8,7 +8,8 @@ vocabulary; docs/agents/issue-tracker.md is the rivets tracker workflow.
   fixing after a push means a rebase and force-push.
 - CI runs workflows on push AND pull_request with identical job names: a
   green PR run can read BLOCKED until the push twin finishes. Auto-merge is
-  disabled repo-wide. Zero checks within ~2 min of pushing = merge conflict,
+  enabled repo-wide — `gh pr merge --auto --merge` queues a PR to merge once
+  required checks pass. Zero checks within ~2 min of pushing = merge conflict,
   not a queue delay.
 - Gates need real exit codes: `cmd > /dev/null 2>&1 && echo OK` — never
   `cmd | tail` (the pipe swallows the failure).

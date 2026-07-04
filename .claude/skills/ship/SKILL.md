@@ -114,8 +114,10 @@ all hit in practice:
   names. Branch protection waits on the **latest run per context**, so a
   green PR-event run can still read BLOCKED while the push-event twin
   finishes. Wait; don't re-push.
-- Auto-merge is **disabled** in repo settings — `gh pr merge --auto`
-  errors. Poll until `mergeStateStatus` is `CLEAN`, then merge manually.
+- Auto-merge is **enabled** in repo settings — `gh pr merge --auto --merge`
+  queues the PR to merge automatically once `CI Success` passes, so you need
+  not babysit to the finish. Manual `gh pr merge --merge` on a `CLEAN`
+  `mergeStateStatus` still works if you'd rather merge on green yourself.
 
 ## 6. Merge and close out
 
