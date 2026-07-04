@@ -355,8 +355,9 @@ fn value_position_ref(
 ) -> Option<ExtractedReference> {
     use node_kinds::{ARGUMENTS, IDENTIFIER, LET_DECLARATION, RETURN_EXPRESSION};
 
-    // Sanity hint, not load-bearing: a non-identifier node fails the
-    // parent-kind checks below and degrades to `None` in release builds.
+    // Sanity hint: the sole caller (the `IDENTIFIER` arm) only passes
+    // identifier nodes. `debug_assert!` (not a runtime guard) is right because
+    // this is programmer error, not untrusted input.
     debug_assert!(
         node.kind() == IDENTIFIER,
         "value_position_ref expects an identifier node"
@@ -372,7 +373,14 @@ fn value_position_ref(
         return None;
     }
 
-    let name = node_text(node, content)?;
+    let Some(name) = node_text(node, content) else {
+        tracing::trace!(
+            kind = node.kind(),
+            line = node.start_position().row + 1,
+            "Failed to extract identifier text from value position, skipping"
+        );
+        return None;
+    };
     if local_bindings.is_some_and(|b| b.contains(&name)) {
         return None;
     }
@@ -417,6 +425,11 @@ fn collect_bindings_recursive(
             }
         }
         // These are (or directly contain) the binding pattern; harvest leaves.
+        // For `let_condition`/`match_pattern` this over-harvests — it also
+        // picks up variant names (`Some`) and guard/value sub-expressions
+        // (`maybe` in `if let Some(y) = maybe`). Harmless: extra names only
+        // *over-suppress* value refs, never fabricate them ("suppressions,
+        // not accusations").
         CLOSURE_PARAMETERS | LET_CONDITION | MATCH_PATTERN | TUPLE_STRUCT_PATTERN
         | STRUCT_PATTERN => {
             collect_pattern_idents(node, content, names);

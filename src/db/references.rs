@@ -91,8 +91,9 @@ impl Index {
     /// unresolved value ref is noise — dropping it keeps `reference_name`
     /// queries clean and avoids padding the refs table with hundreds of dead
     /// rows. Call ONLY after all resolution passes finish; calling earlier
-    /// would delete refs that are merely not-yet-resolved (a correctness
-    /// contract enforced by the single call site in the indexing pipeline).
+    /// would delete refs that are merely not-yet-resolved. Nothing enforces
+    /// this ordering — it is relied on by placing the single call site after
+    /// all resolution passes in the indexing pipeline.
     ///
     /// Returns the number of rows deleted.
     pub fn drop_unresolved_value_refs(&self) -> Result<usize> {

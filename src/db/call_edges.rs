@@ -52,7 +52,8 @@ impl Index {
         // `value`-kind refs (fn-as-value, tethys-ygjx) are EXCLUDED: passing a
         // function as a value is a use, not a call, so it must not inflate the
         // call graph (`callers`/`impact`/`deprecated-callers`). Value refs live
-        // in `refs` only, where dead-code / hotspot analyses read them.
+        // in `refs` only; the analyses meant to consume them there — dead-code
+        // (tethys-dvsw) and hotspots (tethys-7p54) — are not built yet.
         let inserted = conn.execute(
             "INSERT INTO call_edges (caller_symbol_id, callee_symbol_id, call_count)
              SELECT in_symbol_id, symbol_id, COUNT(*) as call_count
