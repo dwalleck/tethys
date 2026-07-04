@@ -755,6 +755,117 @@ fn csharp_same_named_decoy_demotes_to_maybe() {
     }
 }
 
+/// haw5 S6 (design C8): a variable-receiver instance call (`client.Fetch()`
+/// stored unresolved as `client::Fetch`) surfaces via Path B as tier=Maybe,
+/// via=unresolved-qualified — and fans out to BOTH obsolete candidates
+/// sharing the name, per Maybe semantics ("possibly calls this one").
+/// CI form of the design-time falsifier that passed 19/19 on real data
+/// (Tethys.Results, `GetValueOrDefault`). Kills: Path B requiring resolution,
+/// single-candidate attachment, Path B gated to Rust.
+#[test]
+fn csharp_variable_receiver_surfaces_as_maybe_for_all_candidates() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "Client.cs",
+            "using System;\n\nnamespace Lib\n{\n    public class Client\n    {\n        \
+             [Obsolete(\"use FetchAsync\")]\n        public void Fetch() { }\n    }\n\n    \
+             public class Backup\n    {\n        [Obsolete]\n        \
+             public void Fetch() { }\n    }\n}\n",
+        ),
+        (
+            "Use.cs",
+            "using Lib;\n\nnamespace App\n{\n    public class Runner\n    {\n        \
+             public void Go()\n        {\n            var client = new Client();\n            \
+             client.Fetch();\n        }\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+
+    let fetches: Vec<&DeprecatedFinding> = findings
+        .iter()
+        .filter(|f| f.symbol.name == "Fetch")
+        .collect();
+    assert_eq!(fetches.len(), 2, "both obsolete Fetch candidates listed");
+    for finding in fetches {
+        let sites: Vec<(&str, u32, Tier, Via)> = finding
+            .sites
+            .iter()
+            .map(|s| (s.file.as_str(), s.line, s.tier, s.via))
+            .collect();
+        assert_eq!(
+            sites,
+            [("Use.cs", 10, Tier::Maybe, Via::UnresolvedQualified)],
+            "the variable-receiver site attaches to candidate at {}:{}",
+            finding.symbol.file,
+            finding.symbol.line
+        );
+    }
+}
+
+/// haw5 S6 (design C10, binary-level): the CLI JSON's symbol objects carry
+/// the identical key set in both languages — `since` null for C#, `error`
+/// null for Rust, both present-as-null rather than absent. Site objects
+/// likewise. Kills: `skip_serializing_if` on either field, per-language
+/// serialization paths.
+#[test]
+fn cli_json_key_set_identical_across_languages() {
+    const SYMBOL_KEYS: [&str; 7] = ["error", "file", "kind", "line", "name", "note", "since"];
+    let (dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "#[deprecated(since = \"1.0\", note = \"use replacement\")]\n\
+             pub fn old_rust() {}\npub fn go() {\n    old_rust();\n}\n",
+        ),
+        (
+            "Legacy.cs",
+            "using System;\n\nnamespace App\n{\n    [Obsolete(\"use NewService\", true)]\n    \
+             public class LegacyService\n    {\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let stdout = run_cli(&dir, &["--json"]);
+    let value: serde_json::Value = serde_json::from_str(&stdout).expect("stdout parses as JSON");
+
+    let entries = value["deprecated"].as_array().expect("deprecated array");
+    assert_eq!(entries.len(), 2, "one finding per language");
+    for entry in entries {
+        let mut keys: Vec<&str> = entry["symbol"]
+            .as_object()
+            .expect("symbol object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(keys, SYMBOL_KEYS, "identical key set (design C10 / AC4)");
+    }
+    let csharp = &entries[0]["symbol"];
+    assert_eq!(csharp["name"], "LegacyService");
+    assert_eq!(csharp["since"], serde_json::Value::Null);
+    assert_eq!(csharp["note"], "use NewService");
+    assert_eq!(csharp["error"], true);
+    let rust = &entries[1]["symbol"];
+    assert_eq!(rust["name"], "old_rust");
+    assert_eq!(rust["since"], "1.0");
+    assert_eq!(rust["error"], serde_json::Value::Null);
+
+    let site = &entries[1]["sites"][0];
+    let mut site_keys: Vec<&str> = site
+        .as_object()
+        .expect("site object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    site_keys.sort_unstable();
+    assert_eq!(
+        site_keys,
+        ["caller", "column", "file", "line", "tier", "via"],
+        "site key set stable"
+    );
+}
+
 /// haw5 S4 (design C9): Path B attachment and ambiguity tiering are
 /// same-language only. Four bug classes, one mixed fixture:
 /// 1. cross-language tier demotion — a C# method named `old_api` must not
