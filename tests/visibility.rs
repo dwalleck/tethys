@@ -154,8 +154,11 @@ fn unresolved_qualified_excludes() {
 #[test]
 fn shared_name_demotes() {
     let (_dir, tethys) = two_crate_fixture();
+    // workspace_closed lifts the root-reachability ceiling so this test
+    // observes C4's demotion in isolation (the fixture's candidates all
+    // sit at crate root and would otherwise also carry root-reachable).
     let findings = tethys
-        .get_visibility_candidates(false)
+        .get_visibility_candidates(true)
         .expect("visibility query failed");
 
     let by_name = |n: &str| -> Vec<&tethys::VisibilityFinding> {
@@ -185,6 +188,71 @@ fn shared_name_demotes() {
             "cfg twins collide with each other; got {findings:?}"
         );
     }
+}
+
+/// S7 (design C7 + C13): the root-reachability ceiling, on a
+/// SINGLE-package workspace (which also proves the evidence sweep doesn't
+/// vacuously exclude everything when no second package exists — C13's
+/// buggy-impl). `api::exposed` sits behind an all-pub chain: by default it
+/// caps at Maybe/root-reachable because a consumer outside the indexed
+/// workspace could name it; `internal::buried` (pub fn under a private
+/// mod) is not externally nameable, so it may be Definite even by
+/// default. `workspace_closed = true` asserts nothing external exists,
+/// lifting the ceiling: `exposed` becomes Definite with no demotion left.
+#[test]
+fn root_reachable_ceiling() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        ("src/lib.rs", "pub mod api;\nmod internal;\n"),
+        ("src/api.rs", "pub fn exposed() {}\n"),
+        ("src/internal.rs", "pub fn buried() {}\n"),
+    ]);
+    tethys.index().expect("index failed");
+
+    let default_run = tethys
+        .get_visibility_candidates(false)
+        .expect("visibility query failed");
+    let by_name = |findings: &[tethys::VisibilityFinding], n: &str| -> tethys::VisibilityFinding {
+        findings
+            .iter()
+            .find(|f| f.name == n)
+            .unwrap_or_else(|| panic!("{n} missing from {findings:?}"))
+            .clone()
+    };
+
+    let exposed = by_name(&default_run, "exposed");
+    assert_eq!(exposed.tier, tethys::Tier::Maybe);
+    assert_eq!(
+        exposed.demotions,
+        [tethys::Demotion::RootReachable],
+        "externally nameable ⇒ Maybe by default; got {default_run:?}"
+    );
+    let buried = by_name(&default_run, "buried");
+    assert_eq!(
+        (buried.tier, buried.demotions.as_slice()),
+        (tethys::Tier::Definite, &[][..]),
+        "pub under a private mod is not externally nameable; got {default_run:?}"
+    );
+    let definite: Vec<&str> = default_run
+        .iter()
+        .filter(|f| f.tier == tethys::Tier::Definite)
+        .map(|f| f.name.as_str())
+        .collect();
+    assert_eq!(
+        definite,
+        ["buried"],
+        "C13: single-package default run yields no Definite except \
+         non-root-reachable items"
+    );
+
+    let closed_run = tethys
+        .get_visibility_candidates(true)
+        .expect("visibility query failed");
+    let exposed = by_name(&closed_run, "exposed");
+    assert_eq!(
+        (exposed.tier, exposed.demotions.as_slice()),
+        (tethys::Tier::Definite, &[][..]),
+        "workspace_closed lifts the ceiling entirely; got {closed_run:?}"
+    );
 }
 
 /// S4 (design C5): a symbol carrying a resolved reexport-kind ref (named

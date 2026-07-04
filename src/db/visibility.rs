@@ -99,9 +99,15 @@ impl Index {
     ///   is deliberately last-segment-only, not crate-prefix-anchored:
     ///   evidence here SUPPRESSES an accusation, so a wide net is the
     ///   conservative direction.
+    ///
+    /// Unless `workspace_closed`, candidates nameable from outside the
+    /// indexed workspace (root-reachable through an all-public module
+    /// chain) carry the [`Demotion::RootReachable`] Maybe ceiling — the
+    /// index cannot observe external consumers, and publishedness is a
+    /// release-process fact only the caller can assert.
     pub(crate) fn get_visibility_candidates(
         &self,
-        _workspace_closed: bool,
+        workspace_closed: bool,
     ) -> Result<Vec<VisibilityFinding>> {
         trace!("Querying visibility-tightening candidates");
         let conn = self.connection()?;
@@ -149,6 +155,13 @@ impl Index {
         let unresolved_qualified = unresolved_qualified_evidence(&conn)?;
         let same_pkg_globs = glob_import_rows(&conn)?;
         let shared_names = shared_names(&conn)?;
+        // With the ceiling lifted, the modules map is never consulted —
+        // skip the pass entirely.
+        let modules = if workspace_closed {
+            None
+        } else {
+            Some(module_visibility_map(&conn)?)
+        };
 
         candidates.retain(|c| {
             // Owned keys: HashMap's Borrow lookup can't be fed (&str, &str)
@@ -177,6 +190,13 @@ impl Index {
                 // qualified refs and destroy their text.
                 if shared_names.contains(&c.name) {
                     demotions.push(Demotion::SharedName);
+                }
+                // C7: externally nameable items keep the Maybe ceiling
+                // unless the caller asserts the workspace is closed.
+                if let Some(modules) = &modules
+                    && is_root_reachable(&c.module_path, modules)
+                {
+                    demotions.push(Demotion::RootReachable);
                 }
                 // C6: a glob import row in the candidate's own package
                 // targeting its module — a glob re-export would publish it
@@ -239,10 +259,6 @@ fn record_module(
 
 /// Modules-by-location map for [`is_root_reachable`]: one SQL pass over
 /// module-kind symbols (m ≈ 10^4 production).
-#[expect(
-    dead_code,
-    reason = "wired by the reachability-ceiling slice (xoxq S7)"
-)]
 fn module_visibility_map(conn: &rusqlite::Connection) -> Result<HashMap<(String, String), bool>> {
     let mut map = HashMap::new();
     let mut stmt =
@@ -274,13 +290,6 @@ fn module_visibility_map(conn: &rusqlite::Connection) -> Result<HashMap<(String,
 /// Re-exports also add reachability, but re-exported candidates are
 /// excluded outright upstream (design C5), so the chain walk never sees
 /// them.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "wired by the reachability-ceiling slice (xoxq S7)"
-    )
-)]
 fn is_root_reachable(module_path: &str, modules: &HashMap<(String, String), bool>) -> bool {
     if module_path.is_empty() || module_path == "crate" {
         return true;
