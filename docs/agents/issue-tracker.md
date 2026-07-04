@@ -12,6 +12,10 @@ rivets IDs in commit and PR messages.
   `--acceptance`, `--design`, `--deps "type:id,..."` (types: blocks, related,
   parent-child, discovered-from), and `--external-ref`.
 - `rivets list` / `rivets ready` / `rivets blocked` — query the backlog.
+  `ready` truncates to 10 results by default (hybrid sort) — use
+  `rivets ready -n 100` or `rivets list` for a full survey. Only `blocks`
+  edges to unclosed issues (and blocked parents, transitively) gate
+  readiness; `related`/`parent-child` links to open issues do not.
 - `rivets show <id>` — full detail for one issue (closed issues stay readable).
 - `rivets update <id> [-D ...] [-s <status>] [-p N]` — modify fields; status values:
   open, in_progress, blocked, closed.

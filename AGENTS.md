@@ -95,7 +95,10 @@ For "what is X / how do I call X / how does process Y work", route via
   root (created by `Tethys::new`). Schema is applied idempotently on open.
 - Schema is the source of truth in `src/db/schema.rs`; the ER diagram and table
   semantics are documented in `.agents/summary/data_models.md`.
-- `--rebuild` clears the DB and its WAL/SHM sidecars before a full reindex.
+- `--rebuild` clears the DB and its WAL/SHM sidecars before a full reindex
+  (files are removed BEFORE open, so it also recovers from outdated schemas).
+- `refs.strategy` records which resolution mechanism bound each ref
+  (ADR-0003); the `refs_banded` view derives high/medium/speculative bands.
 
 ## Tooling & CI
 
@@ -158,4 +161,5 @@ additionally closes the issue with a reason. See `docs/agents/triage-labels.md`.
 
 Single-context layout at the repo root: `CONTEXT.md` (the domain glossary) plus
 `docs/adr/` (architectural decision records; ADR-0001 is the `ModuleResolver` seam,
-ADR-0002 is SQL-CTEs-not-petgraph). See `docs/agents/domain.md`.
+ADR-0002 is SQL-CTEs-not-petgraph, ADR-0003 is resolution provenance — store the
+strategy, derive the band). See `docs/agents/domain.md`.
