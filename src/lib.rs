@@ -945,6 +945,13 @@ impl Tethys {
     /// root-reachability ceiling that otherwise caps externally nameable
     /// items at [`Tier::Maybe`].
     ///
+    /// Caveat: evidence is package-granular, and a package's bin targets,
+    /// integration tests, and benches are separate crates from its lib —
+    /// their consumption of lib items is invisible here. Asserting
+    /// `workspace_closed` on a lib+bin package can therefore promote a
+    /// bin-consumed lib item to a false [`Tier::Definite`]; applying
+    /// `pub(crate)` to one fails to compile, so the error is loud.
+    ///
     /// # Example
     ///
     /// ```no_run

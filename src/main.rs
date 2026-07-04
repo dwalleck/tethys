@@ -169,7 +169,9 @@ enum Commands {
 
         /// Assert nothing outside this workspace consumes the code
         /// (nothing is published): lifts the root-reachability Maybe
-        /// ceiling so externally nameable items can be Definite
+        /// ceiling so externally nameable items can be Definite. Caution
+        /// on packages with both a lib and bin/test targets: lib items
+        /// consumed only by those sibling crates may then read Definite
         #[arg(long)]
         workspace_closed: bool,
     },

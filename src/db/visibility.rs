@@ -17,6 +17,17 @@
 //! collided- and reachable-name cases; a workspace-unique, non-reachable,
 //! callback-only-consumed item would read Definite — the residual risk
 //! accepted in the design's negative space until ygjx lands.
+//!
+//! Known limitation (lib+bin merge): evidence is package-granular, but a
+//! Cargo package's lib, bin targets, integration tests, and benches are
+//! separate CRATES sharing one `arch_packages` row, so a lib item consumed
+//! only by a sibling target shows no cross-package evidence. By default
+//! the root-reachability ceiling absorbs this (such an item must be
+//! externally nameable to be consumed, so it caps at Maybe); passing
+//! `workspace_closed` lifts exactly that ceiling and can promote it to a
+//! false Definite. The failure is loud — `pub(crate)` on a bin-consumed
+//! item is rejected by rustc (observed posture:
+//! `.tethys-xoxq/self-index-review.md`).
 
 use std::collections::HashMap;
 
