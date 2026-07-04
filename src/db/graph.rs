@@ -23,21 +23,46 @@ use crate::types::{Cycle, FileId, ReferenceKind, SymbolId};
 /// Can be overridden by passing an explicit `max_depth` parameter.
 pub(crate) const DEFAULT_MAX_DEPTH: u32 = 50;
 
+/// SQL fragment requiring a call edge to have at least one supporting ref
+/// whose band (per the `refs_banded` view — the single home of the ADR-0003
+/// mapping) is not speculative. Empty when the filter is off. `edge` is the
+/// `call_edges` alias in the enclosing query.
+fn edge_support_filter(exclude_speculative: bool, edge: &str) -> String {
+    if exclude_speculative {
+        format!(
+            " AND EXISTS (SELECT 1 FROM refs_banded rb
+                          WHERE rb.in_symbol_id = {edge}.caller_symbol_id
+                            AND rb.symbol_id = {edge}.callee_symbol_id
+                            AND rb.band != 'speculative')"
+        )
+    } else {
+        String::new()
+    }
+}
+
 impl SymbolGraphOps for Index {
-    fn get_callers(&self, symbol_id: SymbolId) -> Result<Vec<CallerInfo>> {
+    fn get_callers(
+        &self,
+        symbol_id: SymbolId,
+        exclude_speculative: bool,
+    ) -> Result<Vec<CallerInfo>> {
         let conn = self.connection()?;
 
         // Use pre-computed call_edges table for efficient indexed lookup
         let mut stmt = conn.prepare(
-            "SELECT
+            &"SELECT
                 s.id, s.file_id, s.name, s.module_path, s.qualified_name,
                 s.kind, s.line, s.column, s.end_line, s.end_column,
                 s.signature, s.visibility, s.parent_symbol_id,
                 ce.call_count
              FROM call_edges ce
              JOIN symbols s ON s.id = ce.caller_symbol_id
-             WHERE ce.callee_symbol_id = ?1
-             ORDER BY s.qualified_name",
+             WHERE ce.callee_symbol_id = ?1{exclusion}
+             ORDER BY s.qualified_name"
+                .replace(
+                    "{exclusion}",
+                    &edge_support_filter(exclude_speculative, "ce"),
+                ),
         )?;
 
         let callers = stmt
@@ -106,6 +131,7 @@ impl SymbolGraphOps for Index {
         &self,
         symbol_id: SymbolId,
         max_depth: Option<u32>,
+        exclude_speculative: bool,
     ) -> Result<SymbolImpact> {
         let max_depth = max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
         let target = self
@@ -116,11 +142,11 @@ impl SymbolGraphOps for Index {
 
         // Use recursive CTE with call_edges table for efficient traversal
         let mut stmt = conn.prepare(
-            "WITH RECURSIVE caller_tree(symbol_id, depth) AS (
+            &"WITH RECURSIVE caller_tree(symbol_id, depth) AS (
                 -- Base case: direct callers from call_edges
                 SELECT caller_symbol_id, 1
-                FROM call_edges
-                WHERE callee_symbol_id = ?1
+                FROM call_edges ce
+                WHERE callee_symbol_id = ?1{exclusion}
 
                 UNION
 
@@ -128,7 +154,7 @@ impl SymbolGraphOps for Index {
                 SELECT ce.caller_symbol_id, ct.depth + 1
                 FROM call_edges ce
                 JOIN caller_tree ct ON ce.callee_symbol_id = ct.symbol_id
-                WHERE ct.depth < ?2
+                WHERE ct.depth < ?2{exclusion}
             )
             SELECT DISTINCT
                 s.id, s.file_id, s.name, s.module_path, s.qualified_name,
@@ -138,7 +164,11 @@ impl SymbolGraphOps for Index {
             FROM caller_tree ct
             JOIN symbols s ON s.id = ct.symbol_id
             GROUP BY s.id
-            ORDER BY min_depth, s.qualified_name",
+            ORDER BY min_depth, s.qualified_name"
+                .replace(
+                    "{exclusion}",
+                    &edge_support_filter(exclude_speculative, "ce"),
+                ),
         )?;
 
         let mut direct_callers = Vec::new();

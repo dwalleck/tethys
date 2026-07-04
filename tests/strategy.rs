@@ -353,3 +353,129 @@ fn macro_bypass_stamps_without_contamination() {
     );
     assert_ne!(lone_strategy, "(null)", "unique macro resolves via Pass 2");
 }
+
+/// Slice-3 P2 (design C3/C4/C5): --exclude-speculative semantics on the
+/// callers surface. Chain: `a_fn` -[explicit import]-> `b_fn` -[bare
+/// cross-crate call, `unique_workspace`]-> `leaf`; `d_fn` has MIXED
+/// support to `ml` (bare imported call = `explicit_import`, plus
+/// relative-qualified `inner::ml()` = `qualified_module_fallback`).
+/// Expected: excluding drops ONLY the all-speculative edge
+/// (`b_fn`->`leaf`) — `d_fn`'s mixed edge survives — and the drop is
+/// transitive (`a_fn` must not surface through the severed edge).
+fn exclusion_fixture() -> (tempfile::TempDir, tethys::Tethys) {
+    let (dir, mut tethys) = workspace_with_files(&[
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"crates/base-c\", \"crates/mid-b\", \"crates/top-a\"]\n",
+        ),
+        (
+            "crates/base-c/Cargo.toml",
+            "[package]\nname = \"base-c\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+        ),
+        ("crates/base-c/src/lib.rs", "pub fn leaf() {}\n"),
+        (
+            "crates/mid-b/Cargo.toml",
+            "[package]\nname = \"mid-b\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+        ),
+        (
+            "crates/mid-b/src/lib.rs",
+            "pub mod inner;\nuse crate::inner::ml;\n\
+             pub fn b_fn() {\n    leaf();\n}\n\
+             pub fn d_fn() {\n    ml();\n    inner::ml();\n}\n",
+        ),
+        ("crates/mid-b/src/inner.rs", "pub fn ml() {}\n"),
+        (
+            "crates/top-a/Cargo.toml",
+            "[package]\nname = \"top-a\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+        ),
+        (
+            "crates/top-a/src/lib.rs",
+            "use mid_b::b_fn;\npub fn a_fn() {\n    b_fn();\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    (dir, tethys)
+}
+
+#[test]
+fn exclude_speculative_drops_only_unsupported() {
+    let (_dir, tethys) = exclusion_fixture();
+
+    let callers_of = |name: &str, exclude: bool| -> Vec<String> {
+        let mut v: Vec<String> = tethys
+            .get_callers(name, exclude)
+            .expect("callers")
+            .into_iter()
+            .flat_map(|d| d.symbols_used)
+            .collect();
+        v.sort_unstable();
+        v
+    };
+    assert_eq!(
+        callers_of("leaf", false),
+        ["b_fn"],
+        "speculative edge visible by default"
+    );
+    assert!(
+        callers_of("leaf", true).is_empty(),
+        "the only support is unique_workspace — edge dropped"
+    );
+    assert_eq!(
+        callers_of("ml", true),
+        ["d_fn"],
+        "an edge with ANY trustworthy support survives exclusion"
+    );
+}
+
+#[test]
+fn exclusion_is_transitive() {
+    let (_dir, tethys) = exclusion_fixture();
+
+    let full = tethys
+        .get_symbol_impact("leaf", None, false)
+        .expect("impact");
+    let mut all: Vec<String> = full
+        .direct_dependents
+        .iter()
+        .chain(full.transitive_dependents.iter())
+        .flat_map(|d| d.symbols_used.clone())
+        .collect();
+    all.sort_unstable();
+    assert_eq!(all, ["a_fn", "b_fn"], "unfiltered chain reaches a_fn");
+
+    let filtered = tethys
+        .get_symbol_impact("leaf", None, true)
+        .expect("impact excl");
+    assert!(
+        filtered.direct_dependents.is_empty() && filtered.transitive_dependents.is_empty(),
+        "severing the speculative edge must also remove everything beyond \
+         it; got direct {:?} transitive {:?}",
+        filtered.direct_dependents,
+        filtered.transitive_dependents
+    );
+}
+
+/// Slice-3 P3 (design C6): the CLI flag reaches the analysis — same
+/// fixture through the real binary, flag off vs on.
+#[test]
+fn cli_callers_exclude_speculative() {
+    let (dir, _tethys) = exclusion_fixture();
+    let run = |extra: &[&str]| -> String {
+        let out = std::process::Command::new(env!("CARGO_BIN_EXE_tethys"))
+            .args(["callers", "leaf", "-w"])
+            .arg(dir.path())
+            .args(extra)
+            .output()
+            .expect("run callers");
+        assert!(out.status.success(), "exit ok");
+        String::from_utf8(out.stdout).expect("utf8")
+    };
+    assert!(
+        run(&[]).contains("b_fn"),
+        "default output shows the speculative caller"
+    );
+    assert!(
+        run(&["--exclude-speculative"]).contains("No callers found"),
+        "flag drops the all-speculative edge"
+    );
+}

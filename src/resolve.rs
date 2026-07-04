@@ -1098,7 +1098,7 @@ impl Tethys {
             .get_symbol_by_qualified_name(qualified_name)?
             .ok_or_else(|| Error::NotFound(format!("symbol: {qualified_name}")))?;
 
-        let db_callers = self.db.get_callers(symbol.id)?;
+        let db_callers = self.db.get_callers(symbol.id, false)?;
 
         // Build a set of symbol IDs we already know about
         let mut known_symbol_ids: HashSet<SymbolId> =

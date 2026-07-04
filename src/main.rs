@@ -73,6 +73,12 @@ enum Commands {
         /// Use LSP (rust-analyzer) for enhanced reference resolution
         #[arg(long)]
         lsp: bool,
+
+        /// Drop call edges whose every supporting reference was bound by
+        /// a name-shape fallback (speculative band, ADR-0003) — the
+        /// fabrication-prone binds
+        #[arg(long)]
+        exclude_speculative: bool,
     },
 
     /// Analyze impact of changes to a file or symbol
@@ -237,7 +243,8 @@ fn main() -> ExitCode {
             symbol,
             transitive,
             lsp,
-        } => cli::callers::run(&workspace, &symbol, transitive, lsp),
+            exclude_speculative,
+        } => cli::callers::run(&workspace, &symbol, transitive, lsp, exclude_speculative),
         Commands::Impact {
             target,
             symbol,

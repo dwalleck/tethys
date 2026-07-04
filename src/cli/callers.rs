@@ -15,6 +15,7 @@ pub fn run(
     symbol: &str,
     transitive: bool,
     lsp: bool,
+    exclude_speculative: bool,
 ) -> Result<(), tethys::Error> {
     ensure_lsp_if_requested(lsp)?;
 
@@ -22,7 +23,7 @@ pub fn run(
 
     if transitive {
         // `callers` does not expose --depth yet (rivets-3yxn).
-        let impact = tethys.get_symbol_impact(symbol, None)?;
+        let impact = tethys.get_symbol_impact(symbol, None, exclude_speculative)?;
 
         if impact.direct_dependents.is_empty() && impact.transitive_dependents.is_empty() {
             println!("No callers found for \"{}\"", symbol.cyan());
@@ -64,7 +65,7 @@ pub fn run(
         let callers = if lsp {
             tethys.get_callers_with_lsp(symbol)?
         } else {
-            tethys.get_callers(symbol)?
+            tethys.get_callers(symbol, exclude_speculative)?
         };
 
         if callers.is_empty() {
