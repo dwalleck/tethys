@@ -39,7 +39,7 @@ design-added demotions the probe predates, each verified:
 
 The first S8 oracle run returned fig_auth Definite = 0: the S2 glob
 widening was head-keyed, so `use fig_auth::pkce::*` (fig_desktop_api)
-suppressed the whole crate. Fixed in 496b86e (`crate_glob_covers`,
+suppressed the whole crate. Fixed in the S8 commit (`crate_glob_covers`,
 module-exact); the fences `cross_package_glob_import_excludes_globbed_module_only`
 and `crate_glob_coverage_is_module_exact` encode the bug class. The
 deterministic floor for this audit lives in the S1–S7 fixture fences per
