@@ -54,7 +54,7 @@ numbers at the edge.
 
 ## Write-path consequences
 
-- Pass 2/3 flow through the **unified UPDATE seam** (`RESOLVE_REF_SQL`,
+- Pass 2/3 flow through the **unified UPDATE seam** (`RESOLVE_REFERENCE_SQL`,
   `src/db/references.rs` — unified in 4b5e7c4). The seam widens to carry
   strategy; it must not fork.
 - Pass 1 binds at **INSERT** time (`src/db/files.rs`), not through the
@@ -74,5 +74,5 @@ consumers (callers, impact, panic-points) gain the ability to exclude
 `speculative`; recall consumers (dead code) treat speculative edges as
 suppressions — "maybe someone calls this" suppresses a dead-code finding
 without polluting caller lists. This epic labels the phantom class; it
-does not fix tethys-53iv/msn0/3i35 (their fixes change from
+does not fix tethys-53iv/tethys-msn0/tethys-3i35 (their fixes change from
 "decline the binding" to "bind but band speculative").
