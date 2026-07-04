@@ -606,11 +606,19 @@ fn same_crate_unit_test_usage_does_not_suppress_tightening_candidate() {
     ]);
     tethys.index().expect("index failed");
 
-    let table = run_cli(&dir, &[]);
-    assert!(
-        table.contains("[Definite]") && table.contains("buried"),
+    // Parse JSON and pin `buried`'s tier specifically (not just "some Definite
+    // exists and 'buried' appears somewhere") so the fence stays precise if the
+    // fixture ever grows another candidate.
+    let json = run_cli(&dir, &["--json"]);
+    let value: serde_json::Value = serde_json::from_str(&json).expect("stdout parses as JSON");
+    let findings = value["findings"].as_array().expect("findings array");
+    let buried = findings
+        .iter()
+        .find(|f| f["name"] == "buried")
+        .unwrap_or_else(|| panic!("buried must be a tightening candidate; findings: {findings:?}"));
+    assert_eq!(
+        buried["tier"], "Definite",
         "a pub fn used only by a same-crate #[cfg(test)] unit test must remain a \
-         Definite tightening candidate (same-crate test usage is not keep-public \
-         evidence):\n{table}"
+         Definite tightening candidate (same-crate test usage is not keep-public evidence)"
     );
 }
