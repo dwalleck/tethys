@@ -9,6 +9,14 @@
 //! the naive refs-only rule at 33% false candidates on real data
 //! (`.tethys-xoxq/findings.md`), which is why exclusion consults every
 //! evidence channel.
+//!
+//! Known limitation (tethys-ygjx): functions used only as VALUES
+//! (callbacks) produce no ref at all, so a cross-crate callback-only use
+//! leaves evidence solely when an import row exists for it; a fully
+//! qualified value mention leaves none. The tier demotions absorb the
+//! collided- and reachable-name cases; a workspace-unique, non-reachable,
+//! callback-only-consumed item would read Definite — the residual risk
+//! accepted in the design's negative space until ygjx lands.
 
 use std::collections::HashMap;
 
