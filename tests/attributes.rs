@@ -252,3 +252,65 @@ pub struct Sandwich;
         .expect("derive attribute should attach across the intervening comment");
     assert_eq!(args.as_deref(), Some("Clone"));
 }
+
+/// haw5 S7 (design C1 row-level + C14): C# `[Obsolete]` rows land with the
+/// Rust storage shape — name as written, args = raw inner text (quotes
+/// kept), line = the attribute's own line — and the dump is identical after
+/// a no-op reindex AND after a content-hash-busting rewrite (the
+/// tethys-wsix stale-row-growth bug class: rewriting a file must not
+/// duplicate or drop attribute rows).
+#[test]
+fn csharp_attribute_rows_match_source_and_survive_reindex() {
+    fn dump(tethys: &tethys::Tethys) -> Vec<(String, String, Option<String>, u32)> {
+        let conn = open_db(tethys);
+        let mut stmt = conn
+            .prepare(
+                "SELECT s.name, a.name, a.args, a.line
+                 FROM attributes a
+                 JOIN symbols s ON s.id = a.symbol_id
+                 ORDER BY a.line, a.name",
+            )
+            .expect("prepare dump");
+        let rows = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .expect("query dump");
+        rows.collect::<Result<Vec<_>, _>>().expect("collect dump")
+    }
+
+    let src = "using System;\n\nnamespace App\n{\n    [Obsolete(\"use New\", true)]\n    \
+               public class Legacy\n    {\n        [Obsolete]\n        \
+               public void Old() { }\n    }\n}\n";
+    let (dir, mut tethys) = workspace_with_files(&[("Legacy.cs", src)]);
+    tethys.index().expect("index failed");
+
+    // Row-level C1 fence: literals hand-read from `src` above (grep oracle).
+    let first = dump(&tethys);
+    assert_eq!(
+        first,
+        vec![
+            (
+                "Legacy".to_string(),
+                "Obsolete".to_string(),
+                Some("\"use New\", true".to_string()),
+                5,
+            ),
+            ("Old".to_string(), "Obsolete".to_string(), None, 8),
+        ],
+        "rows match source text: raw args with quotes, attribute's own line"
+    );
+
+    // C14, no-op path: reindexing an unchanged workspace changes nothing.
+    tethys.index().expect("no-op reindex failed");
+    assert_eq!(dump(&tethys), first, "no-op reindex must not alter rows");
+
+    // C14, rewrite path: appended comment busts the content hash, forcing a
+    // re-parse and row rewrite; attribute rows must come back identical.
+    std::fs::write(dir.path().join("Legacy.cs"), format!("{src}// touched\n"))
+        .expect("rewrite fixture file");
+    tethys.index().expect("reindex after rewrite failed");
+    assert_eq!(
+        dump(&tethys),
+        first,
+        "file rewrite must not duplicate or drop attribute rows"
+    );
+}

@@ -866,6 +866,57 @@ fn cli_json_key_set_identical_across_languages() {
     );
 }
 
+/// haw5 S7 (design C12): a C# workspace whose only attributes are
+/// test-framework markers yields the empty envelope — summary zeros, empty
+/// array, exit 0 (`run_cli` asserts success). Kills: detection matching
+/// `[Fact]`/`[Test]`/`[TestMethod]` rows, which now exist in the index.
+#[test]
+fn csharp_without_obsolete_yields_empty_report() {
+    let (dir, mut tethys) = workspace_with_files(&[(
+        "Tests.cs",
+        "using Xunit;\n\nnamespace T\n{\n    public class Suite\n    {\n        \
+         [Fact]\n        public void A() { }\n\n        [Test]\n        \
+         public void B() { }\n\n        [TestMethod]\n        public void C() { }\n    }\n}\n",
+    )]);
+    tethys.index().expect("index failed");
+    let stdout = run_cli(&dir, &["--json"]);
+    let value: serde_json::Value = serde_json::from_str(&stdout).expect("stdout parses as JSON");
+    assert_eq!(value["summary"]["symbol_count"], 0);
+    assert_eq!(value["summary"]["with_callers"], 0);
+    assert_eq!(value["summary"]["clean"], 0);
+    assert_eq!(value["summary"]["site_count"], 0);
+    assert_eq!(
+        value["deprecated"].as_array().map(Vec::len),
+        Some(0),
+        "empty deprecated array, not absent"
+    );
+}
+
+/// haw5 S7 (design C13): mixed-workspace summary counts sum both languages —
+/// one Rust deprecated fn with one caller plus one clean C# obsolete class.
+/// Kills: per-language early return, UNION dropping a language.
+#[test]
+fn mixed_workspace_summary_sums_both_languages() {
+    let (dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "#[deprecated]\npub fn old_rust() {}\npub fn go() {\n    old_rust();\n}\n",
+        ),
+        (
+            "Legacy.cs",
+            "using System;\n\nnamespace App\n{\n    [Obsolete(\"use NewService\")]\n    \
+             public class LegacyService\n    {\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let stdout = run_cli(&dir, &["--json"]);
+    let value: serde_json::Value = serde_json::from_str(&stdout).expect("stdout parses as JSON");
+    assert_eq!(value["summary"]["symbol_count"], 2, "one per language");
+    assert_eq!(value["summary"]["with_callers"], 1, "the Rust fn");
+    assert_eq!(value["summary"]["clean"], 1, "the C# class");
+    assert_eq!(value["summary"]["site_count"], 1);
+}
+
 /// haw5 S4 (design C9): Path B attachment and ambiguity tiering are
 /// same-language only. Four bug classes, one mixed fixture:
 /// 1. cross-language tier demotion — a C# method named `old_api` must not
