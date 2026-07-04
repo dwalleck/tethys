@@ -27,7 +27,7 @@ start there (especially `index.md`) for anything this file does not cover.
 - **CLI**: `src/main.rs` defines clap commands and dispatches to `src/cli/<cmd>.rs`.
   Commands: `index`, `search`, `callers`, `impact`, `coupling`, `cycles`,
   `stats`, `reachable`, `affected-tests`, `panic-points`, `deprecated-callers`,
-  `unused-imports`.
+  `visibility-tightening`, `unused-imports`.
 - **Domain model**: `src/types.rs` — core shared records, IDs, and enums.
   Analysis-specific records live beside their analysis (e.g. `src/unused_imports.rs`,
   `src/db/deprecated.rs`, `src/graph/types.rs`) and are re-exported from `src/lib.rs`.
