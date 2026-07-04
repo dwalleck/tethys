@@ -126,6 +126,28 @@ impl Index {
         // Apply schema
         conn.execute_batch(SCHEMA)?;
 
+        // Schema-currency guard (tethys-9z7i / closes tethys-xvlw AC3):
+        // CREATE TABLE IF NOT EXISTS cannot retrofit columns onto an
+        // existing table, so a refs table from before the provenance
+        // column would silently break every strategy read. Fires ONLY
+        // when refs survived from an older schema WITHOUT the column —
+        // a fresh or reset db just received the full schema above. The
+        // index is a disposable derived cache, so the remedy is a
+        // rebuild, not a migration (approved design decision;
+        // .tethys-9z7i/design-slice2.md).
+        let has_strategy: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('refs') WHERE name = 'strategy'",
+            [],
+            |r| r.get(0),
+        )?;
+        if has_strategy == 0 {
+            return Err(Error::Config(format!(
+                "index schema is outdated (refs.strategy missing); the index is a \
+                 rebuildable cache — run `tethys index --rebuild` (db: {})",
+                path.display()
+            )));
+        }
+
         Ok(Self {
             conn: Mutex::new(conn),
             path: path.to_path_buf(),
