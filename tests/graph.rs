@@ -209,10 +209,10 @@ fn get_symbol_impact_max_depth_limits_transitive_traversal() {
     // direct callers (no transitive hops), and direct callers must be
     // invariant under max_depth.
     let depth_1 = tethys
-        .get_symbol_impact("Connection", Some(1))
+        .get_symbol_impact("Connection", Some(1), false)
         .expect("get_symbol_impact depth=1 failed");
     let unbounded = tethys
-        .get_symbol_impact("Connection", None)
+        .get_symbol_impact("Connection", None, false)
         .expect("get_symbol_impact default depth failed");
 
     assert!(
@@ -711,7 +711,7 @@ fn get_callers_returns_error_for_nonexistent_symbol() {
     let (_dir, mut tethys) = workspace_with_call_graph();
     tethys.index().expect("index failed");
 
-    let result = tethys.get_callers("NonExistent");
+    let result = tethys.get_callers("NonExistent", false);
 
     assert!(
         result.is_err(),
@@ -731,7 +731,7 @@ fn get_callers_returns_empty_for_uncalled_symbol() {
 
     // process is the top-level function - nothing calls it
     let callers = tethys
-        .get_callers("process")
+        .get_callers("process", false)
         .expect("get_callers for process should succeed");
 
     assert!(
@@ -747,7 +747,7 @@ fn get_callers_finds_intra_file_callers() {
 
     // validate is called by process
     let callers = tethys
-        .get_callers("validate")
+        .get_callers("validate", false)
         .expect("get_callers for validate should succeed");
 
     assert!(
@@ -764,7 +764,7 @@ fn get_callers_cross_file_refs_resolved() {
     // Connection is referenced from other files via `use crate::db::Connection`,
     // Cross-file references are now resolved in Pass 2.
     let callers = tethys
-        .get_callers("Connection")
+        .get_callers("Connection", false)
         .expect("get_callers for Connection should succeed");
 
     assert!(
@@ -845,7 +845,7 @@ fn get_symbol_impact_returns_error_for_nonexistent_symbol() {
     let (_dir, mut tethys) = workspace_with_call_graph();
     tethys.index().expect("index failed");
 
-    let result = tethys.get_symbol_impact("NoSuchSymbol", None);
+    let result = tethys.get_symbol_impact("NoSuchSymbol", None, false);
 
     assert!(
         result.is_err(),
@@ -865,7 +865,7 @@ fn get_symbol_impact_returns_empty_for_uncalled_symbol() {
 
     // process is never called by other symbols
     let impact = tethys
-        .get_symbol_impact("process", None)
+        .get_symbol_impact("process", None, false)
         .expect("get_symbol_impact for process should succeed");
 
     assert!(
@@ -887,7 +887,7 @@ fn get_symbol_impact_finds_direct_dependents() {
 
     // validate is called by process directly
     let impact = tethys
-        .get_symbol_impact("validate", None)
+        .get_symbol_impact("validate", None, false)
         .expect("get_symbol_impact for validate should succeed");
 
     assert!(
@@ -902,7 +902,7 @@ fn get_symbol_impact_target_points_to_correct_file() {
     tethys.index().expect("index failed");
 
     let impact = tethys
-        .get_symbol_impact("validate", None)
+        .get_symbol_impact("validate", None, false)
         .expect("get_symbol_impact for validate should succeed");
 
     assert!(
@@ -919,7 +919,7 @@ fn get_symbol_impact_cross_file_resolved() {
 
     // Connection's callers are cross-file - now resolved in Pass 2
     let impact = tethys
-        .get_symbol_impact("Connection", None)
+        .get_symbol_impact("Connection", None, false)
         .expect("get_symbol_impact for Connection should succeed");
 
     assert!(
@@ -943,7 +943,7 @@ fn call_edges_populated_after_indexing() {
 
     // validate is called by process
     let callers = tethys
-        .get_callers("validate")
+        .get_callers("validate", false)
         .expect("get_callers for validate should succeed");
 
     assert!(
@@ -971,7 +971,7 @@ fn transitive_callers_via_call_edges() {
     // Helper::check is called by validate, which is called by process
     // So Helper::check should have process as a transitive caller
     let impact = tethys
-        .get_symbol_impact("Helper::check", None)
+        .get_symbol_impact("Helper::check", None, false)
         .expect("get_symbol_impact for Helper::check should succeed");
 
     let total = impact.direct_dependents.len() + impact.transitive_dependents.len();
