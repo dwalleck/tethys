@@ -285,6 +285,51 @@ pub(crate) fn parse_deprecation_args(args: Option<&str>) -> (Option<String>, Opt
     (since, note)
 }
 
+/// Parse a C# `[Obsolete]` attribute's raw args text into `(note, error)`.
+///
+/// The stored `attributes.args` takes these source shapes:
+/// - `None` — bare `[Obsolete]` → `(None, None)`
+/// - positional: `"msg"` / `"msg", true` / `"msg", false`
+/// - named C# attribute arguments: `message: "msg"`, `error: true`
+/// - newer property-assign args (`DiagnosticId = ".."`, `UrlFormat = ".."`)
+///   stay preserved in the raw args column but are never surfaced here
+///
+/// The first string literal (positional or `message:`) becomes the note —
+/// quotes stripped, `\"`/`\\`/`\n` unescaped; verbatim strings (`@".."`)
+/// pass through raw, display-only degradation, never wrong attribution
+/// (same posture as Rust `r#".."#` in [`parse_deprecation_args`]). The
+/// first bool literal (positional or `error:`) becomes the error flag.
+/// Total function: unrecognized shapes degrade to `(None, None)`.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "production caller lands with the haw5 S3 detection dispatch; \
+                  this expect warns if S3 forgets to remove it"
+    )
+)]
+pub(crate) fn parse_obsolete_args(args: Option<&str>) -> (Option<String>, Option<bool>) {
+    let Some(raw) = args else {
+        return (None, None);
+    };
+    let mut note = None;
+    let mut error = None;
+    for part in split_top_level_commas(raw.trim()) {
+        let mut part = part.trim();
+        if let Some(rest) = part.strip_prefix("message:") {
+            part = rest.trim_start();
+        } else if let Some(rest) = part.strip_prefix("error:") {
+            part = rest.trim_start();
+        }
+        if note.is_none() && (part.starts_with('"') || part.starts_with("@\"")) {
+            note = Some(unquote(part));
+        } else if error.is_none() && (part == "true" || part == "false") {
+            error = Some(part == "true");
+        }
+    }
+    (note, error)
+}
+
 /// `key = "value"` → unquoted value, iff `part` starts with exactly `key`.
 fn key_value(part: &str, key: &str) -> Option<String> {
     let rest = part.strip_prefix(key)?;
@@ -349,6 +394,7 @@ fn unquote(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::parse_deprecation_args;
+    use super::parse_obsolete_args;
 
     #[allow(clippy::unnecessary_wraps)] // table rows want uniform Option cells
     fn s(v: &str) -> Option<String> {
@@ -412,6 +458,51 @@ mod tests {
             assert_eq!(
                 &got.1, note,
                 "note mismatch for input {input:?} (got {got:?})"
+            );
+        }
+    }
+
+    /// haw5 plan S2 stress table — expected values pre-written in the plan.
+    /// Kills: naive comma split (comma+bool inside string), any-second-arg
+    /// treated as true (explicit false row), named-only or positional-only
+    /// parsing, escape mangling.
+    #[test]
+    fn parses_all_obsolete_args_shapes() {
+        #[allow(clippy::unnecessary_wraps)] // table rows want uniform cells
+        fn s(v: &str) -> Option<String> {
+            Some(v.to_string())
+        }
+        // (input, expected note, expected error flag)
+        let cases: &[(Option<&str>, Option<String>, Option<bool>)] = &[
+            (None, None, None),
+            (Some(""), None, None),
+            (Some(r#""m""#), s("m"), None),
+            (Some(r#""m", true"#), s("m"), Some(true)),
+            // explicit false must surface as false, not collapse to None
+            (Some(r#""m", false"#), s("m"), Some(false)),
+            (Some(r#"message: "m", error: true"#), s("m"), Some(true)),
+            // comma AND bool inside the string must not split or leak
+            (Some(r#""a, true, b""#), s("a, true, b"), None),
+            (Some(r#""say \"hi\"""#), s(r#"say "hi""#), None),
+            // verbatim strings pass through raw (display-only degradation)
+            (Some(r#"@"C:\path""#), s(r#"@"C:\path""#), None),
+            // bool without a message is legal to parse
+            (Some("true"), None, Some(true)),
+            (Some(r#""déjà vu 🦀""#), s("déjà vu 🦀"), None),
+            // newer named args are preserved-but-ignored, never note
+            (Some(r#""m", DiagnosticId = "X123""#), s("m"), None),
+            // unrecognized shape degrades, never errors
+            (Some("whatever"), None, None),
+        ];
+        for (input, note, error) in cases {
+            let got = parse_obsolete_args(*input);
+            assert_eq!(
+                &got.0, note,
+                "note mismatch for input {input:?} (got {got:?})"
+            );
+            assert_eq!(
+                &got.1, error,
+                "error-flag mismatch for input {input:?} (got {got:?})"
             );
         }
     }
