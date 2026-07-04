@@ -317,7 +317,7 @@ impl Index {
                     None
                 };
                 // Provenance (ADR-0003): any insert-time bind — general or
-                // macro map — is by definition a same-file resolution;
+                // macro map — is by definition a same-file bind;
                 // unresolved rows stay NULL until a later pass stamps them.
                 let strategy = symbol_id.map(|_| ResolutionStrategy::SameFile.as_str());
                 let in_symbol_id = r

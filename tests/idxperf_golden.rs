@@ -345,9 +345,11 @@ fn canonical_rows(db_path: &Path) -> Vec<String> {
 /// the C# `Helper.Assist` call resolves via qualified-name lookup; the
 /// top-level `ExternalThing` ref stays unresolved with NULL `in_symbol_id`
 /// (the d4d87f1 accumulating shape); `pub use` produces an import row AND a
-/// resolved `reexport` ref with no containing symbol (tethys-v1w8 — the ref
-/// resolves through the same explicit-import machinery as a bare body call,
-/// and its NULL `in_symbol_id` keeps it out of `call_edges`); file deps come
+/// resolved `reexport` ref with no containing symbol (tethys-v1w8; it lands
+/// via the unique-workspace fallback — the explicit arm declines the bare
+/// single-segment `util` path, tethys-z9mr, and a top-level ref carries no
+/// caller path for crate scoping — see the pinned strategy below; the NULL
+/// `in_symbol_id` keeps it out of `call_edges`); file deps come
 /// from call edges (the resolver declines the bare single-segment `util`
 /// import path, so no L2 dep row exists to merge).
 const EXPECTED_BATCH: &[&str] = &[

@@ -84,6 +84,16 @@ pub struct Tethys {
     crates: Vec<CrateInfo>,
 }
 
+/// The canonical on-disk location of a workspace's index:
+/// `.rivets/index/tethys.db` under the workspace root. Single source for
+/// [`Tethys::new`] and [`Tethys::remove_index_files`].
+fn index_db_path(workspace_root: &Path) -> PathBuf {
+    workspace_root
+        .join(".rivets")
+        .join("index")
+        .join("tethys.db")
+}
+
 /// Convert a `usize` depth to `u32`, saturating at `u32::MAX` with a `warn!`.
 ///
 /// The public API takes `usize` for consistency with [`Tethys::get_forward_reachable`]
@@ -121,10 +131,7 @@ impl Tethys {
             ))
         })?;
 
-        let db_path = workspace_root
-            .join(".rivets")
-            .join("index")
-            .join("tethys.db");
+        let db_path = index_db_path(&workspace_root);
         let db = Index::open(&db_path)?;
 
         let crates = cargo::discover_crates(&workspace_root);
@@ -146,7 +153,7 @@ impl Tethys {
         })
     }
 
-    /// Delete the on-disk index database and its WAL/SHM sidecars, if any.
+    /// Delete the on-disk index files (db + WAL/SHM sidecars), if any.
     ///
     /// The rebuild escape hatch for an index whose schema predates the
     /// current binary: `Index::open` refuses outdated schemas with a
@@ -155,19 +162,7 @@ impl Tethys {
     /// brick its own remedy. No connection exists yet at call time, so
     /// plain file removal is safe (no `SQLite` locks to dance around).
     pub fn remove_index_files(workspace_root: &Path) -> Result<()> {
-        let db_path = workspace_root
-            .join(".rivets")
-            .join("index")
-            .join("tethys.db");
-        for suffix in ["", "-wal", "-shm"] {
-            let mut p = db_path.as_os_str().to_owned();
-            p.push(suffix);
-            let p = PathBuf::from(p);
-            if p.exists() {
-                std::fs::remove_file(&p)?;
-            }
-        }
-        Ok(())
+        Index::remove_db_files(&index_db_path(workspace_root))
     }
 
     /// Create a Tethys instance with LSP refinement enabled.

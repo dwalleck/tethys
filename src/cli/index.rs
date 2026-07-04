@@ -22,6 +22,9 @@ pub fn run(
     // A rebuild starts from nothing, so clear the db files BEFORE opening:
     // Index::open refuses outdated schemas with advice to run --rebuild,
     // and that advice must not be blocked by the very check that gave it.
+    // (rebuild_with_options will reset() the now-fresh db again — a
+    // harmless double-clear that keeps reset()'s lock-safe dance intact
+    // for its other callers.)
     if rebuild {
         Tethys::remove_index_files(workspace)?;
     }

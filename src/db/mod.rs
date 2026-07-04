@@ -209,13 +209,7 @@ impl Index {
         // SQLite names sidecars by appending "-wal"/"-shm" to the full filename
         // (e.g., "tethys.db-wal"), so we use OsString::push rather than
         // Path::with_extension which would replace the extension.
-        Self::remove_file_if_exists(&self.path)?;
-        let mut wal_path = self.path.as_os_str().to_owned();
-        wal_path.push("-wal");
-        Self::remove_file_if_exists(Path::new(&wal_path))?;
-        let mut shm_path = self.path.as_os_str().to_owned();
-        shm_path.push("-shm");
-        Self::remove_file_if_exists(Path::new(&shm_path))?;
+        Self::remove_db_files(&self.path)?;
 
         // Reopen with fresh schema
         match Self::open(&self.path) {
@@ -234,6 +228,22 @@ impl Index {
                 Err(e)
             }
         }
+    }
+
+    /// Delete a database file and its `-wal`/`-shm` sidecars, ignoring
+    /// missing files. `SQLite` names sidecars by appending to the FULL
+    /// filename ("tethys.db-wal"), so this pushes onto the `OsString` rather
+    /// than using `Path::with_extension`. Shared by [`Self::reset`] and the
+    /// pre-open rebuild recovery (`Tethys::remove_index_files`) so the two
+    /// can never disagree about what "clear the index" means.
+    pub(crate) fn remove_db_files(db_path: &Path) -> Result<()> {
+        Self::remove_file_if_exists(db_path)?;
+        for suffix in ["-wal", "-shm"] {
+            let mut sidecar = db_path.as_os_str().to_owned();
+            sidecar.push(suffix);
+            Self::remove_file_if_exists(Path::new(&sidecar))?;
+        }
+        Ok(())
     }
 
     /// Remove a file, ignoring `NotFound` errors (the file may not exist).

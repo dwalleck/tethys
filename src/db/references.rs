@@ -40,8 +40,10 @@ pub(crate) struct InsertReferenceParams<'a> {
     pub in_symbol_id: Option<SymbolId>,
     /// The name used in the reference, for later resolution in Pass 2.
     pub reference_name: Option<&'a str>,
-    /// Provenance label for pre-resolved fixture rows (`None` = unresolved).
-    pub strategy: Option<&'a str>,
+    /// Provenance for pre-resolved fixture rows (`None` = unresolved).
+    /// Typed as the enum so fixtures cannot author labels the wire format
+    /// doesn't have.
+    pub strategy: Option<ResolutionStrategy>,
 }
 
 impl Index {
@@ -75,7 +77,7 @@ impl Index {
                 params.column,
                 params.in_symbol_id.map(SymbolId::as_i64),
                 params.reference_name,
-                params.strategy
+                params.strategy.map(ResolutionStrategy::as_str)
             ],
         )?;
         Ok(conn.last_insert_rowid())

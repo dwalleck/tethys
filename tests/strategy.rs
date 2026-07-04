@@ -99,6 +99,11 @@ fn strategy_null_iff_unresolved() {
         count_refs(&tethys, "symbol_id IS NULL") >= 1,
         "the zz::nope() ref stays genuinely unresolved"
     );
+    assert!(
+        count_refs(&tethys, "symbol_id IS NOT NULL") >= 2,
+        "the circular imports actually resolve — direction 1 must not \
+         pass vacuously on an all-unresolved fixture"
+    );
 }
 
 /// B4 (design C4): the per-file memo fans ONE resolution out to every
