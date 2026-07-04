@@ -16,6 +16,7 @@
 //! - `file_deps` - File dependency CRUD operations
 //! - `panic_points` - Panic point CRUD operations
 //! - `deprecated` - Deprecated-callers analysis queries
+//! - `visibility` - Visibility-tightening analysis queries
 //! - `graph` - Graph traversal operations (`SymbolGraphOps`, `FileGraphOps`)
 //! - `architecture` - Architecture analysis (packages, coupling metrics)
 
@@ -31,8 +32,10 @@ mod panic_points;
 mod references;
 mod schema;
 mod symbols;
+mod visibility;
 
 pub use deprecated::{DeprecatedFinding, DeprecatedSymbol, ReferenceSite, Tier, Via};
+pub use visibility::{Demotion, VisibilityFinding};
 
 // Re-export helper functions and SQL constants used by other modules
 pub(crate) use architecture::PackageInsert;
