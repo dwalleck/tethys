@@ -174,6 +174,57 @@ pub struct Foo { x: i32 }
 }
 
 #[test]
+fn name_value_attribute_stores_raw_rhs() {
+    // #[name = "value"] attributes have no token_tree child; the RHS lives
+    // in an expression node after `=`. The extractor must store that RHS
+    // verbatim (tethys-jdly C2) — previously it was silently dropped and
+    // args stayed NULL, losing #[deprecated = "msg"] messages entirely.
+    // RHS stresses: `::` (suffix-logic decoy), escaped quote, non-ASCII.
+    let (_dir, mut tethys) = workspace_with_files(&[(
+        "src/lib.rs",
+        r#"
+#[deprecated = "uses :: and \" quote and déjà vu"]
+pub fn old() {}
+
+#[must_use = "check me"]
+pub fn checked() -> i32 { 1 }
+"#,
+    )]);
+    tethys.index().expect("index failed");
+
+    let conn = open_db(&tethys);
+    let deprecated_args: Option<String> = conn
+        .query_row(
+            "SELECT a.args FROM attributes a
+             JOIN symbols s ON s.id = a.symbol_id
+             WHERE s.name = 'old' AND a.name = 'deprecated'",
+            [],
+            |r| r.get(0),
+        )
+        .expect("deprecated attribute row should exist on old");
+    assert_eq!(
+        deprecated_args.as_deref(),
+        Some(r#""uses :: and \" quote and déjà vu""#),
+        "name-value RHS should be stored verbatim (quotes and escapes included)"
+    );
+
+    let must_use_args: Option<String> = conn
+        .query_row(
+            "SELECT a.args FROM attributes a
+             JOIN symbols s ON s.id = a.symbol_id
+             WHERE s.name = 'checked' AND a.name = 'must_use'",
+            [],
+            |r| r.get(0),
+        )
+        .expect("must_use attribute row should exist on checked");
+    assert_eq!(
+        must_use_args.as_deref(),
+        Some(r#""check me""#),
+        "capture is attribute-generic, not deprecated-special-cased"
+    );
+}
+
+#[test]
 fn attribute_attaches_across_intervening_comment() {
     // Regression for the brittle prev_sibling walk: a comment line between
     // an attribute and the item it annotates used to terminate the walk and

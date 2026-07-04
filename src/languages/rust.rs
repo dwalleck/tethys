@@ -1321,12 +1321,15 @@ fn extract_preceding_attributes(
 ///   attribute
 ///     identifier | scoped_identifier   ← attribute name (e.g. "derive", "tauri::command")
 ///     token_tree [field=arguments]?    ← raw text including outer parens
+///     | '=' expression                 ← name-value form (#[deprecated = "msg"])
 ///   ]
 /// ```
 ///
 /// Outer parens are stripped from `args` so `LIKE` queries can match the
-/// content directly without anchoring around `(...)`. Marker attributes like
-/// `#[source]` have no `token_tree` child and return `args == None`.
+/// content directly without anchoring around `(...)`. For the name-value
+/// form the RHS expression's source text is stored verbatim (string quotes
+/// and escapes included). Marker attributes like `#[source]` have neither
+/// and return `args == None`.
 fn extract_attribute(attr_item: &tree_sitter::Node, content: &[u8]) -> Option<ExtractedAttribute> {
     let mut item_cursor = attr_item.walk();
     let attribute = attr_item
@@ -1344,6 +1347,11 @@ fn extract_attribute(attr_item: &tree_sitter::Node, content: &[u8]) -> Option<Ex
             node_kinds::TOKEN_TREE => {
                 let raw = node_text(&child, content)?;
                 args = Some(strip_outer_parens(&raw).to_string());
+            }
+            // Name-value form: the only other named child of `attribute` is
+            // the value expression following `=` (the `=` itself is unnamed).
+            _ if child.is_named() && name.is_some() && args.is_none() => {
+                args = node_text(&child, content).map(|t| t.trim().to_string());
             }
             _ => {}
         }
