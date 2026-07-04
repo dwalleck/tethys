@@ -385,26 +385,39 @@ fn key_value(part: &str, key: &str) -> Option<String> {
 
 /// Split on commas outside string literals (`,` inside `"..."` is content,
 /// not a separator — `note = "a, b"` is one part).
+///
+/// Backslash-escape tracking is disabled inside C# verbatim (`@"…"`) and
+/// bare Rust raw (`r"…"`) strings, where `\` is a literal character — a
+/// trailing `\` would otherwise eat the closing quote and swallow every
+/// argument after it. Quote parity alone is correct there: the verbatim
+/// doubled-quote escape (`""`) toggles out and straight back in on adjacent
+/// chars, so no comma can be misread between them, and bare raw strings
+/// cannot contain quotes at all. `r#"…"#` is NOT handled (bare inner quotes
+/// break parity) and keeps its pre-existing raw-passthrough degradation.
 fn split_top_level_commas(s: &str) -> Vec<&str> {
     let mut parts = Vec::new();
     let mut start = 0;
     let mut in_string = false;
+    let mut backslash_escapes = true;
     let mut escaped = false;
+    let mut prev = None;
     for (i, c) in s.char_indices() {
         if in_string {
             if escaped {
                 escaped = false;
-            } else if c == '\\' {
+            } else if backslash_escapes && c == '\\' {
                 escaped = true;
             } else if c == '"' {
                 in_string = false;
             }
         } else if c == '"' {
             in_string = true;
+            backslash_escapes = !matches!(prev, Some('@' | 'r'));
         } else if c == ',' {
             parts.push(&s[start..i]);
             start = i + 1;
         }
+        prev = Some(c);
     }
     parts.push(&s[start..]);
     parts
@@ -488,6 +501,14 @@ mod tests {
                 Some("since = \"4.0.0\",\n        note = \"Use x\""),
                 s("4.0.0"),
                 s("Use x"),
+            ),
+            // raw string ENDING in backslash: `\` is literal in r"…", so it
+            // must not eat the closing quote and swallow the next key (same
+            // bug class as the C# verbatim finding on PR 10)
+            (
+                Some(r#"note = r"C:\path\", since = "1.0""#),
+                s("1.0"),
+                s(r#"r"C:\path\""#),
             ),
             // prefix key must not match: `notes` is not `note`
             (Some(r#"notes = "x""#), None, None),
@@ -703,6 +724,17 @@ mod tests {
             (Some(r#""say \"hi\"""#), s(r#"say "hi""#), None),
             // verbatim strings pass through raw (display-only degradation)
             (Some(r#"@"C:\path""#), s(r#"@"C:\path""#), None),
+            // verbatim string ENDING in backslash: `\` is literal in @"…",
+            // so it must not eat the closing quote and swallow the error
+            // flag (gemini PR-10 finding, reproduced before fixing)
+            (
+                Some(r#"@"C:\path\", true"#),
+                s(r#"@"C:\path\""#),
+                Some(true),
+            ),
+            // doubled-quote verbatim escape before the error flag: quote
+            // parity alone must keep the split correct
+            (Some(r#"@"a""b", true"#), s(r#"@"a""b""#), Some(true)),
             // bool without a message is legal to parse
             (Some("true"), None, Some(true)),
             (Some(r#""déjà vu 🦀""#), s("déjà vu 🦀"), None),
