@@ -824,15 +824,18 @@ fn get_symbol_dependencies_cross_file_not_resolved() {
     let (_dir, mut tethys) = workspace_with_call_graph();
     tethys.index().expect("index failed");
 
-    // main references User and Cache from other files, but cross-file
-    // resolution is not implemented, so dependencies should be empty.
+    // main uses User and Cache ONLY as values (`let _user = User;`). Those are
+    // recorded as `value` refs (tethys-ygjx) but deliberately excluded from the
+    // call graph — a value-use is not a call — so main has no call-graph
+    // dependencies. (Before fn-as-value extraction this was empty because the
+    // refs were never emitted at all; now it is empty by call-graph design.)
     let deps = tethys
         .get_symbol_dependencies("main")
         .expect("get_symbol_dependencies for main should succeed");
 
     assert!(
         deps.is_empty(),
-        "cross-file dependencies should not be resolved yet, got: {deps:?}"
+        "value-uses must not appear as call-graph dependencies, got: {deps:?}"
     );
 }
 

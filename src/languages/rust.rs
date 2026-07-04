@@ -13,6 +13,7 @@ use super::common::{
 };
 use super::tree_sitter_utils::{node_span, node_text};
 use crate::types::{FunctionSignature, Parameter, Span, SymbolKind, Visibility};
+use std::collections::HashSet;
 
 /// Tree-sitter node kind constants for Rust grammar.
 ///
@@ -80,6 +81,17 @@ mod node_kinds {
     pub const FIELD_EXPRESSION: &str = "field_expression";
     pub const SCOPED_TYPE_IDENTIFIER: &str = "scoped_type_identifier";
     pub const MACRO_INVOCATION: &str = "macro_invocation";
+
+    // Binding + value-position nodes (fn-as-value extraction, tethys-ygjx)
+    pub const LET_DECLARATION: &str = "let_declaration";
+    pub const FOR_EXPRESSION: &str = "for_expression";
+    pub const CLOSURE_PARAMETERS: &str = "closure_parameters";
+    pub const LET_CONDITION: &str = "let_condition";
+    pub const MATCH_PATTERN: &str = "match_pattern";
+    pub const TUPLE_STRUCT_PATTERN: &str = "tuple_struct_pattern";
+    pub const STRUCT_PATTERN: &str = "struct_pattern";
+    pub const ARGUMENTS: &str = "arguments";
+    pub const RETURN_EXPRESSION: &str = "return_expression";
 }
 
 /// Rust language support implementation.
@@ -150,7 +162,7 @@ pub fn extract_references(tree: &tree_sitter::Tree, content: &[u8]) -> Vec<Extra
     let mut refs = Vec::new();
     let root = tree.root_node();
 
-    extract_references_recursive(&root, content, &mut refs, None);
+    extract_references_recursive(&root, content, &mut refs, None, None);
 
     refs
 }
@@ -160,10 +172,11 @@ fn extract_references_recursive(
     content: &[u8],
     refs: &mut Vec<ExtractedReference>,
     containing_span: Option<Span>,
+    local_bindings: Option<&HashSet<String>>,
 ) {
     use node_kinds::{
-        CALL_EXPRESSION, DECLARATION_LIST, FUNCTION_ITEM, IMPL_ITEM, MACRO_INVOCATION,
-        STRUCT_EXPRESSION, STRUCT_ITEM, TRAIT_ITEM, TYPE_IDENTIFIER, USE_DECLARATION,
+        CALL_EXPRESSION, FUNCTION_ITEM, IDENTIFIER, IMPL_ITEM, MACRO_INVOCATION, STRUCT_EXPRESSION,
+        STRUCT_ITEM, TRAIT_ITEM, TYPE_IDENTIFIER, USE_DECLARATION,
     };
 
     match node.kind() {
@@ -223,44 +236,35 @@ fn extract_references_recursive(
             }
         }
 
-        // Function definitions: capture span and recurse with it
+        // Bare identifier in value position: a free function / const / enum
+        // variant used as a value (`iter.map(foo)`, `let g = foo;`), not
+        // called. Suppressed for identifiers that shadow a local binding of
+        // the enclosing function (tethys-ygjx). Identifiers inside macro token
+        // trees never reach here — MACRO_INVOCATION returns early above
+        // (category 2 is out of scope, tethys-8ym0).
+        IDENTIFIER => {
+            if let Some(ref_data) =
+                value_position_ref(node, content, local_bindings, containing_span)
+            {
+                refs.push(ref_data);
+            }
+        }
+
+        // Function definitions: capture span AND the function's local binding
+        // names (the fn-as-value suppression set), and recurse with both.
         FUNCTION_ITEM => {
             let fn_span = node_span(node);
+            let bindings = collect_local_bindings(node, content);
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                extract_references_recursive(&child, content, refs, Some(fn_span));
+                extract_references_recursive(&child, content, refs, Some(fn_span), Some(&bindings));
             }
             return;
         }
 
-        // Impl blocks: recurse into methods with their own spans
+        // Impl blocks: recurse into methods with their own spans/bindings.
         IMPL_ITEM => {
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                if child.kind() == DECLARATION_LIST {
-                    // Methods inside impl get their own containing spans
-                    let mut inner_cursor = child.walk();
-                    for item in child.children(&mut inner_cursor) {
-                        if item.kind() == FUNCTION_ITEM {
-                            let method_span = node_span(&item);
-                            let mut method_cursor = item.walk();
-                            for method_child in item.children(&mut method_cursor) {
-                                extract_references_recursive(
-                                    &method_child,
-                                    content,
-                                    refs,
-                                    Some(method_span),
-                                );
-                            }
-                        } else {
-                            extract_references_recursive(&item, content, refs, containing_span);
-                        }
-                    }
-                } else {
-                    // Type references in impl header (e.g., `impl Foo for Bar`)
-                    extract_references_recursive(&child, content, refs, containing_span);
-                }
-            }
+            extract_impl_item_references(node, content, refs, containing_span, local_bindings);
             return;
         }
 
@@ -268,7 +272,13 @@ fn extract_references_recursive(
         STRUCT_ITEM | TRAIT_ITEM => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                extract_references_recursive(&child, content, refs, containing_span);
+                extract_references_recursive(
+                    &child,
+                    content,
+                    refs,
+                    containing_span,
+                    local_bindings,
+                );
             }
             return;
         }
@@ -279,7 +289,170 @@ fn extract_references_recursive(
     // Recurse into children
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        extract_references_recursive(&child, content, refs, containing_span);
+        extract_references_recursive(&child, content, refs, containing_span, local_bindings);
+    }
+}
+
+/// Recurse through an `impl` block: each method gets its own containing span
+/// and local-binding set (the fn-as-value suppression set); the impl header
+/// (`impl Foo for Bar`) and any non-method items recurse with the outer
+/// context. Split out of [`extract_references_recursive`] to keep that
+/// function within the per-function line budget.
+fn extract_impl_item_references(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    refs: &mut Vec<ExtractedReference>,
+    containing_span: Option<Span>,
+    local_bindings: Option<&HashSet<String>>,
+) {
+    use node_kinds::{DECLARATION_LIST, FUNCTION_ITEM};
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() != DECLARATION_LIST {
+            // Type references in the impl header (e.g., `impl Foo for Bar`).
+            extract_references_recursive(&child, content, refs, containing_span, local_bindings);
+            continue;
+        }
+        let mut inner_cursor = child.walk();
+        for item in child.children(&mut inner_cursor) {
+            if item.kind() != FUNCTION_ITEM {
+                extract_references_recursive(&item, content, refs, containing_span, local_bindings);
+                continue;
+            }
+            // Methods inside impl get their own containing span + bindings.
+            let method_span = node_span(&item);
+            let method_bindings = collect_local_bindings(&item, content);
+            let mut method_cursor = item.walk();
+            for method_child in item.children(&mut method_cursor) {
+                extract_references_recursive(
+                    &method_child,
+                    content,
+                    refs,
+                    Some(method_span),
+                    Some(&method_bindings),
+                );
+            }
+        }
+    }
+}
+
+/// Emit a `Value` reference for a bare `identifier` used in value position
+/// (call argument, `let` value, or `return` expression) that is not a local
+/// binding of the enclosing function.
+///
+/// Returns `None` for identifiers that are callees, macro names, path
+/// segments, field accesses, or binding names (none of those parent kinds are
+/// value positions), and for identifiers that shadow a local — the
+/// conservative guard that keeps fn-as-value from accusing every identifier
+/// (tethys-ygjx). Value refs that resolve to no in-crate symbol are dropped
+/// after Pass-2 (`Index::drop_unresolved_value_refs`).
+fn value_position_ref(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    local_bindings: Option<&HashSet<String>>,
+    containing_span: Option<Span>,
+) -> Option<ExtractedReference> {
+    use node_kinds::{ARGUMENTS, IDENTIFIER, LET_DECLARATION, RETURN_EXPRESSION};
+
+    // Sanity hint: the sole caller (the `IDENTIFIER` arm) only passes
+    // identifier nodes. `debug_assert!` (not a runtime guard) is right because
+    // this is programmer error, not untrusted input.
+    debug_assert!(
+        node.kind() == IDENTIFIER,
+        "value_position_ref expects an identifier node"
+    );
+
+    let parent = node.parent()?;
+    let in_value_position = match parent.kind() {
+        ARGUMENTS | RETURN_EXPRESSION => true,
+        LET_DECLARATION => parent.child_by_field_name("value").map(|v| v.id()) == Some(node.id()),
+        _ => false,
+    };
+    if !in_value_position {
+        return None;
+    }
+
+    let Some(name) = node_text(node, content) else {
+        tracing::trace!(
+            kind = node.kind(),
+            line = node.start_position().row + 1,
+            "Failed to extract identifier text from value position, skipping"
+        );
+        return None;
+    };
+    if local_bindings.is_some_and(|b| b.contains(&name)) {
+        return None;
+    }
+
+    Some(ExtractedReference {
+        name,
+        kind: ExtractedReferenceKind::Value,
+        line: node.start_position().row as u32 + 1,
+        column: node.start_position().column as u32 + 1,
+        path: None,
+        containing_symbol_span: containing_span,
+    })
+}
+
+/// Collect the names bound as locals anywhere in a `function_item` body:
+/// parameters, `let` bindings, `for` and closure patterns, and `if/while let`
+/// / `match` patterns. A deliberate whole-function over-approximation (not
+/// block-precise scoping): a name bound anywhere in the function suppresses
+/// all its value-position uses there. Conservative by design — "suppressions,
+/// not accusations" (tethys-ygjx). Nested `function_item`s recompute their own
+/// set, so an inner function's uses are scoped to the inner function.
+fn collect_local_bindings(fn_node: &tree_sitter::Node, content: &[u8]) -> HashSet<String> {
+    let mut names = HashSet::new();
+    collect_bindings_recursive(fn_node, content, &mut names);
+    names
+}
+
+fn collect_bindings_recursive(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    names: &mut HashSet<String>,
+) {
+    use node_kinds::{
+        CLOSURE_PARAMETERS, FOR_EXPRESSION, LET_CONDITION, LET_DECLARATION, MATCH_PATTERN,
+        PARAMETER, STRUCT_PATTERN, TUPLE_STRUCT_PATTERN,
+    };
+    match node.kind() {
+        // These carry the bound pattern in a `pattern` field.
+        PARAMETER | LET_DECLARATION | FOR_EXPRESSION => {
+            if let Some(pattern) = node.child_by_field_name("pattern") {
+                collect_pattern_idents(&pattern, content, names);
+            }
+        }
+        // These are (or directly contain) the binding pattern; harvest leaves.
+        // For `let_condition`/`match_pattern` this over-harvests — it also
+        // picks up variant names (`Some`) and guard/value sub-expressions
+        // (`maybe` in `if let Some(y) = maybe`). Harmless: extra names only
+        // *over-suppress* value refs, never fabricate them ("suppressions,
+        // not accusations").
+        CLOSURE_PARAMETERS | LET_CONDITION | MATCH_PATTERN | TUPLE_STRUCT_PATTERN
+        | STRUCT_PATTERN => {
+            collect_pattern_idents(node, content, names);
+        }
+        _ => {}
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_bindings_recursive(&child, content, names);
+    }
+}
+
+/// Insert every `identifier` leaf under a pattern node — the names it binds.
+fn collect_pattern_idents(node: &tree_sitter::Node, content: &[u8], names: &mut HashSet<String>) {
+    if node.kind() == node_kinds::IDENTIFIER {
+        if let Some(name) = node_text(node, content) {
+            names.insert(name);
+        }
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_pattern_idents(&child, content, names);
     }
 }
 
@@ -2692,5 +2865,74 @@ pub enum E {
         );
         let attr_names: Vec<&str> = cause.attributes.iter().map(|a| a.name.as_str()).collect();
         assert_eq!(attr_names, vec!["source"]);
+    }
+
+    // === fn-as-value reference extraction (tethys-ygjx) ===
+
+    fn value_refs(code: &str) -> Vec<ExtractedReference> {
+        let tree = parse_rust(code);
+        extract_references(&tree, code.as_bytes())
+            .into_iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::Value)
+            .collect()
+    }
+
+    #[test]
+    fn collect_local_bindings_covers_all_binding_forms() {
+        // Every binding form must land in the set, or fn-as-value over-reports
+        // (the `sym` for-loop leak the probe caught without for/closure/match).
+        let code = "fn f(param: i32) {\n\
+                    let (a, b) = pair();\n\
+                    for sym in items {}\n\
+                    let _g = xs.iter().map(|closurearg| closurearg);\n\
+                    if let Some(y) = maybe {}\n\
+                    match m { Named(inner) => {} }\n\
+                    }";
+        let tree = parse_rust(code);
+        let func = tree.root_node().child(0).expect("function_item");
+        let names = collect_local_bindings(&func, code.as_bytes());
+        for expected in ["param", "a", "b", "sym", "closurearg", "y", "inner"] {
+            assert!(
+                names.contains(expected),
+                "missing binding {expected}: {names:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn value_ref_emitted_for_fn_as_arg() {
+        let refs = value_refs("fn caller() { items.iter().map(row_like).collect(); }");
+        assert_eq!(refs.len(), 1, "expected one value ref: {refs:?}");
+        assert_eq!(refs[0].name, "row_like");
+    }
+
+    #[test]
+    fn value_ref_emitted_for_let_binding() {
+        let refs = value_refs("fn caller() { let g = target_fn; }");
+        assert_eq!(refs.len(), 1, "expected one value ref: {refs:?}");
+        assert_eq!(refs[0].name, "target_fn");
+    }
+
+    #[test]
+    fn value_ref_suppressed_for_shadowed_local() {
+        // `ctx` is a parameter; passing it by value must NOT become a value
+        // ref even though a same-named symbol may exist elsewhere (AC #4).
+        let refs = value_refs("fn caller(ctx: Context) { helper(ctx); }");
+        assert!(
+            refs.is_empty(),
+            "shadowed local must be suppressed: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn macro_token_identifier_not_emitted_as_value() {
+        // Category 2 is out of scope (tethys-8ym0): identifiers inside a macro
+        // token tree must not become value refs (MACRO_INVOCATION returns
+        // early, so the token tree is never walked).
+        let refs = value_refs("fn caller() { dbg!(target_fn); }");
+        assert!(
+            refs.is_empty(),
+            "macro token must not be a value ref: {refs:?}"
+        );
     }
 }

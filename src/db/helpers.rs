@@ -88,23 +88,18 @@ pub(crate) fn parse_visibility(s: &str) -> rusqlite::Result<Visibility> {
 
 /// Parse a reference kind string from the database.
 ///
-/// Returns an error for unrecognized values, indicating possible database corruption.
+/// Returns an error for unrecognized values, indicating possible database
+/// corruption. Delegates to [`ReferenceKind::parse`] so the string mapping
+/// lives in exactly one place — a new variant added there (e.g. `value`,
+/// tethys-ygjx) is recognized here automatically.
 pub(crate) fn parse_reference_kind(s: &str) -> rusqlite::Result<ReferenceKind> {
-    match s {
-        "import" => Ok(ReferenceKind::Import),
-        "call" => Ok(ReferenceKind::Call),
-        "type" => Ok(ReferenceKind::Type),
-        "inherit" => Ok(ReferenceKind::Inherit),
-        "construct" => Ok(ReferenceKind::Construct),
-        "field_access" => Ok(ReferenceKind::FieldAccess),
-        "macro" => Ok(ReferenceKind::Macro),
-        "reexport" => Ok(ReferenceKind::Reexport),
-        unknown => Err(rusqlite::Error::FromSqlConversionFailure(
+    ReferenceKind::parse(s).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
             0,
             rusqlite::types::Type::Text,
-            format!("Unknown reference kind '{unknown}' in database. Database may be corrupted or from a newer version.").into(),
-        )),
-    }
+            format!("Unknown reference kind '{s}' in database. Database may be corrupted or from a newer version.").into(),
+        )
+    })
 }
 
 /// Build a span from start and optional end positions.

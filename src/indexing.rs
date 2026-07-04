@@ -485,6 +485,18 @@ impl Tethys {
             Vec::new()
         };
 
+        // Drop value refs (tethys-ygjx) that never resolved to an in-crate
+        // symbol — they name locals/externals and would otherwise pad the refs
+        // table. Must run after all resolution passes, before call-edge
+        // population reads the refs table.
+        let dropped_value_refs = self.db.drop_unresolved_value_refs()?;
+        if dropped_value_refs > 0 {
+            tracing::debug!(
+                dropped = dropped_value_refs,
+                "Dropped unresolved value refs"
+            );
+        }
+
         // Populate pre-computed call graph edges after all resolution passes
         self.db.clear_all_call_edges()?;
         let call_edges_count = self.db.populate_call_edges()?;

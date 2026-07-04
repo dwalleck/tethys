@@ -83,6 +83,29 @@ impl Index {
         Ok(conn.last_insert_rowid())
     }
 
+    /// Delete `value`-kind references that resolved to no in-crate symbol.
+    ///
+    /// Fn-as-value extraction (tethys-ygjx) emits a speculative `Value` ref for
+    /// every non-locally-bound value-position identifier; most name locals or
+    /// externals that Pass-2 cannot resolve. Once resolution is complete an
+    /// unresolved value ref is noise — dropping it keeps `reference_name`
+    /// queries clean and avoids padding the refs table with hundreds of dead
+    /// rows. Call ONLY after all resolution passes finish; calling earlier
+    /// would delete refs that are merely not-yet-resolved. Nothing enforces
+    /// this ordering — it is relied on by placing the single call site after
+    /// all resolution passes in the indexing pipeline.
+    ///
+    /// Returns the number of rows deleted.
+    pub fn drop_unresolved_value_refs(&self) -> Result<usize> {
+        let conn = self.connection()?;
+        let deleted = conn.execute(
+            "DELETE FROM refs WHERE kind = 'value' AND symbol_id IS NULL",
+            [],
+        )?;
+        trace!(deleted, "Dropped unresolved value refs");
+        Ok(deleted)
+    }
+
     /// Get all unresolved references (where `symbol_id` is NULL).
     ///
     /// These references need to be resolved in Pass 2 by matching their
