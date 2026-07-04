@@ -27,9 +27,13 @@ oracle=$(( o_test + o_tokio + o_rstest ))
 echo "PROBE  (index):  is_test=$probe_is_test   (of which in src/: $probe_in_src)"
 echo "ORACLE (source): ~$oracle test fns (#[test] $o_test + tokio $o_tokio + rstest $o_rstest)"
 
+# Known plain-#[test] unit tests inside inline `#[cfg(test)] mod tests` blocks.
+# NOTE: proptest!-macro-generated test fns (e.g. normalize_path_is_idempotent)
+# are NOT function_item nodes and stay unindexed — that is tethys-0nar, out of
+# scope here — so they are deliberately absent from this list.
 echo "--- known unit tests (must be is_test=1 symbols after the fix) ---"
 fail=0
-for n in is_excluded_dir_allows_lib normalize_path_is_idempotent extracts_simple_function; do
+for n in is_excluded_dir_allows_lib extracts_simple_function; do
   got=$(sqlite3 "$DB" "SELECT is_test FROM symbols WHERE name='$n' LIMIT 1;")
   if [ "$got" = "1" ]; then echo "  OK   $n (is_test=1)"; else echo "  MISS $n (indexed=${got:-no})"; fail=1; fi
 done

@@ -955,6 +955,14 @@ fn extract_symbols_recursive(
             if let Some(sym) = extract_simple_definition(node, content, SymbolKind::Module) {
                 symbols.push(sym);
             }
+            // Recurse into the inline module body (`declaration_list`) so symbols
+            // declared inside `mod { … }` — including `#[cfg(test)] mod tests`
+            // unit tests — are indexed. A file-module declaration (`mod foo;`) has
+            // no body, so this loop simply finds nothing to recurse into.
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                extract_symbols_recursive(&child, content, symbols, parent_name);
+            }
         }
         _ => {
             // Recurse into children for containers we don't explicitly handle

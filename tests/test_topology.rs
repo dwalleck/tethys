@@ -578,3 +578,143 @@ fn test_func_b() {
         );
     }
 }
+
+/// Regression fence for tethys-s8hv: symbols inside inline `mod { … }` blocks
+/// (dominantly `#[cfg(test)] mod tests`) must be indexed. The extractor's
+/// `MOD_ITEM` arm previously recorded the module shell but did not recurse into
+/// its body, so unit tests, their `is_test` flag, and their reference edges were
+/// all dropped. Every prior test in this file used top-level `#[test]`, which is
+/// why the bug survived.
+mod inline_module_indexing {
+    use super::*;
+
+    #[test]
+    fn unit_test_inside_cfg_test_mod_is_indexed() {
+        let (_dir, mut tethys) = workspace_with_files(&[(
+            "src/lib.rs",
+            r#"
+pub fn production_helper() -> i32 {
+    42
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unit_test_in_mod() {
+        assert_eq!(production_helper(), 42);
+    }
+}
+"#,
+        )]);
+
+        tethys.index().expect("index failed");
+        let tests = tethys.get_test_symbols().expect("get_test_symbols failed");
+
+        assert!(
+            tests
+                .iter()
+                .any(|s| s.name == "unit_test_in_mod" && s.is_test),
+            "unit test inside `#[cfg(test)] mod tests` must be indexed with is_test=1; got: {:?}",
+            tests.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn unit_test_call_edge_attaches_to_test_symbol() {
+        let (_dir, mut tethys) = workspace_with_files(&[(
+            "src/lib.rs",
+            r#"
+pub fn production_helper() -> i32 {
+    42
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn calls_helper() {
+        let _ = production_helper();
+    }
+}
+"#,
+        )]);
+
+        tethys.index().expect("index failed");
+        // The test's call into product code must be a real graph edge. Discover
+        // the test symbol's qualified name (inline-mod qualified-name format is
+        // not hardcoded here) and confirm production_helper is forward-reachable.
+        let test_sym = tethys
+            .get_test_symbols()
+            .expect("get_test_symbols failed")
+            .into_iter()
+            .find(|s| s.name == "calls_helper")
+            .expect("calls_helper must be an indexed test symbol");
+        let reachable = tethys
+            .get_forward_reachable(&test_sym.qualified_name, Some(2))
+            .expect("get_forward_reachable failed");
+        assert!(
+            reachable
+                .reachable
+                .iter()
+                .any(|r| r.target.name == "production_helper"),
+            "unit test's call edge to production_helper must attach; reachable: {:?}",
+            reachable
+                .reachable
+                .iter()
+                .map(|r| &r.target.name)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn nested_inline_modules_are_indexed() {
+        let (_dir, mut tethys) = workspace_with_files(&[(
+            "src/lib.rs",
+            r#"
+mod outer {
+    pub mod inner {
+        #[test]
+        fn deep_test() {
+            assert!(true);
+        }
+    }
+}
+"#,
+        )]);
+
+        tethys.index().expect("index failed");
+        let tests = tethys.get_test_symbols().expect("get_test_symbols failed");
+        assert!(
+            tests.iter().any(|s| s.name == "deep_test" && s.is_test),
+            "test in a doubly-nested inline module must be indexed; got: {:?}",
+            tests.iter().map(|s| &s.name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn empty_inline_module_does_not_break_indexing() {
+        // An empty inline module plus a top-level fn must index without panic.
+        let (_dir, mut tethys) = workspace_with_files(&[(
+            "src/lib.rs",
+            r#"
+mod empty {}
+
+pub fn top_level() -> i32 {
+    1
+}
+"#,
+        )]);
+
+        tethys
+            .index()
+            .expect("index of workspace with empty inline module failed");
+        let syms = tethys.search_symbols("top_level").expect("search failed");
+        assert!(
+            syms.iter().any(|s| s.name == "top_level"),
+            "top-level fn must still be indexed alongside an empty inline module"
+        );
+    }
+}
