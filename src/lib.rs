@@ -59,8 +59,8 @@ pub use types::{
     IndexOptions, IndexStats, IndexUpdate, IndexedFile, Language, LspCompletedSession, LspOutcome,
     LspSessionResult, Package, PackageDependency, PackageId, PackageSource, PanicKind, PanicPoint,
     Parameter, ParameterKind, ReachabilityDirection, ReachabilityResult, ReachablePath, Reference,
-    ReferenceKind, Span, StalenessReport, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp,
-    Visibility,
+    ReferenceKind, ResolutionStrategy, Span, StalenessReport, Symbol, SymbolId, SymbolKind,
+    UnresolvedRefForLsp, Visibility,
 };
 pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 

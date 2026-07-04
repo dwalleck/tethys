@@ -317,6 +317,57 @@ impl SymbolKind {
     }
 }
 
+/// Which resolution mechanism bound a reference (ADR-0003, tethys-9z7i).
+///
+/// Stored as `snake_case` text in `refs.strategy` at bind time via
+/// [`Self::as_str`] — the string IS the wire format; NULL in the column
+/// means unresolved ("unbound" is not a strategy). Confidence bands
+/// derive from this label in the query surface, never here — the label
+/// is factual (which code path ran), so remeasurement can re-band
+/// without re-indexing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ResolutionStrategy {
+    /// Pass 1: insert-time same-file maps (including the macro-name map).
+    SameFile,
+    /// Pass 2: an explicit `use`/`using` import named the item.
+    ExplicitImport,
+    /// Pass 2: Rust glob-import arm (stored order, first match wins).
+    GlobImport,
+    /// Pass 2: C# using/static-member union arm (unique across all usings).
+    ImportUnion,
+    /// Pass 2 fallback: qualified name matched `symbols.qualified_name`.
+    QualifiedExact,
+    /// Pass 2 fallback: simple name scoped to the caller's crate prefix.
+    SameCrate,
+    /// Pass 2 fallback: simple name matched workspace-wide, unscoped —
+    /// with the qualified-module fallback, the arm set that fabricates
+    /// the tethys-53iv/msn0/3i35 phantom class.
+    UniqueWorkspace,
+    /// Pass 2: prefix-split module enumeration (rivets-044i).
+    QualifiedModuleFallback,
+    /// Pass 3: LSP `goto_definition` refinement.
+    Lsp,
+}
+
+impl ResolutionStrategy {
+    /// The `snake_case` wire spelling stored in `refs.strategy` (ADR-0003's
+    /// enum table, verbatim).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SameFile => "same_file",
+            Self::ExplicitImport => "explicit_import",
+            Self::GlobImport => "glob_import",
+            Self::ImportUnion => "import_union",
+            Self::QualifiedExact => "qualified_exact",
+            Self::SameCrate => "same_crate",
+            Self::UniqueWorkspace => "unique_workspace",
+            Self::QualifiedModuleFallback => "qualified_module_fallback",
+            Self::Lsp => "lsp",
+        }
+    }
+}
+
 /// Visibility levels, normalized across languages.
 ///
 /// Rust and C# have different visibility models; this enum represents the
@@ -1370,6 +1421,30 @@ pub struct DatabaseStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// tethys-9z7i B1: the wire spellings are ADR-0003's enum table,
+    /// verbatim — a variant/string drift breaks every fence that pins
+    /// stored values, so pin them here first.
+    #[test]
+    fn resolution_strategy_wire_spellings_match_adr() {
+        let expected = [
+            (ResolutionStrategy::SameFile, "same_file"),
+            (ResolutionStrategy::ExplicitImport, "explicit_import"),
+            (ResolutionStrategy::GlobImport, "glob_import"),
+            (ResolutionStrategy::ImportUnion, "import_union"),
+            (ResolutionStrategy::QualifiedExact, "qualified_exact"),
+            (ResolutionStrategy::SameCrate, "same_crate"),
+            (ResolutionStrategy::UniqueWorkspace, "unique_workspace"),
+            (
+                ResolutionStrategy::QualifiedModuleFallback,
+                "qualified_module_fallback",
+            ),
+            (ResolutionStrategy::Lsp, "lsp"),
+        ];
+        for (variant, wire) in expected {
+            assert_eq!(variant.as_str(), wire, "spelling for {variant:?}");
+        }
+    }
 
     #[test]
     fn language_from_extension_recognizes_rust() {
