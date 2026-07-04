@@ -1,0 +1,44 @@
+#!/bin/sh
+# commit-msg hook — enforce the SAME conventional-commit regex CI enforces
+# (.github/workflows/ci.yml), at commit time, so a scope violation fails here
+# (free to fix) instead of after a push (costs a rebase + force-push).
+#
+# Source of truth: this file. cargo-husky (a dev-dependency) copies it into
+# .git/hooks/commit-msg on the first `cargo test`/build, so every clone gets
+# it automatically once dev-deps are built. No per-clone setup step.
+#
+# POSIX sh only (no bashisms) — cargo-husky may run it under /bin/sh.
+# Catches exactly what CI rejects:
+#   feat(db,lib): ...  -> FAIL (one scope only, no commas)
+#   chore(9z7i): ...   -> FAIL (scope must start with a lowercase letter)
+#   Feat(db): ...      -> FAIL (type must be lowercase)
+set -eu
+
+msg_file="$1"
+# First non-blank, non-comment line = the subject.
+subject=$(grep -v '^#' "$msg_file" | grep -v '^[[:space:]]*$' | head -n1 || true)
+
+# Merge/revert/fixup/squash subjects are git-generated — exempt.
+case "$subject" in
+  Merge*|Revert*|fixup!*|squash!*) exit 0 ;;
+esac
+
+if printf '%s\n' "$subject" | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\([a-z][a-z0-9-]*\))?!?: .{3,}'; then
+  exit 0
+fi
+
+cat >&2 <<'EOF'
+❌ Commit message rejected.
+
+Expected: <type>[(scope)][!]: <description of 3+ chars>
+  types : feat fix docs style refactor perf test build ci chore
+  scope : optional, ONE only, lowercase-letter-first, [a-z0-9-] (no commas)
+
+Examples:
+  ✅ feat(db): add incremental reindex
+  ✅ fix: guard against empty arm list
+  ❌ feat(db,lib): ...   (one scope only, no commas)
+  ❌ chore(9z7i): ...    (scope must start with a letter)
+EOF
+printf '\n   subject was: %s\n' "$subject" >&2
+exit 1

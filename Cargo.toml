@@ -51,6 +51,8 @@ rstest = "0.26"
 proptest = "1.6"
 criterion = { version = "0.5", features = ["html_reports"] }
 tracing-test = "0.2"
+# Installs .cargo-husky/hooks/* into .git/hooks on build (commit-msg linting).
+cargo-husky = { version = "1", default-features = false, features = ["user-hooks"] }
 
 [[bench]]
 name = "indexing"

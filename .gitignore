@@ -16,8 +16,8 @@
 *~
 .DS_Store
 
-# Cargo-husky user hooks directory
-/.cargo-husky/
+# Cargo-husky user hooks (.cargo-husky/hooks/) ARE tracked — they are the
+# source cargo-husky copies into .git/hooks on build. Do not ignore them.
 
 # Beads left-side files (internal state)
 .beads/beads.left.jsonl
