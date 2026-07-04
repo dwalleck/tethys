@@ -75,6 +75,12 @@ discover on its own:
 - Watch CI per PR (Monitor; emit on pass AND fail). Same CI quirks as
   `/ship` §5: commitlint single-scope, push/PR twin runs, auto-merge
   disabled.
+- **Freeze main pushes while the queue drains**: every push to origin/main
+  (including your own tracker chore commits) flips every queued PR to
+  BEHIND and forces another update-branch + full CI cycle. Batch ALL
+  tracker mutations as LOCAL commits and push once at close-out, after
+  the last merge. (Learned the slow way: a mid-queue epic close-out
+  added two full CI cycles.)
 - Merge serially (`gh pr merge --merge`), pulling main between merges.
   Small bugs rarely collide; if a later PR conflicts after an earlier
   merge, rebase it (or hand it back to a subagent to rebase) rather than
