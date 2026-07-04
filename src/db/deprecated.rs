@@ -1,12 +1,13 @@
-//! Deprecated-callers analysis queries (tethys-jdly).
+//! Deprecated-callers analysis queries (tethys-jdly; C# parity tethys-haw5).
 //!
-//! Lists symbols carrying `#[deprecated]` with `since`/`note` parsed from
-//! the raw `attributes.args` text, and joins each to its reference sites,
-//! tiered by resolution trustworthiness. Sites are refs (calls, type uses) —
-//! `use` statements importing a deprecated item are excluded by definition:
-//! they vanish with their call sites during migration, and a call-less
-//! deprecated import is already flagged by unused-imports. Design and
-//! falsification table: `.tethys-jdly/design.md`.
+//! Lists symbols carrying Rust `#[deprecated]` (`since`/`note` parsed from
+//! the raw `attributes.args` text) or C# `[Obsolete]` (message/error flag),
+//! and joins each to its reference sites, tiered by resolution
+//! trustworthiness. Sites are refs (calls, type uses) — `use` statements
+//! importing a deprecated item are excluded by definition: they vanish with
+//! their call sites during migration, and a call-less deprecated import is
+//! already flagged by unused-imports. Design and falsification tables:
+//! `.tethys-jdly/design.md`, `.tethys-haw5/design.md`.
 
 use serde::Serialize;
 use tracing::trace;
@@ -14,7 +15,12 @@ use tracing::trace;
 use super::Index;
 use crate::error::Result;
 
-/// A symbol carrying a `#[deprecated]` attribute.
+/// A symbol carrying a Rust `#[deprecated]` or C# `[Obsolete]` attribute.
+///
+/// The JSON key set is identical across languages (design C10): `since` is
+/// always null for C#, `error` always null for Rust — both serialize as
+/// explicit nulls rather than vanishing, so downstream consumers see one
+/// stable shape.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DeprecatedSymbol {
     /// Internal symbol id, used to join reference sites; not part of output.
@@ -28,10 +34,15 @@ pub struct DeprecatedSymbol {
     pub file: String,
     /// 1-based declaration line.
     pub line: u32,
-    /// `since` value from the attribute, when present.
+    /// `since` value from the attribute, when present (Rust only).
     pub since: Option<String>,
-    /// `note` value (or the whole name-value string) from the attribute.
+    /// `note` value from the attribute — Rust `note = ".."` / name-value
+    /// string, or the C# `[Obsolete]` message.
     pub note: Option<String>,
+    /// C# `[Obsolete]` error flag: `Some(true)` means use sites are compile
+    /// errors, not warnings. `None` for Rust and for `[Obsolete]` without a
+    /// bool argument.
+    pub error: Option<bool>,
 }
 
 /// Confidence tier for a reported deprecated-use site (design C5).
@@ -94,26 +105,45 @@ pub struct DeprecatedFinding {
     pub sites: Vec<ReferenceSite>,
 }
 
+/// SQL literal listing every attribute name that marks a symbol deprecated:
+/// Rust `#[deprecated]` plus the four C# `[Obsolete]` spellings. Attribute
+/// names are stored as written by the extractors; spelling variants are
+/// matched here at query time (design C5 — exact names, never substrings,
+/// so a custom `NotObsolete` attribute can't false-positive).
+const DEPRECATION_ATTR_NAMES_SQL: &str = "('deprecated', 'Obsolete', 'ObsoleteAttribute', \
+     'System.Obsolete', 'System.ObsoleteAttribute')";
+
 impl Index {
-    /// All symbols carrying a `#[deprecated]` attribute, ordered by
-    /// (file, line, name) for deterministic output.
+    /// All symbols carrying a Rust `#[deprecated]` or C# `[Obsolete]`
+    /// attribute, ordered by (file, line, name) for deterministic output.
     ///
-    /// Detection is kind-agnostic: any symbol row joined by an attribute row
-    /// named `deprecated` qualifies (fn, method, struct, enum variant, ...).
+    /// Detection is kind-agnostic: any symbol row joined by a matching
+    /// attribute row qualifies (fn, method, struct, enum variant, class, ...).
+    /// Args parsing dispatches on the attribute name — `deprecated` uses the
+    /// Rust key-value grammar, the `Obsolete` spellings use the C# positional/
+    /// named grammar. Both parsers are total, so a mis-dispatch degrades to
+    /// nulls, never to wrong attribution.
     pub fn get_deprecated_symbols(&self) -> Result<Vec<DeprecatedSymbol>> {
         trace!("Querying deprecated symbols");
         let conn = self.connection()?;
-        let mut stmt = conn.prepare(
-            "SELECT s.id, s.name, s.kind, f.path, s.line, a.args
+        let mut stmt = conn.prepare(&format!(
+            "SELECT s.id, s.name, s.kind, f.path, s.line, a.args, a.name
              FROM attributes a
              JOIN symbols s ON s.id = a.symbol_id
              JOIN files f ON f.id = s.file_id
-             WHERE a.name = 'deprecated'
+             WHERE a.name IN {DEPRECATION_ATTR_NAMES_SQL}
              ORDER BY f.path, s.line, s.name",
-        )?;
+        ))?;
         let rows = stmt.query_map([], |row| {
             let args: Option<String> = row.get(5)?;
-            let (since, note) = parse_deprecation_args(args.as_deref());
+            let attr_name: String = row.get(6)?;
+            let (since, note, error) = if attr_name == "deprecated" {
+                let (since, note) = parse_deprecation_args(args.as_deref());
+                (since, note, None)
+            } else {
+                let (note, error) = parse_obsolete_args(args.as_deref());
+                (None, note, error)
+            };
             Ok(DeprecatedSymbol {
                 symbol_id: row.get(0)?,
                 name: row.get(1)?,
@@ -122,6 +152,7 @@ impl Index {
                 line: row.get(4)?,
                 since,
                 note,
+                error,
             })
         })?;
         Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
@@ -149,16 +180,16 @@ impl Index {
         // Names shared with at least one NON-deprecated symbol: sites on
         // these names tier Maybe (a phantom binding is possible). One
         // statement, no per-symbol round-trips.
-        let mut ambiguous_stmt = conn.prepare(
+        let mut ambiguous_stmt = conn.prepare(&format!(
             "WITH deprecated_ids AS (SELECT symbol_id FROM attributes
-                                     WHERE name = 'deprecated')
+                                     WHERE name IN {DEPRECATION_ATTR_NAMES_SQL})
              SELECT DISTINCT s2.name
              FROM symbols s2
              WHERE s2.name IN (SELECT s.name
                                FROM symbols s
                                JOIN deprecated_ids d ON d.symbol_id = s.id)
                AND s2.id NOT IN (SELECT symbol_id FROM deprecated_ids)",
-        )?;
+        ))?;
         let ambiguous_names: std::collections::HashSet<String> = ambiguous_stmt
             .query_map([], |row| row.get::<_, String>(0))?
             .collect::<std::result::Result<_, _>>()?;
@@ -300,14 +331,6 @@ pub(crate) fn parse_deprecation_args(args: Option<&str>) -> (Option<String>, Opt
 /// (same posture as Rust `r#".."#` in [`parse_deprecation_args`]). The
 /// first bool literal (positional or `error:`) becomes the error flag.
 /// Total function: unrecognized shapes degrade to `(None, None)`.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "production caller lands with the haw5 S3 detection dispatch; \
-                  this expect warns if S3 forgets to remove it"
-    )
-)]
 pub(crate) fn parse_obsolete_args(args: Option<&str>) -> (Option<String>, Option<bool>) {
     let Some(raw) = args else {
         return (None, None);
@@ -458,6 +481,182 @@ mod tests {
             assert_eq!(
                 &got.1, note,
                 "note mismatch for input {input:?} (got {got:?})"
+            );
+        }
+    }
+
+    /// haw5 plan S3 stress fixture — attribute rows inserted DIRECTLY (no C#
+    /// parsing), so this test is independent of the extractor. Kills:
+    /// substring matching (`NotObsolete` decoy), exact-'Obsolete'-only
+    /// matching (three variant spellings), parser dispatch corrupting Rust
+    /// since/note, serde skipping the error key.
+    #[test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "the fixture IS the test: every spelling and decoy asserted \
+                  against one directly-inserted attribute set"
+    )]
+    fn detects_obsolete_spellings_and_decoys() {
+        use crate::db::{Index, SymbolData};
+        use crate::languages::common::ExtractedAttribute;
+        use crate::types::{Language, SymbolKind, Visibility};
+        use std::path::Path;
+
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut index = Index::open(&dir.path().join("idx.db")).expect("open index");
+
+        let attr = |name: &str, args: Option<&str>, line: u32| {
+            vec![ExtractedAttribute {
+                name: name.to_string(),
+                args: args.map(String::from),
+                line,
+            }]
+        };
+        // (symbol name, attribute rows) — one symbol per spelling + decoys.
+        let rows = [
+            ("cs_bare", attr("Obsolete", None, 1)),
+            (
+                "cs_attr",
+                attr("ObsoleteAttribute", Some(r#""m", true"#), 2),
+            ),
+            ("cs_sys", attr("System.Obsolete", Some(r#""x""#), 3)),
+            (
+                "cs_sysattr",
+                attr("System.ObsoleteAttribute", Some("error: true"), 4),
+            ),
+            ("decoy_custom", attr("NotObsolete", Some(r#""boom""#), 5)),
+            ("decoy_marker", attr("Serializable", None, 6)),
+        ];
+        let symbols: Vec<SymbolData<'_>> = rows
+            .iter()
+            .enumerate()
+            .map(|(i, (name, attrs))| SymbolData {
+                name,
+                module_path: "",
+                qualified_name: name,
+                kind: SymbolKind::Function,
+                line: u32::try_from(i).expect("small") + 1,
+                column: 1,
+                span: None,
+                signature: None,
+                visibility: Visibility::Public,
+                parent_symbol_id: None,
+                is_test: false,
+                attributes: attrs,
+            })
+            .collect();
+        index
+            .index_parsed_file_atomic(
+                Path::new("src/Legacy.cs"),
+                Language::CSharp,
+                1,
+                1,
+                None,
+                &symbols,
+                &[],
+                &[],
+            )
+            .expect("write C# file");
+
+        let rust_attrs = attr("deprecated", Some(r#"since = "1.0", note = "n""#), 1);
+        let rust_sym = SymbolData {
+            name: "rs_old",
+            module_path: "",
+            qualified_name: "rs_old",
+            kind: SymbolKind::Function,
+            line: 1,
+            column: 1,
+            span: None,
+            signature: None,
+            visibility: Visibility::Public,
+            parent_symbol_id: None,
+            is_test: false,
+            attributes: &rust_attrs,
+        };
+        index
+            .index_parsed_file_atomic(
+                Path::new("src/old.rs"),
+                Language::Rust,
+                1,
+                1,
+                None,
+                &[rust_sym],
+                &[],
+                &[],
+            )
+            .expect("write Rust file");
+
+        let found = index.get_deprecated_symbols().expect("query");
+        let names: Vec<&str> = found.iter().map(|s| s.name.as_str()).collect();
+        // Ordered by (file, line, name): Legacy.cs rows then old.rs.
+        assert_eq!(
+            names,
+            ["cs_bare", "cs_attr", "cs_sys", "cs_sysattr", "rs_old"],
+            "exactly the four Obsolete spellings + Rust deprecated; decoys never"
+        );
+
+        let by_name = |n: &str| found.iter().find(|s| s.name == n).expect("present");
+        let cs_bare = by_name("cs_bare");
+        assert_eq!(
+            (
+                cs_bare.since.as_deref(),
+                cs_bare.note.as_deref(),
+                cs_bare.error
+            ),
+            (None, None, None)
+        );
+        let cs_attr = by_name("cs_attr");
+        assert_eq!(
+            (
+                cs_attr.since.as_deref(),
+                cs_attr.note.as_deref(),
+                cs_attr.error
+            ),
+            (None, Some("m"), Some(true))
+        );
+        let cs_sys = by_name("cs_sys");
+        assert_eq!(
+            (
+                cs_sys.since.as_deref(),
+                cs_sys.note.as_deref(),
+                cs_sys.error
+            ),
+            (None, Some("x"), None)
+        );
+        let cs_sysattr = by_name("cs_sysattr");
+        assert_eq!(
+            (
+                cs_sysattr.since.as_deref(),
+                cs_sysattr.note.as_deref(),
+                cs_sysattr.error
+            ),
+            (None, None, Some(true))
+        );
+        // Rust dispatch untouched by the C# parser (kills dispatch corruption).
+        let rs_old = by_name("rs_old");
+        assert_eq!(
+            (
+                rs_old.since.as_deref(),
+                rs_old.note.as_deref(),
+                rs_old.error
+            ),
+            (Some("1.0"), Some("n"), None)
+        );
+
+        // Design C10: identical key set across languages, error serialized
+        // even when null.
+        for symbol in &found {
+            let value = serde_json::to_value(symbol).expect("serialize");
+            let mut keys: Vec<&str> = value
+                .as_object()
+                .expect("object")
+                .keys()
+                .map(String::as_str)
+                .collect();
+            keys.sort_unstable();
+            assert_eq!(
+                keys,
+                ["error", "file", "kind", "line", "name", "note", "since"]
             );
         }
     }

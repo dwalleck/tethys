@@ -82,13 +82,24 @@ fn one_line(text: &str) -> String {
     }
 }
 
-/// Human-readable deprecation qualifier, e.g. `(since 4.0.0 — Use x)`.
-fn deprecation_meta(since: Option<&str>, note: Option<&str>) -> String {
-    match (since, note) {
-        (Some(s), Some(n)) => format!("  (since {s} — {})", one_line(n)),
-        (Some(s), None) => format!("  (since {s})"),
-        (None, Some(n)) => format!("  ({})", one_line(n)),
-        (None, None) => String::new(),
+/// Human-readable deprecation qualifier, e.g. `(since 4.0.0 — Use x)` for
+/// Rust or `(error — Use New)` for a C# `[Obsolete("Use New", true)]`.
+/// Rust output is unchanged by the `error` piece: the flag is C#-only.
+fn deprecation_meta(since: Option<&str>, note: Option<&str>, error: Option<bool>) -> String {
+    let mut pieces = Vec::new();
+    if error == Some(true) {
+        pieces.push("error".to_string());
+    }
+    if let Some(s) = since {
+        pieces.push(format!("since {s}"));
+    }
+    if let Some(n) = note {
+        pieces.push(one_line(n));
+    }
+    if pieces.is_empty() {
+        String::new()
+    } else {
+        format!("  ({})", pieces.join(" — "))
     }
 }
 
@@ -144,7 +155,12 @@ fn render_human(findings: &[DeprecatedFinding]) -> String {
             symbol.name.yellow().bold(),
             symbol.file,
             symbol.line,
-            deprecation_meta(symbol.since.as_deref(), symbol.note.as_deref()).dimmed()
+            deprecation_meta(
+                symbol.since.as_deref(),
+                symbol.note.as_deref(),
+                symbol.error
+            )
+            .dimmed()
         );
         let _ = writeln!(buf, "{}", "-".repeat(62).dimmed());
         for site in &finding.sites {

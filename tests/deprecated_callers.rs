@@ -379,11 +379,13 @@ fn empty_workspace_reports_nothing() {
     );
 }
 
-/// C11: C# `[Obsolete]` symbols yield no findings (attribute extraction is
-/// tethys-haw5's scope) while Rust findings in the same mixed workspace
-/// still appear — the C# file must neither surface nor abort the analysis.
+/// C11 (flipped by tethys-haw5): a C# `[Obsolete]` class surfaces alongside
+/// Rust findings in the same mixed workspace, with the Obsolete message as
+/// its note and the identical JSON field set. This test was the pre-haw5
+/// gap fence ("C# yields no findings"); the haw5 design's invariant sweep
+/// declared the flip intended.
 #[test]
-fn csharp_obsolete_out_of_scope_in_mixed_workspace() {
+fn csharp_obsolete_detected_in_mixed_workspace() {
     let (_dir, mut tethys) = workspace_with_files(&[
         (
             "src/lib.rs",
@@ -399,18 +401,29 @@ fn csharp_obsolete_out_of_scope_in_mixed_workspace() {
         .get_deprecated_callers()
         .expect("deprecated-callers query failed");
 
+    // Ordered by (file, line, name): Legacy.cs precedes src/lib.rs.
     assert_eq!(
         findings.len(),
-        1,
-        "only the Rust symbol should surface; got {:?}",
+        2,
+        "both languages surface in one report; got {:?}",
         findings
             .iter()
             .map(|f| (&f.symbol.name, &f.symbol.file))
             .collect::<Vec<_>>()
     );
-    assert_eq!(findings[0].symbol.name, "old_rust");
+    let legacy = &findings[0].symbol;
+    assert_eq!(legacy.name, "LegacyService");
+    assert_eq!(legacy.file, "Legacy.cs");
+    assert_eq!(legacy.note.as_deref(), Some("use NewService"));
+    assert_eq!(legacy.since, None, "since is Rust-only");
+    assert_eq!(legacy.error, None, "no bool argument in the fixture");
+    assert!(
+        findings[0].sites.is_empty(),
+        "nothing references LegacyService in this fixture (clean verdict)"
+    );
+    assert_eq!(findings[1].symbol.name, "old_rust");
     assert_eq!(
-        findings[0].sites.len(),
+        findings[1].sites.len(),
         1,
         "the Rust call site still appears"
     );
