@@ -190,6 +190,55 @@ fn shared_name_demotes() {
     }
 }
 
+/// S9 (design C11): byte-identical JSON across a full re-index (row ids
+/// change; output must not), with two same-line symbols forcing the name
+/// tie-break to actually fire and one finding carrying TWO demotions
+/// (shared-name + root-reachable) so demotion-vec ordering is exercised.
+#[test]
+fn json_deterministic_across_reindex_with_tie_break() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "mod other;\npub struct Aa; pub struct Bb;\npub fn multi() {}\n",
+        ),
+        ("src/other.rs", "fn multi() {}\n"),
+    ]);
+    tethys.index().expect("first index failed");
+    let first =
+        serde_json::to_string_pretty(&tethys.get_visibility_candidates(false).expect("query 1"))
+            .expect("serialize 1");
+
+    tethys.index().expect("re-index failed");
+    let second =
+        serde_json::to_string_pretty(&tethys.get_visibility_candidates(false).expect("query 2"))
+            .expect("serialize 2");
+    assert_eq!(first, second, "re-index must not change report bytes");
+
+    let findings = tethys.get_visibility_candidates(false).expect("query 3");
+    let same_line: Vec<(&str, u32)> = findings
+        .iter()
+        .filter(|f| f.kind == "struct")
+        .map(|f| (f.name.as_str(), f.line))
+        .collect();
+    assert_eq!(
+        same_line,
+        [("Aa", 2), ("Bb", 2)],
+        "same-line structs ordered by the name tie-break"
+    );
+    let multi = findings
+        .iter()
+        .find(|f| f.name == "multi")
+        .expect("multi present");
+    assert_eq!(
+        multi.demotions,
+        [
+            tethys::Demotion::SharedName,
+            tethys::Demotion::RootReachable
+        ],
+        "two demotions in canonical (enum) order"
+    );
+}
+
 /// Single-package fixture for the ceiling and CLI fences: `api::exposed`
 /// behind an all-pub chain, `internal::buried` under a private mod.
 fn single_package_fixture() -> (tempfile::TempDir, tethys::Tethys) {
