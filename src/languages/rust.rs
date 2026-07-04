@@ -1303,6 +1303,11 @@ fn extract_preceding_attributes(
         match sibling.kind() {
             node_kinds::ATTRIBUTE_ITEM => {
                 if let Some(attr) = extract_attribute(&sibling, content) {
+                    // Reversed here so the final `attrs.reverse()` restores
+                    // source order: cfg_attr row first, wrapped rows after.
+                    let mut wrapped = cfg_attr_wrapped_attributes(&attr);
+                    wrapped.reverse();
+                    attrs.append(&mut wrapped);
                     attrs.push(attr);
                 }
             }
@@ -1369,6 +1374,110 @@ fn extract_attribute(attr_item: &tree_sitter::Node, content: &[u8]) -> Option<Ex
         args,
         line: attr_item.start_position().row as u32 + 1,
     })
+}
+
+/// Additional rows for attributes wrapped in `#[cfg_attr(pred, ...)]`.
+///
+/// `cfg_attr` conditionally applies the attributes in its second argument
+/// onward; storing only the `cfg_attr` row hides e.g. a conditional
+/// `deprecated` from every attribute-name-keyed query (deprecated-callers).
+/// Each wrapped attribute therefore ADDITIONALLY gets a row shaped exactly
+/// as if it were written directly, with `line` inherited from the
+/// `cfg_attr` item. No conditionality marker is stored (that refinement is
+/// deferred), and the `cfg_attr` row itself is kept unchanged. The
+/// predicate (first argument) is never emitted.
+fn cfg_attr_wrapped_attributes(attr: &ExtractedAttribute) -> Vec<ExtractedAttribute> {
+    if attr.name != "cfg_attr" {
+        return Vec::new();
+    }
+    let Some(raw) = attr.args.as_deref() else {
+        return Vec::new();
+    };
+    split_top_level_commas(raw)
+        .into_iter()
+        .skip(1) // the first cfg_attr argument is the cfg predicate
+        .filter_map(|part| parse_wrapped_attribute(part, attr.line))
+        .collect()
+}
+
+/// Parse one comma-separated `cfg_attr` element into an attribute row.
+///
+/// Mirrors the three shapes [`extract_attribute`] produces for directly
+/// written attributes: `name(args)` (one pair of outer parens stripped),
+/// `name = value` (RHS stored verbatim, quotes included), and bare `name`
+/// (`args == None`). Malformed elements (empty, or `name(...` without the
+/// closing paren) yield `None` — same degrade-don't-error posture as the
+/// rest of attribute extraction.
+fn parse_wrapped_attribute(part: &str, line: u32) -> Option<ExtractedAttribute> {
+    let part = part.trim();
+    let open = part.find('(');
+    let eq = part.find('=');
+    let (name, args) = match (open, eq) {
+        // Token-tree form `name(args)`: '(' appears before any '='.
+        (Some(o), e) if e.is_none_or(|q| o < q) => {
+            let inner = part[o + 1..].strip_suffix(')')?;
+            (part[..o].trim_end(), Some(inner.to_string()))
+        }
+        // Name-value form `name = value`.
+        (_, Some(q)) => (part[..q].trim_end(), Some(part[q + 1..].trim().to_string())),
+        // Bare marker form.
+        _ => (part, None),
+    };
+    if name.is_empty() {
+        return None;
+    }
+    Some(ExtractedAttribute {
+        name: name.to_string(),
+        args,
+        line,
+    })
+}
+
+/// Split `cfg_attr` argument text on top-level commas only: commas inside
+/// string literals or nested brackets are content, not separators
+/// (`deprecated(note = "a, b")` is one element). Sibling of the private
+/// `db::deprecated::split_top_level_commas` (string-aware only, not
+/// importable here); this one additionally tracks bracket depth because
+/// wrapped attributes carry their own parenthesized args. Backslash-escape
+/// tracking is disabled inside bare raw strings (`r"…"`), where `\` is a
+/// literal character; `r#"…"#` is not handled (same degradation as the
+/// sibling).
+fn split_top_level_commas(s: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut start = 0;
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut backslash_escapes = true;
+    let mut escaped = false;
+    let mut prev = None;
+    for (i, c) in s.char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if backslash_escapes && c == '\\' {
+                escaped = true;
+            } else if c == '"' {
+                in_string = false;
+            }
+        } else {
+            match c {
+                '"' => {
+                    in_string = true;
+                    backslash_escapes = prev != Some('r');
+                }
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth = depth.saturating_sub(1),
+                ',' if depth == 0 => {
+                    parts.push(&s[start..i]);
+                    start = i + 1;
+                }
+                _ => {}
+            }
+        }
+        prev = Some(c);
+    }
+    parts.push(&s[start..]);
+    parts
 }
 
 /// Returns true if any of the supplied attributes is a recognized test marker.
@@ -2127,7 +2236,11 @@ pub struct Foo { x: i32 }
             .expect("struct Foo should be extracted");
 
         let names: Vec<&str> = foo.attributes.iter().map(|a| a.name.as_str()).collect();
-        assert_eq!(names, vec!["derive", "cfg_attr"]);
+        assert_eq!(
+            names,
+            vec!["derive", "cfg_attr", "derive"],
+            "cfg_attr additionally emits a row for its wrapped derive"
+        );
 
         assert_eq!(
             foo.attributes[0].args.as_deref(),
@@ -2141,6 +2254,99 @@ pub struct Foo { x: i32 }
                 .is_some_and(|a| a.contains("specta::Type")),
             "cfg_attr args should contain specta::Type; got {:?}",
             foo.attributes[1].args,
+        );
+        assert_eq!(
+            foo.attributes[2].args.as_deref(),
+            Some("specta::Type"),
+            "wrapped derive row carries the wrapped attribute's own args",
+        );
+    }
+
+    #[test]
+    fn cfg_attr_wrapped_attributes_are_emitted() {
+        let code = r"
+#[cfg_attr(unix, deprecated)]
+pub fn old_api() {}
+";
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let f = symbols
+            .iter()
+            .find(|s| s.name == "old_api")
+            .expect("fn old_api should be extracted");
+
+        let cfg_attr = f
+            .attributes
+            .iter()
+            .find(|a| a.name == "cfg_attr")
+            .expect("the cfg_attr row itself should still be emitted");
+        let deprecated = f
+            .attributes
+            .iter()
+            .find(|a| a.name == "deprecated")
+            .expect("wrapped deprecated row should be emitted alongside cfg_attr");
+        assert_eq!(
+            deprecated.line, cfg_attr.line,
+            "wrapped row inherits the cfg_attr attribute's line"
+        );
+        assert!(
+            deprecated.args.is_none(),
+            "bare wrapped attribute has no args; got {:?}",
+            deprecated.args,
+        );
+        assert!(
+            f.attributes.iter().all(|a| a.name != "unix"),
+            "the cfg_attr predicate must not be emitted as an attribute; got {:?}",
+            f.attributes,
+        );
+    }
+
+    #[test]
+    fn cfg_attr_wrapped_args_survive_commas_in_strings_and_parens() {
+        let code = r#"
+#[cfg_attr(unix, deprecated(note = "n, m"))]
+pub fn old_api() {}
+"#;
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let f = symbols
+            .iter()
+            .find(|s| s.name == "old_api")
+            .expect("fn old_api should be extracted");
+
+        let deprecated = f
+            .attributes
+            .iter()
+            .find(|a| a.name == "deprecated")
+            .expect("wrapped deprecated row should be emitted alongside cfg_attr");
+        assert_eq!(
+            deprecated.args.as_deref(),
+            Some(r#"note = "n, m""#),
+            "comma inside the string literal must not split the wrapped attribute"
+        );
+    }
+
+    #[test]
+    fn cfg_attr_multiple_wrapped_attributes_each_get_a_row() {
+        let code = r#"
+#[cfg_attr(feature = "x", deprecated, must_use)]
+pub fn old_api() {}
+"#;
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let f = symbols
+            .iter()
+            .find(|s| s.name == "old_api")
+            .expect("fn old_api should be extracted");
+
+        let names: Vec<&str> = f.attributes.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["cfg_attr", "deprecated", "must_use"],
+            "each wrapped attribute gets its own row, in source order, after cfg_attr"
         );
     }
 
