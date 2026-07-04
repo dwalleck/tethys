@@ -96,6 +96,27 @@ it denotes on disk. Language-specific, behind the `ModuleResolver` trait
 An opt-in fallback pass (`--lsp`) that asks a language server (`goto_definition`)
 to bind references tree-sitter could not resolve on its own.
 
+**Resolution strategy**:
+The factual label recording *which mechanism* bound a resolved reference
+(`same_file`, `explicit_import`, `glob_import`, `import_union`,
+`qualified_exact`, `same_crate`, `unique_workspace`,
+`qualified_module_fallback`, `lsp`) — stored as text on `refs` at bind time;
+NULL means unresolved. See ADR-0003.
+_Avoid_: calling the strategy a "confidence" — it is a code path, not a score.
+
+**Confidence band**:
+`high` / `medium` / `speculative`, derived from the resolution strategy in the
+query surface (one view `CASE`), never stored. Remeasuring moves strategies
+between bands without re-indexing.
+_Avoid_: numeric confidences; persisting the band.
+
+**Speculative edge**:
+A resolved reference whose strategy bands `speculative` — kept so
+recall-side consumers (dead code) can treat it as a suppression, while
+precision-side consumers (callers, impact, panic-points) can exclude it.
+_Avoid_: "phantom edge" as a synonym — a phantom is a *wrong* binding; a
+speculative edge is an *unverified* one.
+
 ### Indexing lifecycle
 
 **Indexing**:
