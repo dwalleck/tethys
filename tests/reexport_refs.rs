@@ -11,6 +11,8 @@
 mod common;
 
 use common::{open_db, workspace_with_files};
+use rstest::rstest;
+use tethys::IndexOptions;
 
 /// (symbol_id, defining file path) for every resolved reexport ref of `name`.
 fn resolved_reexport_targets(conn: &rusqlite::Connection, name: &str) -> Vec<(i64, String)> {
@@ -535,4 +537,97 @@ fn path_prefix_reexports_resolve_like_plain_imports() {
             "reexport of `{name}` must resolve to its defining file"
         );
     }
+}
+
+/// `COUNT(*)` of file_deps edges from `from` to `to`.
+fn dep_count(conn: &rusqlite::Connection, from: &str, to: &str) -> i64 {
+    scalar(
+        conn,
+        &format!(
+            "SELECT COUNT(*) FROM file_deps d
+             JOIN files f1 ON d.from_file_id = f1.id
+             JOIN files f2 ON d.to_file_id = f2.id
+             WHERE f1.path = '{from}' AND f2.path = '{to}'"
+        ),
+    )
+}
+
+/// An aliased re-export (`pub use crate::a::B as C;`) as a file's ONLY use
+/// of an import must create a file_deps edge, exactly like the unaliased
+/// form (C10). Reexport refs carry the ORIGINAL name (tethys-v1w8) while an
+/// aliased import's bound name is the alias, so a corroboration check that
+/// looks up only `alias.unwrap_or(name)` misses the pair and silently drops
+/// the edge (the tethys-sp24 gap flagged in the C10-residual test above).
+///
+/// The unaliased sibling (`re_plain.rs`) is asserted in the same workspace
+/// so a failure localizes to alias handling rather than the reexport dep
+/// machinery generally.
+///
+/// Parameterized across batch and streaming modes because the corroboration
+/// check exists in both `compute_dependencies` (batch, in-memory refs) and
+/// `compute_dependencies_from_stored` (streaming, stored rows).
+#[rstest]
+#[case::batch(IndexOptions::default)]
+#[case::streaming(IndexOptions::with_streaming)]
+fn aliased_reexport_only_import_corroborates_dep(#[case] options_factory: fn() -> IndexOptions) {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "pub mod a;\npub mod re_aliased;\npub mod re_plain;\n",
+        ),
+        ("src/a.rs", "pub struct B;\n"),
+        // The ONLY use of the import is the aliased re-export.
+        ("src/re_aliased.rs", "pub use crate::a::B as C;\n"),
+        // Unaliased control: already works (C10), fences the failure onto
+        // the alias case.
+        ("src/re_plain.rs", "pub use crate::a::B;\n"),
+    ]);
+    tethys.index_with_options(options_factory()).expect("index");
+    let conn = open_db(&tethys);
+
+    assert_eq!(
+        dep_count(&conn, "src/re_plain.rs", "src/a.rs"),
+        1,
+        "unaliased control: plain re-export-only import must create a file dep (C10)"
+    );
+    assert_eq!(
+        dep_count(&conn, "src/re_aliased.rs", "src/a.rs"),
+        1,
+        "aliased re-export-only import must create a file dep like the unaliased form"
+    );
+}
+
+/// Scoping fence for the aliased-re-export fix: a NON-reexport aliased
+/// import (`use crate::a::B as Y;`) whose ORIGINAL name appears in the file
+/// only through an unrelated local item must NOT count as used. A plain
+/// `use ... as` binds only the alias, so corroborating it off the original
+/// name would both mint a phantom edge and contradict unused-import
+/// analysis, which tests the bound name and reports `Y` unused. The
+/// original-name lookup must stay scoped to reexport-kind refs.
+#[rstest]
+#[case::batch(IndexOptions::default)]
+#[case::streaming(IndexOptions::with_streaming)]
+fn bare_aliased_import_with_unrelated_original_name_stays_edgeless(
+    #[case] options_factory: fn() -> IndexOptions,
+) {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        ("src/lib.rs", "pub mod a;\npub mod user;\n"),
+        ("src/a.rs", "pub struct B;\n"),
+        // `Y` is never used; the textual `B`s all refer to the LOCAL struct
+        // (`B::mk()` puts `B` in the referenced-names set via the
+        // first-path-segment rule).
+        (
+            "src/user.rs",
+            "use crate::a::B as Y;\n\npub struct B;\n\nimpl B {\n    pub fn mk() -> B {\n        B\n    }\n}\n\npub fn go() -> B {\n    B::mk()\n}\n",
+        ),
+    ]);
+    tethys.index_with_options(options_factory()).expect("index");
+    let conn = open_db(&tethys);
+
+    assert_eq!(
+        dep_count(&conn, "src/user.rs", "src/a.rs"),
+        0,
+        "an unused aliased import must not be corroborated by an unrelated \
+         occurrence of its original name"
+    );
 }
