@@ -58,14 +58,35 @@ pub struct VisibilityFinding {
 /// tracked at tethys-w1e9. Enum variants carry no own visibility at all.
 const CANDIDATE_KINDS_SQL: &str = "('function', 'struct', 'enum', 'trait', 'type_alias', 'const')";
 
+/// A candidate row mid-pipeline: the SQL selection plus the package
+/// attribution the Rust-side evidence channels key on.
+struct CandidateRow {
+    name: String,
+    kind: String,
+    file: String,
+    line: u32,
+    package_id: i64,
+    /// The declaring package's manifest name normalized to the identifier
+    /// that appears in `use` paths (`a-lib` → `a_lib`).
+    crate_ident: String,
+}
+
 impl Index {
     /// Pub top-level Rust symbols with no cross-package use evidence,
     /// ordered by (file, line, name) for deterministic output.
     ///
-    /// Evidence channel consulted here: resolved refs whose referencing
-    /// file belongs to a different `arch_packages` row than the declaring
-    /// file. Same-package refs are NOT evidence against a candidate —
-    /// being used only inside its own package is the candidate condition.
+    /// Evidence channels consulted:
+    /// - (a) resolved refs whose referencing file belongs to a different
+    ///   `arch_packages` row than the declaring file (SQL CTE). Same-package
+    ///   refs are NOT evidence against a candidate — being used only inside
+    ///   its own package is the candidate condition.
+    /// - (b) `imports` rows in another package whose `source_module` head
+    ///   names the candidate's crate: a named row excludes that item; a
+    ///   glob row (`symbol_name = '*'`) makes every pub root item nameable
+    ///   in the importing crate, so it excludes ALL of the crate's
+    ///   candidates. This channel exists because the probe measured real
+    ///   cross-crate uses whose refs never resolve (re-export indirection
+    ///   plus name collisions — tethys-z9mr / tethys-53iv classes).
     pub(crate) fn get_visibility_candidates(
         &self,
         _workspace_closed: bool,
@@ -81,10 +102,11 @@ impl Index {
                  JOIN arch_file_packages sfp ON sfp.file_id = rs.file_id
                  WHERE rfp.package_id != sfp.package_id
              )
-             SELECT s.name, s.kind, f.path, s.line
+             SELECT s.name, s.kind, f.path, s.line, fp.package_id, p.name
              FROM symbols s
              JOIN files f               ON f.id = s.file_id
              JOIN arch_file_packages fp ON fp.file_id = s.file_id
+             JOIN arch_packages p       ON p.id = fp.package_id
              WHERE s.visibility = 'public'
                AND f.language = 'rust'
                AND s.kind IN {CANDIDATE_KINDS_SQL}
@@ -92,15 +114,79 @@ impl Index {
              ORDER BY f.path, s.line, s.name",
         ))?;
         let rows = stmt.query_map([], |row| {
-            Ok(VisibilityFinding {
+            let package_name: String = row.get(5)?;
+            debug_assert!(
+                !package_name.is_empty(),
+                "arch_packages.name is NOT NULL UNIQUE and manifest-parsed"
+            );
+            Ok(CandidateRow {
                 name: row.get(0)?,
                 kind: row.get(1)?,
                 file: row.get(2)?,
                 line: row.get(3)?,
+                package_id: row.get(4)?,
+                crate_ident: package_name.replace('-', "_"),
+            })
+        })?;
+        let mut candidates = rows.collect::<std::result::Result<Vec<_>, _>>()?;
+
+        // Channel (b): one pass over imports rows. Named rows key
+        // (crate ident head, item name) → importing packages; crate-glob
+        // rows key the head alone.
+        let mut named_imports: std::collections::HashMap<(String, String), Vec<i64>> =
+            std::collections::HashMap::new();
+        let mut glob_imports: std::collections::HashMap<String, Vec<i64>> =
+            std::collections::HashMap::new();
+        let mut import_stmt = conn.prepare(
+            "SELECT i.symbol_name, i.source_module, fp.package_id
+             FROM imports i
+             JOIN arch_file_packages fp ON fp.file_id = i.file_id",
+        )?;
+        let import_rows = import_stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        })?;
+        for row in import_rows {
+            let (symbol_name, source_module, pkg) = row?;
+            let Some(head) = source_module.split("::").next().filter(|h| !h.is_empty()) else {
+                continue;
+            };
+            if symbol_name == "*" {
+                glob_imports.entry(head.to_string()).or_default().push(pkg);
+            } else {
+                named_imports
+                    .entry((head.to_string(), symbol_name))
+                    .or_default()
+                    .push(pkg);
+            }
+        }
+        candidates.retain(|c| {
+            // Owned keys: HashMap's Borrow lookup can't be fed (&str, &str)
+            // for a (String, String) key (same shape as deprecated.rs's
+            // ambiguity set); d is small — tens, not 10^5.
+            let key = (c.crate_ident.clone(), c.name.clone());
+            let imported_elsewhere = named_imports
+                .get(&key)
+                .into_iter()
+                .flatten()
+                .chain(glob_imports.get(&c.crate_ident).into_iter().flatten())
+                .any(|&pkg| pkg != c.package_id);
+            !imported_elsewhere
+        });
+
+        Ok(candidates
+            .into_iter()
+            .map(|c| VisibilityFinding {
+                name: c.name,
+                kind: c.kind,
+                file: c.file,
+                line: c.line,
                 tier: Tier::Definite,
                 demotions: Vec::new(),
             })
-        })?;
-        Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
+            .collect())
     }
 }

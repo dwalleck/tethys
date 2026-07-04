@@ -25,8 +25,18 @@ fn two_crate_fixture() -> (tempfile::TempDir, tethys::Tethys) {
             "[package]\nname = \"a-lib\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
         ),
         (
+            // `helper`/`mixin` reproduce the probe's `is_amzn_user` shape
+            // exactly: cfg-twin definitions (defeat the unique-name
+            // fallback) behind a root re-export whose relative path stays
+            // unresolved (tethys-z9mr), which also defeats the
+            // explicit-import arm's binding at lib.rs. Net effect: the
+            // cross-package use produces NO resolved ref — only the
+            // importing crate's `imports` row can exclude them.
             "crates/a-lib/src/lib.rs",
-            "pub fn used_fn() {}\n\
+            "mod detail;\nmod detail2;\n\
+             pub use detail::helper;\n\
+             pub use detail2::mixin;\n\
+             pub fn used_fn() {}\n\
              pub fn lonely_fn() {}\n\
              pub(crate) fn tight_fn() {}\n\
              pub(in crate) fn scoped_fn() {}\n\
@@ -35,16 +45,95 @@ fn two_crate_fixture() -> (tempfile::TempDir, tethys::Tethys) {
              fn internal() -> Widget {\n    Widget { field: 1 }\n}\n",
         ),
         (
+            "crates/a-lib/src/detail.rs",
+            "#[cfg(unix)]\npub fn helper() {}\n#[cfg(windows)]\npub fn helper() {}\n",
+        ),
+        (
+            "crates/a-lib/src/detail2.rs",
+            "#[cfg(unix)]\npub fn mixin() {}\n#[cfg(windows)]\npub fn mixin() {}\n",
+        ),
+        (
             "crates/b-app/Cargo.toml",
             "[package]\nname = \"b-app\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
         ),
         (
             "crates/b-app/src/main.rs",
-            "use a_lib::used_fn;\n\nfn main() {\n    used_fn();\n}\n",
+            "use a_lib::helper;\n\
+             use a_lib::mixin as mx;\n\
+             use a_lib::used_fn;\n\n\
+             fn main() {\n    used_fn();\n    helper();\n    mx();\n}\n",
         ),
     ]);
     tethys.index().expect("index failed");
     (dir, tethys)
+}
+
+/// S2 (design C2): a pub symbol whose only cross-package use is an
+/// `imports` row is never reported — the imported bare call stays
+/// unresolved (collision defeats the unique-name fallback; the probe
+/// measured this exact shape as a naive-rule false candidate), so channel
+/// (a) is silent and the imports row alone must exclude. Covers the
+/// aliased form (`use a_lib::mixin as mx` — the row's `symbol_name`, not
+/// its alias, names the item) and the hyphenated-package form (`a-lib`
+/// manifest name vs `a_lib::` path — kills missing `-`→`_` normalization).
+#[test]
+fn cross_package_import_excludes() {
+    let (_dir, tethys) = two_crate_fixture();
+    let findings = tethys
+        .get_visibility_candidates(false)
+        .expect("visibility query failed");
+
+    for absent in ["helper", "mixin"] {
+        assert!(
+            !findings.iter().any(|f| f.name == absent),
+            "a_lib::{absent} is imported by b-app — the imports row must \
+             exclude it; got {findings:?}"
+        );
+    }
+}
+
+/// S2 (design C2, glob widening): a cross-package `use g_lib::*;` makes
+/// every pub root item of `g_lib` nameable in the importing crate, so it
+/// is use evidence for ALL of that crate's candidates — `beta` has no ref
+/// anywhere, only the crate-glob row, and must still be excluded.
+/// (Suppression-safe widening beyond the design's per-name claim; noted
+/// in the slice commit.)
+#[test]
+fn cross_package_glob_import_excludes_all() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"crates/g-lib\", \"crates/u-app\"]\n",
+        ),
+        (
+            "crates/g-lib/Cargo.toml",
+            "[package]\nname = \"g-lib\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+        ),
+        (
+            "crates/g-lib/src/lib.rs",
+            "pub fn alpha() {}\npub fn beta() {}\n",
+        ),
+        (
+            "crates/u-app/Cargo.toml",
+            "[package]\nname = \"u-app\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+        ),
+        (
+            "crates/u-app/src/main.rs",
+            "use g_lib::*;\n\nfn main() {\n    alpha();\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_visibility_candidates(false)
+        .expect("visibility query failed");
+
+    for absent in ["alpha", "beta"] {
+        assert!(
+            !findings.iter().any(|f| f.name == absent),
+            "g_lib::{absent} is covered by u-app's crate glob import; \
+             got {findings:?}"
+        );
+    }
 }
 
 /// S1 (design C1): a pub symbol with a cross-package resolved ref
@@ -72,7 +161,7 @@ fn cross_package_ref_excludes() {
     );
     let lonely = &findings[0];
     assert_eq!(lonely.file, "crates/a-lib/src/lib.rs");
-    assert_eq!(lonely.line, 2);
+    assert_eq!(lonely.line, 6, "declared on line 6 of the fixture lib.rs");
 }
 
 /// S1 (design C9): non-public visibilities (`pub(crate)`, `pub(in crate)`,
