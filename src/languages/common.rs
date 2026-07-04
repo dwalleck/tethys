@@ -150,6 +150,9 @@ pub enum ExtractedReferenceKind {
     /// Re-export site (`pub use` in Rust): the target is referenced by being
     /// made part of the re-exporting module's public surface.
     Reexport,
+    /// Value use: an in-crate free function / const / enum-variant referenced
+    /// without being called (`iter.map(foo)`, `let g = foo;`) — tethys-ygjx.
+    Value,
 }
 
 impl ExtractedReferenceKind {
@@ -162,6 +165,7 @@ impl ExtractedReferenceKind {
             Self::Constructor => crate::types::ReferenceKind::Construct,
             Self::Macro => crate::types::ReferenceKind::Macro,
             Self::Reexport => crate::types::ReferenceKind::Reexport,
+            Self::Value => crate::types::ReferenceKind::Value,
         }
     }
 }

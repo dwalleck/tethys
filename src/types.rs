@@ -419,6 +419,10 @@ pub enum ReferenceKind {
     /// Re-export site (`pub use` in Rust): the target symbol is referenced by
     /// being made part of the re-exporting module's public surface.
     Reexport,
+    /// Value use of an identifier: a free function / const / enum-variant
+    /// referenced without being called (`iter.map(foo)`, `let g = foo;`).
+    /// Distinct from `Call`; deliberately kept out of `call_edges` (tethys-ygjx).
+    Value,
     /// Unknown reference kind from database (possible version mismatch or corruption).
     /// Contains the raw string value that could not be parsed.
     Unknown(String),
@@ -439,6 +443,7 @@ impl ReferenceKind {
             Self::FieldAccess => "field_access",
             Self::Macro => "macro",
             Self::Reexport => "reexport",
+            Self::Value => "value",
             Self::Unknown(_) => "unknown",
         }
     }
@@ -458,6 +463,7 @@ impl ReferenceKind {
             "field_access" => Some(Self::FieldAccess),
             "macro" => Some(Self::Macro),
             "reexport" => Some(Self::Reexport),
+            "value" => Some(Self::Value),
             _ => None,
         }
     }
@@ -1883,6 +1889,20 @@ mod tests {
         assert_eq!(
             ReferenceKind::parse("field_access"),
             Some(ReferenceKind::FieldAccess)
+        );
+    }
+
+    #[test]
+    fn reference_kind_value_roundtrips() {
+        // tethys-ygjx: the `value` kind (fn-as-value) must survive as_str ->
+        // DB string -> parse. A variant wired into `as_str` but not `parse`
+        // (or vice versa) would fail this round-trip.
+        assert_eq!(ReferenceKind::Value.as_str(), "value");
+        assert_eq!(ReferenceKind::parse("value"), Some(ReferenceKind::Value));
+        // And the extraction-side enum maps onto the same domain variant.
+        assert_eq!(
+            crate::languages::common::ExtractedReferenceKind::Value.to_db_kind(),
+            ReferenceKind::Value
         );
     }
 

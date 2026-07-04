@@ -48,12 +48,16 @@ impl Index {
         let conn = self.connection()?;
 
         // Insert aggregated edges from refs table
-        // ON CONFLICT handles duplicates by adding to call_count
+        // ON CONFLICT handles duplicates by adding to call_count.
+        // `value`-kind refs (fn-as-value, tethys-ygjx) are EXCLUDED: passing a
+        // function as a value is a use, not a call, so it must not inflate the
+        // call graph (`callers`/`impact`/`deprecated-callers`). Value refs live
+        // in `refs` only, where dead-code / hotspot analyses read them.
         let inserted = conn.execute(
             "INSERT INTO call_edges (caller_symbol_id, callee_symbol_id, call_count)
              SELECT in_symbol_id, symbol_id, COUNT(*) as call_count
              FROM refs
-             WHERE in_symbol_id IS NOT NULL AND symbol_id IS NOT NULL
+             WHERE in_symbol_id IS NOT NULL AND symbol_id IS NOT NULL AND kind <> 'value'
              GROUP BY in_symbol_id, symbol_id
              ON CONFLICT(caller_symbol_id, callee_symbol_id) DO UPDATE SET
                  call_count = call_edges.call_count + excluded.call_count",
