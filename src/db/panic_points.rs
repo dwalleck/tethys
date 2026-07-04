@@ -233,6 +233,7 @@ mod tests {
                 column: 10,
                 in_symbol_id: Some(prod_fn_id),
                 reference_name: Some("unwrap"),
+                strategy: None,
             })
             .expect("should create unwrap reference");
 
@@ -246,6 +247,7 @@ mod tests {
                 column: 10,
                 in_symbol_id: Some(prod_fn_id),
                 reference_name: Some("expect"),
+                strategy: None,
             })
             .expect("should create expect reference");
 
@@ -259,6 +261,7 @@ mod tests {
                 column: 10,
                 in_symbol_id: Some(test_fn_id),
                 reference_name: Some("unwrap"),
+                strategy: None,
             })
             .expect("should create unwrap reference in test");
 

@@ -40,6 +40,8 @@ pub(crate) struct InsertReferenceParams<'a> {
     pub in_symbol_id: Option<SymbolId>,
     /// The name used in the reference, for later resolution in Pass 2.
     pub reference_name: Option<&'a str>,
+    /// Provenance label for pre-resolved fixture rows (`None` = unresolved).
+    pub strategy: Option<&'a str>,
 }
 
 impl Index {
@@ -63,8 +65,8 @@ impl Index {
         let conn = self.connection()?;
 
         conn.execute(
-            "INSERT INTO refs (symbol_id, file_id, kind, line, column, in_symbol_id, reference_name)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO refs (symbol_id, file_id, kind, line, column, in_symbol_id, reference_name, strategy)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 params.symbol_id.map(SymbolId::as_i64),
                 params.file_id.as_i64(),
@@ -72,7 +74,8 @@ impl Index {
                 params.line,
                 params.column,
                 params.in_symbol_id.map(SymbolId::as_i64),
-                params.reference_name
+                params.reference_name,
+                params.strategy
             ],
         )?;
         Ok(conn.last_insert_rowid())
@@ -277,11 +280,39 @@ mod apply_resolutions_tests {
                         column: 1,
                         in_symbol_id: None,
                         reference_name: Some("target"),
+                        strategy: None,
                     })
                     .expect("ref"),
             );
         }
         (ref_ids, sym_id)
+    }
+
+    /// tethys-9z7i B6 (design C6): the single-row LSP path stamps `lsp`
+    /// through the SAME widened SQL as the batch — the readback checks
+    /// strategy AND the seam's existing `reference_name` null-out, so a
+    /// forked single-row statement missing either fails.
+    #[test]
+    fn lsp_path_stamps_strategy() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut index = Index::open(&dir.path().join("idx.db")).expect("open");
+        let (ref_ids, sym_id) = fixture(&mut index);
+
+        index
+            .resolve_reference(ref_ids[0], sym_id, ResolutionStrategy::Lsp)
+            .expect("resolve via lsp");
+
+        let conn = index.connection().expect("conn");
+        let (strategy, name_nulled): (String, bool) = conn
+            .query_row(
+                "SELECT COALESCE(strategy, '(null)'), reference_name IS NULL
+                 FROM refs WHERE id = ?1",
+                [ref_ids[0]],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .expect("readback");
+        assert_eq!(strategy, "lsp");
+        assert!(name_nulled, "the seam still nulls reference_name");
     }
 
     /// C7 fence: the whole batch applies in EXACTLY one transaction, every
