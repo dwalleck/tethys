@@ -1,7 +1,6 @@
 //! `tethys deprecated-callers` command implementation.
 
 use std::fmt::Write as _;
-use std::io::{self, Write as _};
 use std::path::Path;
 
 use colored::Colorize;
@@ -28,18 +27,7 @@ pub fn run(workspace: &Path, json: bool) -> Result<(), tethys::Error> {
     } else {
         render_human(&findings)
     };
-    // Single guarded write: a downstream pipe closing early (`| head`) must
-    // not fail the command after the analysis already succeeded. Human
-    // output already ends in a newline; JSON needs one appended.
-    let mut out = io::stdout().lock();
-    let result = if json {
-        writeln!(out, "{rendered}")
-    } else {
-        write!(out, "{rendered}")
-    };
-    result
-        .or_else(super::ignore_broken_pipe)
-        .map_err(tethys::Error::Io)
+    super::write_report(&rendered)
 }
 
 /// Render findings as pretty-printed JSON (data → stdout).
@@ -67,11 +55,7 @@ fn render_json(findings: &[DeprecatedFinding]) -> Result<String, tethys::Error> 
         },
         deprecated: findings,
     };
-    serde_json::to_string_pretty(&output).map_err(|e| {
-        tethys::Error::Internal(format!(
-            "Failed to serialize deprecated-callers to JSON: {e}"
-        ))
-    })
+    super::to_json_pretty(&output, "deprecated-callers")
 }
 
 /// Render a possibly multi-line note on one line (first line + ellipsis).

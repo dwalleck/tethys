@@ -16,7 +16,7 @@ pub mod stats;
 pub mod unused_imports;
 pub mod visibility_tightening;
 
-use std::io;
+use std::io::{self, Write as _};
 use std::process::Command;
 use tethys::lsp::{LspError, LspProvider, RustAnalyzerProvider};
 
@@ -33,6 +33,32 @@ pub(crate) fn ignore_broken_pipe(e: io::Error) -> io::Result<()> {
     } else {
         Err(e)
     }
+}
+
+/// Write an already-rendered report to stdout as one guarded write: a
+/// downstream pipe closing early (`| head`) must not fail the command after
+/// the analysis already succeeded. Appends the trailing newline JSON
+/// rendering lacks (human renderers already end with one).
+pub(crate) fn write_report(rendered: &str) -> Result<(), tethys::Error> {
+    let mut out = io::stdout().lock();
+    let result = if rendered.ends_with('\n') {
+        write!(out, "{rendered}")
+    } else {
+        writeln!(out, "{rendered}")
+    };
+    result
+        .or_else(ignore_broken_pipe)
+        .map_err(tethys::Error::Io)
+}
+
+/// Pretty-print a command's JSON payload, mapping serialize failure to an
+/// internal error naming the command.
+pub(crate) fn to_json_pretty<T: serde::Serialize>(
+    value: &T,
+    command: &str,
+) -> Result<String, tethys::Error> {
+    serde_json::to_string_pretty(value)
+        .map_err(|e| tethys::Error::Internal(format!("Failed to serialize {command} to JSON: {e}")))
 }
 
 /// Check if the LSP server is available in PATH.
