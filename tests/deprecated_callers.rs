@@ -1177,3 +1177,44 @@ fn cli_csharp_error_flag_and_call_site_rendered() {
         "C# site key set matches the Rust one (AC4)"
     );
 }
+
+/// Fence for the `cfg_attr` bug class: `#[cfg_attr(pred, deprecated(..))]`
+/// must mark the symbol deprecated. Extraction previously stored only the
+/// `cfg_attr` row, so the attribute-name-keyed deprecated-callers query
+/// never saw conditionally-applied `deprecated` and silently skipped the
+/// symbol. The wrapped attribute now gets its own row (no conditional
+/// marker — that refinement is deferred), so the fn is listed with its
+/// parsed note and resolved call site like any directly-deprecated fn.
+#[test]
+fn cfg_attr_deprecated_fn_is_listed_with_callers() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        ("src/lib.rs", "pub mod legacy;\npub mod caller;\n"),
+        (
+            "src/legacy.rs",
+            "#[cfg_attr(unix, deprecated(note = \"use new_api\"))]\n\
+             pub fn cond_old() {}\n",
+        ),
+        (
+            "src/caller.rs",
+            "use crate::legacy::cond_old;\n\
+             pub fn migrate() {\n    cond_old();\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+
+    let cond_old = finding(&findings, "cond_old", "src/legacy.rs");
+    assert_eq!(
+        cond_old.symbol.note.as_deref(),
+        Some("use new_api"),
+        "note parses from the wrapped attribute's args"
+    );
+    assert_eq!(
+        cond_old.sites.len(),
+        1,
+        "the resolved cross-file call site is reported"
+    );
+    assert_eq!(cond_old.sites[0].caller.as_deref(), Some("migrate"));
+}
