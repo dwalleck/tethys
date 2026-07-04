@@ -21,7 +21,7 @@ pub fn run(
     let tethys = Tethys::new(workspace)?;
 
     if is_symbol {
-        let impact = tethys.get_symbol_impact(target, depth)?;
+        let impact = tethys.get_symbol_impact(target, depth, false)?;
         println!("Impact analysis for symbol \"{}\":", target.cyan().bold());
         print_impact_analysis(&impact);
     } else {

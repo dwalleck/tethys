@@ -70,3 +70,20 @@ tuple, or duplicates would need re-resolution to learn their provenance.
       updated, not papered over)
 - [x] Learned something new (memo shape; NULL-semantics collision; xvlw
       staleness split)
+
+## Slice 3 probe addendum (2026-07-04)
+
+- View prototype (band CASE over strategy) runs on the self-index:
+  841 high / 1714 medium / 1127 speculative / 13862 unresolved.
+- **657 of 1921 call edges (34%) have ONLY speculative support** — the
+  callers exclusion flag is materially useful. Sampled speculative-only
+  edges verified by hand: bench-file binds (bench files sit outside the
+  module tree, so only the unique-workspace fallback could bind them) and
+  a `writer.finish()` name-only method bind — the tethys-53iv class
+  exactly. The label marks precisely the fabrication-prone edges.
+- **Panic-points exclusion is vacuous on the real substrate**: it matches
+  `reference_name IN ('unwrap','expect')` — unresolved refs by
+  construction (1761 rows, strategy NULL); zero RESOLVED refs to
+  unwrap/expect symbols exist on the self-index. A flag there would be
+  decoration. Slice 3 skips panic-points with this evidence; the epic AC
+  is amended at close-out.

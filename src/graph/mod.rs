@@ -32,7 +32,14 @@ use crate::types::{Cycle, FileId, SymbolId};
 /// This enables precise impact analysis and execution flow understanding.
 pub trait SymbolGraphOps: Send + Sync {
     /// Get symbols that directly call/reference the given symbol.
-    fn get_callers(&self, symbol_id: SymbolId) -> Result<Vec<CallerInfo>>;
+    /// `exclude_speculative` drops call edges whose EVERY supporting ref
+    /// bands speculative in `refs_banded` (ADR-0003) — an edge survives if
+    /// ANY trustworthy ref supports it.
+    fn get_callers(
+        &self,
+        symbol_id: SymbolId,
+        exclude_speculative: bool,
+    ) -> Result<Vec<CallerInfo>>;
 
     /// Get symbols that the given symbol directly calls/references.
     fn get_callees(&self, symbol_id: SymbolId) -> Result<Vec<CalleeInfo>>;
@@ -44,6 +51,7 @@ pub trait SymbolGraphOps: Send + Sync {
         &self,
         symbol_id: SymbolId,
         max_depth: Option<u32>,
+        exclude_speculative: bool,
     ) -> Result<SymbolImpact>;
 
     /// Find the shortest call path between two symbols.
