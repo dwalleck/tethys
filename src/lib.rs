@@ -146,6 +146,30 @@ impl Tethys {
         })
     }
 
+    /// Delete the on-disk index database and its WAL/SHM sidecars, if any.
+    ///
+    /// The rebuild escape hatch for an index whose schema predates the
+    /// current binary: `Index::open` refuses outdated schemas with a
+    /// "run `tethys index --rebuild`" error, so the rebuild path must be
+    /// able to clear the files BEFORE opening — otherwise the guard would
+    /// brick its own remedy. No connection exists yet at call time, so
+    /// plain file removal is safe (no `SQLite` locks to dance around).
+    pub fn remove_index_files(workspace_root: &Path) -> Result<()> {
+        let db_path = workspace_root
+            .join(".rivets")
+            .join("index")
+            .join("tethys.db");
+        for suffix in ["", "-wal", "-shm"] {
+            let mut p = db_path.as_os_str().to_owned();
+            p.push(suffix);
+            let p = PathBuf::from(p);
+            if p.exists() {
+                std::fs::remove_file(&p)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Create a Tethys instance with LSP refinement enabled.
     ///
     /// LSP integration is controlled via [`IndexOptions::with_lsp()`] when calling

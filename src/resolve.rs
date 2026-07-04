@@ -19,7 +19,8 @@ use crate::languages::module_resolver::{
 use crate::lsp::{self, LspProvider};
 use crate::types::{
     Dependent, FileId, Import, Language, LspCompletedSession, LspOutcome, LspSessionResult,
-    Reference, ReferenceKind, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp,
+    Reference, ReferenceKind, ResolutionStrategy, Symbol, SymbolId, SymbolKind,
+    UnresolvedRefForLsp,
 };
 
 /// Whether a reference of `ref_kind` is allowed to bind to a symbol of
@@ -90,7 +91,7 @@ impl Tethys {
         // reads the refs table mid-pass (probe-verified), so deferring the
         // writes cannot change any outcome — and the batched commit lands
         // before populate_call_edges and Pass 3 read refs.
-        let mut resolutions: Vec<(i64, SymbolId)> = Vec::new();
+        let mut resolutions: Vec<(i64, SymbolId, ResolutionStrategy)> = Vec::new();
         for (file_id, refs) in by_file {
             self.resolve_refs_for_file(file_id, refs, &namespace_map, &mut resolutions)?;
         }
@@ -117,7 +118,7 @@ impl Tethys {
         file_id: FileId,
         refs: Vec<Reference>,
         namespace_map: &NamespaceMap,
-        resolutions: &mut Vec<(i64, SymbolId)>,
+        resolutions: &mut Vec<(i64, SymbolId, ResolutionStrategy)>,
     ) -> Result<()> {
         let imports = self.db.get_imports_for_file(file_id)?;
         // Do NOT short-circuit on imports.is_empty(): try_resolve_reference's
@@ -167,7 +168,7 @@ impl Tethys {
         // Keying by anything shorter (e.g., the name's tail) would collapse
         // `alpha` and `Holder::alpha`, which legitimately resolve
         // differently.
-        let mut memo: HashMap<String, Option<SymbolId>> = HashMap::new();
+        let mut memo: HashMap<String, Option<(SymbolId, ResolutionStrategy)>> = HashMap::new();
 
         for mut ref_ in refs {
             // Move the owned name out of the ref: it is used only as the memo
@@ -193,8 +194,8 @@ impl Tethys {
                 outcome
             };
 
-            if let Some(symbol_id) = outcome {
-                resolutions.push((ref_.id, symbol_id));
+            if let Some((symbol_id, strategy)) = outcome {
+                resolutions.push((ref_.id, symbol_id, strategy));
             }
         }
 
@@ -312,7 +313,7 @@ impl Tethys {
         ref_: &Reference,
         ref_name: &str,
         ctx: &ResolveContext<'_>,
-    ) -> Result<Option<SymbolId>> {
+    ) -> Result<Option<(SymbolId, ResolutionStrategy)>> {
         let is_qualified = ref_name.contains("::");
 
         // Try explicit imports
@@ -326,7 +327,7 @@ impl Tethys {
                 symbol_id = %symbol.id,
                 "Resolved reference via explicit import"
             );
-            return Ok(Some(symbol.id));
+            return Ok(Some((symbol.id, ResolutionStrategy::ExplicitImport)));
         }
 
         // Try glob imports — consumption semantics are declared by the
@@ -347,7 +348,7 @@ impl Tethys {
                             symbol_id = %symbol.id,
                             "Resolved reference via glob import"
                         );
-                        return Ok(Some(symbol.id));
+                        return Ok(Some((symbol.id, ResolutionStrategy::GlobImport)));
                     }
                 }
             }
@@ -362,7 +363,7 @@ impl Tethys {
                         symbol_id = %symbol.id,
                         "Resolved reference via namespace / static-member imports"
                     );
-                    return Ok(Some(symbol.id));
+                    return Ok(Some((symbol.id, ResolutionStrategy::ImportUnion)));
                 }
             }
             // Qualified ref under UniqueAcrossAll: decline here; the
@@ -374,17 +375,18 @@ impl Tethys {
         // file path scopes simple-name lookups to the same crate first; without
         // that scope, names like `Error` resolve to the first matching symbol
         // workspace-wide (rivets-0gom).
-        if let Some(symbol) = self
+        if let Some((symbol, sub_path)) = self
             .fallback_symbol_search(ref_name, is_qualified, ctx.current_file_path)?
-            .filter(|s| ref_binds_to_symbol_kind(&ref_.kind, s.kind))
+            .filter(|(s, _)| ref_binds_to_symbol_kind(&ref_.kind, s.kind))
         {
             trace!(
                 ref_id = ref_.id,
                 ref_name = %ref_name,
                 symbol_id = %symbol.id,
+                strategy = sub_path.as_str(),
                 "Resolved reference via fallback search"
             );
-            return Ok(Some(symbol.id));
+            return Ok(Some((symbol.id, sub_path)));
         }
 
         // Qualified-path module fallback (rivets-044i). Only fires for refs that
@@ -401,7 +403,10 @@ impl Tethys {
                 symbol_id = %symbol.id,
                 "Resolved reference via qualified module fallback"
             );
-            return Ok(Some(symbol.id));
+            return Ok(Some((
+                symbol.id,
+                ResolutionStrategy::QualifiedModuleFallback,
+            )));
         }
 
         trace!(
@@ -570,9 +575,12 @@ impl Tethys {
         ref_name: &str,
         is_qualified: bool,
         caller_file_path: Option<&Path>,
-    ) -> Result<Option<Symbol>> {
+    ) -> Result<Option<(Symbol, ResolutionStrategy)>> {
         if is_qualified {
-            return self.db.get_symbol_by_qualified_name(ref_name);
+            return Ok(self
+                .db
+                .get_symbol_by_qualified_name(ref_name)?
+                .map(|s| (s, ResolutionStrategy::QualifiedExact)));
         }
 
         // Same-crate first: cheap, deterministic, and almost always correct.
@@ -585,7 +593,7 @@ impl Tethys {
                     .search_symbol_by_name_in_path_prefix(ref_name, &prefix_str)?
                 {
                     if self.db.get_file_by_id(symbol.file_id)?.is_some() {
-                        return Ok(Some(symbol));
+                        return Ok(Some((symbol, ResolutionStrategy::SameCrate)));
                     }
                     // Same-crate symbol exists but its file record is gone. DB is
                     // inconsistent; falling through to the unscoped search would
@@ -620,7 +628,7 @@ impl Tethys {
             return Ok(None);
         };
         if self.db.get_file_by_id(symbol.file_id)?.is_some() {
-            Ok(Some(symbol))
+            Ok(Some((symbol, ResolutionStrategy::UniqueWorkspace)))
         } else {
             warn!(
                 ref_name = %ref_name,
@@ -1015,8 +1023,11 @@ impl Tethys {
         };
 
         // Resolve the reference
-        self.db
-            .resolve_reference(unresolved_ref.ref_id.as_i64(), symbol.id)?;
+        self.db.resolve_reference(
+            unresolved_ref.ref_id.as_i64(),
+            symbol.id,
+            ResolutionStrategy::Lsp,
+        )?;
 
         trace!(
             ref_id = %unresolved_ref.ref_id,

@@ -10,14 +10,14 @@ use tracing::trace;
 
 use super::{Index, REFS_COLUMNS, row_to_reference};
 use crate::error::Result;
-use crate::types::{FileId, RefId, Reference, SymbolId};
+use crate::types::{FileId, RefId, Reference, ResolutionStrategy, SymbolId};
 
 /// Single source of truth for the "resolve a reference" UPDATE, shared by the
 /// batched Pass 2 path ([`Index::apply_resolutions`]) and the single-row
 /// Pass 3/LSP path ([`Index::resolve_reference`]) so a future change to how a
 /// resolution is recorded cannot silently diverge between the two.
 const RESOLVE_REFERENCE_SQL: &str =
-    "UPDATE refs SET symbol_id = ?2, reference_name = NULL WHERE id = ?1";
+    "UPDATE refs SET symbol_id = ?2, reference_name = NULL, strategy = ?3 WHERE id = ?1";
 
 /// Parameters for inserting a reference into the index.
 ///
@@ -151,7 +151,10 @@ impl Index {
     /// Sanity hint (not load-bearing): ref ids are expected to come from
     /// the same index — a stale id makes its UPDATE a silent no-op, which
     /// the caller's resolved-count accounting surfaces.
-    pub fn apply_resolutions(&self, resolutions: &[(i64, SymbolId)]) -> Result<()> {
+    pub fn apply_resolutions(
+        &self,
+        resolutions: &[(i64, SymbolId, ResolutionStrategy)],
+    ) -> Result<()> {
         if resolutions.is_empty() {
             return Ok(());
         }
@@ -163,8 +166,8 @@ impl Index {
         let tx = conn.transaction()?;
         {
             let mut stmt = tx.prepare_cached(RESOLVE_REFERENCE_SQL)?;
-            for (ref_id, symbol_id) in resolutions {
-                stmt.execute(params![ref_id, symbol_id.as_i64()])?;
+            for (ref_id, symbol_id, strategy) in resolutions {
+                stmt.execute(params![ref_id, symbol_id.as_i64(), strategy.as_str()])?;
             }
         }
         tx.commit()?;
@@ -176,15 +179,24 @@ impl Index {
     /// This is used in Pass 3 (LSP) to link unresolved references to their
     /// target symbols one at a time as the language server answers; Pass 2
     /// uses the batched [`Self::apply_resolutions`] instead.
-    pub fn resolve_reference(&self, ref_id: i64, symbol_id: SymbolId) -> Result<()> {
+    pub fn resolve_reference(
+        &self,
+        ref_id: i64,
+        symbol_id: SymbolId,
+        strategy: ResolutionStrategy,
+    ) -> Result<()> {
         trace!(
             ref_id = ref_id,
             symbol_id = %symbol_id,
+            strategy = strategy.as_str(),
             "Resolving reference"
         );
         let conn = self.connection()?;
 
-        conn.execute(RESOLVE_REFERENCE_SQL, params![ref_id, symbol_id.as_i64()])?;
+        conn.execute(
+            RESOLVE_REFERENCE_SQL,
+            params![ref_id, symbol_id.as_i64(), strategy.as_str()],
+        )?;
         Ok(())
     }
 
@@ -291,7 +303,10 @@ mod apply_resolutions_tests {
             }));
         }
 
-        let pairs: Vec<(i64, SymbolId)> = ref_ids.iter().map(|&r| (r, sym_id)).collect();
+        let pairs: Vec<(i64, SymbolId, ResolutionStrategy)> = ref_ids
+            .iter()
+            .map(|&r| (r, sym_id, ResolutionStrategy::ExplicitImport))
+            .collect();
         index.apply_resolutions(&pairs).expect("apply");
 
         index
