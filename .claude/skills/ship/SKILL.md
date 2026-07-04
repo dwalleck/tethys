@@ -25,6 +25,14 @@ soften either.
 - Features get the full loop below. If the issue is a small bug
   (single-subsystem, reproducible by a test, no design decisions), say so
   and suggest `/sweep-bugs` instead — the full loop is wasteful there.
+- **Epics**: the default is one issue → one PR after the full loop, but an
+  epic whose description prescribes its own delivery structure (e.g.
+  tethys-9z7i: "each slice its own PR; slice 2 through the gilfoyle loop")
+  overrides the default — honor the issue's verbiage. Surface the
+  structure at this step so the user knows the run will produce multiple
+  PRs, run each prescribed slice through the pipeline stages appropriate
+  to it (a docs slice needs the design pause, not a probe harness), and
+  close the epic only when every non-deferred slice has merged.
 
 ## 1. Setup
 
