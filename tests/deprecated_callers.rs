@@ -623,6 +623,138 @@ fn cli_json_envelope_stable_and_parseable() {
     assert_eq!(site["via"], "resolved");
 }
 
+/// haw5 S5 shared fixture: an [Obsolete("use New")] static method with two
+/// cross-file callers and one same-file caller, an [Obsolete("gone", true)]
+/// class constructed once, and an uncalled bare-[Obsolete] method. The
+/// `with_decoy` variant adds a same-language same-named non-obsolete method
+/// (tier demotion). Static-receiver + `using` corroboration mirrors the
+/// probe2 shape proven on real data (Result.Combine, 12/12).
+fn build_csharp_fixture(with_decoy: bool) -> (tempfile::TempDir, Vec<DeprecatedFinding>) {
+    let mut files = vec![
+        (
+            "Legacy.cs",
+            "using System;\n\nnamespace Lib\n{\n    public class Legacy\n    {\n        \
+             [Obsolete(\"use New\")]\n        public static void Old() { }\n\n        \
+             [Obsolete]\n        public static void Dormant() { }\n\n        \
+             public static void Inside()\n        {\n            Old();\n        }\n    }\n\n    \
+             [Obsolete(\"gone\", true)]\n    public class LegacyService\n    {\n        \
+             public LegacyService() { }\n    }\n}\n",
+        ),
+        (
+            "Caller.cs",
+            "using Lib;\n\nnamespace App\n{\n    public class User\n    {\n        \
+             public void Go()\n        {\n            Legacy.Old();\n            \
+             Legacy.Old();\n            var s = new LegacyService();\n        }\n    }\n}\n",
+        ),
+    ];
+    if with_decoy {
+        files.push((
+            "Other.cs",
+            "namespace App2\n{\n    public class Other\n    {\n        \
+             public static void Old() { }\n    }\n}\n",
+        ));
+    }
+    let (dir, mut tethys) = workspace_with_files(&files);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+    (dir, findings)
+}
+
+/// haw5 S5 (design C6 + C7): resolved static-receiver sites (cross-file and
+/// same-file), construction sites, the Clean bucket, and the error flag —
+/// unique names tier Definite. Site lists are literals from the fixture
+/// source (grep oracle mechanism). Kills: `call_edges` join (drops top-level
+/// sites), r.kind='call' filtering (drops construct refs), tier
+/// always-Maybe.
+#[test]
+fn csharp_resolved_construction_and_clean_definite() {
+    let (_dir, findings) = build_csharp_fixture(false);
+
+    let names: Vec<(&str, &str)> = findings
+        .iter()
+        .map(|f| (f.symbol.name.as_str(), f.symbol.file.as_str()))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            ("Old", "Legacy.cs"),
+            ("Dormant", "Legacy.cs"),
+            ("LegacyService", "Legacy.cs")
+        ],
+        "ordered by (file, line, name)"
+    );
+
+    let old = &findings[0];
+    assert_eq!(old.symbol.note.as_deref(), Some("use New"));
+    let old_sites: Vec<(&str, u32, Via, Tier)> = old
+        .sites
+        .iter()
+        .map(|s| (s.file.as_str(), s.line, s.via, s.tier))
+        .collect();
+    assert_eq!(
+        old_sites,
+        [
+            ("Caller.cs", 9, Via::Resolved, Tier::Definite),
+            ("Caller.cs", 10, Via::Resolved, Tier::Definite),
+            ("Legacy.cs", 15, Via::Resolved, Tier::Definite),
+        ],
+        "two cross-file + one same-file resolved site, all Definite"
+    );
+
+    let dormant = &findings[1];
+    assert!(
+        dormant.sites.is_empty(),
+        "uncalled obsolete method is the Clean verdict"
+    );
+    assert_eq!(dormant.symbol.note, None, "bare [Obsolete]");
+    assert_eq!(dormant.symbol.error, None);
+
+    let service = &findings[2];
+    assert_eq!(service.symbol.note.as_deref(), Some("gone"));
+    assert_eq!(
+        service.symbol.error,
+        Some(true),
+        "[Obsolete(msg, true)] surfaces the error flag (AC3)"
+    );
+    let service_sites: Vec<(&str, u32, Via)> = service
+        .sites
+        .iter()
+        .map(|s| (s.file.as_str(), s.line, s.via))
+        .collect();
+    assert_eq!(
+        service_sites,
+        [("Caller.cs", 11, Via::Resolved)],
+        "construction site listed (design C7)"
+    );
+}
+
+/// haw5 S5 (design C6, demotion direction): a same-language same-named
+/// non-obsolete method demotes every resolved site of the obsolete one to
+/// Maybe — name-only resolution could have misattributed.
+#[test]
+fn csharp_same_named_decoy_demotes_to_maybe() {
+    let (_dir, findings) = build_csharp_fixture(true);
+    let old = findings
+        .iter()
+        .find(|f| f.symbol.name == "Old")
+        .expect("Old finding present");
+    assert!(
+        !old.sites.is_empty(),
+        "sites still listed under ambiguity, only the tier changes"
+    );
+    for site in &old.sites {
+        assert_eq!(
+            site.tier,
+            Tier::Maybe,
+            "decoy Other.Old must demote {}:{}",
+            site.file,
+            site.line
+        );
+    }
+}
+
 /// haw5 S4 (design C9): Path B attachment and ambiguity tiering are
 /// same-language only. Four bug classes, one mixed fixture:
 /// 1. cross-language tier demotion — a C# method named `old_api` must not
