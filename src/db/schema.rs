@@ -254,6 +254,22 @@ mod schema_tests {
     #[test]
     fn refs_banded_band_mapping_matches_adr() {
         use crate::types::ResolutionStrategy as RS;
+
+        // Exhaustive match, not a hand list: adding a tenth strategy
+        // fails to compile HERE, forcing an explicit banding decision
+        // instead of silently falling into the view's ELSE arm.
+        const fn adr_band(strategy: RS) -> &'static str {
+            match strategy {
+                RS::ExplicitImport | RS::Lsp => "high",
+                RS::SameFile
+                | RS::GlobImport
+                | RS::ImportUnion
+                | RS::QualifiedExact
+                | RS::SameCrate => "medium",
+                RS::UniqueWorkspace | RS::QualifiedModuleFallback => "speculative",
+            }
+        }
+
         let dir = tempfile::tempdir().expect("tempdir");
         let index = crate::db::Index::open(&dir.path().join("v.db")).expect("open");
         {
@@ -272,18 +288,32 @@ mod schema_tests {
             )
             .expect("symbol row");
         }
-        let expected = [
-            (Some(RS::ExplicitImport), Some("high")),
-            (Some(RS::Lsp), Some("high")),
-            (Some(RS::SameFile), Some("medium")),
-            (Some(RS::GlobImport), Some("medium")),
-            (Some(RS::ImportUnion), Some("medium")),
-            (Some(RS::QualifiedExact), Some("medium")),
-            (Some(RS::SameCrate), Some("medium")),
-            (Some(RS::UniqueWorkspace), Some("speculative")),
-            (Some(RS::QualifiedModuleFallback), Some("speculative")),
-            (None, None),
+        let all = [
+            RS::SameFile,
+            RS::ExplicitImport,
+            RS::GlobImport,
+            RS::ImportUnion,
+            RS::QualifiedExact,
+            RS::SameCrate,
+            RS::UniqueWorkspace,
+            RS::QualifiedModuleFallback,
+            RS::Lsp,
         ];
+        let mut expected: Vec<(Option<RS>, Option<&str>)> = all
+            .into_iter()
+            .map(|rs| (Some(rs), Some(adr_band(rs))))
+            .collect();
+        expected.push((None, None));
+        let view_exists: i64 = index
+            .connection()
+            .expect("conn")
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_schema WHERE type='view' AND name='refs_banded'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("schema query");
+        assert_eq!(view_exists, 1, "refs_banded view exists");
         for (i, (strategy, band)) in expected.iter().enumerate() {
             let line = i64::try_from(i).expect("small") + 1;
             let ref_id = index

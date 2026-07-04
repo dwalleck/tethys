@@ -38,16 +38,17 @@ on/off; empty result after exclusion; refs_named consumers untouched.
 | 3 | Exclusion drops speculative-ONLY edges, keeps mixed-support edges | fixture: explicit-import call (kept) + cross-crate bare unique call (dropped); one callee with BOTH kinds of support (kept) | fixture source hand-read; band derivation is claim 2's | 25m | pending | `exclude_speculative_drops_only_unsupported`. Buggy: EXISTS inverted; filter dropping mixed edges |
 | 4 | Exclusion applies transitively (recursive CTE arm filtered too) | chain A→B (good) → C (speculative): with flag, C absent from A's transitive callers-of view | fixture hand-read | 15m | pending | `exclusion_is_transitive`. Buggy: only the base arm filtered |
 | 5 | Default (no flag) byte-identical to today | existing callers CLI/integration tests unmodified | the existing pinned outputs | 5m | pending | existing callers tests. Buggy: flag default flipped |
-| 6 | CLI flag surfaces in table+json | run_cli both modes | output text (mechanical) | 10m | pending | `cli_callers_exclude_speculative`. Buggy: flag parsed but not threaded |
+| 6 | CLI flag surfaces in the table output (callers has no JSON mode today) and composes with --transitive | run_cli | output text (mechanical) | 10m | pending | `cli_callers_exclude_speculative`. Buggy: flag parsed but not threaded |
 
 Cheapest (view prototype + distribution) ran at probe time — passed.
 
 ## Negative space
 
 1. No panic-points flag (probe-proven vacuous; recorded above).
-2. No impact/reachable/affected-tests exclusion — the epic names callers;
-   others follow the same EXISTS pattern when wanted (epic slice 4 /
-   dead-code consumers own the recall side).
+2. No impact/reachable/affected-tests CLI exclusion — the epic names
+   callers. NOTE (post-review): the library get_symbol_impact API gained
+   the parameter because `callers --transitive` routes through it; the
+   impact CLI pins false, so impact BEHAVIOR is unchanged.
 3. No band stored, no index added (ADR; measure first — the EXISTS probes
    refs by (in_symbol_id, symbol_id), covered by existing idx_refs_symbol).
 4. Does not fix 53iv/msn0/3i35 — the flag excludes their fabrications

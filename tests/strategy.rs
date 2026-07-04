@@ -478,4 +478,8 @@ fn cli_callers_exclude_speculative() {
         run(&["--exclude-speculative"]).contains("No callers found"),
         "flag drops the all-speculative edge"
     );
+    assert!(
+        run(&["--transitive", "--exclude-speculative"]).contains("No callers found"),
+        "flag composes with --transitive through get_symbol_impact"
+    );
 }
