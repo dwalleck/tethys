@@ -87,11 +87,12 @@ impl Index {
     ///   its own package is the candidate condition.
     /// - (b) `imports` rows in another package whose `source_module` head
     ///   names the candidate's crate: a named row excludes that item; a
-    ///   glob row (`symbol_name = '*'`) makes every pub root item nameable
-    ///   in the importing crate, so it excludes ALL of the crate's
-    ///   candidates. This channel exists because the probe measured real
-    ///   cross-crate uses whose refs never resolve (re-export indirection
-    ///   plus name collisions — tethys-z9mr / tethys-53iv classes).
+    ///   glob row (`symbol_name = '*'`) makes the GLOBBED MODULE's items
+    ///   nameable in the importing crate, so it excludes exactly that
+    ///   module's candidates. This channel exists because the probe
+    ///   measured real cross-crate uses whose refs never resolve
+    ///   (re-export indirection plus name collisions — tethys-z9mr /
+    ///   tethys-53iv classes).
     /// - (c) unresolved refs in another package whose qualified
     ///   `reference_name` last segment equals the candidate's name (the
     ///   `pkg::mod::item()` call-without-import shape; jdly Path B
@@ -151,9 +152,9 @@ impl Index {
         })?;
         let mut candidates = rows.collect::<std::result::Result<Vec<_>, _>>()?;
 
-        let (named_imports, glob_imports) = import_evidence(&conn)?;
+        let named_imports = import_evidence(&conn)?;
         let unresolved_qualified = unresolved_qualified_evidence(&conn)?;
-        let same_pkg_globs = glob_import_rows(&conn)?;
+        let glob_rows = glob_import_rows(&conn)?;
         let shared_names = shared_names(&conn)?;
         // With the ceiling lifted, the modules map is never consulted —
         // skip the pass entirely.
@@ -172,9 +173,17 @@ impl Index {
                 .get(&key)
                 .into_iter()
                 .flatten()
-                .chain(glob_imports.get(&c.crate_ident).into_iter().flatten())
                 .chain(unresolved_qualified.get(&c.name).into_iter().flatten())
-                .any(|&pkg| pkg != c.package_id);
+                .any(|&pkg| pkg != c.package_id)
+                // A cross-package glob import covers exactly the items of
+                // the module it globs — `use x::sub::*` is evidence for
+                // sub's candidates, never the whole crate (a head-keyed
+                // check suppressed 5 true fig_auth candidates on the q-cli
+                // oracle run).
+                || glob_rows.iter().any(|(source, pkg)| {
+                    *pkg != c.package_id
+                        && crate_glob_covers(source, &c.crate_ident, &c.module_path)
+                });
             !used_elsewhere
         });
 
@@ -205,7 +214,7 @@ impl Index {
                 // `is_reexport` isn't persisted in the imports table, so
                 // pub and non-pub globs are indistinguishable at query
                 // time (conservative direction).
-                if same_pkg_globs.iter().any(|(source, pkg)| {
+                if glob_rows.iter().any(|(source, pkg)| {
                     *pkg == c.package_id && module_matches(&c.module_path, source)
                 }) {
                     demotions.push(Demotion::GlobReexportRisk);
@@ -226,6 +235,22 @@ impl Index {
             })
             .collect())
     }
+}
+
+/// Does a CROSS-package glob import (`use crate_ident::…::*`) cover the
+/// candidate's module? The glob's source maps to a `crate::…` module path
+/// by replacing its crate-ident head: `g_lib` → `crate` (root items),
+/// `g_lib::sub` → `crate::sub`. Exact module equality — a glob makes only
+/// the globbed module's items nameable.
+fn crate_glob_covers(source_module: &str, crate_ident: &str, module_path: &str) -> bool {
+    let Some(rest) = source_module.strip_prefix(crate_ident) else {
+        return false;
+    };
+    if rest.is_empty() {
+        return module_path == "crate";
+    }
+    rest.strip_prefix("::")
+        .is_some_and(|sub| module_path.strip_prefix("crate::") == Some(sub))
 }
 
 /// Does a glob import row's `source_module` denote the candidate's module?
@@ -337,22 +362,17 @@ fn glob_import_rows(conn: &rusqlite::Connection) -> Result<Vec<(String, i64)>> {
     Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
 }
 
-/// Channel (b) lookup maps, one pass over `imports` rows: named rows keyed
-/// by (crate-ident head of `source_module`, item name) → importing
-/// packages; crate-glob rows (`symbol_name = '*'`) keyed by head alone.
-#[expect(clippy::type_complexity, reason = "two lookup maps, built together")]
-fn import_evidence(
-    conn: &rusqlite::Connection,
-) -> Result<(
-    HashMap<(String, String), Vec<i64>>,
-    HashMap<String, Vec<i64>>,
-)> {
+/// Channel (b) named-import lookup map, one pass over `imports` rows:
+/// keyed by (crate-ident head of `source_module`, item name) → importing
+/// packages. Glob rows are handled separately by [`glob_import_rows`] +
+/// [`crate_glob_covers`], module-precisely.
+fn import_evidence(conn: &rusqlite::Connection) -> Result<HashMap<(String, String), Vec<i64>>> {
     let mut named: HashMap<(String, String), Vec<i64>> = HashMap::new();
-    let mut globs: HashMap<String, Vec<i64>> = HashMap::new();
     let mut stmt = conn.prepare(
         "SELECT i.symbol_name, i.source_module, fp.package_id
          FROM imports i
-         JOIN arch_file_packages fp ON fp.file_id = i.file_id",
+         JOIN arch_file_packages fp ON fp.file_id = i.file_id
+         WHERE i.symbol_name != '*'",
     )?;
     let rows = stmt.query_map([], |row| {
         Ok((
@@ -366,16 +386,12 @@ fn import_evidence(
         let Some(head) = source_module.split("::").next().filter(|h| !h.is_empty()) else {
             continue;
         };
-        if symbol_name == "*" {
-            globs.entry(head.to_string()).or_default().push(pkg);
-        } else {
-            named
-                .entry((head.to_string(), symbol_name))
-                .or_default()
-                .push(pkg);
-        }
+        named
+            .entry((head.to_string(), symbol_name))
+            .or_default()
+            .push(pkg);
     }
-    Ok((named, globs))
+    Ok(named)
 }
 
 /// Channel (c) lookup map, one pass over unresolved qualified refs (partial
@@ -449,6 +465,22 @@ mod tests {
                 "reachability of {path:?}"
             );
         }
+    }
+
+    /// Channel-(b) glob coverage is module-exact: `g_lib` covers only
+    /// crate-root items, `g_lib::sub` only `crate::sub` — never the whole
+    /// crate (the q-cli `fig_auth` over-suppression bug) and never an
+    /// ident-prefix false match (`g_lib2` vs `g_lib`).
+    #[test]
+    fn crate_glob_coverage_is_module_exact() {
+        use super::crate_glob_covers;
+        assert!(crate_glob_covers("g_lib", "g_lib", "crate"));
+        assert!(crate_glob_covers("g_lib::sub", "g_lib", "crate::sub"));
+        assert!(!crate_glob_covers("g_lib::sub", "g_lib", "crate"));
+        assert!(!crate_glob_covers("g_lib::sub", "g_lib", "crate::sub2"));
+        assert!(!crate_glob_covers("g_lib", "g_lib", "crate::sub"));
+        assert!(!crate_glob_covers("g_lib2", "g_lib", "crate"));
+        assert!(!crate_glob_covers("other", "g_lib", "crate"));
     }
 
     /// C6 helper: absolute, relative, and self-relative source modules all

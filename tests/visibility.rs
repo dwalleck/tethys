@@ -190,6 +190,132 @@ fn shared_name_demotes() {
     }
 }
 
+/// Single-package fixture for the ceiling and CLI fences: `api::exposed`
+/// behind an all-pub chain, `internal::buried` under a private mod.
+fn single_package_fixture() -> (tempfile::TempDir, tethys::Tethys) {
+    let (dir, mut tethys) = workspace_with_files(&[
+        ("src/lib.rs", "pub mod api;\nmod internal;\n"),
+        ("src/api.rs", "pub fn exposed() {}\n"),
+        ("src/internal.rs", "pub fn buried() {}\n"),
+    ]);
+    tethys.index().expect("index failed");
+    (dir, tethys)
+}
+
+/// Run the tethys binary's `visibility-tightening` against `dir`,
+/// asserting exit success; returns stdout.
+fn run_cli(dir: &tempfile::TempDir, extra: &[&str]) -> String {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_tethys"))
+        .args(["visibility-tightening", "-w"])
+        .arg(dir.path())
+        .args(extra)
+        .output()
+        .expect("run tethys visibility-tightening");
+    assert!(
+        output.status.success(),
+        "exited {:?}\nstderr: {}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("stdout is UTF-8")
+}
+
+/// S8 (design C12): tier is visible in BOTH output modes, the JSON key set
+/// is fixed with `demotions` present-not-absent even when empty (the haw5
+/// C10 key-set lesson), and `--workspace-closed` reaches the analysis.
+#[test]
+fn cli_tier_visible_both_modes() {
+    let (dir, _tethys) = single_package_fixture();
+
+    let table = run_cli(&dir, &[]);
+    assert!(
+        table.contains("[Definite]") && table.contains("buried"),
+        "table shows the Definite finding:\n{table}"
+    );
+    assert!(
+        table.contains("[Maybe]") && table.contains("exposed"),
+        "table shows the Maybe finding:\n{table}"
+    );
+    assert!(
+        table.contains("root-reachable"),
+        "table shows the demotion reason:\n{table}"
+    );
+
+    let json = run_cli(&dir, &["--json"]);
+    let value: serde_json::Value = serde_json::from_str(&json).expect("stdout parses as JSON");
+    let findings = value["findings"].as_array().expect("findings array");
+    assert_eq!(findings.len(), 2);
+    for finding in findings {
+        let mut keys: Vec<&str> = finding
+            .as_object()
+            .expect("finding object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            ["demotions", "file", "kind", "line", "name", "tier"],
+            "fixed key set; demotions present even when empty"
+        );
+    }
+    let exposed = findings
+        .iter()
+        .find(|f| f["name"] == "exposed")
+        .expect("exposed present");
+    assert_eq!(exposed["tier"], "Maybe");
+    assert_eq!(exposed["demotions"][0], "root-reachable");
+
+    let closed = run_cli(&dir, &["--json", "--workspace-closed"]);
+    let value: serde_json::Value = serde_json::from_str(&closed).expect("parses");
+    let exposed = value["findings"]
+        .as_array()
+        .expect("findings")
+        .iter()
+        .find(|f| f["name"] == "exposed")
+        .expect("exposed present")
+        .clone();
+    assert_eq!(exposed["tier"], "Definite", "flag lifts the ceiling");
+}
+
+/// S8 (design C10): a workspace with zero candidates renders the empty
+/// envelope — summary zeros, `findings: []` (present, not absent), exit 0.
+#[test]
+fn cli_empty_envelope() {
+    let (dir, mut tethys) = workspace_with_files(&[
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"crates/g-lib\", \"crates/u-app\"]\n",
+        ),
+        (
+            "crates/g-lib/Cargo.toml",
+            "[package]\nname = \"g-lib\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+        ),
+        ("crates/g-lib/src/lib.rs", "pub fn alpha() {}\n"),
+        (
+            "crates/u-app/Cargo.toml",
+            "[package]\nname = \"u-app\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+        ),
+        (
+            "crates/u-app/src/main.rs",
+            "use g_lib::*;\n\nfn main() {\n    alpha();\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    drop(tethys);
+
+    let json = run_cli(&dir, &["--json"]);
+    let value: serde_json::Value = serde_json::from_str(&json).expect("stdout parses as JSON");
+    assert_eq!(value["summary"]["candidate_count"], 0);
+    assert_eq!(value["summary"]["definite"], 0);
+    assert_eq!(value["summary"]["maybe"], 0);
+    assert_eq!(
+        value["findings"].as_array().map(Vec::len),
+        Some(0),
+        "empty findings array, not absent"
+    );
+}
+
 /// S7 (design C7 + C13): the root-reachability ceiling, on a
 /// SINGLE-package workspace (which also proves the evidence sweep doesn't
 /// vacuously exclude everything when no second package exists — C13's
@@ -201,12 +327,7 @@ fn shared_name_demotes() {
 /// lifting the ceiling: `exposed` becomes Definite with no demotion left.
 #[test]
 fn root_reachable_ceiling() {
-    let (_dir, mut tethys) = workspace_with_files(&[
-        ("src/lib.rs", "pub mod api;\nmod internal;\n"),
-        ("src/api.rs", "pub fn exposed() {}\n"),
-        ("src/internal.rs", "pub fn buried() {}\n"),
-    ]);
-    tethys.index().expect("index failed");
+    let (_dir, tethys) = single_package_fixture();
 
     let default_run = tethys
         .get_visibility_candidates(false)
@@ -299,14 +420,15 @@ fn glob_module_demotes() {
     );
 }
 
-/// S2 (design C2, glob widening): a cross-package `use g_lib::*;` makes
-/// every pub root item of `g_lib` nameable in the importing crate, so it
-/// is use evidence for ALL of that crate's candidates — `beta` has no ref
-/// anywhere, only the crate-glob row, and must still be excluded.
-/// (Suppression-safe widening beyond the design's per-name claim; noted
-/// in the slice commit.)
+/// S2 (design C2, glob widening): a cross-package glob import makes every
+/// pub item OF THE GLOBBED MODULE nameable in the importing crate — and
+/// only that module. `use g_lib::*;` covers root items `alpha`/`beta`;
+/// `use g_lib::sub::*;` covers `sub::subbed`; `sub2::untouched` is covered
+/// by NEITHER and must survive as a candidate. (The q-cli oracle run
+/// caught a head-keyed implementation that suppressed the whole crate on
+/// one submodule glob — `fig_auth` went from 5 true candidates to 0.)
 #[test]
-fn cross_package_glob_import_excludes_all() {
+fn cross_package_glob_import_excludes_globbed_module_only() {
     let (_dir, mut tethys) = workspace_with_files(&[
         (
             "Cargo.toml",
@@ -318,15 +440,17 @@ fn cross_package_glob_import_excludes_all() {
         ),
         (
             "crates/g-lib/src/lib.rs",
-            "pub fn alpha() {}\npub fn beta() {}\n",
+            "pub mod sub;\npub mod sub2;\npub fn alpha() {}\npub fn beta() {}\n",
         ),
+        ("crates/g-lib/src/sub.rs", "pub fn subbed() {}\n"),
+        ("crates/g-lib/src/sub2.rs", "pub fn untouched() {}\n"),
         (
             "crates/u-app/Cargo.toml",
             "[package]\nname = \"u-app\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
         ),
         (
             "crates/u-app/src/main.rs",
-            "use g_lib::*;\n\nfn main() {\n    alpha();\n}\n",
+            "use g_lib::*;\nuse g_lib::sub::*;\n\nfn main() {\n    alpha();\n}\n",
         ),
     ]);
     tethys.index().expect("index failed");
@@ -334,13 +458,18 @@ fn cross_package_glob_import_excludes_all() {
         .get_visibility_candidates(false)
         .expect("visibility query failed");
 
-    for absent in ["alpha", "beta"] {
+    for absent in ["alpha", "beta", "subbed"] {
         assert!(
             !findings.iter().any(|f| f.name == absent),
-            "g_lib::{absent} is covered by u-app's crate glob import; \
+            "g_lib::{absent} is covered by a u-app glob import; \
              got {findings:?}"
         );
     }
+    assert!(
+        findings.iter().any(|f| f.name == "untouched"),
+        "sub2::untouched is covered by NO glob — a head-keyed \
+         implementation over-suppresses it; got {findings:?}"
+    );
 }
 
 /// S1 (design C1): a pub symbol with a cross-package resolved ref

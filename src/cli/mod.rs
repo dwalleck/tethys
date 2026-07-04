@@ -14,6 +14,7 @@ pub mod reachable;
 pub mod search;
 pub mod stats;
 pub mod unused_imports;
+pub mod visibility_tightening;
 
 use std::io;
 use std::process::Command;
