@@ -10,6 +10,8 @@
 //! (`.tethys-xoxq/findings.md`), which is why exclusion consults every
 //! evidence channel.
 
+use std::collections::HashMap;
+
 use serde::Serialize;
 use tracing::trace;
 
@@ -87,6 +89,13 @@ impl Index {
     ///   candidates. This channel exists because the probe measured real
     ///   cross-crate uses whose refs never resolve (re-export indirection
     ///   plus name collisions — tethys-z9mr / tethys-53iv classes).
+    /// - (c) unresolved refs in another package whose qualified
+    ///   `reference_name` last segment equals the candidate's name (the
+    ///   `pkg::mod::item()` call-without-import shape; jdly Path B
+    ///   mechanics over the `idx_refs_unresolved` partial index). Matching
+    ///   is deliberately last-segment-only, not crate-prefix-anchored:
+    ///   evidence here SUPPRESSES an accusation, so a wide net is the
+    ///   conservative direction.
     pub(crate) fn get_visibility_candidates(
         &self,
         _workspace_closed: bool,
@@ -130,51 +139,22 @@ impl Index {
         })?;
         let mut candidates = rows.collect::<std::result::Result<Vec<_>, _>>()?;
 
-        // Channel (b): one pass over imports rows. Named rows key
-        // (crate ident head, item name) → importing packages; crate-glob
-        // rows key the head alone.
-        let mut named_imports: std::collections::HashMap<(String, String), Vec<i64>> =
-            std::collections::HashMap::new();
-        let mut glob_imports: std::collections::HashMap<String, Vec<i64>> =
-            std::collections::HashMap::new();
-        let mut import_stmt = conn.prepare(
-            "SELECT i.symbol_name, i.source_module, fp.package_id
-             FROM imports i
-             JOIN arch_file_packages fp ON fp.file_id = i.file_id",
-        )?;
-        let import_rows = import_stmt.query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, i64>(2)?,
-            ))
-        })?;
-        for row in import_rows {
-            let (symbol_name, source_module, pkg) = row?;
-            let Some(head) = source_module.split("::").next().filter(|h| !h.is_empty()) else {
-                continue;
-            };
-            if symbol_name == "*" {
-                glob_imports.entry(head.to_string()).or_default().push(pkg);
-            } else {
-                named_imports
-                    .entry((head.to_string(), symbol_name))
-                    .or_default()
-                    .push(pkg);
-            }
-        }
+        let (named_imports, glob_imports) = import_evidence(&conn)?;
+        let unresolved_qualified = unresolved_qualified_evidence(&conn)?;
+
         candidates.retain(|c| {
             // Owned keys: HashMap's Borrow lookup can't be fed (&str, &str)
             // for a (String, String) key (same shape as deprecated.rs's
             // ambiguity set); d is small — tens, not 10^5.
             let key = (c.crate_ident.clone(), c.name.clone());
-            let imported_elsewhere = named_imports
+            let used_elsewhere = named_imports
                 .get(&key)
                 .into_iter()
                 .flatten()
                 .chain(glob_imports.get(&c.crate_ident).into_iter().flatten())
+                .chain(unresolved_qualified.get(&c.name).into_iter().flatten())
                 .any(|&pkg| pkg != c.package_id);
-            !imported_elsewhere
+            !used_elsewhere
         });
 
         Ok(candidates
@@ -189,4 +169,73 @@ impl Index {
             })
             .collect())
     }
+}
+
+/// Channel (b) lookup maps, one pass over `imports` rows: named rows keyed
+/// by (crate-ident head of `source_module`, item name) → importing
+/// packages; crate-glob rows (`symbol_name = '*'`) keyed by head alone.
+#[expect(clippy::type_complexity, reason = "two lookup maps, built together")]
+fn import_evidence(
+    conn: &rusqlite::Connection,
+) -> Result<(
+    HashMap<(String, String), Vec<i64>>,
+    HashMap<String, Vec<i64>>,
+)> {
+    let mut named: HashMap<(String, String), Vec<i64>> = HashMap::new();
+    let mut globs: HashMap<String, Vec<i64>> = HashMap::new();
+    let mut stmt = conn.prepare(
+        "SELECT i.symbol_name, i.source_module, fp.package_id
+         FROM imports i
+         JOIN arch_file_packages fp ON fp.file_id = i.file_id",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)?,
+        ))
+    })?;
+    for row in rows {
+        let (symbol_name, source_module, pkg) = row?;
+        let Some(head) = source_module.split("::").next().filter(|h| !h.is_empty()) else {
+            continue;
+        };
+        if symbol_name == "*" {
+            globs.entry(head.to_string()).or_default().push(pkg);
+        } else {
+            named
+                .entry((head.to_string(), symbol_name))
+                .or_default()
+                .push(pkg);
+        }
+    }
+    Ok((named, globs))
+}
+
+/// Channel (c) lookup map, one pass over unresolved qualified refs (partial
+/// index `idx_refs_unresolved`), keyed by last `::` segment → referencing
+/// packages — O(u + d), never O(u × d).
+fn unresolved_qualified_evidence(conn: &rusqlite::Connection) -> Result<HashMap<String, Vec<i64>>> {
+    let mut by_last_segment: HashMap<String, Vec<i64>> = HashMap::new();
+    let mut stmt = conn.prepare(
+        "SELECT r.reference_name, fp.package_id
+         FROM refs r
+         JOIN arch_file_packages fp ON fp.file_id = r.file_id
+         WHERE r.symbol_id IS NULL
+           AND r.reference_name LIKE '%::%'",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+    })?;
+    for row in rows {
+        let (reference_name, pkg) = row?;
+        let Some(last_segment) = reference_name.rsplit("::").next() else {
+            continue;
+        };
+        by_last_segment
+            .entry(last_segment.to_string())
+            .or_default()
+            .push(pkg);
+    }
+    Ok(by_last_segment)
 }

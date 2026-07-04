@@ -42,7 +42,9 @@ fn two_crate_fixture() -> (tempfile::TempDir, tethys::Tethys) {
              pub(in crate) fn scoped_fn() {}\n\
              pub struct Widget {\n    pub field: u32,\n}\n\
              impl Widget {\n    pub fn method(&self) -> u32 {\n        self.field\n    }\n}\n\
-             fn internal() -> Widget {\n    Widget { field: 1 }\n}\n",
+             fn internal() -> Widget {\n    Widget { field: 1 }\n}\n\
+             pub fn bare2() {}\n\
+             pub fn qonly() {}\n",
         ),
         (
             "crates/a-lib/src/detail.rs",
@@ -57,11 +59,20 @@ fn two_crate_fixture() -> (tempfile::TempDir, tethys::Tethys) {
             "[package]\nname = \"b-app\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
         ),
         (
+            // `a_lib::qonly()` exercises channel (c): a ROOT-level
+            // qualified call with no import stays unresolved (the
+            // tethys-3i35 decline class — deeper paths like a_lib::m::f()
+            // resolve via qualified_module_fallback and land in channel
+            // (a) instead), so only its qualified text can exclude qonly.
+            // The `zz::xbare2()` decoy shares a suffix with candidate
+            // `bare2` — a match without the `::` boundary would wrongly
+            // suppress it.
             "crates/b-app/src/main.rs",
             "use a_lib::helper;\n\
              use a_lib::mixin as mx;\n\
              use a_lib::used_fn;\n\n\
-             fn main() {\n    used_fn();\n    helper();\n    mx();\n}\n",
+             fn main() {\n    used_fn();\n    helper();\n    mx();\n    \
+             a_lib::qonly();\n    zz::xbare2();\n}\n",
         ),
     ]);
     tethys.index().expect("index failed");
@@ -90,6 +101,32 @@ fn cross_package_import_excludes() {
              exclude it; got {findings:?}"
         );
     }
+}
+
+/// S3 (design C3): a pub symbol whose only cross-crate use is a ROOT-level
+/// fully qualified call with no import (`a_lib::qonly()`) stays unresolved
+/// (the tethys-3i35 decline class, the probe's `fig_auth::refresh_token`
+/// shape), and its qualified `reference_name` text is the only evidence —
+/// the last `::` segment from another package's ref must exclude it. The
+/// `zz::xbare2()` decoy fences the `::` boundary: `bare2` must SURVIVE as
+/// a candidate even though `xbare2` ends with its name.
+#[test]
+fn unresolved_qualified_excludes() {
+    let (_dir, tethys) = two_crate_fixture();
+    let findings = tethys
+        .get_visibility_candidates(false)
+        .expect("visibility query failed");
+
+    assert!(
+        !findings.iter().any(|f| f.name == "qonly"),
+        "a_lib::qonly is called (unresolved-qualified) from b-app — the \
+         qualified text must exclude it; got {findings:?}"
+    );
+    assert!(
+        findings.iter().any(|f| f.name == "bare2"),
+        "bare2 must survive the zz::xbare2 suffix decoy (:: boundary); \
+         got {findings:?}"
+    );
 }
 
 /// S2 (design C2, glob widening): a cross-package `use g_lib::*;` makes
@@ -155,8 +192,12 @@ fn cross_package_ref_excludes() {
         .collect();
     assert_eq!(
         names,
-        [("lonely_fn", "function"), ("Widget", "struct")],
-        "exactly the unused pub fn and the internally-used pub struct, \
+        [
+            ("lonely_fn", "function"),
+            ("Widget", "struct"),
+            ("bare2", "function"),
+        ],
+        "exactly the unused pub items with no cross-package evidence, \
          ordered by (file, line, name); got {findings:?}"
     );
     let lonely = &findings[0];
