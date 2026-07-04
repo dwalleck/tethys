@@ -1,0 +1,136 @@
+{
+  "summary": {
+    "symbol_count": 4,
+    "with_callers": 2,
+    "clean": 2,
+    "site_count": 10
+  },
+  "deprecated": [
+    {
+      "symbol": {
+        "name": "weighted",
+        "kind": "module",
+        "file": "src/distributions/mod.rs",
+        "line": 117,
+        "since": "0.8.0",
+        "note": "use rand::distributions::{WeightedIndex, WeightedError} instead"
+      },
+      "sites": []
+    },
+    {
+      "symbol": {
+        "name": "alias_method",
+        "kind": "module",
+        "file": "src/distributions/weighted.rs",
+        "line": 18,
+        "since": "0.8.0",
+        "note": "moved to rand_distr crate"
+      },
+      "sites": []
+    },
+    {
+      "symbol": {
+        "name": "ReadRng",
+        "kind": "struct",
+        "file": "src/rngs/adapter/read.rs",
+        "line": 39,
+        "since": "0.8.4",
+        "note": "removal due to lack of usage"
+      },
+      "sites": [
+        {
+          "file": "src/rngs/adapter/mod.rs",
+          "line": 15,
+          "column": 1,
+          "caller": null,
+          "tier": "Definite",
+          "via": "resolved"
+        },
+        {
+          "file": "src/rngs/adapter/read.rs",
+          "line": 43,
+          "column": 15,
+          "caller": null,
+          "tier": "Definite",
+          "via": "resolved"
+        },
+        {
+          "file": "src/rngs/adapter/read.rs",
+          "line": 45,
+          "column": 25,
+          "caller": "new",
+          "tier": "Definite",
+          "via": "resolved"
+        },
+        {
+          "file": "src/rngs/adapter/read.rs",
+          "line": 46,
+          "column": 9,
+          "caller": "new",
+          "tier": "Definite",
+          "via": "resolved"
+        },
+        {
+          "file": "src/rngs/adapter/read.rs",
+          "line": 46,
+          "column": 9,
+          "caller": "new",
+          "tier": "Definite",
+          "via": "resolved"
+        },
+        {
+          "file": "src/rngs/adapter/read.rs",
+          "line": 50,
+          "column": 27,
+          "caller": null,
+          "tier": "Definite",
+          "via": "resolved"
+        }
+      ]
+    },
+    {
+      "symbol": {
+        "name": "ReadError",
+        "kind": "struct",
+        "file": "src/rngs/adapter/read.rs",
+        "line": 82,
+        "since": "0.8.4",
+        "note": null
+      },
+      "sites": [
+        {
+          "file": "src/rngs/adapter/mod.rs",
+          "line": 15,
+          "column": 1,
+          "caller": null,
+          "tier": "Definite",
+          "via": "resolved"
+        },
+        {
+          "file": "src/rngs/adapter/read.rs",
+          "line": 75,
+          "column": 37,
+          "caller": "try_fill_bytes",
+          "tier": "Definite",
+          "via": "resolved"
+        },
+        {
+          "file": "src/rngs/adapter/read.rs",
+          "line": 84,
+          "column": 23,
+          "caller": null,
+          "tier": "Definite",
+          "via": "resolved"
+        },
+        {
+          "file": "src/rngs/adapter/read.rs",
+          "line": 90,
+          "column": 28,
+          "caller": null,
+          "tier": "Definite",
+          "via": "resolved"
+        }
+      ]
+    }
+  ]
+}

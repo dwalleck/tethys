@@ -33,7 +33,8 @@ pub struct ExtractedSymbol {
     /// Attributes attached to this symbol (e.g. `#[derive(Clone)]`, `#[source]`).
     ///
     /// Empty when no attributes precede the symbol. Currently populated by the
-    /// Rust extractor only; C# extraction will follow.
+    /// Populated by the Rust and C# extractors (C#: type, method, and
+    /// constructor declarations; namespaces cannot carry attributes).
     pub attributes: Vec<ExtractedAttribute>,
 }
 
@@ -54,6 +55,20 @@ pub struct ExtractedAttribute {
     pub name: String,
     pub args: Option<String>,
     pub line: u32,
+}
+
+/// Strip one pair of outer parens from raw attribute-argument text.
+///
+/// Shared by the Rust and C# extractors so `attributes.args` stores the
+/// parens-stripped inner text uniformly and queries can match content
+/// without anchoring around `(...)`. Exactly one pair is stripped: an
+/// argument like `((Config)null)` keeps its own parens.
+pub(crate) fn strip_outer_parens(raw: &str) -> &str {
+    let trimmed = raw.trim();
+    trimmed
+        .strip_prefix('(')
+        .and_then(|s| s.strip_suffix(')'))
+        .unwrap_or(trimmed)
 }
 
 /// An extracted reference (usage of a symbol) from source code.

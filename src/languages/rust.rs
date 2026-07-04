@@ -9,7 +9,7 @@
 use super::LanguageSupport;
 use super::common::{
     ExtractedAttribute, ExtractedReference, ExtractedReferenceKind, ExtractedSymbol,
-    ImportStatement,
+    ImportStatement, strip_outer_parens,
 };
 use super::tree_sitter_utils::{node_span, node_text};
 use crate::types::{FunctionSignature, Parameter, Span, SymbolKind, Visibility};
@@ -1362,14 +1362,6 @@ fn extract_attribute(attr_item: &tree_sitter::Node, content: &[u8]) -> Option<Ex
         args,
         line: attr_item.start_position().row as u32 + 1,
     })
-}
-
-fn strip_outer_parens(raw: &str) -> &str {
-    let trimmed = raw.trim();
-    trimmed
-        .strip_prefix('(')
-        .and_then(|s| s.strip_suffix(')'))
-        .unwrap_or(trimmed)
 }
 
 /// Returns true if any of the supplied attributes is a recognized test marker.
