@@ -432,13 +432,22 @@ impl Tethys {
     }
 
     /// Get symbols that call/use the given symbol.
-    pub fn get_callers(&self, qualified_name: &str) -> Result<Vec<Dependent>> {
+    ///
+    /// `exclude_speculative` drops call edges whose every supporting ref
+    /// bands speculative (ADR-0003 via the `refs_banded` view) — the
+    /// name-shape fallback binds that fabricate the tethys-53iv phantom
+    /// class. An edge with ANY trustworthy support survives.
+    pub fn get_callers(
+        &self,
+        qualified_name: &str,
+        exclude_speculative: bool,
+    ) -> Result<Vec<Dependent>> {
         let symbol = self
             .db
             .get_symbol_by_qualified_name(qualified_name)?
             .ok_or_else(|| Error::NotFound(format!("symbol: {qualified_name}")))?;
 
-        let callers = self.db.get_callers(symbol.id)?;
+        let callers = self.db.get_callers(symbol.id, exclude_speculative)?;
 
         self.convert_callers_to_dependents(callers)
     }
@@ -461,10 +470,13 @@ impl Tethys {
     /// crate-wide default of 50. There is currently no way to request unbounded
     /// traversal through this method. Values larger than `u32::MAX` are capped
     /// (with a `warn!` log) since the underlying SQL CTE depth is a `u32`.
+    /// `exclude_speculative` drops call edges whose every supporting ref
+    /// bands speculative (see [`Tethys::get_callers`]).
     pub fn get_symbol_impact(
         &self,
         qualified_name: &str,
         max_depth: Option<usize>,
+        exclude_speculative: bool,
     ) -> Result<Impact> {
         let symbol = self
             .db
@@ -472,7 +484,9 @@ impl Tethys {
             .ok_or_else(|| Error::NotFound(format!("symbol: {qualified_name}")))?;
 
         let depth = max_depth.map_or(db::DEFAULT_MAX_DEPTH, saturating_depth_to_u32);
-        let impact = self.db.get_transitive_callers(symbol.id, Some(depth))?;
+        let impact = self
+            .db
+            .get_transitive_callers(symbol.id, Some(depth), exclude_speculative)?;
 
         let direct_dependents = self.convert_callers_to_dependents(impact.direct_callers)?;
         let transitive_dependents =
@@ -673,7 +687,7 @@ impl Tethys {
             |id| {
                 Ok(self
                     .db
-                    .get_callers(id)?
+                    .get_callers(id, false)?
                     .into_iter()
                     .map(|c| c.symbol)
                     .collect())

@@ -139,7 +139,9 @@ fn get_callers_with_lsp_matches_get_callers_baseline() {
     tethys.index().expect("index failed");
 
     // get_callers_with_lsp should return at least what get_callers returns
-    let db_callers = tethys.get_callers("validate").expect("get_callers failed");
+    let db_callers = tethys
+        .get_callers("validate", false)
+        .expect("get_callers failed");
     let lsp_callers = tethys
         .get_callers_with_lsp("validate")
         .expect("get_callers_with_lsp failed");
