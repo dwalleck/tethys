@@ -14,7 +14,7 @@ use tracing::debug;
 /// sites, tiered by resolution trustworthiness (Definite/Maybe), plus a
 /// clean list for deprecated symbols with no known remaining callers.
 pub fn run(workspace: &Path, json: bool) -> Result<(), tethys::Error> {
-    debug!(workspace = %workspace.display(), "Opening tethys database");
+    debug!(workspace = %workspace.display(), "Opening tethys index");
     let tethys = Tethys::new(workspace)?;
 
     let findings = tethys.get_deprecated_callers()?;

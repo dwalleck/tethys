@@ -150,14 +150,14 @@ impl Index {
         // these names tier Maybe (a phantom binding is possible). One
         // statement, no per-symbol round-trips.
         let mut ambiguous_stmt = conn.prepare(
-            "SELECT DISTINCT s2.name
+            "WITH deprecated_ids AS (SELECT symbol_id FROM attributes
+                                     WHERE name = 'deprecated')
+             SELECT DISTINCT s2.name
              FROM symbols s2
              WHERE s2.name IN (SELECT s.name
-                               FROM attributes a
-                               JOIN symbols s ON s.id = a.symbol_id
-                               WHERE a.name = 'deprecated')
-               AND s2.id NOT IN (SELECT symbol_id FROM attributes
-                                 WHERE name = 'deprecated')",
+                               FROM symbols s
+                               JOIN deprecated_ids d ON d.symbol_id = s.id)
+               AND s2.id NOT IN (SELECT symbol_id FROM deprecated_ids)",
         )?;
         let ambiguous_names: std::collections::HashSet<String> = ambiguous_stmt
             .query_map([], |row| row.get::<_, String>(0))?

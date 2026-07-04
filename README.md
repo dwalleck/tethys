@@ -49,6 +49,7 @@ tethys coupling --json
 | `callers` | Show callers of a symbol (with `--transitive` for call chains) |
 | `coupling` | Per-crate coupling metrics (Ca, Ce, instability) |
 | `cycles` | Detect circular dependencies |
+| `deprecated-callers` | List reference sites of `#[deprecated]` symbols (Rust; C# `[Obsolete]` pending) |
 | `impact` | Analyze impact of changes to a file or symbol |
 | `index` | Index source files in the workspace |
 | `panic-points` | Find `.unwrap()` and `.expect()` calls |

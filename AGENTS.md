@@ -26,7 +26,8 @@ start there (especially `index.md`) for anything this file does not cover.
   all functionality. Most query methods live here or in `src/indexing.rs`.
 - **CLI**: `src/main.rs` defines clap commands and dispatches to `src/cli/<cmd>.rs`.
   Commands: `index`, `search`, `callers`, `impact`, `coupling`, `cycles`,
-  `stats`, `reachable`, `affected-tests`, `panic-points`.
+  `stats`, `reachable`, `affected-tests`, `panic-points`, `deprecated-callers`,
+  `unused-imports`.
 - **Domain model**: `src/types.rs` — all shared records, IDs, and enums.
 - **Domain vocabulary**: `CONTEXT.md` — the canonical glossary. Use these terms
   (and honor the `_Avoid_` lists) in issue titles, PRs, and code; `docs/adr/`

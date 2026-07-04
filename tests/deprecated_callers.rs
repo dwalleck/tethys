@@ -510,3 +510,102 @@ fn clean_list_exact() {
         "old_q has a qualified-unresolved caller and must NOT be clean"
     );
 }
+
+// ---------------------------------------------------------------------------
+// CLI-level fences. Everything above exercises the library facade; these run
+// the actual binary (acceptance criterion: "lists that call site ... via the
+// CLI"), so a regression in `src/cli/deprecated_callers.rs` or the clap
+// wiring fails CI instead of only the one-shot manual audit.
+// ---------------------------------------------------------------------------
+
+/// Two-file fixture for the CLI fences: a `#[deprecated]` fn (with since +
+/// note) called once cross-file. Indexed through the library helper (still
+/// "builds its own index, never an ambient DB"); the Tethys handle drops at
+/// return so the subprocess owns the only connection.
+fn cli_fixture() -> tempfile::TempDir {
+    let (dir, mut tethys) = workspace_with_files(&[
+        ("src/lib.rs", "pub mod legacy;\npub mod consumer;\n"),
+        (
+            "src/legacy.rs",
+            "#[deprecated(since = \"1.0\", note = \"use replacement\")]\n\
+             pub fn old_api() {}\n",
+        ),
+        (
+            "src/consumer.rs",
+            "use crate::legacy::old_api;\n\npub fn migrate() {\n    old_api();\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    dir
+}
+
+/// Run the tethys binary's `deprecated-callers` against `dir`, asserting
+/// exit success; returns stdout.
+fn run_cli(dir: &tempfile::TempDir, extra: &[&str]) -> String {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_tethys"))
+        .args(["deprecated-callers", "-w"])
+        .arg(dir.path())
+        .args(extra)
+        .output()
+        .expect("run tethys deprecated-callers");
+    assert!(
+        output.status.success(),
+        "exited {:?}\nstderr: {}",
+        output.status,
+        String::from_utf8_lossy(&output.stderr)
+    );
+    String::from_utf8(output.stdout).expect("stdout is UTF-8")
+}
+
+/// AC1: a `#[deprecated]` function called from another file lists that call
+/// site (caller symbol, file, line) via the CLI — table mode.
+#[test]
+fn cli_table_lists_cross_file_call_site() {
+    let dir = cli_fixture();
+    let stdout = run_cli(&dir, &[]);
+
+    assert!(
+        stdout.contains("old_api"),
+        "deprecated symbol must be named:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("(since 1.0 — use replacement)"),
+        "since/note must be surfaced:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("[Definite] src/consumer.rs:4 in migrate"),
+        "call site must show tier, file:line, caller symbol:\n{stdout}"
+    );
+}
+
+/// AC2: JSON output mode is stable and parseable — pins the CLI's
+/// `{summary, deprecated}` envelope. The library-level determinism fence
+/// (`json_deterministic_across_reindex_with_same_line_tie`) serializes the
+/// findings vec directly, so envelope drift would otherwise pass CI.
+#[test]
+fn cli_json_envelope_stable_and_parseable() {
+    let dir = cli_fixture();
+    let first = run_cli(&dir, &["--json"]);
+    let second = run_cli(&dir, &["--json"]);
+    assert_eq!(first, second, "same index must render identical JSON bytes");
+
+    let value: serde_json::Value = serde_json::from_str(&first).expect("stdout parses as JSON");
+    let summary = &value["summary"];
+    assert_eq!(summary["symbol_count"], 1);
+    assert_eq!(summary["with_callers"], 1);
+    assert_eq!(summary["clean"], 0);
+    assert_eq!(summary["site_count"], 1);
+
+    let symbol = &value["deprecated"][0]["symbol"];
+    assert_eq!(symbol["name"], "old_api");
+    assert_eq!(symbol["file"], "src/legacy.rs");
+    assert_eq!(symbol["since"], "1.0");
+    assert_eq!(symbol["note"], "use replacement");
+
+    let site = &value["deprecated"][0]["sites"][0];
+    assert_eq!(site["file"], "src/consumer.rs");
+    assert_eq!(site["line"], 4);
+    assert_eq!(site["caller"], "migrate");
+    assert_eq!(site["tier"], "Definite");
+    assert_eq!(site["via"], "resolved");
+}
