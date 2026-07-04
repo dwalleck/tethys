@@ -205,3 +205,146 @@ fn rebuild_recovers_from_outdated_schema() {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+/// Per-name strategy lookup for a resolved ref bound to symbol `name`.
+fn strategy_of(tethys: &tethys::Tethys, symbol_name: &str) -> Vec<String> {
+    let conn = open_db(tethys);
+    let mut stmt = conn
+        .prepare(
+            "SELECT DISTINCT COALESCE(r.strategy, '(null)') FROM refs r
+             JOIN symbols s ON s.id = r.symbol_id
+             WHERE s.name = ?1 ORDER BY 1",
+        )
+        .expect("prepare");
+    let rows = stmt
+        .query_map([symbol_name], |r| r.get::<_, String>(0))
+        .expect("query");
+    rows.collect::<Result<_, _>>().expect("collect")
+}
+
+/// B5 (design C3): every Pass-2 arm stamps its own label — one mixed
+/// multi-crate + C# workspace fires all seven. Each shape is chosen so
+/// exactly one arm can claim it (arm order documented per case). Kills:
+/// swapped labels; the fallback's three sub-paths collapsing into one.
+#[test]
+fn every_arm_stamps_its_label() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"crates/main-crate\", \"crates/aux-crate\"]\n",
+        ),
+        (
+            "crates/main-crate/Cargo.toml",
+            "[package]\nname = \"main-crate\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+        ),
+        (
+            "crates/main-crate/src/lib.rs",
+            "pub mod m;\npub mod g;\npub mod helper;\npub mod x;\npub mod user;\npub fn sfn() {}\n",
+        ),
+        ("crates/main-crate/src/m.rs", "pub fn efn() {}\n"),
+        ("crates/main-crate/src/g.rs", "pub fn gfn() {}\n"),
+        ("crates/main-crate/src/helper.rs", "pub fn do_thing() {}\n"),
+        (
+            "crates/main-crate/src/x.rs",
+            "pub struct Holder;\nimpl Holder {\n    pub fn alpha() {}\n}\n",
+        ),
+        (
+            // One consumer file, no import for the fallback shapes:
+            // - efn: explicit import        -> explicit_import
+            // - gfn: glob import            -> glob_import
+            // - Holder::alpha qualified text matches stored qualified_name
+            //   (module-stripped)           -> qualified_exact
+            // - sfn: bare, same crate, no import -> same_crate (scoped
+            //   search runs BEFORE the unscoped one)
+            // - helper::do_thing: relative module-qualified, stored
+            //   qualified_name is just 'do_thing' so the exact match
+            //   misses                      -> qualified_module_fallback
+            "crates/main-crate/src/user.rs",
+            "use crate::m::efn;\nuse crate::g::*;\n\npub fn go() {\n    efn();\n    gfn();\n    \
+             Holder::alpha();\n    sfn();\n    helper::do_thing();\n    afn();\n}\n",
+        ),
+        (
+            // afn lives in ANOTHER crate, bare + unimported + unique:
+            // the crate-scoped search misses -> unique_workspace.
+            "crates/aux-crate/Cargo.toml",
+            "[package]\nname = \"aux-crate\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+        ),
+        ("crates/aux-crate/src/lib.rs", "pub fn afn() {}\n"),
+        (
+            // C# union arm: static-member using + bare call is only
+            // claimable by GlobPolicy::UniqueAcrossAll -> import_union.
+            "Lib.cs",
+            "using System;\n\nnamespace Lib\n{\n    public static class Legacy\n    {\n        \
+             public static void UnionTarget() { }\n    }\n}\n",
+        ),
+        (
+            "Use.cs",
+            "using static Lib.Legacy;\n\nnamespace App\n{\n    public class User\n    {\n        \
+             public void Go()\n        {\n            UnionTarget();\n        }\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+
+    let cases = [
+        ("efn", "explicit_import"),
+        ("gfn", "glob_import"),
+        ("alpha", "qualified_exact"),
+        ("sfn", "same_crate"),
+        ("do_thing", "qualified_module_fallback"),
+        ("afn", "unique_workspace"),
+        ("UnionTarget", "import_union"),
+    ];
+    for (name, expected) in cases {
+        assert_eq!(
+            strategy_of(&tethys, name),
+            [expected],
+            "arm label for {name}"
+        );
+    }
+}
+
+/// B5 (design C5): macro refs bypass the memo without cross-contamination.
+/// `solo()` (fn, same file) binds Pass 1 `same_file`; `solo!()` shares the
+/// reference name but must NOT inherit the fn's binding or strategy — with
+/// a same-named macro in another file the kind-gated lookup is ambiguous,
+/// so the macro ref stays unresolved with strategy NULL. The clean case
+/// (`lone_macro!` unique cross-file) resolves through the bypass with a
+/// real arm label.
+#[test]
+fn macro_bypass_stamps_without_contamination() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "pub mod a;\npub mod b;\n\
+             #[macro_export]\nmacro_rules! solo {\n    () => {};\n}\n\
+             #[macro_export]\nmacro_rules! lone_macro {\n    () => {};\n}\n",
+        ),
+        (
+            "src/b.rs",
+            "pub fn solo() {}\npub fn go() {\n    solo();\n    solo!();\n    lone_macro!();\n}\n",
+        ),
+        ("src/a.rs", "pub fn unrelated() {}\n"),
+    ]);
+    tethys.index().expect("index failed");
+
+    let conn = open_db(&tethys);
+    let (fn_strategy, macro_solo_strategy, lone_strategy): (String, String, String) = conn
+        .query_row(
+            "SELECT
+               (SELECT COALESCE(strategy,'(null)') FROM refs WHERE kind='call'
+                  AND symbol_id IN (SELECT id FROM symbols WHERE name='solo')),
+               (SELECT COALESCE(strategy,'(null)') FROM refs WHERE kind='macro'
+                  AND reference_name = 'solo'),
+               (SELECT COALESCE(strategy,'(null)') FROM refs WHERE kind='macro'
+                  AND symbol_id IN (SELECT id FROM symbols WHERE name='lone_macro'))",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .expect("three-way lookup");
+    assert_eq!(fn_strategy, "same_file", "the fn call binds at insert");
+    assert_eq!(
+        macro_solo_strategy, "(null)",
+        "ambiguous macro ref must not inherit the fn's memo/strategy"
+    );
+    assert_ne!(lone_strategy, "(null)", "unique macro resolves via Pass 2");
+}
