@@ -54,7 +54,8 @@ CREATE TABLE IF NOT EXISTS refs (
     end_line INTEGER,
     end_column INTEGER,
     in_symbol_id INTEGER REFERENCES symbols(id) ON DELETE CASCADE,
-    reference_name TEXT
+    reference_name TEXT,
+    strategy TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_refs_symbol ON refs(symbol_id);
@@ -203,6 +204,91 @@ mod schema_tests {
             .expect("enable fks");
         conn.execute_batch(SCHEMA).expect("apply schema");
         conn
+    }
+
+    /// tethys-9z7i design C8 fence half: a FRESH db carries the provenance
+    /// column, nullable (NULL means unresolved, ADR-0003), and the column
+    /// count is pinned so a stray duplicate addition fails loudly.
+    #[test]
+    fn refs_has_strategy_column() {
+        let conn = open_test_conn();
+        let (count, strategy_rows, strategy_notnull): (i64, i64, i64) = conn
+            .query_row(
+                "SELECT COUNT(*),
+                        SUM(name = 'strategy'),
+                        SUM(CASE WHEN name = 'strategy' THEN \"notnull\" ELSE 0 END)
+                 FROM pragma_table_info('refs')",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .expect("pragma table_info");
+        assert_eq!(strategy_rows, 1, "strategy column present exactly once");
+        assert_eq!(strategy_notnull, 0, "strategy is nullable");
+        assert_eq!(count, 11, "refs column count pinned");
+    }
+
+    /// tethys-9z7i B2 (design C7): a refs table surviving from a
+    /// pre-provenance schema must produce a CLEAR error naming
+    /// --rebuild — not a raw 'no such column' downstream. Three-way
+    /// guard fixture: old-shaped db errors; fresh db opens; a db whose
+    /// refs table doesn't exist yet (schema batch creates it) opens.
+    #[test]
+    fn outdated_schema_open_errors_clearly() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("old.db");
+        {
+            let conn = Connection::open(&path).expect("create old db");
+            conn.execute_batch(
+                "CREATE TABLE refs (
+                     id INTEGER PRIMARY KEY, symbol_id INTEGER,
+                     file_id INTEGER NOT NULL, kind TEXT NOT NULL,
+                     line INTEGER NOT NULL, column INTEGER NOT NULL,
+                     end_line INTEGER, end_column INTEGER,
+                     in_symbol_id INTEGER, reference_name TEXT);",
+            )
+            .expect("old refs table");
+        }
+        let Err(err) = crate::db::Index::open(&path) else {
+            panic!("old schema must be rejected");
+        };
+        let msg = err.to_string();
+        assert!(
+            msg.contains("--rebuild") && msg.contains("strategy"),
+            "error must name the column and the remedy; got: {msg}"
+        );
+    }
+
+    /// C7/C8 fence half via the real open path (not just raw SCHEMA):
+    /// fresh dbs open fine and carry the column.
+    #[test]
+    fn open_fresh_db_has_strategy_column() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let index = crate::db::Index::open(&dir.path().join("fresh.db")).expect("fresh open");
+        drop(index);
+        let conn = Connection::open(dir.path().join("fresh.db")).expect("reopen raw");
+        let n: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('refs') WHERE name = 'strategy'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("pragma");
+        assert_eq!(n, 1);
+    }
+
+    /// The guard must fire only when refs EXISTS without the column: a db
+    /// with unrelated content but no refs table gets refs created by the
+    /// schema batch and must open fine (kills an over-eager check).
+    #[test]
+    fn guard_ignores_db_without_refs_table() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("norefs.db");
+        {
+            let conn = Connection::open(&path).expect("create db");
+            conn.execute_batch("CREATE TABLE unrelated (x INTEGER);")
+                .expect("unrelated table");
+        }
+        crate::db::Index::open(&path).expect("must open: schema batch creates refs fresh");
     }
 
     #[test]

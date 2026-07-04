@@ -11,6 +11,7 @@ use super::{FILES_COLUMNS, Index, SymbolData, row_to_indexed_file};
 use crate::error::Result;
 use crate::languages::common::{ExtractedReference, ExtractedReferenceKind, ImportStatement};
 use crate::languages::module_resolver::get_module_resolver;
+use crate::types::ResolutionStrategy;
 use crate::types::{FileId, IndexedFile, Language, Span, SymbolId, SymbolKind};
 
 /// Build a qualified name from a simple name and optional path segments.
@@ -294,8 +295,8 @@ impl Index {
         let mut refs_stored = 0usize;
         {
             let mut insert_ref_stmt = tx.prepare_cached(
-                "INSERT INTO refs (symbol_id, file_id, kind, line, column, in_symbol_id, reference_name)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                "INSERT INTO refs (symbol_id, file_id, kind, line, column, in_symbol_id, reference_name, strategy)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             )?;
             for r in references {
                 let qualified_name = build_qualified_name(&r.name, r.path.as_deref());
@@ -315,6 +316,10 @@ impl Index {
                 } else {
                     None
                 };
+                // Provenance (ADR-0003): any insert-time bind — general or
+                // macro map — is by definition a same-file bind;
+                // unresolved rows stay NULL until a later pass stamps them.
+                let strategy = symbol_id.map(|_| ResolutionStrategy::SameFile.as_str());
                 let in_symbol_id = r
                     .containing_symbol_span
                     .and_then(|span| span_to_id.get(&span).copied());
@@ -326,7 +331,8 @@ impl Index {
                     r.line,
                     r.column,
                     in_symbol_id.map(SymbolId::as_i64),
-                    reference_name.as_deref()
+                    reference_name.as_deref(),
+                    strategy
                 ])?;
                 refs_stored += 1;
             }

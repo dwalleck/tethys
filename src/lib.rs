@@ -59,8 +59,8 @@ pub use types::{
     IndexOptions, IndexStats, IndexUpdate, IndexedFile, Language, LspCompletedSession, LspOutcome,
     LspSessionResult, Package, PackageDependency, PackageId, PackageSource, PanicKind, PanicPoint,
     Parameter, ParameterKind, ReachabilityDirection, ReachabilityResult, ReachablePath, Reference,
-    ReferenceKind, Span, StalenessReport, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp,
-    Visibility,
+    ReferenceKind, ResolutionStrategy, Span, StalenessReport, Symbol, SymbolId, SymbolKind,
+    UnresolvedRefForLsp, Visibility,
 };
 pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 
@@ -82,6 +82,16 @@ pub struct Tethys {
     db_path: PathBuf,
     db: Index,
     crates: Vec<CrateInfo>,
+}
+
+/// The canonical on-disk location of a workspace's index:
+/// `.rivets/index/tethys.db` under the workspace root. Single source for
+/// [`Tethys::new`] and [`Tethys::remove_index_files`].
+fn index_db_path(workspace_root: &Path) -> PathBuf {
+    workspace_root
+        .join(".rivets")
+        .join("index")
+        .join("tethys.db")
 }
 
 /// Convert a `usize` depth to `u32`, saturating at `u32::MAX` with a `warn!`.
@@ -121,10 +131,7 @@ impl Tethys {
             ))
         })?;
 
-        let db_path = workspace_root
-            .join(".rivets")
-            .join("index")
-            .join("tethys.db");
+        let db_path = index_db_path(&workspace_root);
         let db = Index::open(&db_path)?;
 
         let crates = cargo::discover_crates(&workspace_root);
@@ -144,6 +151,18 @@ impl Tethys {
             db,
             crates,
         })
+    }
+
+    /// Delete the on-disk index files (db + WAL/SHM sidecars), if any.
+    ///
+    /// The rebuild escape hatch for an index whose schema predates the
+    /// current binary: `Index::open` refuses outdated schemas with a
+    /// "run `tethys index --rebuild`" error, so the rebuild path must be
+    /// able to clear the files BEFORE opening — otherwise the guard would
+    /// brick its own remedy. No connection exists yet at call time, so
+    /// plain file removal is safe (no `SQLite` locks to dance around).
+    pub fn remove_index_files(workspace_root: &Path) -> Result<()> {
+        Index::remove_db_files(&index_db_path(workspace_root))
     }
 
     /// Create a Tethys instance with LSP refinement enabled.
