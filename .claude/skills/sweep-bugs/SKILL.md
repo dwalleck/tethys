@@ -46,6 +46,13 @@ discover on its own:
   reproduce" with evidence — do not fix blind.
 - **Minimal fix** at the root cause, then the failing test becomes the
   regression fence (name it after the bug class, not the issue number).
+- **Impact analysis with tethys**: if the fix changes a function's
+  signature/name/semantics, enumerate callers with
+  `tethys callers <sym> --exclude-speculative` (run `tethys index` first)
+  before editing — it bounds what the fix must touch; `grep` is the recall net.
+  TRAP: if the bug is IN tethys's own resolver/call-edge logic, tethys cannot
+  analyze its own change — use `grep`. Callers you surface but don't fix go in
+  the report (escape hatch), not silently dropped.
 - **Full gate with real exit codes**: `cargo nextest run`,
   `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`,
   doctests — `cmd > /dev/null 2>&1 && echo OK`, never `cmd | tail` (pipes

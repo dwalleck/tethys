@@ -120,6 +120,28 @@ Things the pipeline enforces that an agent should not violate
   crates.io — vet new dependencies against `deny.toml` before adding.
 - **MSRV `1.94.0`**, pinned in `rust-toolchain.toml` (edition 2024).
 
+### Dogfood tethys for impact analysis
+
+<!-- tags: tethys, impact-analysis, dogfooding -->
+
+tethys answers "who calls X" — the exact question impact analysis asks — so use
+it on itself before any change that alters a function's signature, name, or
+semantics (this is checkpointed-build's `a-1` step, made tethys-specific):
+
+1. **Fresh index first** — `tethys index` (queries read the SQLite index under
+   `.rivets/index/`; a stale index yields stale callers). `-w <path>` if not cwd.
+2. **Precision tier** — `tethys callers <Type::method> --exclude-speculative`
+   returns only provenance-backed (resolved) edges — callers you can trust as
+   real. `--exclude-speculative` drops the ADR-0003 name-shape (speculative) band.
+3. **Recall net** — `tethys callers <sym>` (speculative band included), then
+   `grep`, catch what resolution can't (dynamic dispatch, doc refs, macros). An
+   empty precision list means dead code OR a stale index — never "no work."
+4. **The carve-out (where the flywheel breaks).** When the slice edits tethys's
+   OWN resolution or call-edge logic (`src/resolver.rs`, `src/resolve.rs`,
+   `src/db/call_edges.rs`, `src/languages/module_resolver.rs`), its caller
+   output is circular — the analysis you'd trust is the thing you're changing.
+   Use `grep` as the oracle for those slices; tethys is a hint at best.
+
 ## Gotchas
 
 <!-- tags: gotchas, limitations -->

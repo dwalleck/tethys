@@ -149,6 +149,13 @@ all hit in practice:
   way once).
 - Full gate per slice: `cargo nextest run`, clippy pedantic `-D warnings`,
   `cargo fmt --check`, doctests.
+- **Impact analysis dogfoods tethys.** For a slice that changes a function's
+  signature/name/semantics, list callers with
+  `tethys callers <sym> --exclude-speculative` (run `tethys index` first) as
+  the precision tier, `grep` as the recall net — EXCEPT when the slice edits
+  tethys's own resolver/call-edge logic, where the tool can't oracle a change
+  to itself and `grep` is the source of truth. See AGENTS.md → "Dogfood tethys
+  for impact analysis."
 - Tracker discipline everywhere: every deferral names a verified rivets ID;
   discovered bugs are filed before (or with) their fix; duplicates searched
   before filing.
