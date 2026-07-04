@@ -152,7 +152,7 @@ fn canonical_rows(db_path: &Path) -> Vec<String> {
     {
         let mut stmt = conn
             .prepare(
-                "SELECT file_id, line, column, kind, reference_name, symbol_id, in_symbol_id
+                "SELECT file_id, line, column, kind, reference_name, symbol_id, in_symbol_id, strategy
                  FROM refs",
             )
             .expect("prep refs");
@@ -166,17 +166,19 @@ fn canonical_rows(db_path: &Path) -> Vec<String> {
                     r.get::<_, Option<String>>(4)?,
                     r.get::<_, Option<i64>>(5)?,
                     r.get::<_, Option<i64>>(6)?,
+                    r.get::<_, Option<String>>(7)?,
                 ))
             })
             .expect("refs");
         for row in rows {
-            let (fid, line, col, kind, rname, sid, in_sid) = row.expect("ref row");
+            let (fid, line, col, kind, rname, sid, in_sid, strategy) = row.expect("ref row");
             let fpath = files.get(&fid).cloned().unwrap_or_else(|| "?".into());
             out.push(format!(
-                "ref|{fpath}|{line}|{col}|{kind}|{}|{}|{}",
+                "ref|{fpath}|{line}|{col}|{kind}|{}|{}|{}|{}",
                 rname.unwrap_or_default(),
                 symkey(sid, &syms),
                 symkey(in_sid, &syms),
+                strategy.unwrap_or_default(),
             ));
         }
     }
@@ -364,10 +366,10 @@ const EXPECTED_BATCH: &[&str] = &[
     "imp|cs/Use.cs|*|App.Cs|",
     "imp|src/lib.rs|shared_fn|util|",
     "pkg|app||manifest",
-    "ref|cs/Use.cs|9|13|call||cs/Lib.cs:5:9:Assist|cs/Use.cs:7:9:Go",
-    "ref|src/lib.rs|2|1|reexport||src/util.rs:1:1:shared_fn|",
-    "ref|src/lib.rs|3|18|type|ExternalThing||",
-    "ref|src/lib.rs|5|5|call||src/util.rs:1:1:shared_fn|src/lib.rs:4:1:caller",
+    "ref|cs/Use.cs|9|13|call||cs/Lib.cs:5:9:Assist|cs/Use.cs:7:9:Go|qualified_exact",
+    "ref|src/lib.rs|2|1|reexport||src/util.rs:1:1:shared_fn||unique_workspace",
+    "ref|src/lib.rs|3|18|type|ExternalThing|||",
+    "ref|src/lib.rs|5|5|call||src/util.rs:1:1:shared_fn|src/lib.rs:4:1:caller|qualified_module_fallback",
     "sym|cs/Lib.cs|1|1|App.Cs||App.Cs|module|7|2||public||0",
     "sym|cs/Lib.cs|3|5|Helper||Helper|class|6|6||public||0",
     "sym|cs/Lib.cs|5|9|Assist||Helper::Assist|function|5|40|void Assist()|public||0",
