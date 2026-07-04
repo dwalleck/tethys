@@ -576,3 +576,49 @@ fn scope_excludes_nonpublic_and_members() {
         );
     }
 }
+
+/// Regression fence for tethys-s8hv / INV-1. Once inline-module bodies became
+/// indexed, a `#[cfg(test)] mod tests` unit test produces reference edges into
+/// the code it exercises. A `pub` item used ONLY by such a same-crate unit test
+/// must STILL be a Definite tightening candidate: visibility-tightening's
+/// keep-public evidence is cross-PACKAGE usage, and a same-crate unit test is
+/// same-package. The design predicted this would regress; a red-first experiment
+/// disproved it. This fence locks the behavior so a future change that starts
+/// counting same-crate test refs as keep-public evidence fails loudly.
+#[test]
+fn same_crate_unit_test_usage_does_not_suppress_tightening_candidate() {
+    let (dir, mut tethys) = workspace_with_files(&[
+        ("src/lib.rs", "pub mod api;\nmod internal;\n"),
+        ("src/api.rs", "pub fn exposed() {}\n"),
+        (
+            "src/internal.rs",
+            "pub fn buried() {}\n\
+             \n\
+             #[cfg(test)]\n\
+             mod tests {\n\
+             use super::*;\n\
+             #[test]\n\
+             fn exercises_buried() {\n\
+             buried();\n\
+             }\n\
+             }\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+
+    // Parse JSON and pin `buried`'s tier specifically (not just "some Definite
+    // exists and 'buried' appears somewhere") so the fence stays precise if the
+    // fixture ever grows another candidate.
+    let json = run_cli(&dir, &["--json"]);
+    let value: serde_json::Value = serde_json::from_str(&json).expect("stdout parses as JSON");
+    let findings = value["findings"].as_array().expect("findings array");
+    let buried = findings
+        .iter()
+        .find(|f| f["name"] == "buried")
+        .unwrap_or_else(|| panic!("buried must be a tightening candidate; findings: {findings:?}"));
+    assert_eq!(
+        buried["tier"], "Definite",
+        "a pub fn used only by a same-crate #[cfg(test)] unit test must remain a \
+         Definite tightening candidate (same-crate test usage is not keep-public evidence)"
+    );
+}

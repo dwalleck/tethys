@@ -955,6 +955,20 @@ fn extract_symbols_recursive(
             if let Some(sym) = extract_simple_definition(node, content, SymbolKind::Module) {
                 symbols.push(sym);
             }
+            // Recurse into the inline module body so symbols declared inside
+            // `mod { … }` — including `#[cfg(test)] mod tests` unit tests — are
+            // indexed. Target `DECLARATION_LIST` explicitly (as the `IMPL_ITEM`
+            // arm does), skipping the `mod` keyword / name / visibility children;
+            // a file-module declaration (`mod foo;`) has no body, so nothing recurses.
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == DECLARATION_LIST {
+                    let mut body_cursor = child.walk();
+                    for item in child.children(&mut body_cursor) {
+                        extract_symbols_recursive(&item, content, symbols, parent_name);
+                    }
+                }
+            }
         }
         _ => {
             // Recurse into children for containers we don't explicitly handle

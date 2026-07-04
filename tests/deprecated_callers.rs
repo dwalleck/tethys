@@ -100,7 +100,12 @@ fn resolved_sites_cross_file_and_top_level() {
     assert_eq!(
         sites,
         vec![
-            ("src/caller.rs:14".to_string(), None), // tests-mod call: top-level ref
+            // tests-mod call: now attributed to the enclosing unit-test fn
+            // (was top-level/None before tethys-s8hv indexed inline mod bodies).
+            (
+                "src/caller.rs:14".to_string(),
+                Some("exercises_old".to_string()),
+            ),
             ("src/caller.rs:4".to_string(), Some("migrate".to_string())),
         ],
         "old_api should list exactly the imported cross-file call and the tests-mod call"
