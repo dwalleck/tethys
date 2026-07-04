@@ -194,7 +194,7 @@ fn bench_get_callers(c: &mut Criterion) {
                 b.iter(|| {
                     let callers = workspace
                         .tethys
-                        .get_callers("target_func")
+                        .get_callers("target_func", false)
                         .expect("get_callers failed");
                     black_box(callers)
                 });
@@ -222,7 +222,7 @@ fn bench_get_symbol_impact_depth(c: &mut Criterion) {
             b.iter(|| {
                 let impact = workspace
                     .tethys
-                    .get_symbol_impact("depth0_func", None)
+                    .get_symbol_impact("depth0_func", None, false)
                     .expect("get_symbol_impact failed");
                 black_box(impact)
             });
@@ -250,7 +250,7 @@ fn bench_get_symbol_impact_mixed(c: &mut Criterion) {
             b.iter(|| {
                 let impact = workspace
                     .tethys
-                    .get_symbol_impact("core_compute", None)
+                    .get_symbol_impact("core_compute", None, false)
                     .expect("get_symbol_impact failed");
                 black_box(impact)
             });
@@ -370,7 +370,7 @@ fn analyze_query_plans(c: &mut Criterion) {
         b.iter(|| {
             let callers = workspace
                 .tethys
-                .get_callers("target_func")
+                .get_callers("target_func", false)
                 .expect("get_callers failed");
             black_box(callers)
         });

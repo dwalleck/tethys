@@ -302,11 +302,11 @@ fn push_reexport_refs(
         node.kind() == node_kinds::USE_DECLARATION,
         "push_reexport_refs expects a use_declaration node"
     );
-    if let Some(use_stmt) = parse_use_declaration(node, content)
-        && use_stmt.is_reexport
-        && !use_stmt.is_glob
-    {
-        let column = node.start_position().column as u32 + 1;
+    let column = node.start_position().column as u32 + 1;
+    for use_stmt in parse_use_declaration(node, content) {
+        if !use_stmt.is_reexport || use_stmt.is_glob {
+            continue;
+        }
         for name in use_stmt.imported_names {
             refs.push(ExtractedReference {
                 name,
@@ -525,9 +525,7 @@ fn extract_use_statements_recursive(
     use node_kinds::USE_DECLARATION;
 
     if node.kind() == USE_DECLARATION {
-        if let Some(use_stmt) = parse_use_declaration(node, content) {
-            uses.push(use_stmt);
-        }
+        uses.extend(parse_use_declaration(node, content));
     } else {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
@@ -536,7 +534,13 @@ fn extract_use_statements_recursive(
     }
 }
 
-fn parse_use_declaration(node: &tree_sitter::Node, content: &[u8]) -> Option<UseStatement> {
+/// Parse a use declaration into use statements.
+///
+/// Returns more than one statement when a use list groups members with
+/// different source modules (`use crate::{db::{self}, util::Helper};`):
+/// a `UseStatement` carries a single path, so each distinct member module
+/// gets its own statement (tethys-pdea).
+fn parse_use_declaration(node: &tree_sitter::Node, content: &[u8]) -> Vec<UseStatement> {
     use node_kinds::{
         CRATE, IDENTIFIER, SCOPED_IDENTIFIER, SCOPED_USE_LIST, SELF, SUPER, USE_AS_CLAUSE,
         USE_LIST, USE_WILDCARD,
@@ -560,56 +564,54 @@ fn parse_use_declaration(node: &tree_sitter::Node, content: &[u8]) -> Option<Use
             SCOPED_IDENTIFIER => {
                 // Simple use: `use std::collections::HashMap;`
                 let (path, name) = parse_scoped_identifier(&child, content);
-                return Some(UseStatement {
+                return vec![UseStatement {
                     path,
                     imported_names: vec![name],
                     is_glob: false,
                     alias: None,
                     line,
                     is_reexport,
-                });
+                }];
             }
             SCOPED_USE_LIST => {
                 // List use: `use std::collections::{HashMap, HashSet};`
-                return Some(parse_scoped_use_list(&child, content, line, is_reexport));
+                return parse_scoped_use_list(&child, content, line, is_reexport);
             }
             USE_AS_CLAUSE => {
                 // Alias use: `use std::collections::HashMap as Map;`
-                return parse_use_as_clause(&child, content, line, is_reexport);
+                return parse_use_as_clause(&child, content, line, is_reexport)
+                    .into_iter()
+                    .collect();
             }
             IDENTIFIER | CRATE | SELF | SUPER => {
                 // Simple single-segment use (rare but possible)
-                let name = node_text(&child, content)?;
-                return Some(UseStatement {
+                let Some(name) = node_text(&child, content) else {
+                    return Vec::new();
+                };
+                return vec![UseStatement {
                     path: vec![],
                     imported_names: vec![name],
                     is_glob: false,
                     alias: None,
                     line,
                     is_reexport,
-                });
+                }];
             }
             USE_WILDCARD => {
                 // Glob use: `use std::collections::*;` - the wildcard node contains the path
-                return Some(parse_use_wildcard(&child, content, line, is_reexport));
+                return vec![parse_use_wildcard(&child, content, line, is_reexport)];
             }
             USE_LIST => {
-                // Bare use list without path (rare)
-                let names = collect_use_list_names(&child, content);
-                return Some(UseStatement {
-                    path: vec![],
-                    imported_names: names,
-                    is_glob: false,
-                    alias: None,
-                    line,
-                    is_reexport,
-                });
+                // Bare use list without path (rare): `use {a, b::C};`
+                let mut statements = Vec::new();
+                collect_use_list_members(&child, content, &[], line, is_reexport, &mut statements);
+                return statements;
             }
             _ => {}
         }
     }
 
-    None
+    Vec::new()
 }
 
 /// Parse a `use_wildcard` node like `std::collections::*`.
@@ -689,16 +691,19 @@ fn collect_scoped_path(node: &tree_sitter::Node, content: &[u8], segments: &mut 
 }
 
 /// Parse a scoped use list like `std::collections::{HashMap, HashSet}` or `std::collections::*`.
+///
+/// Returns one statement per distinct member source module — see
+/// `collect_use_list_members`.
 fn parse_scoped_use_list(
     node: &tree_sitter::Node,
     content: &[u8],
     line: u32,
     is_reexport: bool,
-) -> UseStatement {
+) -> Vec<UseStatement> {
     use node_kinds::{USE_LIST, USE_WILDCARD};
 
     let mut path = Vec::new();
-    let mut names = Vec::new();
+    let mut statements = Vec::new();
     let mut is_glob = false;
 
     // The scoped_use_list has a "path" child and a "list" child
@@ -708,14 +713,21 @@ fn parse_scoped_use_list(
 
     if let Some(list_node) = node.child_by_field_name("list") {
         if list_node.kind() == USE_LIST {
-            names = collect_use_list_names(&list_node, content);
+            collect_use_list_members(
+                &list_node,
+                content,
+                &path,
+                line,
+                is_reexport,
+                &mut statements,
+            );
         } else if list_node.kind() == USE_WILDCARD {
             is_glob = true;
         }
     }
 
     // Also check for wildcard directly in children (tree-sitter sometimes structures it this way)
-    if !is_glob && names.is_empty() {
+    if !is_glob && statements.is_empty() {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
             if child.kind() == USE_WILDCARD {
@@ -725,42 +737,99 @@ fn parse_scoped_use_list(
         }
     }
 
-    UseStatement {
-        path,
-        imported_names: names,
-        is_glob,
-        alias: None,
-        line,
-        is_reexport,
+    if is_glob {
+        statements.push(UseStatement {
+            path,
+            imported_names: vec![],
+            is_glob: true,
+            alias: None,
+            line,
+            is_reexport,
+        });
     }
+
+    statements
 }
 
-/// Collect names from a use list `{A, B, C}`.
-fn collect_use_list_names(node: &tree_sitter::Node, content: &[u8]) -> Vec<String> {
-    use node_kinds::{CRATE, IDENTIFIER, SCOPED_IDENTIFIER, SELF, SUPER};
+/// Collect group members from a use list `{A, b::C, d::{self, E}}` into
+/// per-source-module use statements.
+///
+/// Plain members (`A`, `self`, ...) share the group's `base_path` in a
+/// single statement. A scoped member carries its OWN intermediate segments
+/// — `util::Helper` in `use crate::{util::Helper}` lives in `crate::util`,
+/// not `crate` (tethys-pdea) — so each becomes its own statement, and a
+/// nested group recurses with the extended path. Aliased members (`G as H`)
+/// are still dropped (tethys-rylk).
+fn collect_use_list_members(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    base_path: &[String],
+    line: u32,
+    is_reexport: bool,
+    statements: &mut Vec<UseStatement>,
+) {
+    use node_kinds::{CRATE, IDENTIFIER, SCOPED_IDENTIFIER, SCOPED_USE_LIST, SELF, SUPER};
 
-    let mut names = Vec::new();
+    let mut plain_names = Vec::new();
     let mut cursor = node.walk();
 
     for child in node.children(&mut cursor) {
         match child.kind() {
             IDENTIFIER | CRATE | SELF | SUPER => {
                 if let Some(text) = node_text(&child, content) {
-                    names.push(text);
+                    plain_names.push(text);
                 }
             }
             SCOPED_IDENTIFIER => {
-                // Nested scoped identifier - get the final name
-                let (_, name) = parse_scoped_identifier(&child, content);
+                // Scoped member: `util::Helper` — the member's leading
+                // segments extend the group path.
+                let (member_path, name) = parse_scoped_identifier(&child, content);
                 if !name.is_empty() {
-                    names.push(name);
+                    let mut path = base_path.to_vec();
+                    path.extend(member_path);
+                    statements.push(UseStatement {
+                        path,
+                        imported_names: vec![name],
+                        is_glob: false,
+                        alias: None,
+                        line,
+                        is_reexport,
+                    });
+                }
+            }
+            SCOPED_USE_LIST => {
+                // Nested group: `db::{self, X}` — recurse with the extended
+                // path so `self` binds `db` from `crate::db`, matching the
+                // shape of a top-level `use crate::db::{self};`.
+                let mut nested_path = base_path.to_vec();
+                if let Some(path_node) = child.child_by_field_name("path") {
+                    collect_scoped_path(&path_node, content, &mut nested_path);
+                }
+                if let Some(list_node) = child.child_by_field_name("list") {
+                    collect_use_list_members(
+                        &list_node,
+                        content,
+                        &nested_path,
+                        line,
+                        is_reexport,
+                        statements,
+                    );
                 }
             }
             _ => {}
         }
     }
 
-    names
+    if !plain_names.is_empty() {
+        statements.push(UseStatement {
+            path: base_path.to_vec(),
+            imported_names: plain_names,
+            is_glob: false,
+            alias: None,
+            line,
+            is_reexport,
+        });
+    }
 }
 
 /// Parse a use-as clause like `HashMap as Map`.
@@ -1303,6 +1372,11 @@ fn extract_preceding_attributes(
         match sibling.kind() {
             node_kinds::ATTRIBUTE_ITEM => {
                 if let Some(attr) = extract_attribute(&sibling, content) {
+                    // Reversed here so the final `attrs.reverse()` restores
+                    // source order: cfg_attr row first, wrapped rows after.
+                    let mut wrapped = cfg_attr_wrapped_attributes(&attr);
+                    wrapped.reverse();
+                    attrs.append(&mut wrapped);
                     attrs.push(attr);
                 }
             }
@@ -1369,6 +1443,110 @@ fn extract_attribute(attr_item: &tree_sitter::Node, content: &[u8]) -> Option<Ex
         args,
         line: attr_item.start_position().row as u32 + 1,
     })
+}
+
+/// Additional rows for attributes wrapped in `#[cfg_attr(pred, ...)]`.
+///
+/// `cfg_attr` conditionally applies the attributes in its second argument
+/// onward; storing only the `cfg_attr` row hides e.g. a conditional
+/// `deprecated` from every attribute-name-keyed query (deprecated-callers).
+/// Each wrapped attribute therefore ADDITIONALLY gets a row shaped exactly
+/// as if it were written directly, with `line` inherited from the
+/// `cfg_attr` item. No conditionality marker is stored (that refinement is
+/// deferred), and the `cfg_attr` row itself is kept unchanged. The
+/// predicate (first argument) is never emitted.
+fn cfg_attr_wrapped_attributes(attr: &ExtractedAttribute) -> Vec<ExtractedAttribute> {
+    if attr.name != "cfg_attr" {
+        return Vec::new();
+    }
+    let Some(raw) = attr.args.as_deref() else {
+        return Vec::new();
+    };
+    split_top_level_commas(raw)
+        .into_iter()
+        .skip(1) // the first cfg_attr argument is the cfg predicate
+        .filter_map(|part| parse_wrapped_attribute(part, attr.line))
+        .collect()
+}
+
+/// Parse one comma-separated `cfg_attr` element into an attribute row.
+///
+/// Mirrors the three shapes [`extract_attribute`] produces for directly
+/// written attributes: `name(args)` (one pair of outer parens stripped),
+/// `name = value` (RHS stored verbatim, quotes included), and bare `name`
+/// (`args == None`). Malformed elements (empty, or `name(...` without the
+/// closing paren) yield `None` — same degrade-don't-error posture as the
+/// rest of attribute extraction.
+fn parse_wrapped_attribute(part: &str, line: u32) -> Option<ExtractedAttribute> {
+    let part = part.trim();
+    let open = part.find('(');
+    let eq = part.find('=');
+    let (name, args) = match (open, eq) {
+        // Token-tree form `name(args)`: '(' appears before any '='.
+        (Some(o), e) if e.is_none_or(|q| o < q) => {
+            let inner = part[o + 1..].strip_suffix(')')?;
+            (part[..o].trim_end(), Some(inner.to_string()))
+        }
+        // Name-value form `name = value`.
+        (_, Some(q)) => (part[..q].trim_end(), Some(part[q + 1..].trim().to_string())),
+        // Bare marker form.
+        _ => (part, None),
+    };
+    if name.is_empty() {
+        return None;
+    }
+    Some(ExtractedAttribute {
+        name: name.to_string(),
+        args,
+        line,
+    })
+}
+
+/// Split `cfg_attr` argument text on top-level commas only: commas inside
+/// string literals or nested brackets are content, not separators
+/// (`deprecated(note = "a, b")` is one element). Sibling of the private
+/// `db::deprecated::split_top_level_commas` (string-aware only, not
+/// importable here); this one additionally tracks bracket depth because
+/// wrapped attributes carry their own parenthesized args. Backslash-escape
+/// tracking is disabled inside bare raw strings (`r"…"`), where `\` is a
+/// literal character; `r#"…"#` is not handled (same degradation as the
+/// sibling).
+fn split_top_level_commas(s: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut start = 0;
+    let mut depth = 0usize;
+    let mut in_string = false;
+    let mut backslash_escapes = true;
+    let mut escaped = false;
+    let mut prev = None;
+    for (i, c) in s.char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if backslash_escapes && c == '\\' {
+                escaped = true;
+            } else if c == '"' {
+                in_string = false;
+            }
+        } else {
+            match c {
+                '"' => {
+                    in_string = true;
+                    backslash_escapes = prev != Some('r');
+                }
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth = depth.saturating_sub(1),
+                ',' if depth == 0 => {
+                    parts.push(&s[start..i]);
+                    start = i + 1;
+                }
+                _ => {}
+            }
+        }
+        prev = Some(c);
+    }
+    parts.push(&s[start..]);
+    parts
 }
 
 /// Returns true if any of the supplied attributes is a recognized test marker.
@@ -1813,6 +1991,68 @@ impl User {
         assert_eq!(uses[0].alias, Some("Map".to_string()));
     }
 
+    /// tethys-pdea: a group member with its own path segments (`util::Helper`
+    /// in `use crate::{util::Helper};`) used to keep only the leaf name,
+    /// collapsing its source module from `crate::util` to `crate`. Members
+    /// with distinct source modules become distinct `UseStatement`s.
+    #[test]
+    fn nested_group_members_keep_intermediate_segments() {
+        let code = "use crate::{util::Helper};";
+        let tree = parse_rust(code);
+        let uses = extract_use_statements(&tree, code.as_bytes());
+
+        assert_eq!(uses.len(), 1, "one statement: {uses:?}");
+        assert_eq!(
+            uses[0].path,
+            vec!["crate", "util"],
+            "Helper lives in crate::util"
+        );
+        assert_eq!(uses[0].imported_names, vec!["Helper"]);
+        assert!(!uses[0].is_glob);
+        assert!(uses[0].alias.is_none());
+
+        // Mixed group: `db::{self}` binds `db` from `crate::db` (same shape
+        // as a top-level `use crate::db::{self};`), while `util::Helper`
+        // keeps its own source module — two statements, one per module.
+        let code = "use crate::{db::{self}, util::Helper};";
+        let tree = parse_rust(code);
+        let uses = extract_use_statements(&tree, code.as_bytes());
+
+        assert_eq!(uses.len(), 2, "one statement per source module: {uses:?}");
+        let db = uses
+            .iter()
+            .find(|u| u.imported_names == vec!["self"])
+            .unwrap_or_else(|| panic!("db::{{self}} member missing: {uses:?}"));
+        assert_eq!(db.path, vec!["crate", "db"]);
+        let helper = uses
+            .iter()
+            .find(|u| u.imported_names == vec!["Helper"])
+            .unwrap_or_else(|| panic!("util::Helper member missing: {uses:?}"));
+        assert_eq!(helper.path, vec!["crate", "util"]);
+        assert!(uses.iter().all(|u| u.line == 1 && !u.is_glob));
+    }
+
+    /// Plain members of a group still share the group path in a single
+    /// statement even when a scoped member splits off (tethys-pdea).
+    #[test]
+    fn mixed_group_plain_members_share_group_path() {
+        let code = "use crate::{Config, util::Helper};";
+        let tree = parse_rust(code);
+        let uses = extract_use_statements(&tree, code.as_bytes());
+
+        assert_eq!(uses.len(), 2, "plain + scoped member: {uses:?}");
+        let config = uses
+            .iter()
+            .find(|u| u.imported_names == vec!["Config"])
+            .unwrap_or_else(|| panic!("Config member missing: {uses:?}"));
+        assert_eq!(config.path, vec!["crate"]);
+        let helper = uses
+            .iter()
+            .find(|u| u.imported_names == vec!["Helper"])
+            .unwrap_or_else(|| panic!("util::Helper member missing: {uses:?}"));
+        assert_eq!(helper.path, vec!["crate", "util"]);
+    }
+
     #[test]
     fn marks_pub_use_as_reexport() {
         let code = "pub use crate::db::Index;\n\
@@ -2127,7 +2367,11 @@ pub struct Foo { x: i32 }
             .expect("struct Foo should be extracted");
 
         let names: Vec<&str> = foo.attributes.iter().map(|a| a.name.as_str()).collect();
-        assert_eq!(names, vec!["derive", "cfg_attr"]);
+        assert_eq!(
+            names,
+            vec!["derive", "cfg_attr", "derive"],
+            "cfg_attr additionally emits a row for its wrapped derive"
+        );
 
         assert_eq!(
             foo.attributes[0].args.as_deref(),
@@ -2141,6 +2385,99 @@ pub struct Foo { x: i32 }
                 .is_some_and(|a| a.contains("specta::Type")),
             "cfg_attr args should contain specta::Type; got {:?}",
             foo.attributes[1].args,
+        );
+        assert_eq!(
+            foo.attributes[2].args.as_deref(),
+            Some("specta::Type"),
+            "wrapped derive row carries the wrapped attribute's own args",
+        );
+    }
+
+    #[test]
+    fn cfg_attr_wrapped_attributes_are_emitted() {
+        let code = r"
+#[cfg_attr(unix, deprecated)]
+pub fn old_api() {}
+";
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let f = symbols
+            .iter()
+            .find(|s| s.name == "old_api")
+            .expect("fn old_api should be extracted");
+
+        let cfg_attr = f
+            .attributes
+            .iter()
+            .find(|a| a.name == "cfg_attr")
+            .expect("the cfg_attr row itself should still be emitted");
+        let deprecated = f
+            .attributes
+            .iter()
+            .find(|a| a.name == "deprecated")
+            .expect("wrapped deprecated row should be emitted alongside cfg_attr");
+        assert_eq!(
+            deprecated.line, cfg_attr.line,
+            "wrapped row inherits the cfg_attr attribute's line"
+        );
+        assert!(
+            deprecated.args.is_none(),
+            "bare wrapped attribute has no args; got {:?}",
+            deprecated.args,
+        );
+        assert!(
+            f.attributes.iter().all(|a| a.name != "unix"),
+            "the cfg_attr predicate must not be emitted as an attribute; got {:?}",
+            f.attributes,
+        );
+    }
+
+    #[test]
+    fn cfg_attr_wrapped_args_survive_commas_in_strings_and_parens() {
+        let code = r#"
+#[cfg_attr(unix, deprecated(note = "n, m"))]
+pub fn old_api() {}
+"#;
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let f = symbols
+            .iter()
+            .find(|s| s.name == "old_api")
+            .expect("fn old_api should be extracted");
+
+        let deprecated = f
+            .attributes
+            .iter()
+            .find(|a| a.name == "deprecated")
+            .expect("wrapped deprecated row should be emitted alongside cfg_attr");
+        assert_eq!(
+            deprecated.args.as_deref(),
+            Some(r#"note = "n, m""#),
+            "comma inside the string literal must not split the wrapped attribute"
+        );
+    }
+
+    #[test]
+    fn cfg_attr_multiple_wrapped_attributes_each_get_a_row() {
+        let code = r#"
+#[cfg_attr(feature = "x", deprecated, must_use)]
+pub fn old_api() {}
+"#;
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let f = symbols
+            .iter()
+            .find(|s| s.name == "old_api")
+            .expect("fn old_api should be extracted");
+
+        let names: Vec<&str> = f.attributes.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["cfg_attr", "deprecated", "must_use"],
+            "each wrapped attribute gets its own row, in source order, after cfg_attr"
         );
     }
 

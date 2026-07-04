@@ -76,6 +76,26 @@ CREATE VIEW IF NOT EXISTS refs_named AS
     FROM refs r
     LEFT JOIN symbols s ON r.symbol_id = s.id;
 
+-- Provenance query surface (ADR-0003, tethys-9z7i slice 3): refs_named's
+-- sibling adding the resolution strategy and its DERIVED confidence band.
+-- The band lives ONLY here — one CASE, revisable without re-indexing.
+-- band is NULL exactly when strategy is NULL (unresolved refs have no
+-- band; NULL <=> unbound symmetry).
+CREATE VIEW IF NOT EXISTS refs_banded AS
+    SELECT r.id, r.symbol_id, r.file_id, r.kind, r.line, r.column,
+           r.in_symbol_id, r.reference_name,
+           COALESCE(r.reference_name, s.name) AS name,
+           r.strategy,
+           CASE
+               WHEN r.strategy IS NULL THEN NULL
+               WHEN r.strategy IN ('explicit_import', 'lsp') THEN 'high'
+               WHEN r.strategy IN ('same_file', 'glob_import', 'import_union',
+                                   'qualified_exact', 'same_crate') THEN 'medium'
+               ELSE 'speculative'
+           END AS band
+    FROM refs r
+    LEFT JOIN symbols s ON r.symbol_id = s.id;
+
 -- File-level dependencies (denormalized for fast queries)
 CREATE TABLE IF NOT EXISTS file_deps (
     from_file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
@@ -225,6 +245,104 @@ mod schema_tests {
         assert_eq!(strategy_rows, 1, "strategy column present exactly once");
         assert_eq!(strategy_notnull, 0, "strategy is nullable");
         assert_eq!(count, 11, "refs column count pinned");
+    }
+
+    /// Slice-3 C1/C2: refs_banded exists, its band CASE matches ADR-0003
+    /// verbatim for all nine strategies plus NULL, and refs_named is
+    /// untouched. One typed fixture row per strategy; per-strategy asserts
+    /// so a wrong CASE arm names its strategy.
+    #[test]
+    fn refs_banded_band_mapping_matches_adr() {
+        use crate::types::ResolutionStrategy as RS;
+
+        // Exhaustive match, not a hand list: adding a tenth strategy
+        // fails to compile HERE, forcing an explicit banding decision
+        // instead of silently falling into the view's ELSE arm.
+        const fn adr_band(strategy: RS) -> &'static str {
+            match strategy {
+                RS::ExplicitImport | RS::Lsp => "high",
+                RS::SameFile
+                | RS::GlobImport
+                | RS::ImportUnion
+                | RS::QualifiedExact
+                | RS::SameCrate => "medium",
+                RS::UniqueWorkspace | RS::QualifiedModuleFallback => "speculative",
+            }
+        }
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let index = crate::db::Index::open(&dir.path().join("v.db")).expect("open");
+        {
+            let conn = index.connection().expect("conn");
+            conn.execute(
+                "INSERT INTO files (id, path, language, mtime_ns, size_bytes, indexed_at)
+                 VALUES (1, 'f.rs', 'rust', 0, 0, 0)",
+                [],
+            )
+            .expect("file row");
+            conn.execute(
+                "INSERT INTO symbols (id, file_id, name, module_path, qualified_name,
+                                      kind, line, column, visibility)
+                 VALUES (9, 1, 'tgt', '', 'tgt', 'function', 1, 1, 'public')",
+                [],
+            )
+            .expect("symbol row");
+        }
+        let all = [
+            RS::SameFile,
+            RS::ExplicitImport,
+            RS::GlobImport,
+            RS::ImportUnion,
+            RS::QualifiedExact,
+            RS::SameCrate,
+            RS::UniqueWorkspace,
+            RS::QualifiedModuleFallback,
+            RS::Lsp,
+        ];
+        let mut expected: Vec<(Option<RS>, Option<&str>)> = all
+            .into_iter()
+            .map(|rs| (Some(rs), Some(adr_band(rs))))
+            .collect();
+        expected.push((None, None));
+        let view_exists: i64 = index
+            .connection()
+            .expect("conn")
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_schema WHERE type='view' AND name='refs_banded'",
+                [],
+                |r| r.get(0),
+            )
+            .expect("schema query");
+        assert_eq!(view_exists, 1, "refs_banded view exists");
+        for (i, (strategy, band)) in expected.iter().enumerate() {
+            let line = i64::try_from(i).expect("small") + 1;
+            let ref_id = index
+                .insert_reference(&crate::db::InsertReferenceParams {
+                    symbol_id: strategy.map(|_| crate::types::SymbolId::from(9)),
+                    file_id: crate::types::FileId::from(1),
+                    kind: "call",
+                    line: u32::try_from(line).expect("small"),
+                    column: 1,
+                    in_symbol_id: None,
+                    reference_name: if strategy.is_none() {
+                        Some("tgt")
+                    } else {
+                        None
+                    },
+                    strategy: *strategy,
+                })
+                .expect("ref row");
+            let got: Option<String> = index
+                .connection()
+                .expect("conn")
+                .query_row(
+                    "SELECT band FROM refs_banded WHERE id = ?1",
+                    [ref_id],
+                    |r| r.get(0),
+                )
+                .expect("band readback");
+            assert_eq!(got.as_deref(), *band, "band for {strategy:?}");
+        }
     }
 
     /// tethys-9z7i B2 (design C7): a refs table surviving from a
