@@ -66,7 +66,7 @@ pub enum Via {
 
 /// One reference site of a deprecated symbol.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct CallSite {
+pub struct ReferenceSite {
     /// Workspace-relative path of the referencing file.
     pub file: String,
     /// 1-based reference line.
@@ -91,7 +91,7 @@ pub struct DeprecatedFinding {
     /// The symbol carrying `#[deprecated]`.
     pub symbol: DeprecatedSymbol,
     /// Reference sites, ordered by (file, line, column).
-    pub sites: Vec<CallSite>,
+    pub sites: Vec<ReferenceSite>,
 }
 
 impl Index {
@@ -190,7 +190,7 @@ impl Index {
                AND r.reference_name LIKE '%::%'
              ORDER BY f.path, r.line, r.column",
         )?;
-        let mut recovered: Vec<Vec<CallSite>> = vec![Vec::new(); symbols.len()];
+        let mut recovered: Vec<Vec<ReferenceSite>> = vec![Vec::new(); symbols.len()];
         let unresolved_rows = unresolved_stmt.query_map([], |row| {
             Ok((
                 row.get::<_, String>(0)?,
@@ -209,7 +209,7 @@ impl Index {
                 continue;
             };
             for &i in indices {
-                recovered[i].push(CallSite {
+                recovered[i].push(ReferenceSite {
                     file: file.clone(),
                     line,
                     column,
@@ -229,7 +229,7 @@ impl Index {
             };
             let mut sites = sites_stmt
                 .query_map([symbol.symbol_id], |row| {
-                    Ok(CallSite {
+                    Ok(ReferenceSite {
                         file: row.get(0)?,
                         line: row.get(1)?,
                         column: row.get(2)?,

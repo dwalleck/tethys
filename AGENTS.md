@@ -28,7 +28,9 @@ start there (especially `index.md`) for anything this file does not cover.
   Commands: `index`, `search`, `callers`, `impact`, `coupling`, `cycles`,
   `stats`, `reachable`, `affected-tests`, `panic-points`, `deprecated-callers`,
   `unused-imports`.
-- **Domain model**: `src/types.rs` — all shared records, IDs, and enums.
+- **Domain model**: `src/types.rs` — core shared records, IDs, and enums.
+  Analysis-specific records live beside their analysis (e.g. `src/unused_imports.rs`,
+  `src/db/deprecated.rs`, `src/graph/types.rs`) and are re-exported from `src/lib.rs`.
 - **Domain vocabulary**: `CONTEXT.md` — the canonical glossary. Use these terms
   (and honor the `_Avoid_` lists) in issue titles, PRs, and code; `docs/adr/`
   records *why* the load-bearing decisions were made.

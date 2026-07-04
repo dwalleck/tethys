@@ -49,7 +49,7 @@ mod types;
 mod unused_imports;
 
 pub use cargo::discover_crates;
-pub use db::{CallSite, DeprecatedFinding, DeprecatedSymbol, Tier, Via};
+pub use db::{DeprecatedFinding, DeprecatedSymbol, ReferenceSite, Tier, Via};
 pub use error::{Error, IndexError, IndexErrorKind, Result};
 pub use types::{
     ArchPhaseResult, ArchStats, CouplingDetail, CouplingMetrics, CouplingSort, CrateInfo, Cycle,
