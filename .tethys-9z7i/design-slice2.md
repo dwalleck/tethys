@@ -7,20 +7,19 @@ cites one.
 ## Architecture
 
 - **Schema**: `refs.strategy TEXT` (nullable) joins the CREATE TABLE for
-  fresh DBs; `Index::open` gains an idempotent migration — `PRAGMA
-  table_info(refs)` check, then `ALTER TABLE refs ADD COLUMN strategy
-  TEXT` and a one-time backfill `UPDATE refs SET strategy = 'legacy'
-  WHERE symbol_id IS NOT NULL AND strategy IS NULL`. No index on the
-  column (the query surface is tethys-9z7i slice 3's scope; it measures
-  before adding one). Follows the never-written-nullable precedent
-  (probe fact 7: `end_line`/`end_column`).
-- **NULL semantics (the flagged decision)**: with the backfill, `strategy
-  IS NULL ⇔ symbol_id IS NULL` holds globally — NULL means unresolved,
-  exactly as ADR-0003 states; `'legacy'` means "bound before provenance
-  existed" (factual, evaporates as files reindex). The rejected
-  alternative — NULL-on-resolved means legacy — forces every consumer to
-  join `symbol_id` to interpret the column. Banding of `'legacy'` is a
-  slice-3 view decision (tethys-9z7i slice 3).
+  fresh DBs. NO migration (approved Option C — the index is a disposable
+  derived cache and tethys has no users yet): `Index::open` performs a
+  cheap column-presence check (`PRAGMA table_info(refs)`) and returns a
+  clear error on a pre-column DB — "index schema is outdated; run
+  `tethys index --rebuild`". This delivers tethys-xvlw's last unmet AC
+  (clear feedback on incompatible schema); xvlw closes with this slice.
+  No index on the column (the query surface is tethys-9z7i slice 3's
+  scope; it measures before adding one). Follows the
+  never-written-nullable precedent (probe fact 7: `end_line`/`end_column`).
+- **NULL semantics (approved)**: `strategy IS NULL ⇔ symbol_id IS NULL`
+  holds BY CONSTRUCTION on every DB the new code accepts — NULL means
+  unresolved, exactly as ADR-0003 states. No sentinel values; the enum
+  stays the nine real arms.
 - **Types**: `ResolutionStrategy` enum in `src/types.rs` (language-neutral
   — the seam is untouched; `ModuleResolver` still never sees the DB), with
   `as_str()` emitting the ADR's snake_case spellings.
@@ -53,9 +52,9 @@ cites one.
   Pass-3 LSP single-row, test-only helper (mechanical).
 - Ref kinds: call/type/construct (C3 fixture), macro (memo bypass, C5),
   reexport (v1w8 rows, C9).
-- DB states: fresh; pre-column opened (migrate); migrated re-opened
-  (idempotence); pre-column with `--rebuild` (fresh via reset()).
-- Row states: NULL (unresolved), `legacy` (backfilled), arm values (new).
+- DB states: fresh (column present); pre-column opened (clear error
+  naming --rebuild); pre-column with `--rebuild` (fresh via reset()).
+- Row states: NULL (unresolved), arm values (resolved) — nothing else.
 - Memo states: miss, hit (fan-out), negative-cache (None cached — no
   strategy involved), macro bypass.
 - Modes: batch and streaming (same atomic write path; both golden
@@ -79,7 +78,7 @@ removed or relaxed.
 | 4 | Memo fan-out: N same-name refs in one file share the first resolution's strategy | fixture: 3 calls to one imported fn | trace shows ONE arm event; DB shows 3 stamped rows | 15m | pending | `memo_fans_strategy_to_duplicates`. Buggy: memo caches SymbolId only → duplicates NULL |
 | 5 | Macro refs (memo bypass) still stamp | fixture: `write!()` macro + `write()` fn same file | DB rows per kind vs trace | 15m | pending | `macro_bypass_stamps_strategy`. Buggy: bypass branch misses the tuple |
 | 6 | LSP single-row path stamps `lsp` through the widened seam | db-level test via fixture helper calling `resolve_reference(ref, sym, Lsp)` | SQL readback | 10m | pending | `lsp_path_stamps_strategy`. Buggy: single-row SQL forked from batch and missed the column |
-| 7 | Migration: pre-column DB opens → column added, resolved rows backfilled `legacy`, unresolved stay NULL; second open is a no-op | schema_tests: hand-build a pre-column DB via raw SQL, open twice | `PRAGMA table_info` + row counts via raw sqlite (probe1.sh(b) proved the ALTER mechanics) | 20m | pending (mechanics passed in probe1.sh) | `migration_adds_and_backfills` + `migration_idempotent`. Buggy: unconditional ALTER (second open errors); backfill stamping unresolved rows |
+| 7 | Opening a pre-column DB fails with a clear error naming `--rebuild`; a fresh DB opens fine | schema_tests: hand-build a pre-column DB via raw SQL, open → expect the error; open a fresh DB → ok | error text + `PRAGMA table_info` via raw sqlite | 15m | pending | `outdated_schema_open_errors_clearly` + `fresh_db_has_strategy_column`. Buggy: check inverted (fresh DB rejected); raw 'no such column' leaking instead of the guidance |
 | 8 | `--rebuild` on a pre-column DB yields fresh schema | probe1.sh(c) canary — RAN, PASSED | sqlite PRAGMA before/after | 5m | **passed** (probe) | `open_fresh_db_has_strategy_column` (schema_tests) + existing reset tests |
 | 9 | Reexport-kind refs carry strategy when resolved | fixture with `pub use inner::item` (unique name) | SQL readback + trace arm event | 10m | pending | `reexport_refs_carry_strategy`. Buggy: kind-filtered stamping |
 | 10 | Existing analysis outputs are byte-identical (strategy invisible in slice 2) | old-vs-new binary on the golden fixture: deprecated-callers + visibility-tightening `--json` diff | byte diff (mechanical) | 20m | pending | the existing CLI fences that pin exact outputs (deprecated_callers, visibility tests) keep passing unmodified |
@@ -100,22 +99,21 @@ Cheapest falsifiers already run: #12 (view column list — passed), #8
    tethys-3i35 stay open; this labels their bindings (`unique_workspace`
    / `qualified_module_fallback` land speculative when slice 3 bands
    them).
-4. **No general schema-version framework**: only the idempotent
-   refs.strategy migration; the friendly-feedback residual for other
-   old-DB opens stays on tethys-xvlw (verified open; updated with probe
-   evidence this session).
+4. **No general schema-version framework** (settled, approved): the
+   index is a disposable derived cache with no compatibility promise and
+   no users; a column-presence check is the entire requirement, and it
+   completes tethys-xvlw's AC list — xvlw closes with this slice's PR.
+   Index compatibility, if ever promised, is a new product decision.
 5. **No strategy column on call_edges**: joins through refs per ADR-0003.
 6. **No demote/un-resolve handling**: no production path un-resolves a
    ref today (per-file DELETE+reinsert re-stamps naturally); the future
    incremental design owns that lifecycle — tethys-q8qw (verified open).
 
-## Open decisions flagged for approval
+## Decisions (approved at the design pause, 2026-07-04)
 
-1. **`legacy` backfill** (recommended) vs NULL-on-resolved-means-legacy:
-   backfill keeps `NULL ⇔ unresolved` global at the cost of one sentinel
-   value that is not an arm; it disappears as files reindex.
-2. **Claim 13's fence is `manual`** (one-shot hyperfine measurement) —
-   the skill requires explicit approval for a manual fence.
-3. `ResolutionStrategy` lives in `src/types.rs` (domain home, re-exported)
-   rather than `src/db/` — it will be consumed by resolve.rs, files.rs,
-   and slice 3's view docs.
+1. **Option C — no migration**: column-presence check + clear
+   run-`--rebuild` error; no ALTER, no backfill, no sentinel (user
+   rationale: no current users; the index is a disposable cache).
+2. **Claim 13's `manual` fence approved** (one-shot hyperfine, recorded
+   in `.tethys-9z7i/perf-slice2.md`).
+3. **`ResolutionStrategy` in `src/types.rs`** (domain home, re-exported).
