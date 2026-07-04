@@ -619,14 +619,21 @@ fn parse_use_wildcard(
     line: u32,
     is_reexport: bool,
 ) -> UseStatement {
-    use node_kinds::SCOPED_IDENTIFIER;
+    use node_kinds::{CRATE, IDENTIFIER, SCOPED_IDENTIFIER, SELF, SUPER};
 
     let mut path = Vec::new();
 
-    // The use_wildcard contains a scoped_identifier as its path
+    // The use_wildcard's path child is a scoped_identifier for multi-segment
+    // paths (`a::b::*`) but a bare identifier/crate/self/super node for
+    // single-segment ones (`a::*`, `super::*`) — matching only
+    // SCOPED_IDENTIFIER dropped those paths entirely, storing the glob with
+    // an empty source_module (tethys-lwsc).
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        if child.kind() == SCOPED_IDENTIFIER {
+        if matches!(
+            child.kind(),
+            SCOPED_IDENTIFIER | IDENTIFIER | CRATE | SELF | SUPER
+        ) {
             collect_scoped_path(&child, content, &mut path);
             break;
         }
@@ -1774,6 +1781,24 @@ impl User {
         assert_eq!(uses[0].path, vec!["std", "collections"]);
         assert!(uses[0].is_glob);
         assert!(uses[0].imported_names.is_empty());
+    }
+
+    /// tethys-lwsc: a single-segment glob path is a bare identifier (or
+    /// crate/self/super) node, not a `scoped_identifier` — it used to
+    /// collect as an EMPTY path, storing the glob with no source module.
+    #[test]
+    fn extracts_single_segment_glob_use() {
+        for (code, expected) in [
+            ("use g_lib::*;", vec!["g_lib"]),
+            ("use super::*;", vec!["super"]),
+            ("use crate::*;", vec!["crate"]),
+        ] {
+            let tree = parse_rust(code);
+            let uses = extract_use_statements(&tree, code.as_bytes());
+            assert_eq!(uses.len(), 1, "one use statement for {code}");
+            assert_eq!(uses[0].path, expected, "path for {code}");
+            assert!(uses[0].is_glob, "glob flag for {code}");
+        }
     }
 
     #[test]

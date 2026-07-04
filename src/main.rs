@@ -161,6 +161,21 @@ enum Commands {
         json: bool,
     },
 
+    /// List pub Rust items whose observed use fits `pub(crate)` (tiered)
+    VisibilityTightening {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Assert nothing outside this workspace consumes the code
+        /// (nothing is published): lifts the root-reachability Maybe
+        /// ceiling so externally nameable items can be Definite. Caution
+        /// on packages with both a lib and bin/test targets: lib items
+        /// consumed only by those sibling crates may then read Definite
+        #[arg(long)]
+        workspace_closed: bool,
+    },
+
     /// Find imports whose names are never referenced (Rust files)
     UnusedImports {
         /// Output as JSON
@@ -250,6 +265,10 @@ fn main() -> ExitCode {
             file,
         } => cli::panic_points::run(&workspace, include_tests, json, file.as_deref()),
         Commands::DeprecatedCallers { json } => cli::deprecated_callers::run(&workspace, json),
+        Commands::VisibilityTightening {
+            json,
+            workspace_closed,
+        } => cli::visibility_tightening::run(&workspace, json, workspace_closed),
         Commands::UnusedImports { json, all } => cli::unused_imports::run(&workspace, json, all),
     };
 

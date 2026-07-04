@@ -49,7 +49,9 @@ mod types;
 mod unused_imports;
 
 pub use cargo::discover_crates;
-pub use db::{DeprecatedFinding, DeprecatedSymbol, ReferenceSite, Tier, Via};
+pub use db::{
+    Demotion, DeprecatedFinding, DeprecatedSymbol, ReferenceSite, Tier, Via, VisibilityFinding,
+};
 pub use error::{Error, IndexError, IndexErrorKind, Result};
 pub use types::{
     ArchPhaseResult, ArchStats, CouplingDetail, CouplingMetrics, CouplingSort, CrateInfo, Cycle,
@@ -933,6 +935,40 @@ impl Tethys {
     /// ```
     pub fn get_deprecated_callers(&self) -> Result<Vec<DeprecatedFinding>> {
         self.db.get_deprecated_callers()
+    }
+
+    /// Pub Rust items whose observed use is consistent with `pub(crate)`,
+    /// tiered by evidence trustworthiness (see [`Tier`] and [`Demotion`]).
+    ///
+    /// `workspace_closed` asserts that no consumer outside the indexed
+    /// workspace exists (nothing is published), lifting the default
+    /// root-reachability ceiling that otherwise caps externally nameable
+    /// items at [`Tier::Maybe`].
+    ///
+    /// Caveat: evidence is package-granular, and a package's bin targets,
+    /// integration tests, and benches are separate crates from its lib —
+    /// their consumption of lib items is invisible here. Asserting
+    /// `workspace_closed` on a lib+bin package can therefore promote a
+    /// bin-consumed lib item to a false [`Tier::Definite`]; applying
+    /// `pub(crate)` to one fails to compile, so the error is loud.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use tethys::Tethys;
+    /// use std::path::Path;
+    ///
+    /// let tethys = Tethys::new(Path::new("/path/to/workspace"))?;
+    /// for finding in tethys.get_visibility_candidates(false)? {
+    ///     println!("{} ({:?})", finding.name, finding.tier);
+    /// }
+    /// # Ok::<(), tethys::Error>(())
+    /// ```
+    pub fn get_visibility_candidates(
+        &self,
+        workspace_closed: bool,
+    ) -> Result<Vec<VisibilityFinding>> {
+        self.db.get_visibility_candidates(workspace_closed)
     }
 
     /// Count panic points grouped by test/production code.
