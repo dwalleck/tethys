@@ -81,6 +81,13 @@ discover on its own:
   tracker mutations as LOCAL commits and push once at close-out, after
   the last merge. (Learned the slow way: a mid-queue epic close-out
   added two full CI cycles.)
+- **Before each merge, fetch bot review comments** on that PR
+  (`gh api .../pulls/<n>/comments`) and assess with the verify-first
+  discipline (ship §6): factual findings fix pre-merge; findings that
+  converge with the fixing agent's own discovered-but-not-fixed list get
+  FILED at close-out (convergence raises priority); speculative
+  perf/hardening claims are verified against measurements and usually
+  rejected with evidence.
 - Merge serially (`gh pr merge --merge`), pulling main between merges.
   Small bugs rarely collide; if a later PR conflicts after an earlier
   merge, rebase it (or hand it back to a subagent to rebase) rather than

@@ -115,6 +115,18 @@ all hit in practice:
 
 ## 6. Merge and close out
 
+- **Before merging: fetch and assess bot review comments** —
+  `gh api repos/<owner>/<repo>/pulls/<n>/comments` (gemini posts within
+  minutes of PR-open, so they're in by the time CI is green). Treat each
+  finding as a hypothesis: VERIFY against the code before accepting
+  (grep the identifier, read the schema, EXPLAIN the query plan) and
+  record accept/reject per finding. Calibration from experience: factual
+  checks (wrong identifier names, inconsistent tracker IDs) are usually
+  real — fix pre-merge; speculative perf/hardening suggestions usually
+  fail verification (SQLite already eliminates the join; the "bottleneck"
+  is 95 rows) — reject with evidence; a finding that converges with an
+  already-known limitation gets FILED, not hotfixed. Fixes push a new
+  commit → CI re-runs → the merge waits.
 - **PAUSE**: confirm with the user before merging (skippable only if they
   already said "merge when green" this session).
 - `gh pr merge <n> --merge` (merge-commit convention, matching history).
