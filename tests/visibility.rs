@@ -52,7 +52,10 @@ fn two_crate_fixture() -> (tempfile::TempDir, tethys::Tethys) {
              impl Widget {\n    pub fn method(&self) -> u32 {\n        self.field\n    }\n}\n\
              fn internal() -> Widget {\n    Widget { field: 1 }\n}\n\
              pub fn bare2() {}\n\
-             pub fn qonly() {}\n",
+             pub fn qonly() {}\n\
+             pub fn dup_fn() {}\n\
+             #[cfg(unix)]\npub fn twin() {}\n\
+             #[cfg(windows)]\npub fn twin() {}\n",
         ),
         ("crates/a-lib/src/detail3.rs", "pub fn item() {}\n"),
         ("crates/a-lib/src/inner2.rs", "pub fn glob_item() {}\n"),
@@ -82,7 +85,8 @@ fn two_crate_fixture() -> (tempfile::TempDir, tethys::Tethys) {
              use a_lib::mixin as mx;\n\
              use a_lib::used_fn;\n\n\
              fn main() {\n    used_fn();\n    helper();\n    mx();\n    \
-             a_lib::qonly();\n    zz::xbare2();\n}\n",
+             a_lib::qonly();\n    zz::xbare2();\n}\n\n\
+             fn dup_fn() {}\n",
         ),
     ]);
     tethys.index().expect("index failed");
@@ -139,6 +143,50 @@ fn unresolved_qualified_excludes() {
     );
 }
 
+/// S5 (design C4): a candidate whose name is shared by ANY other indexed
+/// symbol is capped at Maybe with the shared-name demotion — evidence for
+/// or against it could be misattributed (tethys-53iv steals refs AND
+/// destroys their qualified text, so absence-of-evidence is untrustworthy
+/// for collided names). Three shapes: `dup_fn` collides with a PRIVATE fn
+/// in another package (collider visibility must not matter); the cfg-twin
+/// `twin` pair collides with itself (COUNT of rows, not DISTINCT
+/// locations); unique `lonely_fn` stays Definite.
+#[test]
+fn shared_name_demotes() {
+    let (_dir, tethys) = two_crate_fixture();
+    let findings = tethys
+        .get_visibility_candidates(false)
+        .expect("visibility query failed");
+
+    let by_name = |n: &str| -> Vec<&tethys::VisibilityFinding> {
+        findings.iter().filter(|f| f.name == n).collect()
+    };
+
+    let lonely = by_name("lonely_fn");
+    assert_eq!(lonely.len(), 1);
+    assert_eq!(lonely[0].tier, tethys::Tier::Definite);
+    assert!(lonely[0].demotions.is_empty(), "unique name stays Definite");
+
+    let dup = by_name("dup_fn");
+    assert_eq!(dup.len(), 1, "only a_lib's dup_fn is pub");
+    assert_eq!(
+        dup[0].demotions,
+        [tethys::Demotion::SharedName],
+        "b-app's PRIVATE dup_fn still demotes; got {findings:?}"
+    );
+    assert_eq!(dup[0].tier, tethys::Tier::Maybe);
+
+    let twins = by_name("twin");
+    assert_eq!(twins.len(), 2, "both cfg twins are candidates");
+    for twin in twins {
+        assert_eq!(
+            twin.demotions,
+            [tethys::Demotion::SharedName],
+            "cfg twins collide with each other; got {findings:?}"
+        );
+    }
+}
+
 /// S4 (design C5): a symbol carrying a resolved reexport-kind ref (named
 /// `pub use detail3::item;` — v1w8 refs) is never reported, even with zero
 /// other refs: re-export is affirmative API-surface intent (AC2). Kills:
@@ -162,7 +210,7 @@ fn reexported_item_excluded() {
 /// its own package (`pub use inner2::*;`) is capped at Maybe with the
 /// glob-reexport-risk demotion — pv7w means the glob re-export produces no
 /// per-item ref, so the item would otherwise read Definite. The stored
-/// source_module is RELATIVE ('inner2' vs module_path 'crate::inner2'):
+/// `source_module` is RELATIVE (`inner2` vs `module_path` `crate::inner2`):
 /// an exact-equality implementation fails this fence.
 #[test]
 fn glob_module_demotes() {
@@ -251,6 +299,9 @@ fn cross_package_ref_excludes() {
             ("lonely_fn", "function"),
             ("Widget", "struct"),
             ("bare2", "function"),
+            ("dup_fn", "function"),
+            ("twin", "function"),
+            ("twin", "function"),
         ],
         "exactly the unused pub items with no cross-package evidence \
          (glob_item survives as Maybe; re-exported `item` is excluded), \

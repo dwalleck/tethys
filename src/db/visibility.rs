@@ -148,6 +148,7 @@ impl Index {
         let (named_imports, glob_imports) = import_evidence(&conn)?;
         let unresolved_qualified = unresolved_qualified_evidence(&conn)?;
         let same_pkg_globs = glob_import_rows(&conn)?;
+        let shared_names = shared_names(&conn)?;
 
         candidates.retain(|c| {
             // Owned keys: HashMap's Borrow lookup can't be fed (&str, &str)
@@ -167,7 +168,16 @@ impl Index {
         Ok(candidates
             .into_iter()
             .map(|c| {
+                // Demotions push in enum order so the vec is canonical
+                // (byte-stable JSON across runs — design C11).
                 let mut demotions = Vec::new();
+                // C4: ANY same-named symbol — any kind, visibility, or
+                // language, twins included — makes absence-of-evidence
+                // untrustworthy: tethys-53iv can steal a collided name's
+                // qualified refs and destroy their text.
+                if shared_names.contains(&c.name) {
+                    demotions.push(Demotion::SharedName);
+                }
                 // C6: a glob import row in the candidate's own package
                 // targeting its module — a glob re-export would publish it
                 // with no per-item ref (tethys-pv7w), so Definite would be
@@ -208,6 +218,15 @@ fn module_matches(module_path: &str, source_module: &str) -> bool {
         .strip_prefix("self::")
         .unwrap_or(source_module);
     module_path == source || module_path.ends_with(&format!("::{source}"))
+}
+
+/// Names carried by MORE THAN ONE symbol row anywhere in the index —
+/// COUNT of rows, not distinct locations, so cfg-twin duplicates in one
+/// file count as shared. One SQL pass over symbols (~10^6 production).
+fn shared_names(conn: &rusqlite::Connection) -> Result<std::collections::HashSet<String>> {
+    let mut stmt = conn.prepare("SELECT name FROM symbols GROUP BY name HAVING COUNT(*) > 1")?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    Ok(rows.collect::<std::result::Result<_, _>>()?)
 }
 
 /// All glob import rows (`symbol_name = '*'`) with their importing
