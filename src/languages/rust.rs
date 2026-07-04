@@ -1784,8 +1784,8 @@ impl User {
     }
 
     /// tethys-lwsc: a single-segment glob path is a bare identifier (or
-    /// crate/self/super) node, not a scoped_identifier — it used to collect
-    /// as an EMPTY path, storing the glob with no source module.
+    /// crate/self/super) node, not a `scoped_identifier` — it used to
+    /// collect as an EMPTY path, storing the glob with no source module.
     #[test]
     fn extracts_single_segment_glob_use() {
         for (code, expected) in [
