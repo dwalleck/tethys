@@ -220,6 +220,89 @@ fn module_matches(module_path: &str, source_module: &str) -> bool {
     module_path == source || module_path.ends_with(&format!("::{source}"))
 }
 
+/// Record one module row into the visibility map keyed by (parent
+/// `module_path`, module name). Duplicate keys (cfg-gated twin modules,
+/// path collisions) resolve as any-public-wins: if one twin is public the
+/// chain COULD be nameable, and over-treating as reachable only demotes
+/// to Maybe — the suppression-safe direction.
+fn record_module(
+    map: &mut HashMap<(String, String), bool>,
+    parent: &str,
+    name: &str,
+    is_public: bool,
+) {
+    let entry = map
+        .entry((parent.to_string(), name.to_string()))
+        .or_insert(false);
+    *entry = *entry || is_public;
+}
+
+/// Modules-by-location map for [`is_root_reachable`]: one SQL pass over
+/// module-kind symbols (m ≈ 10^4 production).
+#[expect(
+    dead_code,
+    reason = "wired by the reachability-ceiling slice (xoxq S7)"
+)]
+fn module_visibility_map(conn: &rusqlite::Connection) -> Result<HashMap<(String, String), bool>> {
+    let mut map = HashMap::new();
+    let mut stmt =
+        conn.prepare("SELECT name, module_path, visibility FROM symbols WHERE kind = 'module'")?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    })?;
+    for row in rows {
+        let (name, parent, visibility) = row?;
+        record_module(&mut map, &parent, &name, visibility == "public");
+    }
+    Ok(map)
+}
+
+/// Can a symbol whose `module_path` is e.g. `crate::a::b` be named from
+/// outside the crate through an all-public module chain?
+///
+/// Walk: for each segment after `crate`, the module row keyed by
+/// (path-so-far, segment) must be public. Items at the crate root
+/// (`module_path` of `crate` or empty — files outside the module tree)
+/// are reachable by definition. A MISSING module row is treated as
+/// reachable: unknown chains get the Maybe ceiling, never a false
+/// Definite (documented conservative choice, unit-fenced).
+///
+/// Re-exports also add reachability, but re-exported candidates are
+/// excluded outright upstream (design C5), so the chain walk never sees
+/// them.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "wired by the reachability-ceiling slice (xoxq S7)"
+    )
+)]
+fn is_root_reachable(module_path: &str, modules: &HashMap<(String, String), bool>) -> bool {
+    if module_path.is_empty() || module_path == "crate" {
+        return true;
+    }
+    let Some(rest) = module_path.strip_prefix("crate::") else {
+        // Non-crate-rooted path (shouldn't occur for Rust symbols): treat
+        // as reachable — unknown ⇒ Maybe ceiling, never false Definite.
+        return true;
+    };
+    let mut parent = String::from("crate");
+    for segment in rest.split("::") {
+        match modules.get(&(parent.clone(), segment.to_string())) {
+            Some(true) => {}
+            Some(false) => return false,
+            None => return true,
+        }
+        parent.push_str("::");
+        parent.push_str(segment);
+    }
+    true
+}
+
 /// Names carried by MORE THAN ONE symbol row anywhere in the index —
 /// COUNT of rows, not distinct locations, so cfg-twin duplicates in one
 /// file count as shared. One SQL pass over symbols (~10^6 production).
@@ -312,4 +395,63 @@ fn unresolved_qualified_evidence(conn: &rusqlite::Connection) -> Result<HashMap<
             .push(pkg);
     }
     Ok(by_last_segment)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{is_root_reachable, module_matches, record_module};
+    use std::collections::HashMap;
+
+    /// Design C8 unit fence. Rows 1-2 re-encode the self-index chains the
+    /// design-time falsifier ran against source text (`mod db;` private →
+    /// `DeprecatedSymbol` unreachable; `pub mod cargo;` → reachable). Rows
+    /// 3-5 pin the documented conservative choices: crate-root items
+    /// reachable, MISSING module rows reachable (unknown ⇒ Maybe ceiling),
+    /// any-public-wins on duplicate keys. Kills: keying a module by its
+    /// own path instead of its parent's, the walk stopping after one
+    /// segment, missing-row panics.
+    #[test]
+    fn root_reachability_chain_walk() {
+        let mut modules = HashMap::new();
+        record_module(&mut modules, "crate", "db", false);
+        record_module(&mut modules, "crate::db", "deprecated", false);
+        record_module(&mut modules, "crate", "cargo", true);
+        record_module(&mut modules, "crate", "api", true);
+        record_module(&mut modules, "crate::api", "inner", true);
+        // duplicate key: cfg-twin module, one public — public wins
+        record_module(&mut modules, "crate", "twin_mod", false);
+        record_module(&mut modules, "crate", "twin_mod", true);
+
+        // (module_path, expected reachable)
+        let cases = [
+            ("crate::db::deprecated", false), // private mid-chain
+            ("crate::db", false),             // private first hop
+            ("crate::cargo", true),           // all-pub single hop
+            ("crate::api::inner", true),      // all-pub two hops
+            ("crate", true),                  // item at crate root
+            ("", true),                       // outside module tree
+            ("crate::unknown_mod", true),     // missing row: conservative
+            ("crate::twin_mod", true),        // any-public-wins
+        ];
+        for (path, expected) in cases {
+            assert_eq!(
+                is_root_reachable(path, &modules),
+                expected,
+                "reachability of {path:?}"
+            );
+        }
+    }
+
+    /// C6 helper: absolute, relative, and self-relative source modules all
+    /// denote the same module; suffix matching respects the `::` boundary
+    /// (`crate::xinner` must not match source `inner`).
+    #[test]
+    fn module_match_shapes() {
+        assert!(module_matches("crate::inner", "inner"));
+        assert!(module_matches("crate::inner", "crate::inner"));
+        assert!(module_matches("crate::inner", "self::inner"));
+        assert!(module_matches("crate::a::inner", "a::inner"));
+        assert!(!module_matches("crate::xinner", "inner"));
+        assert!(!module_matches("crate::inner", "other"));
+    }
 }
