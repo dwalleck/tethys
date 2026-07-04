@@ -112,6 +112,9 @@ Cheapest falsifier (claim 3) **run and passed** before approval.
 - **Drop-unresolved-Value** is a deliberate precision choice (claim 4). Alternative
   (retain unresolved as speculative band) rejected: adds ~250 junk rows and
   pollutes `reference_name` queries for no consumer benefit.
+- **DECIDED (2026-07-04, user): EXCLUDE Value refs from `call_edges`** — add
+  `AND kind <> 'value'` to `populate_call_edges`. `callers`/`impact`/
+  `deprecated-callers` byte-unchanged; claim 6 holds. Design approved as-is.
 - **DECISION FOR THE USER — Value refs and `call_edges`.** The subtractive sweep
   found `populate_call_edges` has no kind filter, so the fork is real:
   - **(Recommended) Exclude Value from `call_edges`** — add `AND kind <> 'value'`.
