@@ -19,9 +19,9 @@ unless a merge needs a rebase with conflicts).
 ## 1. Select the batch (orchestrator, on main)
 
 - `rivets list --json`; filter: type `bug`, status `open`, priority 2-4,
-  no open `blocks` dependencies (check by hand — `rivets ready` also
-  hides issues with open `related`/`parent-child` links, which is not the
-  same thing as blocked).
+  no open `blocks` dependencies (check via `rivets show`; note that
+  `rivets ready` truncates to 10 by default — use `-n 100` for a full
+  survey; only `blocks` edges and blocked parents gate readiness).
 - Apply the **smallness test** per bug, reading the issue and skimming the
   code it names: single subsystem, reproducible by a test, no schema
   change, no design decision, no open substrate dependency. When in doubt,

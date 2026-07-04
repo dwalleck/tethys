@@ -16,12 +16,16 @@ soften either.
 
 - If the user named an issue: `rivets show <id>`. Confirm it's open and its
   `blocks` dependencies are closed.
-- If not: propose one. Use `rivets list`, NOT `rivets ready` alone —
-  `ready` hides any issue with a dependency on an open issue *including
-  non-blocking `related` and `parent-child` links*, so every child of an
-  open PRD epic is invisible there. Check blockers by hand
-  (`rivets show`), rank by priority and the PRD roadmap (tethys-l6nt),
-  and present the pick with a one-line rationale before starting.
+- If not: propose one. `rivets ready` truncates to 10 results by default
+  (hybrid sort) — with 30+ ready issues, P3/P4 candidates fall below the
+  fold and look "hidden". Use `rivets ready -n 100` or `rivets list` for
+  a full survey. (Only `blocks` edges to unclosed issues — and blocked
+  parents, transitively — actually gate readiness; `related` and
+  `parent-child` links to open issues do NOT. A previous version of this
+  skill claimed otherwise; that was a truncation artifact misdiagnosed as
+  dependency filtering.) Check blockers via `rivets show`, rank by
+  priority and the PRD roadmap (tethys-l6nt), and present the pick with a
+  one-line rationale before starting.
 - Features get the full loop below. If the issue is a small bug
   (single-subsystem, reproducible by a test, no design decisions), say so
   and suggest `/sweep-bugs` instead — the full loop is wasteful there.
