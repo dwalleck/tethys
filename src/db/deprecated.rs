@@ -43,6 +43,10 @@ pub struct DeprecatedSymbol {
     /// errors, not warnings. `None` for Rust and for `[Obsolete]` without a
     /// bool argument.
     pub error: Option<bool>,
+    /// Declaring file's `files.language` value; drives the same-language
+    /// guards on Path B and ambiguity tiering (design C9). Not output.
+    #[serde(skip)]
+    pub(crate) language: String,
 }
 
 /// Confidence tier for a reported deprecated-use site (design C5).
@@ -127,7 +131,7 @@ impl Index {
         trace!("Querying deprecated symbols");
         let conn = self.connection()?;
         let mut stmt = conn.prepare(&format!(
-            "SELECT s.id, s.name, s.kind, f.path, s.line, a.args, a.name
+            "SELECT s.id, s.name, s.kind, f.path, s.line, a.args, a.name, f.language
              FROM attributes a
              JOIN symbols s ON s.id = a.symbol_id
              JOIN files f ON f.id = s.file_id
@@ -153,6 +157,7 @@ impl Index {
                 since,
                 note,
                 error,
+                language: row.get(7)?,
             })
         })?;
         Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
@@ -177,21 +182,27 @@ impl Index {
         let symbols = self.get_deprecated_symbols()?;
         let conn = self.connection()?;
 
-        // Names shared with at least one NON-deprecated symbol: sites on
-        // these names tier Maybe (a phantom binding is possible). One
-        // statement, no per-symbol round-trips.
+        // (name, language) pairs shared with at least one NON-deprecated
+        // symbol OF THE SAME LANGUAGE: sites on these tier Maybe (a phantom
+        // binding is possible). Language-scoped per design C9 — a C# method
+        // named like a Rust fn can't be what a Rust ref binds to, so it must
+        // not demote the Rust finding (and vice versa). One statement, no
+        // per-symbol round-trips.
         let mut ambiguous_stmt = conn.prepare(&format!(
             "WITH deprecated_ids AS (SELECT symbol_id FROM attributes
                                      WHERE name IN {DEPRECATION_ATTR_NAMES_SQL})
-             SELECT DISTINCT s2.name
+             SELECT DISTINCT s2.name, f2.language
              FROM symbols s2
+             JOIN files f2 ON f2.id = s2.file_id
              WHERE s2.name IN (SELECT s.name
                                FROM symbols s
                                JOIN deprecated_ids d ON d.symbol_id = s.id)
                AND s2.id NOT IN (SELECT symbol_id FROM deprecated_ids)",
         ))?;
-        let ambiguous_names: std::collections::HashSet<String> = ambiguous_stmt
-            .query_map([], |row| row.get::<_, String>(0))?
+        let ambiguous_names: std::collections::HashSet<(String, String)> = ambiguous_stmt
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
             .collect::<std::result::Result<_, _>>()?;
 
         let mut sites_stmt = conn.prepare(
@@ -213,7 +224,7 @@ impl Index {
             by_name.entry(symbol.name.as_str()).or_default().push(i);
         }
         let mut unresolved_stmt = conn.prepare(
-            "SELECT r.reference_name, f.path, r.line, r.column, cs.name
+            "SELECT r.reference_name, f.path, r.line, r.column, cs.name, f.language
              FROM refs r
              JOIN files f ON f.id = r.file_id
              LEFT JOIN symbols cs ON cs.id = r.in_symbol_id
@@ -229,10 +240,11 @@ impl Index {
                 row.get::<_, u32>(2)?,
                 row.get::<_, u32>(3)?,
                 row.get::<_, Option<String>>(4)?,
+                row.get::<_, String>(5)?,
             ))
         })?;
         for row in unresolved_rows {
-            let (reference_name, file, line, column, caller) = row?;
+            let (reference_name, file, line, column, caller, ref_language) = row?;
             let Some(last_segment) = reference_name.rsplit("::").next() else {
                 continue;
             };
@@ -240,6 +252,12 @@ impl Index {
                 continue;
             };
             for &i in indices {
+                // Same-language guard (design C9): a ref can only bind a
+                // symbol its own language could reach — a Rust `crate::Run`
+                // must not attach to a C# `Run` and vice versa.
+                if symbols[i].language != ref_language {
+                    continue;
+                }
                 recovered[i].push(ReferenceSite {
                     file: file.clone(),
                     line,
@@ -253,7 +271,11 @@ impl Index {
 
         let mut findings = Vec::with_capacity(symbols.len());
         for (symbol, path_b_sites) in symbols.into_iter().zip(recovered) {
-            let tier = if ambiguous_names.contains(&symbol.name) {
+            // Tuple lookup, not clone-and-build: (name, language) borrows
+            // suffice via the set's Borrow impl only for owned tuples, so
+            // build the key once per symbol (d is small — tens, not 10^5).
+            let key = (symbol.name.clone(), symbol.language.clone());
+            let tier = if ambiguous_names.contains(&key) {
                 Tier::Maybe
             } else {
                 Tier::Definite

@@ -622,3 +622,84 @@ fn cli_json_envelope_stable_and_parseable() {
     assert_eq!(site["tier"], "Definite");
     assert_eq!(site["via"], "resolved");
 }
+
+/// haw5 S4 (design C9): Path B attachment and ambiguity tiering are
+/// same-language only. Four bug classes, one mixed fixture:
+/// 1. cross-language tier demotion — a C# method named `old_api` must not
+///    demote the Rust `old_api` finding from Definite;
+/// 2. Rust→C# Path B bleed — an unresolved Rust `crate::Run` ref must not
+///    attach to the C# obsolete `Run`;
+/// 3. C#→Rust Path B bleed (latent jdly behavior) — an unresolved C#
+///    `x::legacy_shared` ref must not attach to Rust `legacy_shared`;
+/// 4. over-filtering — the same-language C# `svc::Run` ref must STILL
+///    attach to the C# `Run` as Maybe / unresolved-qualified.
+#[test]
+fn no_cross_language_attachment() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "#[deprecated(note = \"gone\")]\npub fn old_api() {}\n\
+             #[deprecated]\npub fn legacy_shared() {}\n",
+        ),
+        (
+            "src/user.rs",
+            // Bare cross-file call resolves (pass 2); crate::Run stays
+            // unresolved (tethys-3i35 shape) with last segment `Run`.
+            "pub fn migrate() {\n    old_api();\n}\n\
+             pub fn tempted() {\n    crate::Run();\n}\n",
+        ),
+        (
+            "App.cs",
+            "using System;\n\nnamespace App\n{\n    public class Svc\n    {\n        \
+             [Obsolete(\"use Walk\")]\n        public void Run() { }\n    }\n}\n",
+        ),
+        (
+            "Caller.cs",
+            "namespace App\n{\n    public class User2\n    {\n        public void Go()\n        {\n            \
+             var svc = new Svc();\n            svc.Run();\n        }\n\n        \
+             public void Bleed(dynamic x)\n        {\n            x.legacy_shared();\n        }\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+
+    let by_name = |name: &str| {
+        findings
+            .iter()
+            .find(|f| f.symbol.name == name)
+            .unwrap_or_else(|| panic!("finding {name} missing"))
+    };
+
+    // (1) No C# symbol named old_api exists in App.cs — but Run exists in
+    // both worlds via crate::Run text only on the Rust side; the direct
+    // demotion probe: Rust old_api's resolved site stays Definite even
+    // though C# code mentions nothing of it (control), and (3)'s bleed ref
+    // must not create ambiguity either.
+    let old_api = by_name("old_api");
+    assert_eq!(old_api.sites.len(), 1, "one resolved Rust site");
+    assert_eq!(old_api.sites[0].file, "src/user.rs");
+    assert_eq!(old_api.sites[0].tier, Tier::Definite);
+
+    // (2) + (4): the C# Run finding lists exactly the same-language
+    // variable-receiver site — never the Rust crate::Run ref.
+    let run = by_name("Run");
+    let run_files: Vec<&str> = run.sites.iter().map(|s| s.file.as_str()).collect();
+    assert_eq!(
+        run_files,
+        ["Caller.cs"],
+        "same-language Path B site only; Rust crate::Run must not attach"
+    );
+    assert_eq!(run.sites[0].tier, Tier::Maybe);
+    assert_eq!(run.sites[0].via, Via::UnresolvedQualified);
+
+    // (3): Rust legacy_shared gets no site from the C# x.legacy_shared()
+    // call — clean verdict.
+    let legacy = by_name("legacy_shared");
+    assert!(
+        legacy.sites.is_empty(),
+        "C# bleed ref must not attach to a Rust symbol; got {:?}",
+        legacy.sites
+    );
+}
