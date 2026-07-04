@@ -71,6 +71,9 @@ struct CandidateRow {
     /// The declaring package's manifest name normalized to the identifier
     /// that appears in `use` paths (`a-lib` → `a_lib`).
     crate_ident: String,
+    /// `symbols.module_path` (e.g. `crate::inner`), matched against glob
+    /// import rows for the C6 demotion.
+    module_path: String,
 }
 
 impl Index {
@@ -111,7 +114,7 @@ impl Index {
                  JOIN arch_file_packages sfp ON sfp.file_id = rs.file_id
                  WHERE rfp.package_id != sfp.package_id
              )
-             SELECT s.name, s.kind, f.path, s.line, fp.package_id, p.name
+             SELECT s.name, s.kind, f.path, s.line, fp.package_id, p.name, s.module_path
              FROM symbols s
              JOIN files f               ON f.id = s.file_id
              JOIN arch_file_packages fp ON fp.file_id = s.file_id
@@ -120,6 +123,8 @@ impl Index {
                AND f.language = 'rust'
                AND s.kind IN {CANDIDATE_KINDS_SQL}
                AND s.id NOT IN (SELECT symbol_id FROM cross_pkg_refs)
+               AND s.id NOT IN (SELECT symbol_id FROM refs
+                                WHERE kind = 'reexport' AND symbol_id IS NOT NULL)
              ORDER BY f.path, s.line, s.name",
         ))?;
         let rows = stmt.query_map([], |row| {
@@ -135,12 +140,14 @@ impl Index {
                 line: row.get(3)?,
                 package_id: row.get(4)?,
                 crate_ident: package_name.replace('-', "_"),
+                module_path: row.get(6)?,
             })
         })?;
         let mut candidates = rows.collect::<std::result::Result<Vec<_>, _>>()?;
 
         let (named_imports, glob_imports) = import_evidence(&conn)?;
         let unresolved_qualified = unresolved_qualified_evidence(&conn)?;
+        let same_pkg_globs = glob_import_rows(&conn)?;
 
         candidates.retain(|c| {
             // Owned keys: HashMap's Borrow lookup can't be fed (&str, &str)
@@ -159,16 +166,64 @@ impl Index {
 
         Ok(candidates
             .into_iter()
-            .map(|c| VisibilityFinding {
-                name: c.name,
-                kind: c.kind,
-                file: c.file,
-                line: c.line,
-                tier: Tier::Definite,
-                demotions: Vec::new(),
+            .map(|c| {
+                let mut demotions = Vec::new();
+                // C6: a glob import row in the candidate's own package
+                // targeting its module — a glob re-export would publish it
+                // with no per-item ref (tethys-pv7w), so Definite would be
+                // unsafe. Plain same-package `use m::*` also demotes:
+                // `is_reexport` isn't persisted in the imports table, so
+                // pub and non-pub globs are indistinguishable at query
+                // time (conservative direction).
+                if same_pkg_globs.iter().any(|(source, pkg)| {
+                    *pkg == c.package_id && module_matches(&c.module_path, source)
+                }) {
+                    demotions.push(Demotion::GlobReexportRisk);
+                }
+                let tier = if demotions.is_empty() {
+                    Tier::Definite
+                } else {
+                    Tier::Maybe
+                };
+                VisibilityFinding {
+                    name: c.name,
+                    kind: c.kind,
+                    file: c.file,
+                    line: c.line,
+                    tier,
+                    demotions,
+                }
             })
             .collect())
     }
+}
+
+/// Does a glob import row's `source_module` denote the candidate's module?
+/// Stored paths may be absolute (`crate::inner`) or relative (`inner`,
+/// `self::inner`) — relative forms match as a `::`-bounded suffix of the
+/// symbol's `module_path`. Over-matching is acceptable (demotion, not
+/// exclusion; suppression-safe).
+fn module_matches(module_path: &str, source_module: &str) -> bool {
+    let source = source_module
+        .strip_prefix("self::")
+        .unwrap_or(source_module);
+    module_path == source || module_path.ends_with(&format!("::{source}"))
+}
+
+/// All glob import rows (`symbol_name = '*'`) with their importing
+/// package, for the same-package C6 demotion. g is small (tens of rows);
+/// the per-candidate scan is O(g × d) ≪ the 10^6 budget.
+fn glob_import_rows(conn: &rusqlite::Connection) -> Result<Vec<(String, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT i.source_module, fp.package_id
+         FROM imports i
+         JOIN arch_file_packages fp ON fp.file_id = i.file_id
+         WHERE i.symbol_name = '*'",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+    })?;
+    Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
 }
 
 /// Channel (b) lookup maps, one pass over `imports` rows: named rows keyed

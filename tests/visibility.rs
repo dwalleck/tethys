@@ -32,10 +32,18 @@ fn two_crate_fixture() -> (tempfile::TempDir, tethys::Tethys) {
             // explicit-import arm's binding at lib.rs. Net effect: the
             // cross-package use produces NO resolved ref — only the
             // importing crate's `imports` row can exclude them.
+            // `pub use detail3::item;` is a NAMED re-export whose ref
+            // resolves (item is workspace-unique) — C5 excludes item
+            // entirely. `pub use inner2::*;` is a GLOB re-export: pv7w
+            // means glob_item carries no ref at all, so C6 demotes it via
+            // the same-package glob import row (whose source_module is
+            // stored RELATIVE — 'inner2' — defeating exact-path matching).
             "crates/a-lib/src/lib.rs",
-            "mod detail;\nmod detail2;\n\
+            "mod detail;\nmod detail2;\nmod detail3;\nmod inner2;\n\
              pub use detail::helper;\n\
              pub use detail2::mixin;\n\
+             pub use detail3::item;\n\
+             pub use inner2::*;\n\
              pub fn used_fn() {}\n\
              pub fn lonely_fn() {}\n\
              pub(crate) fn tight_fn() {}\n\
@@ -46,6 +54,8 @@ fn two_crate_fixture() -> (tempfile::TempDir, tethys::Tethys) {
              pub fn bare2() {}\n\
              pub fn qonly() {}\n",
         ),
+        ("crates/a-lib/src/detail3.rs", "pub fn item() {}\n"),
+        ("crates/a-lib/src/inner2.rs", "pub fn glob_item() {}\n"),
         (
             "crates/a-lib/src/detail.rs",
             "#[cfg(unix)]\npub fn helper() {}\n#[cfg(windows)]\npub fn helper() {}\n",
@@ -129,6 +139,50 @@ fn unresolved_qualified_excludes() {
     );
 }
 
+/// S4 (design C5): a symbol carrying a resolved reexport-kind ref (named
+/// `pub use detail3::item;` — v1w8 refs) is never reported, even with zero
+/// other refs: re-export is affirmative API-surface intent (AC2). Kills:
+/// reexport refs treated as ordinary same-package refs, which would leave
+/// the item listed as a candidate.
+#[test]
+fn reexported_item_excluded() {
+    let (_dir, tethys) = two_crate_fixture();
+    let findings = tethys
+        .get_visibility_candidates(false)
+        .expect("visibility query failed");
+
+    assert!(
+        !findings.iter().any(|f| f.name == "item"),
+        "detail3::item is re-exported at the crate root — never a \
+         candidate; got {findings:?}"
+    );
+}
+
+/// S4 (design C6): a candidate whose declaring module is glob-imported in
+/// its own package (`pub use inner2::*;`) is capped at Maybe with the
+/// glob-reexport-risk demotion — pv7w means the glob re-export produces no
+/// per-item ref, so the item would otherwise read Definite. The stored
+/// source_module is RELATIVE ('inner2' vs module_path 'crate::inner2'):
+/// an exact-equality implementation fails this fence.
+#[test]
+fn glob_module_demotes() {
+    let (_dir, tethys) = two_crate_fixture();
+    let findings = tethys
+        .get_visibility_candidates(false)
+        .expect("visibility query failed");
+
+    let glob_item = findings
+        .iter()
+        .find(|f| f.name == "glob_item")
+        .expect("glob_item listed (pv7w: no refs exist for it)");
+    assert_eq!(glob_item.tier, tethys::Tier::Maybe);
+    assert_eq!(
+        glob_item.demotions,
+        [tethys::Demotion::GlobReexportRisk],
+        "exactly the glob demotion; got {findings:?}"
+    );
+}
+
 /// S2 (design C2, glob widening): a cross-package `use g_lib::*;` makes
 /// every pub root item of `g_lib` nameable in the importing crate, so it
 /// is use evidence for ALL of that crate's candidates — `beta` has no ref
@@ -193,16 +247,18 @@ fn cross_package_ref_excludes() {
     assert_eq!(
         names,
         [
+            ("glob_item", "function"),
             ("lonely_fn", "function"),
             ("Widget", "struct"),
             ("bare2", "function"),
         ],
-        "exactly the unused pub items with no cross-package evidence, \
+        "exactly the unused pub items with no cross-package evidence \
+         (glob_item survives as Maybe; re-exported `item` is excluded), \
          ordered by (file, line, name); got {findings:?}"
     );
-    let lonely = &findings[0];
+    let lonely = &findings[1];
     assert_eq!(lonely.file, "crates/a-lib/src/lib.rs");
-    assert_eq!(lonely.line, 6, "declared on line 6 of the fixture lib.rs");
+    assert_eq!(lonely.line, 10, "declared on line 10 of the fixture lib.rs");
 }
 
 /// S1 (design C9): non-public visibilities (`pub(crate)`, `pub(in crate)`,
