@@ -406,6 +406,36 @@ mod tests {
         assert_eq!(f.confidence, UnusedImportConfidence::Definite);
     }
 
+    /// tethys-pdea: `use crate::{util::Helper};` lost the `util` segment —
+    /// the finding said `source_module` "crate" and, because `Helper` does not
+    /// resolve inside `crate` (lib.rs), wrongly downgraded a workspace struct
+    /// to `MaybeTrait`.
+    #[test]
+    fn nested_group_import_reports_full_source_module() {
+        let (_dir, tethys) = workspace(&[
+            ("Cargo.toml", CARGO_TOML),
+            (
+                "src/lib.rs",
+                "pub mod util;\nuse crate::{util::Helper};\n\npub fn entry() {}\n",
+            ),
+            ("src/util.rs", "pub struct Helper;\n"),
+        ]);
+
+        let findings = tethys.find_unused_imports().expect("scan");
+        assert_eq!(findings.len(), 1, "exactly one unused import: {findings:?}");
+        let f = &findings[0];
+        assert_eq!(f.name, "Helper");
+        assert_eq!(
+            f.source_module, "crate::util",
+            "group member keeps its own path"
+        );
+        assert_eq!(
+            f.confidence,
+            UnusedImportConfidence::Definite,
+            "a workspace struct resolved via its full path is not MaybeTrait"
+        );
+    }
+
     #[test]
     fn used_import_is_not_reported() {
         let (_dir, tethys) = workspace(&[
