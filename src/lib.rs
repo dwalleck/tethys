@@ -890,9 +890,9 @@ impl Tethys {
         self.db.get_panic_points(include_tests, file_filter)
     }
 
-    /// All symbols in the index carrying a `#[deprecated]` attribute
-    /// (Rust; C# `[Obsolete]` detection is tracked separately as tethys-haw5),
-    /// with `since`/`note` parsed from the attribute when present.
+    /// All symbols in the index carrying a Rust `#[deprecated]` or C#
+    /// `[Obsolete]` attribute, with `since`/`note` (Rust) or message/error
+    /// flag (C#) parsed from the attribute when present.
     ///
     /// Requires a built index — `Tethys::new` errors when the database is
     /// missing, matching the other analysis entry points.
@@ -913,8 +913,9 @@ impl Tethys {
         self.db.get_deprecated_symbols()
     }
 
-    /// Full deprecated-callers report: every `#[deprecated]` symbol with its
-    /// reference sites, tiered by resolution trustworthiness (see [`Tier`]).
+    /// Full deprecated-callers report: every `#[deprecated]` / `[Obsolete]`
+    /// symbol with its reference sites, tiered by resolution trustworthiness
+    /// (see [`Tier`]).
     ///
     /// An entry with empty `sites` means "clean — no known callers remain".
     ///

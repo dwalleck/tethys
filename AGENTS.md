@@ -121,8 +121,10 @@ Things the pipeline enforces that an agent should not violate
 
 <!-- tags: gotchas, limitations -->
 
-- **C# is a second-class citizen in places.** Symbol *attribute* extraction is
-  Rust-only (see `src/languages/common.rs`), and the CLI `--lsp` flag /
+- **C# is a second-class citizen in places.** Symbol *attribute* extraction
+  covers C# type/method/constructor declarations only — member declarations
+  (properties, fields, events, delegates) are not extracted at all, so
+  `[Obsolete]` on them is invisible (tethys-xebx). The CLI `--lsp` flag /
   availability check are wired to **rust-analyzer only** (`src/cli/mod.rs`),
   even though a `CSharpLsProvider` exists in the library.
 - **C# dependency resolution uses namespace/using corroboration**, not Rust-style

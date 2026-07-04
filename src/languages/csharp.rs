@@ -7,7 +7,10 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use super::LanguageSupport;
-use super::common::{ExtractedReference, ExtractedReferenceKind, ExtractedSymbol, ImportStatement};
+use super::common::{
+    ExtractedAttribute, ExtractedReference, ExtractedReferenceKind, ExtractedSymbol,
+    ImportStatement, strip_outer_parens,
+};
 use super::tree_sitter_utils::{node_span, node_text};
 use crate::types::{FunctionSignature, Parameter, Span, SymbolKind, Visibility};
 
@@ -57,6 +60,7 @@ mod node_kinds {
     // Attribute nodes
     pub const ATTRIBUTE_LIST: &str = "attribute_list";
     pub const ATTRIBUTE: &str = "attribute";
+    pub const ATTRIBUTE_ARGUMENT_LIST: &str = "attribute_argument_list";
 }
 
 /// C# language support implementation.
@@ -766,8 +770,7 @@ fn extract_type_declaration(
         visibility,
         parent_name: parent_name.map(String::from),
         is_test: false, // Type declarations (class, struct, etc.) are never tests
-        // TODO: C# attribute extraction (follow-up)
-        attributes: Vec::new(),
+        attributes: extract_attributes(node, content),
     })
 }
 
@@ -795,7 +798,8 @@ fn extract_namespace(node: &tree_sitter::Node, content: &[u8]) -> Option<Extract
         visibility: Visibility::Public, // Namespaces are implicitly public
         parent_name: None,
         is_test: false, // Namespaces are never tests
-        // TODO: C# attribute extraction (follow-up)
+        // C# forbids attributes on namespace declarations (CS1730-class
+        // error), so there is nothing to extract here.
         attributes: Vec::new(),
     })
 }
@@ -832,8 +836,7 @@ fn extract_method(
         visibility,
         parent_name: parent_name.map(String::from),
         is_test,
-        // TODO: C# attribute extraction (follow-up)
-        attributes: Vec::new(),
+        attributes: extract_attributes(node, content),
     })
 }
 
@@ -868,9 +871,67 @@ fn extract_constructor(
         visibility,
         parent_name: parent_name.map(String::from),
         is_test: false, // Constructors are never tests
-        // TODO: C# attribute extraction (follow-up)
-        attributes: Vec::new(),
+        attributes: extract_attributes(node, content),
     })
+}
+
+/// Extract the attributes attached to a declaration node.
+///
+/// Tree shape (verified against tree-sitter-c-sharp 0.23.1, and mirrored by
+/// the haw5 design-time grammar check):
+/// ```text
+/// method_declaration | class_declaration | constructor_declaration | ...
+///   attribute_list*                        ← zero or more, children of the decl
+///     attribute_target_specifier?          ← e.g. `method:` — sibling, ignored
+///     attribute*
+///       name: identifier | qualified_name  ← stored as written ("Obsolete",
+///                                            "System.Obsolete")
+///       attribute_argument_list?           ← raw text including outer parens
+/// ```
+///
+/// Matches the Rust storage shape (`rust.rs::extract_attribute`): `args` is
+/// the argument list's source text with one pair of outer parens stripped
+/// (string quotes preserved verbatim), `None` for bare markers like
+/// `[Serializable]`; `line` is the attribute's own 1-based line, not the
+/// decorated symbol's.
+fn extract_attributes(node: &tree_sitter::Node, content: &[u8]) -> Vec<ExtractedAttribute> {
+    use node_kinds::{ATTRIBUTE, ATTRIBUTE_ARGUMENT_LIST, ATTRIBUTE_LIST};
+
+    let mut out = Vec::new();
+    let mut cursor = node.walk();
+    for list in node.children(&mut cursor) {
+        if list.kind() != ATTRIBUTE_LIST {
+            continue;
+        }
+        let mut list_cursor = list.walk();
+        for attr in list.children(&mut list_cursor) {
+            if attr.kind() != ATTRIBUTE {
+                continue;
+            }
+            let Some(name) = attr
+                .child_by_field_name("name")
+                .and_then(|n| node_text(&n, content))
+            else {
+                tracing::trace!(
+                    line = attr.start_position().row + 1,
+                    "Failed to extract attribute name, skipping"
+                );
+                continue;
+            };
+            let mut attr_cursor = attr.walk();
+            let args = attr
+                .children(&mut attr_cursor)
+                .find(|c| c.kind() == ATTRIBUTE_ARGUMENT_LIST)
+                .and_then(|al| node_text(&al, content))
+                .map(|raw| strip_outer_parens(&raw).to_string());
+            out.push(ExtractedAttribute {
+                name,
+                args,
+                line: attr.start_position().row as u32 + 1,
+            });
+        }
+    }
+    out
 }
 
 /// Extract visibility from modifier children.
@@ -1606,5 +1667,89 @@ public class Test {
             foo_ref.containing_symbol_span.unwrap().start_line(),
             bar_ref.containing_symbol_span.unwrap().start_line()
         );
+    }
+
+    /// Stress fixture (haw5 plan S1): stacked lists, multi-attribute list,
+    /// target specifier, verbatim string args, nested-class attachment.
+    /// Expected rows were written in the plan before this implementation.
+    #[test]
+    fn extracts_attributes_on_types_methods_and_ctors() {
+        let code = r#"using System;
+
+namespace App
+{
+    [Obsolete("use New")]
+    public class Legacy
+    {
+        [Obsolete("m"), Fact]
+        public void Multi() { }
+
+        [Obsolete]
+        [Serializable]
+        public void Stacked() { }
+
+        [method: Obsolete("t")]
+        public void Targeted() { }
+
+        [Obsolete(@"a, ""b""")]
+        public Legacy() { }
+
+        [Obsolete("n")]
+        public class Nested { }
+    }
+}
+"#;
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+        let attrs_of = |name: &str| {
+            &symbols
+                .iter()
+                .find(|s| s.name == name)
+                .unwrap_or_else(|| panic!("symbol {name} not extracted"))
+                .attributes
+        };
+        let row = |name: &str, args: Option<&str>, line: u32| ExtractedAttribute {
+            name: name.to_string(),
+            args: args.map(String::from),
+            line,
+        };
+
+        // Kills: parens kept in args, symbol line stored as attribute line.
+        assert_eq!(
+            attrs_of("Legacy"),
+            &vec![row("Obsolete", Some("\"use New\""), 5)],
+            "class attribute (also proves nested-class rows don't bleed up)"
+        );
+        // Kills: first-attribute-only walk within one list.
+        assert_eq!(
+            attrs_of("Multi"),
+            &vec![row("Obsolete", Some("\"m\""), 8), row("Fact", None, 8)]
+        );
+        // Kills: first-list-only walk across stacked lists.
+        assert_eq!(
+            attrs_of("Stacked"),
+            &vec![row("Obsolete", None, 11), row("Serializable", None, 12)]
+        );
+        // Kills: target specifier breaking name lookup.
+        assert_eq!(
+            attrs_of("Targeted"),
+            &vec![row("Obsolete", Some("\"t\""), 15)]
+        );
+        // Kills: quote handling mangling verbatim strings (raw text required).
+        let ctor = symbols
+            .iter()
+            .find(|s| s.name == "Legacy" && s.kind == SymbolKind::Method)
+            .expect("constructor extracted");
+        assert_eq!(
+            ctor.attributes,
+            vec![row("Obsolete", Some("@\"a, \"\"b\"\"\""), 18)]
+        );
+        // Kills: parent/child misattachment.
+        assert_eq!(
+            attrs_of("Nested"),
+            &vec![row("Obsolete", Some("\"n\""), 21)]
+        );
+        // C# forbids attributes on namespace declarations.
+        assert!(attrs_of("App").is_empty());
     }
 }

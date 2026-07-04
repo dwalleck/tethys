@@ -379,11 +379,13 @@ fn empty_workspace_reports_nothing() {
     );
 }
 
-/// C11: C# `[Obsolete]` symbols yield no findings (attribute extraction is
-/// tethys-haw5's scope) while Rust findings in the same mixed workspace
-/// still appear — the C# file must neither surface nor abort the analysis.
+/// C11 (flipped by tethys-haw5): a C# `[Obsolete]` class surfaces alongside
+/// Rust findings in the same mixed workspace, with the Obsolete message as
+/// its note and the identical JSON field set. This test was the pre-haw5
+/// gap fence ("C# yields no findings"); the haw5 design's invariant sweep
+/// declared the flip intended.
 #[test]
-fn csharp_obsolete_out_of_scope_in_mixed_workspace() {
+fn csharp_obsolete_detected_in_mixed_workspace() {
     let (_dir, mut tethys) = workspace_with_files(&[
         (
             "src/lib.rs",
@@ -399,18 +401,29 @@ fn csharp_obsolete_out_of_scope_in_mixed_workspace() {
         .get_deprecated_callers()
         .expect("deprecated-callers query failed");
 
+    // Ordered by (file, line, name): Legacy.cs precedes src/lib.rs.
     assert_eq!(
         findings.len(),
-        1,
-        "only the Rust symbol should surface; got {:?}",
+        2,
+        "both languages surface in one report; got {:?}",
         findings
             .iter()
             .map(|f| (&f.symbol.name, &f.symbol.file))
             .collect::<Vec<_>>()
     );
-    assert_eq!(findings[0].symbol.name, "old_rust");
+    let legacy = &findings[0].symbol;
+    assert_eq!(legacy.name, "LegacyService");
+    assert_eq!(legacy.file, "Legacy.cs");
+    assert_eq!(legacy.note.as_deref(), Some("use NewService"));
+    assert_eq!(legacy.since, None, "since is Rust-only");
+    assert_eq!(legacy.error, None, "no bool argument in the fixture");
+    assert!(
+        findings[0].sites.is_empty(),
+        "nothing references LegacyService in this fixture (clean verdict)"
+    );
+    assert_eq!(findings[1].symbol.name, "old_rust");
     assert_eq!(
-        findings[0].sites.len(),
+        findings[1].sites.len(),
         1,
         "the Rust call site still appears"
     );
@@ -608,4 +621,559 @@ fn cli_json_envelope_stable_and_parseable() {
     assert_eq!(site["caller"], "migrate");
     assert_eq!(site["tier"], "Definite");
     assert_eq!(site["via"], "resolved");
+}
+
+/// haw5 S5 shared fixture: an [Obsolete("use New")] static method with two
+/// cross-file callers and one same-file caller, an [Obsolete("gone", true)]
+/// class constructed once, and an uncalled bare-[Obsolete] method. The
+/// `with_decoy` variant adds a same-language same-named non-obsolete method
+/// (tier demotion). Static-receiver + `using` corroboration mirrors the
+/// probe2 shape proven on real data (Result.Combine, 12/12).
+fn build_csharp_fixture(with_decoy: bool) -> (tempfile::TempDir, Vec<DeprecatedFinding>) {
+    let mut files = vec![
+        (
+            "Legacy.cs",
+            "using System;\n\nnamespace Lib\n{\n    public class Legacy\n    {\n        \
+             [Obsolete(\"use New\")]\n        public static void Old() { }\n\n        \
+             [Obsolete]\n        public static void Dormant() { }\n\n        \
+             public static void Inside()\n        {\n            Old();\n        }\n    }\n\n    \
+             [Obsolete(\"gone\", true)]\n    public class LegacyService\n    {\n        \
+             public LegacyService() { }\n    }\n}\n",
+        ),
+        (
+            "Caller.cs",
+            "using Lib;\n\nnamespace App\n{\n    public class User\n    {\n        \
+             public void Go()\n        {\n            Legacy.Old();\n            \
+             Legacy.Old();\n            var s = new LegacyService();\n        }\n    }\n}\n",
+        ),
+    ];
+    if with_decoy {
+        files.push((
+            "Other.cs",
+            "namespace App2\n{\n    public class Other\n    {\n        \
+             public static void Old() { }\n    }\n}\n",
+        ));
+    }
+    let (dir, mut tethys) = workspace_with_files(&files);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+    (dir, findings)
+}
+
+/// haw5 S5 (design C6 + C7): resolved static-receiver sites (cross-file and
+/// same-file), construction sites, the Clean bucket, and the error flag —
+/// unique names tier Definite. Site lists are literals from the fixture
+/// source (grep oracle mechanism). Kills: `call_edges` join (drops top-level
+/// sites), r.kind='call' filtering (drops construct refs), tier
+/// always-Maybe.
+#[test]
+fn csharp_resolved_construction_and_clean_definite() {
+    let (_dir, findings) = build_csharp_fixture(false);
+
+    let names: Vec<(&str, &str)> = findings
+        .iter()
+        .map(|f| (f.symbol.name.as_str(), f.symbol.file.as_str()))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            ("Old", "Legacy.cs"),
+            ("Dormant", "Legacy.cs"),
+            ("LegacyService", "Legacy.cs")
+        ],
+        "ordered by (file, line, name)"
+    );
+
+    let old = &findings[0];
+    assert_eq!(old.symbol.note.as_deref(), Some("use New"));
+    let old_sites: Vec<(&str, u32, Via, Tier)> = old
+        .sites
+        .iter()
+        .map(|s| (s.file.as_str(), s.line, s.via, s.tier))
+        .collect();
+    assert_eq!(
+        old_sites,
+        [
+            ("Caller.cs", 9, Via::Resolved, Tier::Definite),
+            ("Caller.cs", 10, Via::Resolved, Tier::Definite),
+            ("Legacy.cs", 15, Via::Resolved, Tier::Definite),
+        ],
+        "two cross-file + one same-file resolved site, all Definite"
+    );
+
+    let dormant = &findings[1];
+    assert!(
+        dormant.sites.is_empty(),
+        "uncalled obsolete method is the Clean verdict"
+    );
+    assert_eq!(dormant.symbol.note, None, "bare [Obsolete]");
+    assert_eq!(dormant.symbol.error, None);
+
+    let service = &findings[2];
+    assert_eq!(service.symbol.note.as_deref(), Some("gone"));
+    assert_eq!(
+        service.symbol.error,
+        Some(true),
+        "[Obsolete(msg, true)] surfaces the error flag (AC3)"
+    );
+    let service_sites: Vec<(&str, u32, Via)> = service
+        .sites
+        .iter()
+        .map(|s| (s.file.as_str(), s.line, s.via))
+        .collect();
+    assert_eq!(
+        service_sites,
+        [("Caller.cs", 11, Via::Resolved)],
+        "construction site listed (design C7)"
+    );
+}
+
+/// haw5 S5 (design C6, demotion direction): a same-language same-named
+/// non-obsolete method demotes every resolved site of the obsolete one to
+/// Maybe — name-only reference resolution could have misattributed.
+#[test]
+fn csharp_same_named_decoy_demotes_to_maybe() {
+    let (_dir, findings) = build_csharp_fixture(true);
+    let old = findings
+        .iter()
+        .find(|f| f.symbol.name == "Old")
+        .expect("Old finding present");
+    assert!(
+        !old.sites.is_empty(),
+        "sites still listed under ambiguity, only the tier changes"
+    );
+    for site in &old.sites {
+        assert_eq!(
+            site.tier,
+            Tier::Maybe,
+            "decoy Other.Old must demote {}:{}",
+            site.file,
+            site.line
+        );
+    }
+}
+
+/// haw5 S6 (design C8): a variable-receiver instance call (`client.Fetch()`
+/// stored unresolved as `client::Fetch`) surfaces via Path B as tier=Maybe,
+/// via=unresolved-qualified — and fans out to BOTH obsolete candidates
+/// sharing the name, per Maybe semantics ("possibly calls this one").
+/// CI form of the design-time falsifier that passed 19/19 on real data
+/// (Tethys.Results, `GetValueOrDefault`). Kills: Path B requiring reference
+/// resolution, single-candidate attachment, Path B gated to Rust.
+#[test]
+fn csharp_variable_receiver_surfaces_as_maybe_for_all_candidates() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "Client.cs",
+            "using System;\n\nnamespace Lib\n{\n    public class Client\n    {\n        \
+             [Obsolete(\"use FetchAsync\")]\n        public void Fetch() { }\n    }\n\n    \
+             public class Backup\n    {\n        [Obsolete]\n        \
+             public void Fetch() { }\n    }\n}\n",
+        ),
+        (
+            "Use.cs",
+            "using Lib;\n\nnamespace App\n{\n    public class Runner\n    {\n        \
+             public void Go()\n        {\n            var client = new Client();\n            \
+             client.Fetch();\n        }\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+
+    let fetches: Vec<&DeprecatedFinding> = findings
+        .iter()
+        .filter(|f| f.symbol.name == "Fetch")
+        .collect();
+    assert_eq!(fetches.len(), 2, "both obsolete Fetch candidates listed");
+    for finding in fetches {
+        let sites: Vec<(&str, u32, Tier, Via)> = finding
+            .sites
+            .iter()
+            .map(|s| (s.file.as_str(), s.line, s.tier, s.via))
+            .collect();
+        assert_eq!(
+            sites,
+            [("Use.cs", 10, Tier::Maybe, Via::UnresolvedQualified)],
+            "the variable-receiver site attaches to candidate at {}:{}",
+            finding.symbol.file,
+            finding.symbol.line
+        );
+    }
+}
+
+/// haw5 S6 (design C10, binary-level): the CLI JSON's symbol objects carry
+/// the identical key set in both languages — `since` null for C#, `error`
+/// null for Rust, both present-as-null rather than absent. Site objects
+/// likewise. Kills: `skip_serializing_if` on either field, per-language
+/// serialization paths.
+#[test]
+fn cli_json_key_set_identical_across_languages() {
+    const SYMBOL_KEYS: [&str; 7] = ["error", "file", "kind", "line", "name", "note", "since"];
+    let (dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "#[deprecated(since = \"1.0\", note = \"use replacement\")]\n\
+             pub fn old_rust() {}\npub fn go() {\n    old_rust();\n}\n",
+        ),
+        (
+            "Legacy.cs",
+            "using System;\n\nnamespace App\n{\n    [Obsolete(\"use NewService\", true)]\n    \
+             public class LegacyService\n    {\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let stdout = run_cli(&dir, &["--json"]);
+    let value: serde_json::Value = serde_json::from_str(&stdout).expect("stdout parses as JSON");
+
+    let entries = value["deprecated"].as_array().expect("deprecated array");
+    assert_eq!(entries.len(), 2, "one finding per language");
+    for entry in entries {
+        let mut keys: Vec<&str> = entry["symbol"]
+            .as_object()
+            .expect("symbol object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(keys, SYMBOL_KEYS, "identical key set (design C10 / AC4)");
+    }
+    let csharp = &entries[0]["symbol"];
+    assert_eq!(csharp["name"], "LegacyService");
+    assert_eq!(csharp["since"], serde_json::Value::Null);
+    assert_eq!(csharp["note"], "use NewService");
+    assert_eq!(csharp["error"], true);
+    let rust = &entries[1]["symbol"];
+    assert_eq!(rust["name"], "old_rust");
+    assert_eq!(rust["since"], "1.0");
+    assert_eq!(rust["error"], serde_json::Value::Null);
+
+    let site = &entries[1]["sites"][0];
+    let mut site_keys: Vec<&str> = site
+        .as_object()
+        .expect("site object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    site_keys.sort_unstable();
+    assert_eq!(
+        site_keys,
+        ["caller", "column", "file", "line", "tier", "via"],
+        "site key set stable"
+    );
+}
+
+/// haw5 S7 (design C12): a C# workspace whose only attributes are
+/// test-framework markers yields the empty envelope — summary zeros, empty
+/// array, exit 0 (`run_cli` asserts success). Kills: detection matching
+/// `[Fact]`/`[Test]`/`[TestMethod]` rows, which now exist in the index.
+#[test]
+fn csharp_without_obsolete_yields_empty_report() {
+    let (dir, mut tethys) = workspace_with_files(&[(
+        "Tests.cs",
+        "using Xunit;\n\nnamespace T\n{\n    public class Suite\n    {\n        \
+         [Fact]\n        public void A() { }\n\n        [Test]\n        \
+         public void B() { }\n\n        [TestMethod]\n        public void C() { }\n    }\n}\n",
+    )]);
+    tethys.index().expect("index failed");
+    let stdout = run_cli(&dir, &["--json"]);
+    let value: serde_json::Value = serde_json::from_str(&stdout).expect("stdout parses as JSON");
+    assert_eq!(value["summary"]["symbol_count"], 0);
+    assert_eq!(value["summary"]["with_callers"], 0);
+    assert_eq!(value["summary"]["clean"], 0);
+    assert_eq!(value["summary"]["site_count"], 0);
+    assert_eq!(
+        value["deprecated"].as_array().map(Vec::len),
+        Some(0),
+        "empty deprecated array, not absent"
+    );
+}
+
+/// haw5 S7 (design C13): mixed-workspace summary counts sum both languages —
+/// one Rust deprecated fn with one caller plus one clean C# obsolete class.
+/// Kills: per-language early return, UNION dropping a language.
+#[test]
+fn mixed_workspace_summary_sums_both_languages() {
+    let (dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "#[deprecated]\npub fn old_rust() {}\npub fn go() {\n    old_rust();\n}\n",
+        ),
+        (
+            "Legacy.cs",
+            "using System;\n\nnamespace App\n{\n    [Obsolete(\"use NewService\")]\n    \
+             public class LegacyService\n    {\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let stdout = run_cli(&dir, &["--json"]);
+    let value: serde_json::Value = serde_json::from_str(&stdout).expect("stdout parses as JSON");
+    assert_eq!(value["summary"]["symbol_count"], 2, "one per language");
+    assert_eq!(value["summary"]["with_callers"], 1, "the Rust fn");
+    assert_eq!(value["summary"]["clean"], 1, "the C# class");
+    assert_eq!(value["summary"]["site_count"], 1);
+}
+
+/// haw5 S4 (design C9): Path B attachment and ambiguity tiering are
+/// same-language only. Four bug classes, one mixed fixture:
+/// 1. cross-language tier demotion — a C# method named `old_api` must not
+///    demote the Rust `old_api` finding from Definite;
+/// 2. Rust→C# Path B bleed — an unresolved Rust `crate::Run` ref must not
+///    attach to the C# obsolete `Run`;
+/// 3. C#→Rust Path B bleed (latent jdly behavior) — an unresolved C#
+///    `x::legacy_shared` ref must not attach to Rust `legacy_shared`;
+/// 4. over-filtering — the same-language C# `svc::Run` ref must STILL
+///    attach to the C# `Run` as Maybe / unresolved-qualified.
+#[test]
+fn no_cross_language_attachment() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "#[deprecated(note = \"gone\")]\npub fn old_api() {}\n\
+             #[deprecated]\npub fn legacy_shared() {}\n",
+        ),
+        (
+            "src/user.rs",
+            // Bare cross-file call resolves (pass 2); crate::Run stays
+            // unresolved (tethys-3i35 shape) with last segment `Run`.
+            "pub fn migrate() {\n    old_api();\n}\n\
+             pub fn tempted() {\n    crate::Run();\n}\n",
+        ),
+        (
+            "App.cs",
+            "using System;\n\nnamespace App\n{\n    public class Svc\n    {\n        \
+             [Obsolete(\"use Walk\")]\n        public void Run() { }\n    }\n}\n",
+        ),
+        (
+            "Caller.cs",
+            "namespace App\n{\n    public class User2\n    {\n        public void Go()\n        {\n            \
+             var svc = new Svc();\n            svc.Run();\n        }\n\n        \
+             public void Bleed(dynamic x)\n        {\n            x.legacy_shared();\n        }\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+
+    let by_name = |name: &str| {
+        findings
+            .iter()
+            .find(|f| f.symbol.name == name)
+            .unwrap_or_else(|| panic!("finding {name} missing"))
+    };
+
+    // (1) No C# symbol named old_api exists in App.cs — but Run exists in
+    // both worlds via crate::Run text only on the Rust side; the direct
+    // demotion probe: Rust old_api's resolved site stays Definite even
+    // though C# code mentions nothing of it (control), and (3)'s bleed ref
+    // must not create ambiguity either.
+    let old_api = by_name("old_api");
+    assert_eq!(old_api.sites.len(), 1, "one resolved Rust site");
+    assert_eq!(old_api.sites[0].file, "src/user.rs");
+    assert_eq!(old_api.sites[0].tier, Tier::Definite);
+
+    // (2) + (4): the C# Run finding lists exactly the same-language
+    // variable-receiver site — never the Rust crate::Run ref.
+    let run = by_name("Run");
+    let run_files: Vec<&str> = run.sites.iter().map(|s| s.file.as_str()).collect();
+    assert_eq!(
+        run_files,
+        ["Caller.cs"],
+        "same-language Path B site only; Rust crate::Run must not attach"
+    );
+    assert_eq!(run.sites[0].tier, Tier::Maybe);
+    assert_eq!(run.sites[0].via, Via::UnresolvedQualified);
+
+    // (3): Rust legacy_shared gets no site from the C# x.legacy_shared()
+    // call — clean verdict.
+    let legacy = by_name("legacy_shared");
+    assert!(
+        legacy.sites.is_empty(),
+        "C# bleed ref must not attach to a Rust symbol; got {:?}",
+        legacy.sites
+    );
+}
+
+/// haw5 (design C5, end-to-end direction): the four `[Obsolete]` spellings
+/// are detected from REAL C# source through the extractor — unlike
+/// `detects_obsolete_spellings_and_decoys` (db/deprecated.rs), which inserts
+/// attribute rows directly and would miss an extraction regression. The
+/// qualified spellings arrive as tree-sitter `qualified_name` nodes, a
+/// different node kind than plain `identifier`. Kills: extractor storing
+/// only the last path segment or mangling qualified names, substring
+/// matching against a parsed `[NotObsolete]` decoy.
+#[test]
+fn csharp_obsolete_spelling_variants_detected_from_source() {
+    let (_dir, mut tethys) = workspace_with_files(&[(
+        "Spellings.cs",
+        "using System;\n\nnamespace Lib\n{\n    public class Spellings\n    {\n        \
+         [Obsolete]\n        public static void Bare() { }\n\n        \
+         [ObsoleteAttribute(\"m\", true)]\n        public static void Suffixed() { }\n\n        \
+         [System.Obsolete(\"x\")]\n        public static void Qualified() { }\n\n        \
+         [System.ObsoleteAttribute(error: true)]\n        public static void QualifiedSuffixed() { }\n\n        \
+         [NotObsolete(\"boom\")]\n        public static void Decoy() { }\n\n        \
+         [Serializable]\n        public static void Marker() { }\n    }\n}\n",
+    )]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+
+    let entries: Vec<(&str, Option<&str>, Option<bool>)> = findings
+        .iter()
+        .map(|f| {
+            (
+                f.symbol.name.as_str(),
+                f.symbol.note.as_deref(),
+                f.symbol.error,
+            )
+        })
+        .collect();
+    // Single file → ordered by line: exactly the four spellings, parsed;
+    // NotObsolete and Serializable decoys never appear.
+    assert_eq!(
+        entries,
+        [
+            ("Bare", None, None),
+            ("Suffixed", Some("m"), Some(true)),
+            ("Qualified", Some("x"), None),
+            ("QualifiedSuffixed", None, Some(true)),
+        ],
+        "four spellings detected from parsed source with args; decoys absent"
+    );
+
+    // Design C1 "name as written": qualified spellings are stored verbatim,
+    // never collapsed to a last segment (detection above would still pass
+    // for a collapsed "Obsolete", so this row-level assert is the fence).
+    let conn = open_db(&tethys);
+    let stored: Vec<String> = conn
+        .prepare("SELECT name FROM attributes ORDER BY line")
+        .expect("prepare stored-name dump")
+        .query_map([], |r| r.get(0))
+        .expect("query stored names")
+        .collect::<Result<_, _>>()
+        .expect("collect stored names");
+    assert_eq!(
+        stored,
+        [
+            "Obsolete",
+            "ObsoleteAttribute",
+            "System.Obsolete",
+            "System.ObsoleteAttribute",
+            "NotObsolete",
+            "Serializable",
+        ],
+        "attribute names stored as written in source"
+    );
+}
+
+/// haw5 (design C9, ambiguity half): tier demotion is same-language only —
+/// a non-deprecated symbol sharing a deprecated symbol's name across the
+/// language boundary must NOT demote resolved sites to Maybe, in either
+/// direction. The Path B half of C9 is fenced by
+/// `no_cross_language_attachment`; without THIS fence, dropping the
+/// language column from the ambiguity CTE (name-only ambiguity) would pass
+/// the whole suite. Kills exactly that revert.
+#[test]
+fn cross_language_same_name_does_not_demote_tier() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            // Deprecated `refresh` with a resolved same-file caller; bare
+            // `Publish` exists only as the cross-language decoy for the C#
+            // direction (never called).
+            "#[deprecated(note = \"stale\")]\npub fn refresh() {}\n\
+             pub fn go() {\n    refresh();\n}\n\
+             pub fn Publish() {}\n",
+        ),
+        (
+            "Svc.cs",
+            // Obsolete static `Publish` (cross-file caller below); instance
+            // `refresh` exists only as the cross-language decoy for the
+            // Rust direction (never called).
+            "using System;\n\nnamespace Lib\n{\n    public class Svc\n    {\n        \
+             [Obsolete(\"use Post\")]\n        public static void Publish() { }\n\n        \
+             public void refresh() { }\n    }\n}\n",
+        ),
+        (
+            "Caller.cs",
+            "using Lib;\n\nnamespace App\n{\n    public class User\n    {\n        \
+             public void Go()\n        {\n            Svc.Publish();\n        }\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+
+    let refresh = finding(&findings, "refresh", "src/lib.rs");
+    assert!(!refresh.sites.is_empty(), "resolved Rust caller expected");
+    assert!(
+        refresh.sites.iter().all(|s| s.tier == Tier::Definite),
+        "C# Svc.refresh must not demote the Rust finding; got {:?}",
+        refresh.sites
+    );
+
+    let publish = finding(&findings, "Publish", "Svc.cs");
+    assert!(!publish.sites.is_empty(), "resolved C# caller expected");
+    assert!(
+        publish.sites.iter().all(|s| s.tier == Tier::Definite),
+        "Rust fn Publish must not demote the C# finding; got {:?}",
+        publish.sites
+    );
+}
+
+/// AC1 + AC3 at the binary level: a C# `[Obsolete("msg", true)]` method with
+/// a cross-file caller lists that call site through the CLI — and human mode
+/// renders the error flag as `(error — msg)`. Every other CLI-level C#
+/// fixture is a zero-site clean class, so without this fence a regression in
+/// the C# rendering path (or in `deprecation_meta`'s error piece, which has
+/// no unit test) would pass CI. The JSON run also pins the site key set on a
+/// C# entry — `cli_json_key_set_identical_across_languages` can only check
+/// site keys on its Rust entry.
+#[test]
+fn cli_csharp_error_flag_and_call_site_rendered() {
+    let (dir, mut tethys) = workspace_with_files(&[
+        (
+            "Legacy.cs",
+            "using System;\n\nnamespace Lib\n{\n    public class Legacy\n    {\n        \
+             [Obsolete(\"use New\", true)]\n        public static void Old() { }\n    }\n}\n",
+        ),
+        (
+            "Caller.cs",
+            "using Lib;\n\nnamespace App\n{\n    public class User\n    {\n        \
+             public void Go()\n        {\n            Legacy.Old();\n        }\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+
+    let stdout = run_cli(&dir, &[]);
+    assert!(
+        stdout.contains("(error — use New)"),
+        "human mode must render the error flag with the message (AC3):\n{stdout}"
+    );
+    assert!(
+        stdout.contains("[Definite] Caller.cs:9 in Go"),
+        "C# call site must show tier, file:line, caller (AC1):\n{stdout}"
+    );
+
+    let json = run_cli(&dir, &["--json"]);
+    let value: serde_json::Value = serde_json::from_str(&json).expect("stdout parses as JSON");
+    let site = &value["deprecated"][0]["sites"][0];
+    let mut site_keys: Vec<&str> = site
+        .as_object()
+        .expect("site object")
+        .keys()
+        .map(String::as_str)
+        .collect();
+    site_keys.sort_unstable();
+    assert_eq!(
+        site_keys,
+        ["caller", "column", "file", "line", "tier", "via"],
+        "C# site key set matches the Rust one (AC4)"
+    );
 }

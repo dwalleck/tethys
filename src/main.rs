@@ -154,8 +154,7 @@ enum Commands {
         file: Option<String>,
     },
 
-    /// List call sites of `#[deprecated]` symbols (Rust; C# `[Obsolete]`
-    /// is out of scope pending tethys-haw5)
+    /// List call sites of Rust `#[deprecated]` and C# `[Obsolete]` symbols
     DeprecatedCallers {
         /// Output as JSON
         #[arg(long)]
