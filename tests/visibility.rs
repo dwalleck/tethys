@@ -50,7 +50,7 @@ fn two_crate_fixture() -> (tempfile::TempDir, tethys::Tethys) {
              pub(in crate) fn scoped_fn() {}\n\
              pub struct Widget {\n    pub field: u32,\n}\n\
              impl Widget {\n    pub fn method(&self) -> u32 {\n        self.field\n    }\n}\n\
-             fn internal() -> Widget {\n    Widget { field: 1 }\n}\n\
+             fn internal() -> Widget {\n    lonely_fn();\n    Widget { field: 1 }\n}\n\
              pub fn bare2() {}\n\
              pub fn qonly() {}\n\
              pub fn dup_fn() {}\n\
@@ -523,10 +523,12 @@ fn cross_package_glob_import_excludes_globbed_module_only() {
 
 /// S1 (design C1): a pub symbol with a cross-package resolved ref
 /// (`used_fn`, workspace-unique so Pass 2 resolves the imported call) is
-/// never reported; a pub symbol with no refs (`lonely_fn`) and one with
-/// only SAME-package refs (`Widget`, constructed by `internal`) are both
+/// never reported; a pub fn used ONLY within its own package (`lonely_fn`,
+/// called by `internal` — AC1's flagged shape) and a struct with only
+/// same-package refs (`Widget`, constructed by `internal`) are both
 /// candidates — same-package use is the candidate condition, not evidence
-/// against it.
+/// against it. The no-refs shape stays covered by `glob_item`/`dup_fn`/
+/// `twin`.
 #[test]
 fn cross_package_ref_excludes() {
     let (_dir, tethys) = two_crate_fixture();
