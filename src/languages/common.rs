@@ -112,6 +112,27 @@ pub(crate) fn referenced_names(refs: &[ExtractedReference]) -> std::collections:
     names
 }
 
+/// Names carried by `Reexport`-kind refs, which record the ORIGINAL name of
+/// the re-exported item — never the alias binding (tethys-v1w8).
+///
+/// Used-import corroboration tests an import by its bound name
+/// (`alias.unwrap_or(name)`), so an aliased re-export (`pub use a::B as C;`)
+/// whose reexport ref is named `B` never matched its own import's bound name
+/// `C` and lost its file-dep edge. Corroboration additionally tests the
+/// original name against THIS set. Scoping the original-name lookup to
+/// reexport-kind refs keeps a plain `use x as y;` corroborated only by its
+/// alias, agreeing with unused-import analysis (which tests the bound name
+/// and skips re-exports entirely).
+#[must_use]
+pub(crate) fn reexport_referenced_names(
+    refs: &[ExtractedReference],
+) -> std::collections::HashSet<&str> {
+    refs.iter()
+        .filter(|r| r.kind == ExtractedReferenceKind::Reexport)
+        .map(|r| r.name.as_str())
+        .collect()
+}
+
 /// Kind of reference extracted from source code.
 ///
 /// Note: This is distinct from `types::ReferenceKind` which is the domain model

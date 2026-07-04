@@ -108,6 +108,18 @@ impl PendingDependency {
     pub(crate) fn debug_assert_valid(&self) {}
 }
 
+/// Reference names loaded from stored rows for used-import corroboration in
+/// streaming mode (`compute_dependencies_from_stored`).
+///
+/// `all` holds every unresolved `reference_name`; `reexport` is the subset
+/// from `Reexport`-kind refs, which carry the ORIGINAL name of the
+/// re-exported item (tethys-v1w8) and therefore corroborate an aliased
+/// re-export import that the bound-name lookup misses (tethys-sp24).
+struct StoredRefNames {
+    all: Vec<String>,
+    reexport: Vec<String>,
+}
+
 #[expect(
     clippy::missing_errors_doc,
     reason = "error docs deferred to avoid churn during active development"
@@ -811,6 +823,10 @@ impl Tethys {
         // Names referenced in this file: direct names plus first path segments.
         // Shared with unused-import detection via `common::referenced_names`.
         let referenced_names = common::referenced_names(refs);
+        // Reexport refs carry the ORIGINAL name (tethys-v1w8), so an aliased
+        // re-export import is corroborated by that name, not its alias
+        // (tethys-sp24). See `common::reexport_referenced_names`.
+        let reexport_names = common::reexport_referenced_names(refs);
 
         // Track which files we depend on (dedupe)
         let mut depended_files: HashSet<PathBuf> = HashSet::new();
@@ -825,6 +841,7 @@ impl Tethys {
             let is_used = import_stmt.imported_names.iter().any(|name| {
                 let lookup_name = import_stmt.alias.as_ref().unwrap_or(name);
                 referenced_names.contains(lookup_name.as_str())
+                    || reexport_names.contains(name.as_str())
             });
 
             // Only record dependency if the import is actually used (L2 behavior)
@@ -885,11 +902,21 @@ impl Tethys {
             // Convert database imports to the format compute_dependencies expects
             let import_statements = Self::convert_imports_to_statements(&imports, file.language);
 
-            // Extract just the reference names for dependency checking
-            let ref_names: Vec<String> = refs
-                .iter()
-                .filter_map(|r| r.reference_name.clone())
-                .collect();
+            // Extract just the reference names for dependency checking.
+            // Reexport refs carry the ORIGINAL name (tethys-v1w8); collected
+            // separately so aliased re-export imports corroborate by that
+            // name, mirroring `compute_dependencies` (tethys-sp24).
+            let ref_names = StoredRefNames {
+                all: refs
+                    .iter()
+                    .filter_map(|r| r.reference_name.clone())
+                    .collect(),
+                reexport: refs
+                    .iter()
+                    .filter(|r| r.kind == crate::types::ReferenceKind::Reexport)
+                    .filter_map(|r| r.reference_name.clone())
+                    .collect(),
+            };
 
             // Compute dependencies using the converted data
             let full_path = self.workspace_root.join(&file.path);
@@ -969,7 +996,7 @@ impl Tethys {
         file_id: FileId,
         language: Language,
         imports: &[common::ImportStatement],
-        reference_names: &[String],
+        reference_names: &StoredRefNames,
         pending: &mut Vec<PendingDependency>,
     ) -> Result<()> {
         use std::collections::HashSet;
@@ -983,7 +1010,15 @@ impl Tethys {
         };
 
         // Build a set of actually referenced names
-        let refs_set: HashSet<&str> = reference_names.iter().map(String::as_str).collect();
+        let refs_set: HashSet<&str> = reference_names.all.iter().map(String::as_str).collect();
+        // Reexport-kind refs carry the ORIGINAL name (tethys-v1w8): they
+        // corroborate an aliased re-export import that the bound-name lookup
+        // below misses (tethys-sp24).
+        let reexport_set: HashSet<&str> = reference_names
+            .reexport
+            .iter()
+            .map(String::as_str)
+            .collect();
         let mut depended_files: HashSet<PathBuf> = HashSet::new();
 
         for import_stmt in imports {
@@ -994,7 +1029,7 @@ impl Tethys {
             // Check if any imported name is actually referenced
             let is_used = import_stmt.imported_names.iter().any(|name| {
                 let lookup_name = import_stmt.alias.as_ref().unwrap_or(name);
-                refs_set.contains(lookup_name.as_str())
+                refs_set.contains(lookup_name.as_str()) || reexport_set.contains(name.as_str())
             });
 
             if !is_used {
