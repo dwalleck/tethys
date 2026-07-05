@@ -146,12 +146,17 @@ semantics (this is checkpointed-build's `a-1` step, made tethys-specific):
 
 <!-- tags: gotchas, limitations -->
 
-- **C# is a second-class citizen in places.** Symbol *attribute* extraction
-  covers C# type/method/constructor declarations only — member declarations
-  (properties, fields, events, delegates) are not extracted at all, so
-  `[Obsolete]` on them is invisible (tethys-xebx). The CLI `--lsp` flag /
-  availability check are wired to **rust-analyzer only** (`src/cli/mod.rs`),
-  even though a `CSharpLsProvider` exists in the library.
+- **C# is a second-class citizen in places.** Member declarations
+  (properties, fields, events, delegates) ARE extracted as symbols with
+  attributes, and plain `member_access_expression` reads produce
+  `field_access` refs (tethys-xebx) — but other read shapes remain invisible
+  (implicit-this bare reads, object initializers, `?.`, indexers:
+  tethys-5uqz; `using static` bare reads and enum members: tethys-cfme).
+  Data members never receive call/construct binds (they live in their own
+  Pass-1 map, like macros; the general kind-aware binding work is
+  tethys-0aqj). The CLI `--lsp` flag / availability check are wired to
+  **rust-analyzer only** (`src/cli/mod.rs`), even though a `CSharpLsProvider`
+  exists in the library.
 - **C# dependency resolution uses namespace/using corroboration**, not Rust-style
   module paths; its file-deps are treated more conservatively (see the
   `tests/csharp_*` files).
