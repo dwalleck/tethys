@@ -165,9 +165,9 @@ fn extract_references_recursive(
     in_invocation_callee: bool,
 ) {
     use node_kinds::{
-        CLASS_DECLARATION, CONSTRUCTOR_DECLARATION, DECLARATION_LIST, INTERFACE_DECLARATION,
-        INVOCATION_EXPRESSION, MEMBER_ACCESS_EXPRESSION, METHOD_DECLARATION,
-        OBJECT_CREATION_EXPRESSION, STRUCT_DECLARATION, USING_DIRECTIVE,
+        CLASS_DECLARATION, CONSTRUCTOR_DECLARATION, DECLARATION_LIST, EVENT_DECLARATION,
+        INTERFACE_DECLARATION, INVOCATION_EXPRESSION, MEMBER_ACCESS_EXPRESSION, METHOD_DECLARATION,
+        OBJECT_CREATION_EXPRESSION, PROPERTY_DECLARATION, STRUCT_DECLARATION, USING_DIRECTIVE,
     };
 
     match node.kind() {
@@ -192,12 +192,16 @@ fn extract_references_recursive(
             }
         }
 
-        // Method definitions: capture span and recurse with it
-        METHOD_DECLARATION | CONSTRUCTOR_DECLARATION => {
-            let method_span = node_span(node);
+        // Member definitions with bodies: capture span and recurse with it,
+        // so refs inside method bodies AND property/event accessor bodies
+        // (`T Data => Value;`, get/add/remove blocks) attribute to the member
+        // symbol (tethys-xebx D8). Field initializers stay span-less by
+        // design — rare, and their sites still list with `caller: null`.
+        METHOD_DECLARATION | CONSTRUCTOR_DECLARATION | PROPERTY_DECLARATION | EVENT_DECLARATION => {
+            let member_span = node_span(node);
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                extract_references_recursive(&child, content, refs, Some(method_span), false);
+                extract_references_recursive(&child, content, refs, Some(member_span), false);
             }
             return;
         }
@@ -1892,6 +1896,51 @@ public class C {
             "{reads:?}"
         );
         assert_eq!(reads.len(), 2);
+    }
+
+    #[test]
+    fn accessor_body_refs_attribute_to_member_span() {
+        let code = r"
+public class C {
+    public int X => Helper();
+    public bool Y
+    {
+        get
+        {
+            return Check(this.Flag);
+        }
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let x_span = symbols
+            .iter()
+            .find(|s| s.name == "X")
+            .expect("should find X")
+            .span
+            .expect("property symbols carry spans");
+        let helper_call = refs
+            .iter()
+            .find(|r| r.name == "Helper")
+            .expect("should find Helper call");
+        // Expression-bodied arrow body: the call attributes to the property,
+        // not to NULL (the pre-xebx behavior this fence pins against)
+        assert_eq!(helper_call.containing_symbol_span, Some(x_span));
+
+        let y_span = symbols
+            .iter()
+            .find(|s| s.name == "Y")
+            .expect("should find Y")
+            .span
+            .expect("property symbols carry spans");
+        let check_call = refs
+            .iter()
+            .find(|r| r.name == "Check")
+            .expect("should find Check call");
+        assert_eq!(check_call.containing_symbol_span, Some(y_span));
     }
 
     #[test]
