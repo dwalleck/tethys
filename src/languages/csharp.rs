@@ -30,6 +30,12 @@ mod node_kinds {
     pub const METHOD_DECLARATION: &str = "method_declaration";
     pub const CONSTRUCTOR_DECLARATION: &str = "constructor_declaration";
     pub const PROPERTY_DECLARATION: &str = "property_declaration";
+    pub const FIELD_DECLARATION: &str = "field_declaration";
+    pub const EVENT_FIELD_DECLARATION: &str = "event_field_declaration";
+    pub const EVENT_DECLARATION: &str = "event_declaration";
+    pub const DELEGATE_DECLARATION: &str = "delegate_declaration";
+    pub const VARIABLE_DECLARATION: &str = "variable_declaration";
+    pub const VARIABLE_DECLARATOR: &str = "variable_declarator";
 
     // Namespaces & imports
     pub const NAMESPACE_DECLARATION: &str = "namespace_declaration";
@@ -569,9 +575,9 @@ fn extract_symbols_recursive(
     parent_name: Option<&str>,
 ) {
     use node_kinds::{
-        CLASS_DECLARATION, CONSTRUCTOR_DECLARATION, DECLARATION_LIST, ENUM_DECLARATION,
-        FILE_SCOPED_NAMESPACE_DECLARATION, INTERFACE_DECLARATION, METHOD_DECLARATION,
-        NAMESPACE_DECLARATION, RECORD_DECLARATION, STRUCT_DECLARATION,
+        CLASS_DECLARATION, CONSTRUCTOR_DECLARATION, DECLARATION_LIST, DELEGATE_DECLARATION,
+        ENUM_DECLARATION, FILE_SCOPED_NAMESPACE_DECLARATION, INTERFACE_DECLARATION,
+        METHOD_DECLARATION, NAMESPACE_DECLARATION, RECORD_DECLARATION, STRUCT_DECLARATION,
     };
 
     match node.kind() {
@@ -642,6 +648,14 @@ fn extract_symbols_recursive(
                 symbols.push(sym);
             }
         }
+        DELEGATE_DECLARATION => {
+            // Namespace-level delegate: no parent, matching how classes ignore
+            // their namespace in qualified_name terms. Class-level delegates
+            // arrive via extract_class_members with the enclosing type instead.
+            if let Some(sym) = extract_delegate(node, content, None) {
+                symbols.push(sym);
+            }
+        }
         _ => {
             // Recurse into children for containers we don't explicitly handle
             let mut cursor = node.walk();
@@ -661,8 +675,7 @@ fn extract_class_members(
 ) {
     use node_kinds::{
         CLASS_DECLARATION, CONSTRUCTOR_DECLARATION, DECLARATION_LIST, ENUM_DECLARATION,
-        INTERFACE_DECLARATION, METHOD_DECLARATION, PROPERTY_DECLARATION, RECORD_DECLARATION,
-        STRUCT_DECLARATION,
+        INTERFACE_DECLARATION, METHOD_DECLARATION, RECORD_DECLARATION, STRUCT_DECLARATION,
     };
 
     let mut cursor = node.walk();
@@ -670,12 +683,10 @@ fn extract_class_members(
         if child.kind() == DECLARATION_LIST {
             let mut inner_cursor = child.walk();
             for item in child.children(&mut inner_cursor) {
+                if extract_data_member(&item, content, symbols, parent_name) {
+                    continue;
+                }
                 match item.kind() {
-                    PROPERTY_DECLARATION => {
-                        if let Some(sym) = extract_property(&item, content, Some(parent_name)) {
-                            symbols.push(sym);
-                        }
-                    }
                     METHOD_DECLARATION => {
                         if let Some(mut sym) = extract_method(&item, content, Some(parent_name)) {
                             // Check if static
@@ -743,6 +754,60 @@ fn extract_class_members(
             }
         }
     }
+}
+
+/// Extract a data-member declaration (property, field, event, delegate) from
+/// a type body item, pushing any produced symbols (tethys-xebx).
+///
+/// Returns `true` when `item` was one of the data-member kinds (even if name
+/// extraction failed and nothing was pushed), so the caller can skip its own
+/// dispatch; `false` means "not a data member, dispatch normally".
+fn extract_data_member(
+    item: &tree_sitter::Node,
+    content: &[u8],
+    symbols: &mut Vec<ExtractedSymbol>,
+    parent_name: &str,
+) -> bool {
+    use node_kinds::{
+        DELEGATE_DECLARATION, EVENT_DECLARATION, EVENT_FIELD_DECLARATION, FIELD_DECLARATION,
+        PROPERTY_DECLARATION,
+    };
+
+    match item.kind() {
+        PROPERTY_DECLARATION => {
+            if let Some(sym) = extract_property(item, content, Some(parent_name)) {
+                symbols.push(sym);
+            }
+        }
+        FIELD_DECLARATION => {
+            symbols.extend(extract_field_like(
+                item,
+                content,
+                SymbolKind::StructField,
+                Some(parent_name),
+            ));
+        }
+        EVENT_FIELD_DECLARATION => {
+            symbols.extend(extract_field_like(
+                item,
+                content,
+                SymbolKind::Event,
+                Some(parent_name),
+            ));
+        }
+        EVENT_DECLARATION => {
+            if let Some(sym) = extract_event_accessor(item, content, Some(parent_name)) {
+                symbols.push(sym);
+            }
+        }
+        DELEGATE_DECLARATION => {
+            if let Some(sym) = extract_delegate(item, content, Some(parent_name)) {
+                symbols.push(sym);
+            }
+        }
+        _ => return false,
+    }
+    true
 }
 
 /// Extract a type declaration (class, struct, interface, enum).
@@ -918,6 +983,135 @@ fn extract_property(
         visibility: extract_visibility(node, content),
         parent_name: parent_name.map(String::from),
         is_test: false, // Properties are never tests
+        attributes: extract_attributes(node, content),
+    })
+}
+
+/// Extract field-like declarations (`field_declaration`,
+/// `event_field_declaration`) — one symbol per `variable_declarator`, so
+/// `public int A, B;` yields two rows, each carrying the declaration's
+/// attributes (tethys-xebx C2/C3/C4). Covers `const` and `static readonly`
+/// fields; the declared type lands in `signature` (`StructField` convention).
+fn extract_field_like(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    kind: SymbolKind,
+    parent_name: Option<&str>,
+) -> Vec<ExtractedSymbol> {
+    use node_kinds::{VARIABLE_DECLARATION, VARIABLE_DECLARATOR};
+
+    let visibility = extract_visibility(node, content);
+    let attributes = extract_attributes(node, content);
+
+    let mut out = Vec::new();
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() != VARIABLE_DECLARATION {
+            continue;
+        }
+        let signature = child
+            .child_by_field_name("type")
+            .and_then(|t| node_text(&t, content));
+        let mut decl_cursor = child.walk();
+        for declarator in child.children(&mut decl_cursor) {
+            if declarator.kind() != VARIABLE_DECLARATOR {
+                continue;
+            }
+            let Some(name) = declarator
+                .child_by_field_name("name")
+                .and_then(|n| node_text(&n, content))
+            else {
+                tracing::trace!(
+                    kind = node.kind(),
+                    line = declarator.start_position().row + 1,
+                    "Failed to extract declarator name, skipping"
+                );
+                continue;
+            };
+            out.push(ExtractedSymbol {
+                name,
+                kind,
+                line: declarator.start_position().row as u32 + 1,
+                column: declarator.start_position().column as u32 + 1,
+                span: Some(node_span(&declarator)),
+                signature: signature.clone(),
+                signature_details: None,
+                visibility,
+                parent_name: parent_name.map(String::from),
+                is_test: false, // Fields and events are never tests
+                attributes: attributes.clone(),
+            });
+        }
+    }
+    out
+}
+
+/// Extract an accessor-form event (`event_declaration`,
+/// `public event EventHandler Renamed { add { } remove { } }`).
+fn extract_event_accessor(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    parent_name: Option<&str>,
+) -> Option<ExtractedSymbol> {
+    let name_node = node.child_by_field_name("name")?;
+    let Some(name) = node_text(&name_node, content) else {
+        tracing::trace!(
+            kind = node.kind(),
+            line = node.start_position().row + 1,
+            "Failed to extract event name, skipping"
+        );
+        return None;
+    };
+
+    Some(ExtractedSymbol {
+        name,
+        kind: SymbolKind::Event,
+        line: node.start_position().row as u32 + 1,
+        column: node.start_position().column as u32 + 1,
+        span: Some(node_span(node)),
+        signature: node
+            .child_by_field_name("type")
+            .and_then(|t| node_text(&t, content)),
+        signature_details: None,
+        visibility: extract_visibility(node, content),
+        parent_name: parent_name.map(String::from),
+        is_test: false, // Events are never tests
+        attributes: extract_attributes(node, content),
+    })
+}
+
+/// Extract a delegate type (`delegate_declaration`). Delegates occur at both
+/// namespace and class level; like other type declarations, namespace-level
+/// delegates carry no `parent_name` (the namespace is not a parent in
+/// `qualified_name` terms — matches the class convention).
+fn extract_delegate(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    parent_name: Option<&str>,
+) -> Option<ExtractedSymbol> {
+    let name_node = node.child_by_field_name("name")?;
+    let Some(name) = node_text(&name_node, content) else {
+        tracing::trace!(
+            kind = node.kind(),
+            line = node.start_position().row + 1,
+            "Failed to extract delegate name, skipping"
+        );
+        return None;
+    };
+
+    Some(ExtractedSymbol {
+        name,
+        kind: SymbolKind::Delegate,
+        line: node.start_position().row as u32 + 1,
+        column: node.start_position().column as u32 + 1,
+        span: Some(node_span(node)),
+        signature: node
+            .child_by_field_name("type")
+            .and_then(|t| node_text(&t, content)),
+        signature_details: None,
+        visibility: extract_visibility(node, content),
+        parent_name: parent_name.map(String::from),
+        is_test: false, // Delegates are never tests
         attributes: extract_attributes(node, content),
     })
 }
@@ -1412,6 +1606,107 @@ public class Result {
         let parents: Vec<_> = datas.iter().filter_map(|s| s.parent_name.clone()).collect();
         assert!(parents.contains(&"ApiResponse".to_string()));
         assert!(parents.contains(&"Result".to_string()));
+    }
+
+    #[test]
+    fn extracts_field_declarators_each_with_attributes() {
+        let code = r#"
+public class Widget {
+    [Obsolete("old")]
+    public int A, B;
+    private static readonly string Tag = "w";
+    public const int Max = 10;
+}
+"#;
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let fields: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.kind == SymbolKind::StructField)
+            .collect();
+        // A, B (one per declarator), Tag (static readonly), Max (const)
+        assert_eq!(fields.len(), 4);
+        for name in ["A", "B"] {
+            let f = fields
+                .iter()
+                .find(|s| s.name == name)
+                .unwrap_or_else(|| panic!("should find field {name}"));
+            assert_eq!(f.parent_name, Some("Widget".to_string()));
+            assert_eq!(f.signature.as_deref(), Some("int"));
+            // The declaration's attribute fans out to EVERY declarator symbol
+            assert_eq!(f.attributes.len(), 1, "attribute missing on {name}");
+            assert_eq!(f.attributes[0].name, "Obsolete");
+        }
+        let max = fields
+            .iter()
+            .find(|s| s.name == "Max")
+            .expect("should find const field Max");
+        assert!(max.attributes.is_empty());
+    }
+
+    #[test]
+    fn extracts_event_field_and_accessor_forms() {
+        let code = r#"
+using System;
+public class Widget {
+    [Obsolete("old event")]
+    public event EventHandler Changed;
+    public event EventHandler Renamed { add { } remove { } }
+}
+"#;
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let events: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.kind == SymbolKind::Event)
+            .collect();
+        assert_eq!(events.len(), 2);
+        let changed = events
+            .iter()
+            .find(|s| s.name == "Changed")
+            .expect("should find field-form event");
+        assert_eq!(changed.attributes.len(), 1);
+        assert_eq!(changed.attributes[0].name, "Obsolete");
+        let renamed = events
+            .iter()
+            .find(|s| s.name == "Renamed")
+            .expect("should find accessor-form event");
+        assert_eq!(renamed.parent_name, Some("Widget".to_string()));
+        assert_eq!(renamed.signature.as_deref(), Some("EventHandler"));
+    }
+
+    #[test]
+    fn extracts_delegate_at_namespace_and_class_level() {
+        let code = r"
+namespace App
+{
+    public delegate int Transform(int x);
+    public class Widget {
+        public delegate void Nested(string s);
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let delegates: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.kind == SymbolKind::Delegate)
+            .collect();
+        assert_eq!(delegates.len(), 2);
+        let transform = delegates
+            .iter()
+            .find(|s| s.name == "Transform")
+            .expect("should find namespace-level delegate");
+        // Namespace-level delegates carry no parent, like classes
+        assert_eq!(transform.parent_name, None);
+        let nested = delegates
+            .iter()
+            .find(|s| s.name == "Nested")
+            .expect("should find class-level delegate");
+        assert_eq!(nested.parent_name, Some("Widget".to_string()));
     }
 
     #[test]
