@@ -965,6 +965,105 @@ fn call_edges_populated_after_indexing() {
     );
 }
 
+/// Member reads must not mint call edges (tethys-xebx C10/D3).
+///
+/// The fixture's `this.Data` read RESOLVES same-file with `in_symbol_id`
+/// set — exactly the row shape `populate_call_edges` selects — so a
+/// forgotten `field_access` exclusion would list `Reader` as a caller of
+/// the property. The sibling `Helper()` call proves the filter is not
+/// over-broad.
+#[test]
+fn member_reads_produce_no_call_edges() {
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    // Workspace discovery needs a crate root, same as workspace_with_files
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"member_reads_fixture\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+    )
+    .expect("write Cargo.toml");
+    fs::write(
+        dir.path().join("Widget.cs"),
+        r"
+namespace App
+{
+    public class Widget
+    {
+        public int Data { get; set; }
+        public int Reader()
+        {
+            Helper();
+            return this.Data;
+        }
+        public void Helper() { }
+    }
+}
+",
+    )
+    .expect("write Widget.cs");
+    let mut tethys = Tethys::new(dir.path()).expect("tethys init");
+    tethys.index().expect("index failed");
+
+    let helper_callers = tethys
+        .get_callers("Widget::Helper", false)
+        .expect("get_callers for Widget::Helper should succeed");
+    assert!(
+        !helper_callers.is_empty(),
+        "the real call must still produce a call edge"
+    );
+
+    let data_callers = tethys
+        .get_callers("Widget::Data", false)
+        .expect("get_callers for Widget::Data should succeed");
+    assert!(
+        data_callers.is_empty(),
+        "a resolved member read minted a call edge: {data_callers:?}"
+    );
+}
+
+/// Calls/constructs must never bind a same-file data member (tethys-xebx
+/// D10). The fixture embeds the exact drift shape the corpus audit caught:
+/// `new Exception(...)` in a file whose type declares a property named
+/// `Exception`. A kind-blind Pass-1 map binds the BCL constructor to the
+/// property and fabricates a `Thrower -> Exception` call edge.
+#[test]
+fn construct_ref_does_not_bind_same_file_property() {
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"construct_decoy_fixture\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+    )
+    .expect("write Cargo.toml");
+    fs::write(
+        dir.path().join("StepFailed.cs"),
+        r#"
+using System;
+namespace App
+{
+    public class StepFailed
+    {
+        public Exception Exception { get; }
+        public StepFailed Thrower()
+        {
+            return Fail(new Exception("timeout"));
+        }
+        public StepFailed Fail(Exception e) { return this; }
+    }
+}
+"#,
+    )
+    .expect("write StepFailed.cs");
+    let mut tethys = Tethys::new(dir.path()).expect("tethys init");
+    tethys.index().expect("index failed");
+
+    let property_callers = tethys
+        .get_callers("StepFailed::Exception", false)
+        .expect("get_callers for the Exception property should succeed");
+    assert!(
+        property_callers.is_empty(),
+        "a construct ref bound to the same-file property: {property_callers:?}"
+    );
+}
+
 /// Verify transitive callers work with `call_edges`.
 #[test]
 fn transitive_callers_via_call_edges() {

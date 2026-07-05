@@ -35,6 +35,7 @@ real binary produced the exact predicted output).
 | D7 | `reference_name` folds receiver segments exactly like invocations: `parse_member_access` → `result::Data` | Consistency with existing call refs; lands in the same Pass-1/Pass-2/Path-B machinery unchanged |
 | D8 | `property_declaration` and `event_declaration` (accessor bodies) join the containing-span arm, so refs inside member bodies get `in_symbol_id` = the member symbol | `Data => Value` should attribute its `Value` read to `Data`; today accessor-body refs have `in_symbol_id` NULL |
 | D9 | Reads inside attribute arguments and `nameof(...)` are emitted | They are references; `nameof` over-report (compiler suppresses CS0618 there) accepted and documented in tethys-5uqz |
+| D10 | **(Build-time amendment, user-approved at the slice-7 drift stop.)** Data-member symbols (property/event/`struct_field`) live in their own Pass-1 map consulted only by `field_access` refs, and `ref_binds_to_symbol_kind` refuses Call/Construct binds to those kinds (`Delegate` stays bindable) | The C11 corpus audit falsified "zero resolution flips": `new Exception("timeout")` bound same-file to a property named `Exception`, fabricating 2 call edges. Mirrors the existing macro-map precedent; the general kind-aware work remains tethys-0aqj. The design-time collision check had measured the wrong join (member names × existing symbols instead of × same-file unresolved ref names) |
 
 ## Input shapes (step 2)
 

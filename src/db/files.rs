@@ -273,9 +273,20 @@ impl Index {
         // this map instead of `name_to_id` (which a colliding fn could
         // overwrite, forging a phantom `foo!` -> `fn foo` call edge).
         let mut macro_name_to_id: HashMap<&str, SymbolId> = HashMap::new();
+        // Data members (properties, events, fields) get the same treatment in
+        // the other direction: they are consulted only by `field_access` reads
+        // and are kept OUT of the general map, so a same-file `new Exception()`
+        // can never bind to a property named `Exception` (tethys-xebx D10;
+        // the general kind-aware binding work is tethys-0aqj).
+        let mut data_member_name_to_id: HashMap<&str, SymbolId> = HashMap::new();
         let mut span_to_id: HashMap<Span, SymbolId> = HashMap::new();
         for (sym, &id) in symbols.iter().zip(&symbol_ids) {
-            if let Some(prev_id) = name_to_id.insert(sym.name, id) {
+            if matches!(
+                sym.kind,
+                SymbolKind::Property | SymbolKind::Event | SymbolKind::StructField
+            ) {
+                data_member_name_to_id.insert(sym.name, id);
+            } else if let Some(prev_id) = name_to_id.insert(sym.name, id) {
                 trace!(
                     name = %sym.name,
                     new_id = %id,
@@ -301,9 +312,17 @@ impl Index {
             for r in references {
                 let qualified_name = build_qualified_name(&r.name, r.path.as_deref());
                 // Macro invocations resolve only to macro definitions (see
-                // `macro_name_to_id`); every other kind uses the general map.
+                // `macro_name_to_id`); member reads prefer data members and
+                // fall through to the general map for method-group/delegate
+                // reads; every other kind uses the general map only, so
+                // calls/constructs can never bind a data member (D10).
                 let symbol_id = if r.kind == ExtractedReferenceKind::Macro {
                     macro_name_to_id.get(r.name.as_str()).copied()
+                } else if r.kind == ExtractedReferenceKind::FieldAccess {
+                    data_member_name_to_id
+                        .get(r.name.as_str())
+                        .or_else(|| name_to_id.get(r.name.as_str()))
+                        .copied()
                 } else {
                     name_to_id
                         .get(r.name.as_str())
