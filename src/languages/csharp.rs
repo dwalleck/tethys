@@ -143,21 +143,31 @@ pub fn extract_references(tree: &tree_sitter::Tree, content: &[u8]) -> Vec<Extra
     let mut refs = Vec::new();
     let root = tree.root_node();
 
-    extract_references_recursive(&root, content, &mut refs, None);
+    extract_references_recursive(&root, content, &mut refs, None, false);
 
     refs
 }
 
+/// Recursive worker for [`extract_references`].
+///
+/// `in_invocation_callee` is true while descending an invocation's `function`
+/// child along its `member_access_expression` spine: those levels fold into
+/// the call ref's path (`a.B.M()` → one call `a::B::M`), so the member-read
+/// arm must not re-emit them (tethys-xebx D6). The flag survives only through
+/// `member_access_expression` nodes — any other node (an invocation receiver,
+/// a parenthesized expression, arguments) resets it, so `Get(x.P).M()` still
+/// emits the `x.P` read.
 fn extract_references_recursive(
     node: &tree_sitter::Node,
     content: &[u8],
     refs: &mut Vec<ExtractedReference>,
     containing_span: Option<Span>,
+    in_invocation_callee: bool,
 ) {
     use node_kinds::{
         CLASS_DECLARATION, CONSTRUCTOR_DECLARATION, DECLARATION_LIST, INTERFACE_DECLARATION,
-        INVOCATION_EXPRESSION, METHOD_DECLARATION, OBJECT_CREATION_EXPRESSION, STRUCT_DECLARATION,
-        USING_DIRECTIVE,
+        INVOCATION_EXPRESSION, MEMBER_ACCESS_EXPRESSION, METHOD_DECLARATION,
+        OBJECT_CREATION_EXPRESSION, STRUCT_DECLARATION, USING_DIRECTIVE,
     };
 
     match node.kind() {
@@ -165,11 +175,13 @@ fn extract_references_recursive(
         USING_DIRECTIVE => return,
 
         INVOCATION_EXPRESSION => {
-            // Method call
-            if let Some(mut ref_data) = extract_invocation_reference(node, content) {
-                ref_data.containing_symbol_span = containing_span;
-                refs.push(ref_data);
-            }
+            visit_invocation(node, content, refs, containing_span);
+            return;
+        }
+
+        MEMBER_ACCESS_EXPRESSION => {
+            visit_member_access(node, content, refs, containing_span, in_invocation_callee);
+            return;
         }
 
         OBJECT_CREATION_EXPRESSION => {
@@ -185,7 +197,7 @@ fn extract_references_recursive(
             let method_span = node_span(node);
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                extract_references_recursive(&child, content, refs, Some(method_span));
+                extract_references_recursive(&child, content, refs, Some(method_span), false);
             }
             return;
         }
@@ -207,17 +219,24 @@ fn extract_references_recursive(
                                         content,
                                         refs,
                                         Some(method_span),
+                                        false,
                                     );
                                 }
                             }
                             _ => {
-                                extract_references_recursive(&item, content, refs, containing_span);
+                                extract_references_recursive(
+                                    &item,
+                                    content,
+                                    refs,
+                                    containing_span,
+                                    false,
+                                );
                             }
                         }
                     }
                 } else {
                     // Type references in class header (e.g., base class, interfaces)
-                    extract_references_recursive(&child, content, refs, containing_span);
+                    extract_references_recursive(&child, content, refs, containing_span, false);
                 }
             }
             return;
@@ -226,10 +245,62 @@ fn extract_references_recursive(
         _ => {}
     }
 
-    // Recurse into children
+    // Recurse into children. The callee-spine flag never survives a
+    // non-member-access node (see doc comment).
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        extract_references_recursive(&child, content, refs, containing_span);
+        extract_references_recursive(&child, content, refs, containing_span, false);
+    }
+}
+
+/// Emit the call ref for an `invocation_expression` and descend: the
+/// `function` child is the callee spine (member reads suppressed there);
+/// arguments and other children are normal expression context.
+fn visit_invocation(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    refs: &mut Vec<ExtractedReference>,
+    containing_span: Option<Span>,
+) {
+    if let Some(mut ref_data) = extract_invocation_reference(node, content) {
+        ref_data.containing_symbol_span = containing_span;
+        refs.push(ref_data);
+    }
+    let callee_id = node.child_by_field_name("function").map(|f| f.id());
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        let is_callee = callee_id == Some(child.id());
+        extract_references_recursive(&child, content, refs, containing_span, is_callee);
+    }
+}
+
+/// Emit a member read (`result.Data`) for a `member_access_expression`
+/// outside an invocation callee, then descend. One ref per access level of a
+/// chain — recursing into the receiver re-enters this arm for
+/// `response.Data` inside `response.Data.Name` (tethys-xebx D5).
+fn visit_member_access(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    refs: &mut Vec<ExtractedReference>,
+    containing_span: Option<Span>,
+    in_invocation_callee: bool,
+) {
+    use node_kinds::MEMBER_ACCESS_EXPRESSION;
+
+    if !in_invocation_callee && let Some((path, name)) = parse_member_access(node, content) {
+        refs.push(ExtractedReference {
+            name,
+            kind: ExtractedReferenceKind::FieldAccess,
+            line: node.start_position().row as u32 + 1,
+            column: node.start_position().column as u32 + 1,
+            path: if path.is_empty() { None } else { Some(path) },
+            containing_symbol_span: containing_span,
+        });
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        let spine_continues = in_invocation_callee && child.kind() == MEMBER_ACCESS_EXPRESSION;
+        extract_references_recursive(&child, content, refs, containing_span, spine_continues);
     }
 }
 
@@ -1707,6 +1778,159 @@ namespace App
             .find(|s| s.name == "Nested")
             .expect("should find class-level delegate");
         assert_eq!(nested.parent_name, Some("Widget".to_string()));
+    }
+
+    #[test]
+    fn member_read_simple_emits_field_access() {
+        let code = r"
+public class C {
+    public void M(Result result) {
+        var x = result.Data;
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let reads: Vec<_> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::FieldAccess)
+            .collect();
+        assert_eq!(reads.len(), 1);
+        assert_eq!(reads[0].name, "Data");
+        assert_eq!(reads[0].path, Some(vec!["result".to_string()]));
+        assert!(
+            reads[0].containing_symbol_span.is_some(),
+            "read inside a method body carries the method span"
+        );
+    }
+
+    #[test]
+    fn member_read_chained_emits_one_ref_per_level() {
+        let code = r"
+public class C {
+    public void M(Response response) {
+        var n = response.Data.Name;
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let mut reads: Vec<_> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::FieldAccess)
+            .map(|r| (r.name.clone(), r.path.clone()))
+            .collect();
+        reads.sort();
+        // Fold-to-outermost would emit only Name and hide the Data read —
+        // the probe's oracle disagreement caught exactly this bug class.
+        assert_eq!(
+            reads,
+            vec![
+                ("Data".to_string(), Some(vec!["response".to_string()])),
+                (
+                    "Name".to_string(),
+                    Some(vec!["response".to_string(), "Data".to_string()])
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn member_read_skips_invocation_callee_spine() {
+        let code = r"
+public class C {
+    public void M(Widget a) {
+        a.B.Run();
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        // The whole callee spine folds into the call ref (a::B::Run) — no
+        // field_access may double-represent `a.B`.
+        let reads: Vec<_> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::FieldAccess)
+            .collect();
+        assert!(reads.is_empty(), "callee spine leaked as reads: {reads:?}");
+        let calls: Vec<_> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::Call)
+            .collect();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "Run");
+        assert_eq!(calls[0].path, Some(vec!["a".to_string(), "B".to_string()]));
+    }
+
+    #[test]
+    fn member_read_on_invocation_result_and_in_arguments() {
+        let code = r"
+public class C {
+    public void M(Result r) {
+        var d = Get().Data;
+        Use(r.Value);
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let reads: Vec<_> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::FieldAccess)
+            .map(|r| (r.name.clone(), r.path.clone()))
+            .collect();
+        // `Get().Data`: invocation receiver contributes no path segments
+        // (matches existing invocation-ref behavior); `r.Value` sits inside
+        // an invocation's ARGUMENTS, where the callee-spine flag must reset.
+        assert!(reads.contains(&("Data".to_string(), None)), "{reads:?}");
+        assert!(
+            reads.contains(&("Value".to_string(), Some(vec!["r".to_string()]))),
+            "{reads:?}"
+        );
+        assert_eq!(reads.len(), 2);
+    }
+
+    #[test]
+    fn member_read_on_assignment_lhs_is_emitted() {
+        let code = r"
+public class C {
+    public void M(Widget w) {
+        w.Count = 5;
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let reads: Vec<_> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::FieldAccess)
+            .collect();
+        assert_eq!(reads.len(), 1);
+        assert_eq!(reads[0].name, "Count");
+    }
+
+    #[test]
+    fn no_member_access_means_no_field_access_refs() {
+        let code = r"
+public class C {
+    public void M() {
+        var x = 1 + 2;
+        Local();
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        assert!(
+            refs.iter()
+                .all(|r| r.kind != ExtractedReferenceKind::FieldAccess)
+        );
     }
 
     #[test]
