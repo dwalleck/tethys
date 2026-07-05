@@ -1641,6 +1641,24 @@ public struct Point {
     }
 
     #[test]
+    fn extracts_property_in_record() {
+        let code = r"
+public record Wrapper {
+    public int Data { get; }
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let data = symbols
+            .iter()
+            .find(|s| s.name == "Data")
+            .expect("should find record property");
+        assert_eq!(data.kind, SymbolKind::Property);
+        assert_eq!(data.parent_name, Some("Wrapper".to_string()));
+    }
+
+    #[test]
     fn extracts_property_in_nested_class_with_enclosing_parent() {
         let code = r"
 public class Outer {

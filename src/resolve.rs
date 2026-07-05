@@ -46,10 +46,7 @@ use crate::types::{
 fn ref_binds_to_symbol_kind(ref_kind: &ReferenceKind, symbol_kind: SymbolKind) -> bool {
     match ref_kind {
         ReferenceKind::Macro => symbol_kind == SymbolKind::Macro,
-        ReferenceKind::Call | ReferenceKind::Construct => !matches!(
-            symbol_kind,
-            SymbolKind::Property | SymbolKind::Event | SymbolKind::StructField
-        ),
+        ReferenceKind::Call | ReferenceKind::Construct => !symbol_kind.is_data_member(),
         _ => true,
     }
 }

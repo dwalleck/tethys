@@ -334,6 +334,17 @@ impl SymbolKind {
             Self::Delegate => "delegate",
         }
     }
+
+    /// Whether this kind is a data member (property, event, field) — the
+    /// kinds that never receive call/construct binds and live in their own
+    /// Pass-1 same-file map (tethys-xebx D10). `Delegate` is deliberately
+    /// not a data member: `new Transform(m)` is a real construct. Keep the
+    /// two consumers (`db/files.rs` map build, `resolve.rs` kind gate) in
+    /// lockstep through this single definition.
+    #[must_use]
+    pub fn is_data_member(&self) -> bool {
+        matches!(self, Self::Property | Self::Event | Self::StructField)
+    }
 }
 
 /// Which resolution mechanism bound a reference (ADR-0003, tethys-9z7i).

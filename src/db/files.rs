@@ -281,11 +281,15 @@ impl Index {
         let mut data_member_name_to_id: HashMap<&str, SymbolId> = HashMap::new();
         let mut span_to_id: HashMap<Span, SymbolId> = HashMap::new();
         for (sym, &id) in symbols.iter().zip(&symbol_ids) {
-            if matches!(
-                sym.kind,
-                SymbolKind::Property | SymbolKind::Event | SymbolKind::StructField
-            ) {
-                data_member_name_to_id.insert(sym.name, id);
+            if sym.kind.is_data_member() {
+                if let Some(prev_id) = data_member_name_to_id.insert(sym.name, id) {
+                    trace!(
+                        name = %sym.name,
+                        new_id = %id,
+                        prev_id = %prev_id,
+                        "Duplicate data-member name in file, using newer"
+                    );
+                }
             } else if let Some(prev_id) = name_to_id.insert(sym.name, id) {
                 trace!(
                     name = %sym.name,
