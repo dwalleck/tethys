@@ -105,6 +105,9 @@ fn print_symbol_stats(stats: &DatabaseStats) {
             SymbolKind::Macro => "Macros",
             SymbolKind::EnumVariant => "Enum Variants",
             SymbolKind::StructField => "Struct Fields",
+            SymbolKind::Property => "Properties",
+            SymbolKind::Event => "Events",
+            SymbolKind::Delegate => "Delegates",
         };
         println!("    {}: {}", kind_name.dimmed(), count);
     }
