@@ -29,6 +29,7 @@ mod node_kinds {
     // Members
     pub const METHOD_DECLARATION: &str = "method_declaration";
     pub const CONSTRUCTOR_DECLARATION: &str = "constructor_declaration";
+    pub const PROPERTY_DECLARATION: &str = "property_declaration";
 
     // Namespaces & imports
     pub const NAMESPACE_DECLARATION: &str = "namespace_declaration";
@@ -660,7 +661,8 @@ fn extract_class_members(
 ) {
     use node_kinds::{
         CLASS_DECLARATION, CONSTRUCTOR_DECLARATION, DECLARATION_LIST, ENUM_DECLARATION,
-        INTERFACE_DECLARATION, METHOD_DECLARATION, RECORD_DECLARATION, STRUCT_DECLARATION,
+        INTERFACE_DECLARATION, METHOD_DECLARATION, PROPERTY_DECLARATION, RECORD_DECLARATION,
+        STRUCT_DECLARATION,
     };
 
     let mut cursor = node.walk();
@@ -669,6 +671,11 @@ fn extract_class_members(
             let mut inner_cursor = child.walk();
             for item in child.children(&mut inner_cursor) {
                 match item.kind() {
+                    PROPERTY_DECLARATION => {
+                        if let Some(sym) = extract_property(&item, content, Some(parent_name)) {
+                            symbols.push(sym);
+                        }
+                    }
                     METHOD_DECLARATION => {
                         if let Some(mut sym) = extract_method(&item, content, Some(parent_name)) {
                             // Check if static
@@ -871,6 +878,46 @@ fn extract_constructor(
         visibility,
         parent_name: parent_name.map(String::from),
         is_test: false, // Constructors are never tests
+        attributes: extract_attributes(node, content),
+    })
+}
+
+/// Extract a property declaration (`property_declaration`).
+///
+/// Covers auto-properties (`int X { get; set; }`), accessor-block bodies,
+/// and expression-bodied properties (`T Data => Value;`) — the node shape is
+/// identical for symbol purposes (tethys-xebx C1). The property's type lands
+/// in `signature`, matching the `StructField` convention.
+fn extract_property(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    parent_name: Option<&str>,
+) -> Option<ExtractedSymbol> {
+    let name_node = node.child_by_field_name("name")?;
+    let Some(name) = node_text(&name_node, content) else {
+        tracing::trace!(
+            kind = node.kind(),
+            line = node.start_position().row + 1,
+            "Failed to extract property name, skipping"
+        );
+        return None;
+    };
+
+    let signature = node
+        .child_by_field_name("type")
+        .and_then(|t| node_text(&t, content));
+
+    Some(ExtractedSymbol {
+        name,
+        kind: SymbolKind::Property,
+        line: node.start_position().row as u32 + 1,
+        column: node.start_position().column as u32 + 1,
+        span: Some(node_span(node)),
+        signature,
+        signature_details: None,
+        visibility: extract_visibility(node, content),
+        parent_name: parent_name.map(String::from),
+        is_test: false, // Properties are never tests
         attributes: extract_attributes(node, content),
     })
 }
@@ -1234,6 +1281,137 @@ public class UserService {
         assert_eq!(method_sym.kind, SymbolKind::Method);
         assert_eq!(method_sym.parent_name, Some("UserService".to_string()));
         assert_eq!(method_sym.visibility, Visibility::Public);
+    }
+
+    #[test]
+    fn extracts_property_auto_and_accessor_block() {
+        let code = r"
+public class Result {
+    public string Message { get; }
+    public bool Success
+    {
+        get
+        {
+            return true;
+        }
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let props: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.kind == SymbolKind::Property)
+            .collect();
+        assert_eq!(props.len(), 2);
+        let message = props
+            .iter()
+            .find(|s| s.name == "Message")
+            .expect("should find Message property");
+        assert_eq!(message.parent_name, Some("Result".to_string()));
+        assert_eq!(message.signature.as_deref(), Some("string"));
+        assert_eq!(message.visibility, Visibility::Public);
+        let success = props
+            .iter()
+            .find(|s| s.name == "Success")
+            .expect("should find Success property");
+        assert_eq!(success.signature.as_deref(), Some("bool"));
+    }
+
+    #[test]
+    fn extracts_property_expression_bodied_with_attribute() {
+        let code = r#"
+public class Result {
+    [Obsolete("Use Value instead.")]
+    public int Data => 42;
+}
+"#;
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let prop = symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Property)
+            .expect("should find expression-bodied property");
+        assert_eq!(prop.name, "Data");
+        assert_eq!(prop.parent_name, Some("Result".to_string()));
+        assert_eq!(prop.attributes.len(), 1);
+        assert_eq!(prop.attributes[0].name, "Obsolete");
+        assert_eq!(
+            prop.attributes[0].args.as_deref(),
+            Some("\"Use Value instead.\"")
+        );
+    }
+
+    #[test]
+    fn extracts_property_in_interface_and_struct() {
+        let code = r"
+public interface IShape {
+    double Area { get; }
+}
+public struct Point {
+    public int X { get; set; }
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let area = symbols
+            .iter()
+            .find(|s| s.name == "Area")
+            .expect("should find interface property");
+        assert_eq!(area.kind, SymbolKind::Property);
+        assert_eq!(area.parent_name, Some("IShape".to_string()));
+        let x = symbols
+            .iter()
+            .find(|s| s.name == "X")
+            .expect("should find struct property");
+        assert_eq!(x.kind, SymbolKind::Property);
+        assert_eq!(x.parent_name, Some("Point".to_string()));
+    }
+
+    #[test]
+    fn extracts_property_in_nested_class_with_enclosing_parent() {
+        let code = r"
+public class Outer {
+    public class Inner {
+        public int Depth { get; }
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let depth = symbols
+            .iter()
+            .find(|s| s.name == "Depth")
+            .expect("should find nested-class property");
+        // Parent must be the ENCLOSING type, not the outermost one
+        assert_eq!(depth.parent_name, Some("Inner".to_string()));
+    }
+
+    #[test]
+    fn same_named_properties_in_two_classes_stay_distinct() {
+        let code = r"
+public class ApiResponse {
+    public object Data { get; set; }
+}
+public class Result {
+    public int Data => 1;
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let datas: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.name == "Data" && s.kind == SymbolKind::Property)
+            .collect();
+        assert_eq!(datas.len(), 2);
+        let parents: Vec<_> = datas.iter().filter_map(|s| s.parent_name.clone()).collect();
+        assert!(parents.contains(&"ApiResponse".to_string()));
+        assert!(parents.contains(&"Result".to_string()));
     }
 
     #[test]
