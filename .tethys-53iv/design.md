@@ -143,18 +143,18 @@ crates: inherited first-match imprecision of `qualified_exact`
 | # | Claim | Falsifier | Oracle | Cost | Status | Regression fence |
 |---|-------|-----------|--------|------|--------|------------------|
 | premise | Rust methods carry `qualified_name = T::m`; `qualified_exact` is workspace-wide incl. same-file | query self-index; read the arm | SQLite rows (`SymbolId::as_i64`, `Index::connection`, `StalenessReport::is_empty`); `resolve.rs:592-596` | 5m | **passed** (2026-07-09; duplicate-name first-match edge found and filed as tethys-bvgb) | `self_receiver_binds_qualified_same_file` asserts the mechanism permanently |
-| C1 | repro AC1 | rerun `probe1.sh` post-build; any bind of line-7 `unwrap` falsifies | rustc semantics (hand-derived, in ticket) | 5m | pending | integration `annotated_external_receiver_does_not_bind` |
-| C2 | repro AC2 | `panic-points` on repro ≠ exactly `src/lib.rs:7` falsifies | grep (1 genuine `.unwrap()` outside the impl) | 5m | pending | integration `panic_points_sees_annotated_external_unwrap` |
-| C3 | repro AC3 | `t.unwrap()` unbound or bound elsewhere falsifies; extra edges falsify | rustc semantics + ticket AC | 5m | pending | integration `underived_receiver_still_resolves_unique` |
+| C1 | repro AC1 | rerun `probe1.sh` post-build; any bind of line-7 `unwrap` falsifies | rustc semantics (hand-derived, in ticket) | 5m | **passed** | integration `ticket_repro_all_three_acceptance_criteria` (fences consolidated at build time) |
+| C2 | repro AC2 | `panic-points` on repro ≠ exactly `src/lib.rs:7` falsifies | grep (1 genuine `.unwrap()` outside the impl) | 5m | **passed** | integration `ticket_repro_all_three_acceptance_criteria` + unit `panic_points_matches_qualified_last_segment` |
+| C3 | repro AC3 | `t.unwrap()` unbound or bound elsewhere falsifies; extra edges falsify | rustc semantics + ticket AC | 5m | **passed** | integration `ticket_repro_all_three_acceptance_criteria` |
 | C4 | self derivation | fixture: two impls in one file, same method name; `self.m()` binding the OTHER type falsifies | hand-derived expected target | 15m | pending | unit `self_receiver_binds_qualified_same_file` + trait-impl variant |
 | C5 | annotation derivation + shadowing | fixture matrix (`let`, param, `&T`, `path::T`, `T<U>`, shadowed) with adversarial same-named in-crate method; any wrong bind falsifies | hand-derived per-shape expected | 20m | pending | unit `annotated_receiver_matrix` (per-shape asserts) |
-| C6 | external decline | fixture `Vec` annotation + in-crate `contains`; a bind falsifies | rustc semantics | 10m | pending | integration `annotated_external_receiver_does_not_bind` (second assert) |
+| C6 | external decline | fixture `Vec` annotation + in-crate `contains`; a bind falsifies | rustc semantics | 10m | **passed** | integration `annotated_receiver_matrix` (external-decline assert) |
 | C7 | Pass-1 skip | fixture: same-file method + unknown receiver, ambiguous twin in another file; `same_file` strategy or ambiguous bind falsifies | SQL on fixture DB | 15m | pending | integration `unknown_receiver_skips_pass1_unique_or_decline` |
 | C8 | fn calls untouched | fixture `fn foo` + `foo()`; strategy ≠ `same_file` falsifies | SQL | 5m | pending | existing suite (`tests/strategy.rs`, `tests/graph.rs` intra-file) + explicit assert in C7's fixture |
 | C9 | corpus phantoms gone | pre/post diff of call-kind refs + call_edges vs baselines; unadjudicated diff falsifies | pre-feature baselines (captured at plan time) + probe3 phantom list | 30m | pending | `audit.md` enumeration; permanent form = C4/C7 fences (embed the phantom shapes) |
 | C10 | non-method freeze | pre/post diff of non-call refs (self-corpus) + full C# corpus baselines | xebx baselines + new snapshots | 20m | pending | existing xebx fences + `tests/value_refs.rs` + C# suites |
 | C11 | DB surface unchanged | `SELECT DISTINCT kind FROM refs` pre/post identical; schema_tests pass | SQL + existing schema fences | 5m | pending | `schema_tests` column/kind pins (existing) |
-| C12 | reindex idempotent | double-index diff non-empty falsifies | SQL snapshot diff | 10m | pending | extend existing reindex fences to a method-call fixture |
+| C12 | reindex idempotent | double-index diff non-empty falsifies | SQL snapshot diff | 10m | **passed** | integration `method_call_refs_reindex_idempotent` (added at pre-PR review — the fence was missing) |
 | C13 | deprecated-callers intact | existing Rust+C# fences; new: obsolete method called via annotated receiver declined → Path B site | existing fences + hand-derived site | 15m | pending | existing `tests/deprecated_callers.rs` + `deprecated_method_declined_call_is_path_b_site` |
 
 ## Negative space

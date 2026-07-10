@@ -16,11 +16,16 @@ use crate::types::{PanicKind, PanicPoint};
 /// with a derived receiver stay unresolved as `Type::unwrap` (tethys-53iv),
 /// so the filter matches the bare names AND the `::`-qualified last segment
 /// — a raw `= 'unwrap'` filter re-hides exactly the sites the receiver
-/// gating preserved. Kept as one fragment so both queries below stay in
-/// lockstep (the `deprecated.rs` `DEPRECATION_ATTR_NAMES_SQL` precedent).
+/// gating preserved. `GLOB` (not `LIKE`) keeps the suffix match
+/// case-sensitive, and `r.kind = 'call'` keeps non-call refs (e.g. a C#
+/// `field_access` read of a property named `Unwrap`) out of a panic
+/// analysis about calls. Kept as one fragment so both queries below stay
+/// in lockstep (the `deprecated.rs` `DEPRECATION_ATTR_NAMES_SQL`
+/// precedent).
 const PANIC_NAME_PREDICATE: &str = "(r.reference_name IN ('unwrap', 'expect')
-       OR r.reference_name LIKE '%::unwrap'
-       OR r.reference_name LIKE '%::expect')";
+       OR r.reference_name GLOB '*::unwrap'
+       OR r.reference_name GLOB '*::expect')
+      AND r.kind = 'call'";
 
 impl Index {
     /// Get all panic points in the codebase.
@@ -471,18 +476,23 @@ mod tests {
                 is_test: false,
             })
             .expect("insert fn");
-        for (line, name) in [
-            (101, "Option::unwrap"),
-            (102, "a::b::expect"),
-            (103, "T::not_unwrap"),
-            (104, "unwrap_or"),
-            (105, "expected"),
+        for (line, kind, name) in [
+            (101, "call", "Option::unwrap"),
+            (102, "call", "a::b::expect"),
+            (103, "call", "T::not_unwrap"),
+            (104, "call", "unwrap_or"),
+            (105, "call", "expected"),
+            // case decoy: GLOB must stay case-sensitive (a C# `X.Unwrap()`
+            // call is not a Rust panic point)
+            (106, "call", "X::Unwrap"),
+            // kind decoy: a field_access READ of a member named unwrap
+            (107, "field_access", "X::unwrap"),
         ] {
             index
                 .insert_reference(&InsertReferenceParams {
                     symbol_id: None,
                     file_id,
-                    kind: "call",
+                    kind,
                     line,
                     column: 1,
                     in_symbol_id: Some(prod_fn),

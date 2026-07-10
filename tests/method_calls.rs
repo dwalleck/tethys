@@ -12,18 +12,32 @@ use common::{open_db, workspace_with_files};
 /// Row shape used across these tests: (strategy, target `qualified_name`,
 /// preserved `reference_name`).
 type RefRow = (Option<String>, Option<String>, Option<String>);
+/// Reindex-dump row: (line, strategy, target, preserved name).
+type DumpRow = (u32, Option<String>, Option<String>, Option<String>);
 
 fn method_ref_at(tethys: &tethys::Tethys, file: &str, line: u32) -> RefRow {
     let conn = open_db(tethys);
-    conn.query_row(
-        "SELECT r.strategy, ts.qualified_name, r.reference_name
-         FROM refs r JOIN files f ON f.id = r.file_id
-         LEFT JOIN symbols ts ON ts.id = r.symbol_id
-         WHERE f.path = ?1 AND r.line = ?2 AND r.kind = 'call'",
-        rusqlite::params![file, line],
-        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-    )
-    .expect("exactly one call ref at that line")
+    let mut stmt = conn
+        .prepare(
+            "SELECT r.strategy, ts.qualified_name, r.reference_name
+             FROM refs r JOIN files f ON f.id = r.file_id
+             LEFT JOIN symbols ts ON ts.id = r.symbol_id
+             WHERE f.path = ?1 AND r.line = ?2 AND r.kind = 'call'",
+        )
+        .expect("prepare ref lookup");
+    let rows: Vec<RefRow> = stmt
+        .query_map(rusqlite::params![file, line], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })
+        .expect("query ref lookup")
+        .collect::<Result<_, _>>()
+        .expect("collect ref rows");
+    assert_eq!(
+        rows.len(),
+        1,
+        "expected exactly one call ref at {file}:{line}, got {rows:?}"
+    );
+    rows.into_iter().next().expect("len checked")
 }
 
 /// xebx-style name-arm tier: the two unique-or-decline arms an
@@ -279,4 +293,50 @@ fn ticket_repro_all_three_acceptance_criteria() {
         !all_symbols.iter().any(|s| s.contains("use_external")),
         "the fabricated use_external edge must stay dead: {all_symbols:?}"
     );
+}
+
+/// 53iv design C12: reindexing an unchanged workspace is idempotent for
+/// the new receiver-derived shapes — the full call-ref dump (strategy,
+/// target, preserved name) is identical after a second index run (bug
+/// class: UPSERT duplication or rederivation drift on unchanged files).
+#[test]
+fn method_call_refs_reindex_idempotent() {
+    let (_dir, mut tethys) = workspace_with_files(&[(
+        "src/lib.rs",
+        "pub struct Thing;\n\
+         impl Thing {\n\
+         \x20   pub fn unwrap(&self) {}\n\
+         \x20   pub fn twice(&self) {\n\
+         \x20       self.unwrap();\n\
+         \x20   }\n\
+         }\n\
+         pub fn go(t: &Thing) {\n\
+         \x20   let x: Option<i32> = Some(1);\n\
+         \x20   x.unwrap();\n\
+         \x20   t.unwrap();\n\
+         }\n",
+    )]);
+    tethys.index().expect("index failed");
+
+    let dump = |tethys: &tethys::Tethys| -> Vec<DumpRow> {
+        let conn = open_db(tethys);
+        let mut stmt = conn
+            .prepare(
+                "SELECT r.line, r.strategy, ts.qualified_name, r.reference_name
+                 FROM refs r LEFT JOIN symbols ts ON ts.id = r.symbol_id
+                 WHERE r.kind = 'call' ORDER BY r.line, r.column",
+            )
+            .expect("prepare dump");
+        stmt.query_map([], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+        })
+        .expect("query dump")
+        .collect::<Result<_, _>>()
+        .expect("collect dump")
+    };
+
+    let first = dump(&tethys);
+    assert!(!first.is_empty(), "fixture produces call refs");
+    tethys.index().expect("no-op reindex failed");
+    assert_eq!(dump(&tethys), first, "no-op reindex must not alter refs");
 }

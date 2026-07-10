@@ -37,6 +37,7 @@ mod node_kinds {
     pub const DECLARATION_LIST: &str = "declaration_list";
     pub const TYPE_IDENTIFIER: &str = "type_identifier";
     pub const GENERIC_TYPE: &str = "generic_type";
+    pub const REFERENCE_TYPE: &str = "reference_type";
     pub const VISIBILITY_MODIFIER: &str = "visibility_modifier";
     pub const FUNCTION_MODIFIERS: &str = "function_modifiers";
     pub const TYPE_PARAMETERS: &str = "type_parameters";
@@ -431,14 +432,16 @@ fn impl_type_base_name(node: &tree_sitter::Node, content: &[u8]) -> Option<Strin
 /// Last-segment, generics-stripped base name of a type node; `None` when
 /// the type has no single nominal base.
 fn type_base_name(ty: &tree_sitter::Node, content: &[u8]) -> Option<String> {
+    use node_kinds::{GENERIC_TYPE, REFERENCE_TYPE, SCOPED_TYPE_IDENTIFIER, TYPE_IDENTIFIER};
+
     match ty.kind() {
-        "type_identifier" => node_text(ty, content),
+        TYPE_IDENTIFIER => node_text(ty, content),
         // generic_type strips to its base, reference_type to its referent
-        "generic_type" | "reference_type" => {
+        GENERIC_TYPE | REFERENCE_TYPE => {
             let inner = ty.child_by_field_name("type")?;
             type_base_name(&inner, content)
         }
-        "scoped_type_identifier" => {
+        SCOPED_TYPE_IDENTIFIER => {
             let name = ty.child_by_field_name("name")?;
             node_text(&name, content)
         }
@@ -511,6 +514,10 @@ fn value_position_ref(
 /// all its value-position uses there. Conservative by design — "suppressions,
 /// not accusations" (tethys-ygjx). Nested `function_item`s recompute their own
 /// set, so an inner function's uses are scoped to the inner function.
+///
+/// LOCKSTEP: [`collect_types_recursive`] walks the same binding-form node
+/// list for the annotation map — a binding form added here must be added
+/// there too, or derivation can guess from a shape this set suppresses.
 fn collect_local_bindings(fn_node: &tree_sitter::Node, content: &[u8]) -> HashSet<String> {
     let mut names = HashSet::new();
     collect_bindings_recursive(fn_node, content, &mut names);
@@ -562,6 +569,9 @@ fn collect_bindings_recursive(
 /// unknown, never to a guess (tethys-53iv D2). Sanity hint, not
 /// load-bearing: callers pass a `function_item` (a non-fn node yields an
 /// empty or harmlessly partial map).
+///
+/// LOCKSTEP: [`collect_bindings_recursive`] walks the same binding-form
+/// node list for the fn-as-value suppression set — keep the lists in sync.
 fn collect_local_types(fn_node: &tree_sitter::Node, content: &[u8]) -> HashMap<String, String> {
     debug_assert!(
         fn_node.kind() == node_kinds::FUNCTION_ITEM,
@@ -746,8 +756,8 @@ fn extract_call_reference(
             // receivers stay bare and go to the unique-or-decline arms.
             let receiver = function.child_by_field_name("value");
             let path = match receiver.map(|r| r.kind()) {
-                Some("self") => ctx.impl_type.map(|t| vec![t.to_string()]),
-                Some("identifier") => receiver
+                Some(node_kinds::SELF) => ctx.impl_type.map(|t| vec![t.to_string()]),
+                Some(node_kinds::IDENTIFIER) => receiver
                     .and_then(|r| node_text(&r, content))
                     .and_then(|ident| ctx.local_types.and_then(|m| m.get(&ident)))
                     .map(|t| vec![t.clone()]),
@@ -3223,6 +3233,7 @@ pub fn go(x: &Thing, c: u32, (a, b): (u8, u8)) {
     let v: Vec<i32> = vec![];
     let s: Thing = make_thing();
     let s = other();
+    let x: Widget = rebind_param();
     let f = |c: String| c.len();
     let plain = compute();
 }
@@ -3232,7 +3243,7 @@ pub fn go(x: &Thing, c: u32, (a, b): (u8, u8)) {
         let mut cursor = root.walk();
         let fn_item = root
             .children(&mut cursor)
-            .find(|n| n.kind() == "function_item")
+            .find(|n| n.kind() == node_kinds::FUNCTION_ITEM)
             .expect("fixture has a fn");
         let map = collect_local_types(&fn_item, code.as_bytes());
 
@@ -3242,7 +3253,6 @@ pub fn go(x: &Thing, c: u32, (a, b): (u8, u8)) {
             entries,
             vec![
                 ("v".to_string(), "Vec".to_string()),
-                ("x".to_string(), "Thing".to_string()),
                 ("y".to_string(), "Widget".to_string()),
                 ("z".to_string(), "Gauge".to_string()),
             ],
