@@ -322,6 +322,12 @@ impl Index {
                 // calls/constructs can never bind a data member (D10).
                 let symbol_id = if r.kind == ExtractedReferenceKind::Macro {
                     macro_name_to_id.get(r.name.as_str()).copied()
+                } else if r.kind == ExtractedReferenceKind::Method {
+                    // Method calls never bind by bare name at Pass 1: the
+                    // receiver decides. Pass 2 handles them — qualified_exact
+                    // for derived receivers, unique-or-decline name arms for
+                    // unknown ones (tethys-53iv).
+                    None
                 } else if r.kind == ExtractedReferenceKind::FieldAccess {
                     data_member_name_to_id
                         .get(r.name.as_str())
