@@ -1326,3 +1326,39 @@ fn csharp_obsolete_static_property_definite_site() {
         "type-receiver read resolves qualified_exact and tiers Definite"
     );
 }
+
+/// tethys-53iv C13: a method call DECLINED by receiver derivation (the
+/// annotated-external shape) keeps its qualified `reference_name`, and
+/// deprecated-callers' Path B surfaces it as a Maybe site by last-segment
+/// match — receiver gating must not silence the deprecation radar (bug
+/// class: dropping declined refs, or storing a shape Path B cannot match).
+#[test]
+fn deprecated_method_declined_call_is_path_b_site() {
+    let (_dir, mut tethys) = workspace_with_files(&[(
+        "src/lib.rs",
+        "pub struct Store;\n\
+         impl Store {\n\
+         \x20   #[deprecated(note = \"use put\")]\n\
+         \x20   pub fn stash(&self) {}\n\
+         }\n\
+         pub fn caller(v: Vec<i32>) {\n\
+         \x20   v.stash();\n\
+         }\n",
+    )]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+
+    let stash = finding(&findings, "stash", "src/lib.rs");
+    let sites: Vec<(&str, u32, Via, Tier)> = stash
+        .sites
+        .iter()
+        .map(|s| (s.file.as_str(), s.line, s.via, s.tier))
+        .collect();
+    assert_eq!(
+        sites,
+        [("src/lib.rs", 7, Via::UnresolvedQualified, Tier::Maybe)],
+        "the declined Vec::stash call surfaces via Path B as Maybe"
+    );
+}

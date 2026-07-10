@@ -207,3 +207,76 @@ fn annotated_receiver_matrix() {
     assert_eq!(strategy, None);
     assert_eq!(name.as_deref(), Some("Vec::contains"));
 }
+
+/// The tethys-53iv ticket repro, verbatim, as the permanent form of all
+/// three acceptance criteria. AC1: the annotated-external `x.unwrap()`
+/// must not bind the in-crate `Thing::unwrap` (kills: name-only binding
+/// returning). AC2: panic-points reports exactly that site (kills: the
+/// raw `= 'unwrap'` filter returning, or resolution nulling the name).
+/// AC3: the underivable `t.unwrap()` still resolves to `Thing::unwrap`
+/// through a name arm and remains the method's ONLY caller (kills:
+/// over-eager blanket decline).
+#[test]
+fn ticket_repro_all_three_acceptance_criteria() {
+    let (_dir, mut tethys) = workspace_with_files(&[(
+        "src/lib.rs",
+        "pub struct Thing;\n\
+         impl Thing {\n\
+         \x20   pub fn unwrap(&self) {}\n\
+         }\n\
+         pub fn use_external() {\n\
+         \x20   let x: Option<i32> = Some(1);\n\
+         \x20   x.unwrap();\n\
+         }\n\
+         pub fn use_internal() {\n\
+         \x20   let t = Thing;\n\
+         \x20   t.unwrap();\n\
+         }\n",
+    )]);
+    tethys.index().expect("index failed");
+
+    // AC1: annotated-external receiver declined, qualified name preserved.
+    let (strategy, target, name) = method_ref_at(&tethys, "src/lib.rs", 7);
+    assert_eq!(target, None, "Option::unwrap must not bind Thing::unwrap");
+    assert_eq!(strategy, None);
+    assert_eq!(name.as_deref(), Some("Option::unwrap"));
+
+    // AC2: panic-points sees the genuine external unwrap.
+    let points = tethys
+        .get_panic_points(false, None)
+        .expect("panic points query");
+    let sites: Vec<(String, u32)> = points
+        .iter()
+        .map(|p| (p.path.display().to_string(), p.line))
+        .collect();
+    assert_eq!(
+        sites,
+        vec![("src/lib.rs".to_string(), 7)],
+        "exactly the annotated-external unwrap site"
+    );
+
+    // AC3: the underivable receiver still resolves to the real method.
+    let (strategy, target, _) = method_ref_at(&tethys, "src/lib.rs", 11);
+    assert_eq!(target.as_deref(), Some("Thing::unwrap"));
+    assert!(
+        name_arm_tier(strategy.as_deref()),
+        "expected a name-arm bind, got {strategy:?}"
+    );
+    let callers = tethys
+        .get_callers("Thing::unwrap", false)
+        .expect("callers query");
+    let caller_files: Vec<&str> = callers.iter().map(|c| c.file.to_str().unwrap()).collect();
+    assert_eq!(caller_files, ["src/lib.rs"], "one caller file");
+    let all_symbols: Vec<&str> = callers
+        .iter()
+        .flat_map(|c| c.symbols_used.iter().map(String::as_str))
+        .collect();
+    assert!(
+        all_symbols.iter().any(|s| s.contains("use_internal")),
+        "use_internal is the true caller: {all_symbols:?}"
+    );
+    assert!(
+        !all_symbols.iter().any(|s| s.contains("use_external")),
+        "the fabricated use_external edge must stay dead: {all_symbols:?}"
+    );
+}
