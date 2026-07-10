@@ -30,12 +30,25 @@ use crate::types::{
 /// resolve only to a macro definition — never to a same-named fn/type/const.
 /// Without this gate, `write!(...)` resolves by bare name to a workspace
 /// `fn write`, forging a phantom call edge that corrupts
-/// callers/reachable/impact/coupling. Every other reference kind is
-/// unconstrained here (a kind-mismatched candidate is simply skipped, so
-/// resolution falls through to the next strategy — for a macro, that means it
-/// stays unresolved unless a real macro definition is found).
+/// callers/reachable/impact/coupling.
+///
+/// Symmetrically, a call or construct must never bind a data member
+/// (property, event, field): without this, `new Exception("timeout")` in a
+/// file whose result type declares `public Exception Exception { get; }`
+/// binds the BCL constructor to the property, forging a phantom edge —
+/// caught by the tethys-xebx corpus audit. `Delegate` stays bindable
+/// (`new Transform(Method)` is a real construct). The general kind-aware
+/// binding work is tracked at tethys-0aqj.
+///
+/// Every other reference kind is unconstrained here (a kind-mismatched
+/// candidate is simply skipped, so resolution falls through to the next
+/// strategy; a ref with no kind-valid candidate stays unresolved).
 fn ref_binds_to_symbol_kind(ref_kind: &ReferenceKind, symbol_kind: SymbolKind) -> bool {
-    !matches!(ref_kind, ReferenceKind::Macro) || symbol_kind == SymbolKind::Macro
+    match ref_kind {
+        ReferenceKind::Macro => symbol_kind == SymbolKind::Macro,
+        ReferenceKind::Call | ReferenceKind::Construct => !symbol_kind.is_data_member(),
+        _ => true,
+    }
 }
 
 /// Per-file context used during cross-file reference resolution (Pass 2).

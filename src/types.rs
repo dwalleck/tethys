@@ -291,7 +291,23 @@ pub enum SymbolKind {
     /// identifier. For tuple structs and tuple variants, `name` is the
     /// positional index ("0", "1", ...). The field's type lands in
     /// `signature`.
+    ///
+    /// C# `field_declaration` members (including `const` and
+    /// `static readonly`) also map here — a class field is the same domain
+    /// concept, and reusing the kind mirrors how C# records map to `Class`
+    /// (tethys-xebx).
     StructField,
+    /// C# property (`property_declaration`), accessor-block or
+    /// expression-bodied; `parent_name` is the enclosing type (tethys-xebx).
+    Property,
+    /// C# event (`event_field_declaration` or accessor-form
+    /// `event_declaration`); `parent_name` is the enclosing type
+    /// (tethys-xebx).
+    Event,
+    /// C# delegate type (`delegate_declaration`), at namespace or class
+    /// level; class-level delegates carry the enclosing type in
+    /// `parent_name` (tethys-xebx).
+    Delegate,
 }
 
 impl SymbolKind {
@@ -313,7 +329,21 @@ impl SymbolKind {
             Self::Macro => "macro",
             Self::EnumVariant => "enum_variant",
             Self::StructField => "struct_field",
+            Self::Property => "property",
+            Self::Event => "event",
+            Self::Delegate => "delegate",
         }
+    }
+
+    /// Whether this kind is a data member (property, event, field) — the
+    /// kinds that never receive call/construct binds and live in their own
+    /// Pass-1 same-file map (tethys-xebx D10). `Delegate` is deliberately
+    /// not a data member: `new Transform(m)` is a real construct. Keep the
+    /// two consumers (`db/files.rs` map build, `resolve.rs` kind gate) in
+    /// lockstep through this single definition.
+    #[must_use]
+    pub fn is_data_member(&self) -> bool {
+        matches!(self, Self::Property | Self::Event | Self::StructField)
     }
 }
 
@@ -2000,6 +2030,9 @@ mod tests {
             SymbolKind::Macro,
             SymbolKind::EnumVariant,
             SymbolKind::StructField,
+            SymbolKind::Property,
+            SymbolKind::Event,
+            SymbolKind::Delegate,
         ];
         for kind in variants {
             let db_str = kind.as_str();
@@ -2115,6 +2148,9 @@ mod tests {
                 Just(SymbolKind::Macro),
                 Just(SymbolKind::EnumVariant),
                 Just(SymbolKind::StructField),
+                Just(SymbolKind::Property),
+                Just(SymbolKind::Event),
+                Just(SymbolKind::Delegate),
             ]
         }
 

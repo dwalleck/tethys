@@ -153,6 +153,9 @@ pub enum ExtractedReferenceKind {
     /// Value use: an in-crate free function / const / enum-variant referenced
     /// without being called (`iter.map(foo)`, `let g = foo;`) — tethys-ygjx.
     Value,
+    /// Member read: a `member_access_expression` outside an invocation callee
+    /// (`result.Data`), one per access level of a chain — tethys-xebx.
+    FieldAccess,
 }
 
 impl ExtractedReferenceKind {
@@ -166,6 +169,7 @@ impl ExtractedReferenceKind {
             Self::Macro => crate::types::ReferenceKind::Macro,
             Self::Reexport => crate::types::ReferenceKind::Reexport,
             Self::Value => crate::types::ReferenceKind::Value,
+            Self::FieldAccess => crate::types::ReferenceKind::FieldAccess,
         }
     }
 }

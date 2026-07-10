@@ -1,0 +1,72 @@
+== A. C# symbol kind distribution (what extraction produces today) ==
+kind|n
+method|537
+function|59
+class|48
+module|31
+struct|2
+interface|1
+enum|1
+== B. symbol rows named Data / Value (member declarations) ==
+== C. refs kind distribution for C# files ==
+kind|n
+call|3862
+construct|254
+== D. any refs whose name is Data (member reads, if any existed) ==
+== E. attribute rows mentioning Obsolete (haw5 shipped this; expect >=1) ==
+== F. module_path of symbols in GenericResult.cs (namespace attribution) ==
+name|kind|module_path
+Tethys.Results|module|
+Result|class|
+Result|method|
+Ok|function|
+Ok|function|
+Fail|function|
+Fail|function|
+FromException|function|
+Combine|function|
+AsResult|method|
+GetValueOrDefault|method|
+TryGetValue|method|
+== G. imports rows for BasicTests.cs (union-arm corroboration input) ==
+file_id|symbol_name|source_module|alias
+16|*|System|
+16|*|System.Text|
+16|*|System.Threading.Tasks|
+16|*|Tethys.Results|
+16|*|TUnit|
+== H. deprecated-callers --json ==
+{
+  "summary": {
+    "symbol_count": 0,
+    "with_callers": 0,
+    "clean": 0,
+    "site_count": 0
+  },
+  "deprecated": []
+}
+== I. strategy distribution for C# refs (resolution reality today) ==
+strategy|n
+|3703
+qualified_exact|284
+same_file|124
+unique_workspace|3
+import_union|2
+== J. variable-receiver instance calls: GetValueOrDefault refs ==
+name|strategy|n
+dataResult::GetValueOrDefault||1
+failedResult::GetValueOrDefault||2
+result::GetValueOrDefault||16
+== K. sample unresolved variable-receiver reference_names ==
+result::Match
+Assert::That
+Is::EqualTo
+Is::SameAs
+value::ToUpper
+Assert::Throws<ArgumentNullException>
+result::Match<string>
+result::MatchAsync
+Task::Delay
+results::Select
+r::Match
+v::ToString

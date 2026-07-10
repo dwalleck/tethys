@@ -1223,3 +1223,106 @@ fn cfg_attr_deprecated_fn_is_listed_with_callers() {
     );
     assert_eq!(cond_old.sites[0].caller.as_deref(), Some("migrate"));
 }
+
+// ============================================================================
+// tethys-xebx: [Obsolete] on member declarations (properties) + reader sites
+// ============================================================================
+
+/// xebx S8 shared fixture, mirroring the shape proven on the real corpus
+/// (`Tethys.Results`): an `[Obsolete]` expression-bodied property with a
+/// cross-file variable-receiver read (Path B, Maybe), a same-named
+/// non-deprecated decoy property whose same-file read must bind locally and
+/// stay OUT of the findings, and an `[Obsolete]` static property with a
+/// unique name read through a type receiver (`qualified_exact`, Definite).
+fn build_csharp_property_fixture() -> (tempfile::TempDir, Vec<DeprecatedFinding>) {
+    let (dir, mut tethys) = workspace_with_files(&[
+        (
+            "Lib.cs",
+            "using System;\n\nnamespace Lib\n{\n    public class Result\n    {\n        \
+             [Obsolete(\"Use Value instead.\")]\n        public int Data => 1;\n    }\n\n    \
+             public static class Config\n    {\n        \
+             [Obsolete(\"off by default\")]\n        \
+             public static bool LegacyFlag { get; } = false;\n    }\n}\n",
+        ),
+        (
+            "Reader.cs",
+            "using Lib;\n\nnamespace App\n{\n    public class Reader\n    {\n        \
+             public int Go(Result r)\n        {\n            \
+             var f = Config.LegacyFlag;\n            return r.Data;\n        }\n    }\n}\n",
+        ),
+        (
+            "Decoy.cs",
+            "namespace App2\n{\n    public class ApiResponse\n    {\n        \
+             public object Data { get; set; }\n    }\n\n    public class Consumer\n    {\n        \
+             public object Use(ApiResponse apiResponse)\n        {\n            \
+             return apiResponse.Data;\n        }\n    }\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+    (dir, findings)
+}
+
+/// xebx design C7 + C9: the `[Obsolete]` property surfaces with exactly its
+/// cross-file variable-receiver reader as a Maybe Path-B site, attributed to
+/// the reading method; the decoy file's same-file read binds the local
+/// non-deprecated `ApiResponse.Data` and must not appear. Kills: member
+/// reads not emitted (empty sites), fold-to-outermost designs, kind-blind
+/// Path B listing the decoy read, and a missing same-file bind (decoy read
+/// leaking in as unresolved-qualified).
+#[test]
+fn csharp_obsolete_property_reader_sites() {
+    let (_dir, findings) = build_csharp_property_fixture();
+
+    let data = findings
+        .iter()
+        .find(|f| f.symbol.name == "Data")
+        .expect("the [Obsolete] property must surface as a deprecated symbol");
+    assert_eq!(data.symbol.kind, "property");
+    assert_eq!(data.symbol.note.as_deref(), Some("Use Value instead."));
+    assert_eq!(data.symbol.error, None, "message-only [Obsolete]");
+
+    let sites: Vec<(&str, u32, Via, Tier, Option<&str>)> = data
+        .sites
+        .iter()
+        .map(|s| (s.file.as_str(), s.line, s.via, s.tier, s.caller.as_deref()))
+        .collect();
+    assert_eq!(
+        sites,
+        [(
+            "Reader.cs",
+            10,
+            Via::UnresolvedQualified,
+            Tier::Maybe,
+            Some("Go")
+        )],
+        "exactly the cross-file variable-receiver read, nothing from Decoy.cs"
+    );
+}
+
+/// xebx design C8-adjacent Definite path: a type-receiver read of a
+/// unique-name `[Obsolete]` static property resolves via `qualified_exact`
+/// and tiers Definite. Kills: property symbols missing `qualified_name`
+/// (read stays unresolved, demoted to Maybe) and the D10 gate over-reaching
+/// into `field_access` binds.
+#[test]
+fn csharp_obsolete_static_property_definite_site() {
+    let (_dir, findings) = build_csharp_property_fixture();
+
+    let flag = findings
+        .iter()
+        .find(|f| f.symbol.name == "LegacyFlag")
+        .expect("the [Obsolete] static property must surface");
+    let sites: Vec<(&str, u32, Via, Tier)> = flag
+        .sites
+        .iter()
+        .map(|s| (s.file.as_str(), s.line, s.via, s.tier))
+        .collect();
+    assert_eq!(
+        sites,
+        [("Reader.cs", 9, Via::Resolved, Tier::Definite)],
+        "type-receiver read resolves qualified_exact and tiers Definite"
+    );
+}

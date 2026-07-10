@@ -1,0 +1,15 @@
+[package]
+name = "xebx-probe1"
+version = "0.1.0"
+edition = "2021"
+
+# probe1 (tethys-xebx): standalone tree-sitter walk over a real C# repo.
+# Deliberately uses the raw grammar (same versions tethys pins) and NONE of
+# tethys's extraction code, so its output is independent of the feature
+# under design.
+
+[dependencies]
+# exact pins matching tethys's Cargo.lock — 0.23.5 ships a newer ABI that
+# tree-sitter 0.24 rejects (LanguageError version 15)
+tree-sitter = "=0.24.7"
+tree-sitter-c-sharp = "=0.23.1"

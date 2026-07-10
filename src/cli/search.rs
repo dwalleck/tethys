@@ -20,7 +20,7 @@ pub fn run(
     if let Some(kind_str) = kind_filter {
         let target_kind = parse_kind(kind_str).ok_or_else(|| {
             tethys::Error::Config(format!(
-                "unknown symbol kind '{kind_str}'. Valid kinds: function, method, struct, class, enum, trait, interface, const, static, module, type_alias, macro"
+                "unknown symbol kind '{kind_str}'. Valid kinds: function, method, struct, class, enum, trait, interface, const, static, module, type_alias, macro, enum_variant, struct_field, property, event, delegate"
             ))
         })?;
         symbols.retain(|s| s.kind == target_kind);
@@ -113,6 +113,9 @@ fn parse_kind(s: &str) -> Option<SymbolKind> {
         "macro" => Some(SymbolKind::Macro),
         "enum_variant" | "variant" => Some(SymbolKind::EnumVariant),
         "struct_field" | "field" => Some(SymbolKind::StructField),
+        "property" => Some(SymbolKind::Property),
+        "event" => Some(SymbolKind::Event),
+        "delegate" => Some(SymbolKind::Delegate),
         _ => None,
     }
 }
@@ -133,5 +136,8 @@ fn format_kind(kind: SymbolKind) -> &'static str {
         SymbolKind::Macro => "macro",
         SymbolKind::EnumVariant => "enum variant",
         SymbolKind::StructField => "struct field",
+        SymbolKind::Property => "property",
+        SymbolKind::Event => "event",
+        SymbolKind::Delegate => "delegate",
     }
 }

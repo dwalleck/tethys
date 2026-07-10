@@ -314,3 +314,115 @@ fn csharp_attribute_rows_match_source_and_survive_reindex() {
         "file rewrite must not duplicate or drop attribute rows"
     );
 }
+
+/// xebx S10 (design C4 integration + C13): `[Obsolete]` on member
+/// declarations lands one attribute row per produced symbol — a
+/// two-declarator field fans its attribute out to BOTH `struct_field`
+/// symbols — and both the attribute dump and the member-symbol dump are
+/// identical after a no-op reindex AND a content-hash-busting rewrite
+/// (UPSERT duplication is the tethys-wsix bug class).
+#[test]
+fn csharp_member_attribute_rows_match_source_and_survive_reindex() {
+    fn dump_attrs(tethys: &tethys::Tethys) -> Vec<(String, String, Option<String>, u32)> {
+        let conn = open_db(tethys);
+        let mut stmt = conn
+            .prepare(
+                "SELECT s.name, a.name, a.args, a.line
+                 FROM attributes a
+                 JOIN symbols s ON s.id = a.symbol_id
+                 ORDER BY a.line, s.name",
+            )
+            .expect("prepare attr dump");
+        let rows = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .expect("query attr dump");
+        rows.collect::<Result<Vec<_>, _>>()
+            .expect("collect attr dump")
+    }
+    fn dump_members(tethys: &tethys::Tethys) -> Vec<(String, String, u32)> {
+        let conn = open_db(tethys);
+        let mut stmt = conn
+            .prepare(
+                "SELECT name, kind, line FROM symbols
+                 WHERE kind IN ('property', 'struct_field', 'event', 'delegate')
+                 ORDER BY line, name",
+            )
+            .expect("prepare member dump");
+        let rows = stmt
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .expect("query member dump");
+        rows.collect::<Result<Vec<_>, _>>()
+            .expect("collect member dump")
+    }
+
+    let src = "using System;\n\nnamespace App\n{\n    public class Widget\n    {\n        \
+               [Obsolete(\"pair\")]\n        public int A, B;\n\n        \
+               [Obsolete(\"use Value\")]\n        public int Data => 1;\n    }\n}\n";
+    let (dir, mut tethys) = workspace_with_files(&[("Widget.cs", src)]);
+    tethys.index().expect("index failed");
+
+    // Row-level literals hand-read from `src` (grep oracle): the declarators
+    // A and B sit on line 8, the field attribute on line 7; the property
+    // attribute on line 10.
+    let attrs = dump_attrs(&tethys);
+    assert_eq!(
+        attrs,
+        vec![
+            (
+                "A".to_string(),
+                "Obsolete".to_string(),
+                Some("\"pair\"".to_string()),
+                7,
+            ),
+            (
+                "B".to_string(),
+                "Obsolete".to_string(),
+                Some("\"pair\"".to_string()),
+                7,
+            ),
+            (
+                "Data".to_string(),
+                "Obsolete".to_string(),
+                Some("\"use Value\"".to_string()),
+                10,
+            ),
+        ],
+        "one attribute row per declarator symbol, plus the property's"
+    );
+    let members = dump_members(&tethys);
+    assert_eq!(
+        members,
+        vec![
+            ("A".to_string(), "struct_field".to_string(), 8),
+            ("B".to_string(), "struct_field".to_string(), 8),
+            ("Data".to_string(), "property".to_string(), 10),
+        ],
+        "member symbols anchored at declarator/declaration lines"
+    );
+
+    tethys.index().expect("no-op reindex failed");
+    assert_eq!(
+        dump_attrs(&tethys),
+        attrs,
+        "no-op reindex: attr rows stable"
+    );
+    assert_eq!(
+        dump_members(&tethys),
+        members,
+        "no-op reindex: member rows stable"
+    );
+
+    std::fs::write(dir.path().join("Widget.cs"), format!("{src}// touched\n"))
+        .expect("rewrite fixture file");
+    tethys.index().expect("reindex after rewrite failed");
+    assert_eq!(
+        dump_attrs(&tethys),
+        attrs,
+        "rewrite must not duplicate or drop member attribute rows"
+    );
+    assert_eq!(
+        dump_members(&tethys),
+        members,
+        "rewrite must not duplicate or drop member symbol rows"
+    );
+}

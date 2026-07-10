@@ -29,6 +29,13 @@ mod node_kinds {
     // Members
     pub const METHOD_DECLARATION: &str = "method_declaration";
     pub const CONSTRUCTOR_DECLARATION: &str = "constructor_declaration";
+    pub const PROPERTY_DECLARATION: &str = "property_declaration";
+    pub const FIELD_DECLARATION: &str = "field_declaration";
+    pub const EVENT_FIELD_DECLARATION: &str = "event_field_declaration";
+    pub const EVENT_DECLARATION: &str = "event_declaration";
+    pub const DELEGATE_DECLARATION: &str = "delegate_declaration";
+    pub const VARIABLE_DECLARATION: &str = "variable_declaration";
+    pub const VARIABLE_DECLARATOR: &str = "variable_declarator";
 
     // Namespaces & imports
     pub const NAMESPACE_DECLARATION: &str = "namespace_declaration";
@@ -136,21 +143,31 @@ pub fn extract_references(tree: &tree_sitter::Tree, content: &[u8]) -> Vec<Extra
     let mut refs = Vec::new();
     let root = tree.root_node();
 
-    extract_references_recursive(&root, content, &mut refs, None);
+    extract_references_recursive(&root, content, &mut refs, None, false);
 
     refs
 }
 
+/// Recursive worker for [`extract_references`].
+///
+/// `in_invocation_callee` is true while descending an invocation's `function`
+/// child along its `member_access_expression` spine: those levels fold into
+/// the call ref's path (`a.B.M()` → one call `a::B::M`), so the member-read
+/// arm must not re-emit them (tethys-xebx D6). The flag survives only through
+/// `member_access_expression` nodes — any other node (an invocation receiver,
+/// a parenthesized expression, arguments) resets it, so `Get(x.P).M()` still
+/// emits the `x.P` read.
 fn extract_references_recursive(
     node: &tree_sitter::Node,
     content: &[u8],
     refs: &mut Vec<ExtractedReference>,
     containing_span: Option<Span>,
+    in_invocation_callee: bool,
 ) {
     use node_kinds::{
-        CLASS_DECLARATION, CONSTRUCTOR_DECLARATION, DECLARATION_LIST, INTERFACE_DECLARATION,
-        INVOCATION_EXPRESSION, METHOD_DECLARATION, OBJECT_CREATION_EXPRESSION, STRUCT_DECLARATION,
-        USING_DIRECTIVE,
+        CLASS_DECLARATION, CONSTRUCTOR_DECLARATION, DECLARATION_LIST, EVENT_DECLARATION,
+        INTERFACE_DECLARATION, INVOCATION_EXPRESSION, MEMBER_ACCESS_EXPRESSION, METHOD_DECLARATION,
+        OBJECT_CREATION_EXPRESSION, PROPERTY_DECLARATION, STRUCT_DECLARATION, USING_DIRECTIVE,
     };
 
     match node.kind() {
@@ -158,11 +175,13 @@ fn extract_references_recursive(
         USING_DIRECTIVE => return,
 
         INVOCATION_EXPRESSION => {
-            // Method call
-            if let Some(mut ref_data) = extract_invocation_reference(node, content) {
-                ref_data.containing_symbol_span = containing_span;
-                refs.push(ref_data);
-            }
+            visit_invocation(node, content, refs, containing_span);
+            return;
+        }
+
+        MEMBER_ACCESS_EXPRESSION => {
+            visit_member_access(node, content, refs, containing_span, in_invocation_callee);
+            return;
         }
 
         OBJECT_CREATION_EXPRESSION => {
@@ -173,12 +192,16 @@ fn extract_references_recursive(
             }
         }
 
-        // Method definitions: capture span and recurse with it
-        METHOD_DECLARATION | CONSTRUCTOR_DECLARATION => {
-            let method_span = node_span(node);
+        // Member definitions with bodies: capture span and recurse with it,
+        // so refs inside method bodies AND property/event accessor bodies
+        // (`T Data => Value;`, get/add/remove blocks) attribute to the member
+        // symbol (tethys-xebx D8). Field initializers stay span-less by
+        // design — rare, and their sites still list with `caller: null`.
+        METHOD_DECLARATION | CONSTRUCTOR_DECLARATION | PROPERTY_DECLARATION | EVENT_DECLARATION => {
+            let member_span = node_span(node);
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                extract_references_recursive(&child, content, refs, Some(method_span));
+                extract_references_recursive(&child, content, refs, Some(member_span), false);
             }
             return;
         }
@@ -200,17 +223,24 @@ fn extract_references_recursive(
                                         content,
                                         refs,
                                         Some(method_span),
+                                        false,
                                     );
                                 }
                             }
                             _ => {
-                                extract_references_recursive(&item, content, refs, containing_span);
+                                extract_references_recursive(
+                                    &item,
+                                    content,
+                                    refs,
+                                    containing_span,
+                                    false,
+                                );
                             }
                         }
                     }
                 } else {
                     // Type references in class header (e.g., base class, interfaces)
-                    extract_references_recursive(&child, content, refs, containing_span);
+                    extract_references_recursive(&child, content, refs, containing_span, false);
                 }
             }
             return;
@@ -219,10 +249,62 @@ fn extract_references_recursive(
         _ => {}
     }
 
-    // Recurse into children
+    // Recurse into children. The callee-spine flag never survives a
+    // non-member-access node (see doc comment).
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        extract_references_recursive(&child, content, refs, containing_span);
+        extract_references_recursive(&child, content, refs, containing_span, false);
+    }
+}
+
+/// Emit the call ref for an `invocation_expression` and descend: the
+/// `function` child is the callee spine (member reads suppressed there);
+/// arguments and other children are normal expression context.
+fn visit_invocation(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    refs: &mut Vec<ExtractedReference>,
+    containing_span: Option<Span>,
+) {
+    if let Some(mut ref_data) = extract_invocation_reference(node, content) {
+        ref_data.containing_symbol_span = containing_span;
+        refs.push(ref_data);
+    }
+    let callee_id = node.child_by_field_name("function").map(|f| f.id());
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        let is_callee = callee_id == Some(child.id());
+        extract_references_recursive(&child, content, refs, containing_span, is_callee);
+    }
+}
+
+/// Emit a member read (`result.Data`) for a `member_access_expression`
+/// outside an invocation callee, then descend. One ref per access level of a
+/// chain — recursing into the receiver re-enters this arm for
+/// `response.Data` inside `response.Data.Name` (tethys-xebx D5).
+fn visit_member_access(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    refs: &mut Vec<ExtractedReference>,
+    containing_span: Option<Span>,
+    in_invocation_callee: bool,
+) {
+    use node_kinds::MEMBER_ACCESS_EXPRESSION;
+
+    if !in_invocation_callee && let Some((path, name)) = parse_member_access(node, content) {
+        refs.push(ExtractedReference {
+            name,
+            kind: ExtractedReferenceKind::FieldAccess,
+            line: node.start_position().row as u32 + 1,
+            column: node.start_position().column as u32 + 1,
+            path: if path.is_empty() { None } else { Some(path) },
+            containing_symbol_span: containing_span,
+        });
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        let spine_continues = in_invocation_callee && child.kind() == MEMBER_ACCESS_EXPRESSION;
+        extract_references_recursive(&child, content, refs, containing_span, spine_continues);
     }
 }
 
@@ -568,9 +650,9 @@ fn extract_symbols_recursive(
     parent_name: Option<&str>,
 ) {
     use node_kinds::{
-        CLASS_DECLARATION, CONSTRUCTOR_DECLARATION, DECLARATION_LIST, ENUM_DECLARATION,
-        FILE_SCOPED_NAMESPACE_DECLARATION, INTERFACE_DECLARATION, METHOD_DECLARATION,
-        NAMESPACE_DECLARATION, RECORD_DECLARATION, STRUCT_DECLARATION,
+        CLASS_DECLARATION, CONSTRUCTOR_DECLARATION, DECLARATION_LIST, DELEGATE_DECLARATION,
+        ENUM_DECLARATION, FILE_SCOPED_NAMESPACE_DECLARATION, INTERFACE_DECLARATION,
+        METHOD_DECLARATION, NAMESPACE_DECLARATION, RECORD_DECLARATION, STRUCT_DECLARATION,
     };
 
     match node.kind() {
@@ -641,6 +723,14 @@ fn extract_symbols_recursive(
                 symbols.push(sym);
             }
         }
+        DELEGATE_DECLARATION => {
+            // Namespace-level delegate: no parent, matching how classes ignore
+            // their namespace in qualified_name terms. Class-level delegates
+            // arrive via extract_class_members with the enclosing type instead.
+            if let Some(sym) = extract_delegate(node, content, None) {
+                symbols.push(sym);
+            }
+        }
         _ => {
             // Recurse into children for containers we don't explicitly handle
             let mut cursor = node.walk();
@@ -668,6 +758,9 @@ fn extract_class_members(
         if child.kind() == DECLARATION_LIST {
             let mut inner_cursor = child.walk();
             for item in child.children(&mut inner_cursor) {
+                if extract_data_member(&item, content, symbols, parent_name) {
+                    continue;
+                }
                 match item.kind() {
                     METHOD_DECLARATION => {
                         if let Some(mut sym) = extract_method(&item, content, Some(parent_name)) {
@@ -736,6 +829,60 @@ fn extract_class_members(
             }
         }
     }
+}
+
+/// Extract a data-member declaration (property, field, event, delegate) from
+/// a type body item, pushing any produced symbols (tethys-xebx).
+///
+/// Returns `true` when `item` was one of the data-member kinds (even if name
+/// extraction failed and nothing was pushed), so the caller can skip its own
+/// dispatch; `false` means "not a data member, dispatch normally".
+fn extract_data_member(
+    item: &tree_sitter::Node,
+    content: &[u8],
+    symbols: &mut Vec<ExtractedSymbol>,
+    parent_name: &str,
+) -> bool {
+    use node_kinds::{
+        DELEGATE_DECLARATION, EVENT_DECLARATION, EVENT_FIELD_DECLARATION, FIELD_DECLARATION,
+        PROPERTY_DECLARATION,
+    };
+
+    match item.kind() {
+        PROPERTY_DECLARATION => {
+            if let Some(sym) = extract_property(item, content, Some(parent_name)) {
+                symbols.push(sym);
+            }
+        }
+        FIELD_DECLARATION => {
+            symbols.extend(extract_field_like(
+                item,
+                content,
+                SymbolKind::StructField,
+                Some(parent_name),
+            ));
+        }
+        EVENT_FIELD_DECLARATION => {
+            symbols.extend(extract_field_like(
+                item,
+                content,
+                SymbolKind::Event,
+                Some(parent_name),
+            ));
+        }
+        EVENT_DECLARATION => {
+            if let Some(sym) = extract_event_accessor(item, content, Some(parent_name)) {
+                symbols.push(sym);
+            }
+        }
+        DELEGATE_DECLARATION => {
+            if let Some(sym) = extract_delegate(item, content, Some(parent_name)) {
+                symbols.push(sym);
+            }
+        }
+        _ => return false,
+    }
+    true
 }
 
 /// Extract a type declaration (class, struct, interface, enum).
@@ -871,6 +1018,175 @@ fn extract_constructor(
         visibility,
         parent_name: parent_name.map(String::from),
         is_test: false, // Constructors are never tests
+        attributes: extract_attributes(node, content),
+    })
+}
+
+/// Extract a property declaration (`property_declaration`).
+///
+/// Covers auto-properties (`int X { get; set; }`), accessor-block bodies,
+/// and expression-bodied properties (`T Data => Value;`) — the node shape is
+/// identical for symbol purposes (tethys-xebx C1). The property's type lands
+/// in `signature`, matching the `StructField` convention.
+fn extract_property(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    parent_name: Option<&str>,
+) -> Option<ExtractedSymbol> {
+    let name_node = node.child_by_field_name("name")?;
+    let Some(name) = node_text(&name_node, content) else {
+        tracing::trace!(
+            kind = node.kind(),
+            line = node.start_position().row + 1,
+            "Failed to extract property name, skipping"
+        );
+        return None;
+    };
+
+    let signature = node
+        .child_by_field_name("type")
+        .and_then(|t| node_text(&t, content));
+
+    Some(ExtractedSymbol {
+        name,
+        kind: SymbolKind::Property,
+        line: node.start_position().row as u32 + 1,
+        column: node.start_position().column as u32 + 1,
+        span: Some(node_span(node)),
+        signature,
+        signature_details: None,
+        visibility: extract_visibility(node, content),
+        parent_name: parent_name.map(String::from),
+        is_test: false, // Properties are never tests
+        attributes: extract_attributes(node, content),
+    })
+}
+
+/// Extract field-like declarations (`field_declaration`,
+/// `event_field_declaration`) — one symbol per `variable_declarator`, so
+/// `public int A, B;` yields two rows, each carrying the declaration's
+/// attributes (tethys-xebx C2/C3/C4). Covers `const` and `static readonly`
+/// fields; the declared type lands in `signature` (`StructField` convention).
+fn extract_field_like(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    kind: SymbolKind,
+    parent_name: Option<&str>,
+) -> Vec<ExtractedSymbol> {
+    use node_kinds::{VARIABLE_DECLARATION, VARIABLE_DECLARATOR};
+
+    let visibility = extract_visibility(node, content);
+    let attributes = extract_attributes(node, content);
+
+    let mut out = Vec::new();
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() != VARIABLE_DECLARATION {
+            continue;
+        }
+        let signature = child
+            .child_by_field_name("type")
+            .and_then(|t| node_text(&t, content));
+        let mut decl_cursor = child.walk();
+        for declarator in child.children(&mut decl_cursor) {
+            if declarator.kind() != VARIABLE_DECLARATOR {
+                continue;
+            }
+            let Some(name) = declarator
+                .child_by_field_name("name")
+                .and_then(|n| node_text(&n, content))
+            else {
+                tracing::trace!(
+                    kind = node.kind(),
+                    line = declarator.start_position().row + 1,
+                    "Failed to extract declarator name, skipping"
+                );
+                continue;
+            };
+            out.push(ExtractedSymbol {
+                name,
+                kind,
+                line: declarator.start_position().row as u32 + 1,
+                column: declarator.start_position().column as u32 + 1,
+                span: Some(node_span(&declarator)),
+                signature: signature.clone(),
+                signature_details: None,
+                visibility,
+                parent_name: parent_name.map(String::from),
+                is_test: false, // Fields and events are never tests
+                attributes: attributes.clone(),
+            });
+        }
+    }
+    out
+}
+
+/// Extract an accessor-form event (`event_declaration`,
+/// `public event EventHandler Renamed { add { } remove { } }`).
+fn extract_event_accessor(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    parent_name: Option<&str>,
+) -> Option<ExtractedSymbol> {
+    let name_node = node.child_by_field_name("name")?;
+    let Some(name) = node_text(&name_node, content) else {
+        tracing::trace!(
+            kind = node.kind(),
+            line = node.start_position().row + 1,
+            "Failed to extract event name, skipping"
+        );
+        return None;
+    };
+
+    Some(ExtractedSymbol {
+        name,
+        kind: SymbolKind::Event,
+        line: node.start_position().row as u32 + 1,
+        column: node.start_position().column as u32 + 1,
+        span: Some(node_span(node)),
+        signature: node
+            .child_by_field_name("type")
+            .and_then(|t| node_text(&t, content)),
+        signature_details: None,
+        visibility: extract_visibility(node, content),
+        parent_name: parent_name.map(String::from),
+        is_test: false, // Events are never tests
+        attributes: extract_attributes(node, content),
+    })
+}
+
+/// Extract a delegate type (`delegate_declaration`). Delegates occur at both
+/// namespace and class level; like other type declarations, namespace-level
+/// delegates carry no `parent_name` (the namespace is not a parent in
+/// `qualified_name` terms — matches the class convention).
+fn extract_delegate(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    parent_name: Option<&str>,
+) -> Option<ExtractedSymbol> {
+    let name_node = node.child_by_field_name("name")?;
+    let Some(name) = node_text(&name_node, content) else {
+        tracing::trace!(
+            kind = node.kind(),
+            line = node.start_position().row + 1,
+            "Failed to extract delegate name, skipping"
+        );
+        return None;
+    };
+
+    Some(ExtractedSymbol {
+        name,
+        kind: SymbolKind::Delegate,
+        line: node.start_position().row as u32 + 1,
+        column: node.start_position().column as u32 + 1,
+        span: Some(node_span(node)),
+        signature: node
+            .child_by_field_name("type")
+            .and_then(|t| node_text(&t, content)),
+        signature_details: None,
+        visibility: extract_visibility(node, content),
+        parent_name: parent_name.map(String::from),
+        is_test: false, // Delegates are never tests
         attributes: extract_attributes(node, content),
     })
 }
@@ -1234,6 +1550,454 @@ public class UserService {
         assert_eq!(method_sym.kind, SymbolKind::Method);
         assert_eq!(method_sym.parent_name, Some("UserService".to_string()));
         assert_eq!(method_sym.visibility, Visibility::Public);
+    }
+
+    #[test]
+    fn extracts_property_auto_and_accessor_block() {
+        let code = r"
+public class Result {
+    public string Message { get; }
+    public bool Success
+    {
+        get
+        {
+            return true;
+        }
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let props: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.kind == SymbolKind::Property)
+            .collect();
+        assert_eq!(props.len(), 2);
+        let message = props
+            .iter()
+            .find(|s| s.name == "Message")
+            .expect("should find Message property");
+        assert_eq!(message.parent_name, Some("Result".to_string()));
+        assert_eq!(message.signature.as_deref(), Some("string"));
+        assert_eq!(message.visibility, Visibility::Public);
+        let success = props
+            .iter()
+            .find(|s| s.name == "Success")
+            .expect("should find Success property");
+        assert_eq!(success.signature.as_deref(), Some("bool"));
+    }
+
+    #[test]
+    fn extracts_property_expression_bodied_with_attribute() {
+        let code = r#"
+public class Result {
+    [Obsolete("Use Value instead.")]
+    public int Data => 42;
+}
+"#;
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let prop = symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Property)
+            .expect("should find expression-bodied property");
+        assert_eq!(prop.name, "Data");
+        assert_eq!(prop.parent_name, Some("Result".to_string()));
+        assert_eq!(prop.attributes.len(), 1);
+        assert_eq!(prop.attributes[0].name, "Obsolete");
+        assert_eq!(
+            prop.attributes[0].args.as_deref(),
+            Some("\"Use Value instead.\"")
+        );
+    }
+
+    #[test]
+    fn extracts_property_in_interface_and_struct() {
+        let code = r"
+public interface IShape {
+    double Area { get; }
+}
+public struct Point {
+    public int X { get; set; }
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let area = symbols
+            .iter()
+            .find(|s| s.name == "Area")
+            .expect("should find interface property");
+        assert_eq!(area.kind, SymbolKind::Property);
+        assert_eq!(area.parent_name, Some("IShape".to_string()));
+        let x = symbols
+            .iter()
+            .find(|s| s.name == "X")
+            .expect("should find struct property");
+        assert_eq!(x.kind, SymbolKind::Property);
+        assert_eq!(x.parent_name, Some("Point".to_string()));
+    }
+
+    #[test]
+    fn extracts_property_in_record() {
+        let code = r"
+public record Wrapper {
+    public int Data { get; }
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let data = symbols
+            .iter()
+            .find(|s| s.name == "Data")
+            .expect("should find record property");
+        assert_eq!(data.kind, SymbolKind::Property);
+        assert_eq!(data.parent_name, Some("Wrapper".to_string()));
+    }
+
+    #[test]
+    fn extracts_property_in_nested_class_with_enclosing_parent() {
+        let code = r"
+public class Outer {
+    public class Inner {
+        public int Depth { get; }
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let depth = symbols
+            .iter()
+            .find(|s| s.name == "Depth")
+            .expect("should find nested-class property");
+        // Parent must be the ENCLOSING type, not the outermost one
+        assert_eq!(depth.parent_name, Some("Inner".to_string()));
+    }
+
+    #[test]
+    fn same_named_properties_in_two_classes_stay_distinct() {
+        let code = r"
+public class ApiResponse {
+    public object Data { get; set; }
+}
+public class Result {
+    public int Data => 1;
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let datas: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.name == "Data" && s.kind == SymbolKind::Property)
+            .collect();
+        assert_eq!(datas.len(), 2);
+        let parents: Vec<_> = datas.iter().filter_map(|s| s.parent_name.clone()).collect();
+        assert!(parents.contains(&"ApiResponse".to_string()));
+        assert!(parents.contains(&"Result".to_string()));
+    }
+
+    #[test]
+    fn extracts_field_declarators_each_with_attributes() {
+        let code = r#"
+public class Widget {
+    [Obsolete("old")]
+    public int A, B;
+    private static readonly string Tag = "w";
+    public const int Max = 10;
+}
+"#;
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let fields: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.kind == SymbolKind::StructField)
+            .collect();
+        // A, B (one per declarator), Tag (static readonly), Max (const)
+        assert_eq!(fields.len(), 4);
+        for name in ["A", "B"] {
+            let f = fields
+                .iter()
+                .find(|s| s.name == name)
+                .unwrap_or_else(|| panic!("should find field {name}"));
+            assert_eq!(f.parent_name, Some("Widget".to_string()));
+            assert_eq!(f.signature.as_deref(), Some("int"));
+            // The declaration's attribute fans out to EVERY declarator symbol
+            assert_eq!(f.attributes.len(), 1, "attribute missing on {name}");
+            assert_eq!(f.attributes[0].name, "Obsolete");
+        }
+        let max = fields
+            .iter()
+            .find(|s| s.name == "Max")
+            .expect("should find const field Max");
+        assert!(max.attributes.is_empty());
+    }
+
+    #[test]
+    fn extracts_event_field_and_accessor_forms() {
+        let code = r#"
+using System;
+public class Widget {
+    [Obsolete("old event")]
+    public event EventHandler Changed;
+    public event EventHandler Renamed { add { } remove { } }
+}
+"#;
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let events: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.kind == SymbolKind::Event)
+            .collect();
+        assert_eq!(events.len(), 2);
+        let changed = events
+            .iter()
+            .find(|s| s.name == "Changed")
+            .expect("should find field-form event");
+        assert_eq!(changed.attributes.len(), 1);
+        assert_eq!(changed.attributes[0].name, "Obsolete");
+        let renamed = events
+            .iter()
+            .find(|s| s.name == "Renamed")
+            .expect("should find accessor-form event");
+        assert_eq!(renamed.parent_name, Some("Widget".to_string()));
+        assert_eq!(renamed.signature.as_deref(), Some("EventHandler"));
+    }
+
+    #[test]
+    fn extracts_delegate_at_namespace_and_class_level() {
+        let code = r"
+namespace App
+{
+    public delegate int Transform(int x);
+    public class Widget {
+        public delegate void Nested(string s);
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let delegates: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.kind == SymbolKind::Delegate)
+            .collect();
+        assert_eq!(delegates.len(), 2);
+        let transform = delegates
+            .iter()
+            .find(|s| s.name == "Transform")
+            .expect("should find namespace-level delegate");
+        // Namespace-level delegates carry no parent, like classes
+        assert_eq!(transform.parent_name, None);
+        let nested = delegates
+            .iter()
+            .find(|s| s.name == "Nested")
+            .expect("should find class-level delegate");
+        assert_eq!(nested.parent_name, Some("Widget".to_string()));
+    }
+
+    #[test]
+    fn member_read_simple_emits_field_access() {
+        let code = r"
+public class C {
+    public void M(Result result) {
+        var x = result.Data;
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let reads: Vec<_> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::FieldAccess)
+            .collect();
+        assert_eq!(reads.len(), 1);
+        assert_eq!(reads[0].name, "Data");
+        assert_eq!(reads[0].path, Some(vec!["result".to_string()]));
+        assert!(
+            reads[0].containing_symbol_span.is_some(),
+            "read inside a method body carries the method span"
+        );
+    }
+
+    #[test]
+    fn member_read_chained_emits_one_ref_per_level() {
+        let code = r"
+public class C {
+    public void M(Response response) {
+        var n = response.Data.Name;
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let mut reads: Vec<_> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::FieldAccess)
+            .map(|r| (r.name.clone(), r.path.clone()))
+            .collect();
+        reads.sort();
+        // Fold-to-outermost would emit only Name and hide the Data read —
+        // the probe's oracle disagreement caught exactly this bug class.
+        assert_eq!(
+            reads,
+            vec![
+                ("Data".to_string(), Some(vec!["response".to_string()])),
+                (
+                    "Name".to_string(),
+                    Some(vec!["response".to_string(), "Data".to_string()])
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn member_read_skips_invocation_callee_spine() {
+        let code = r"
+public class C {
+    public void M(Widget a) {
+        a.B.Run();
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        // The whole callee spine folds into the call ref (a::B::Run) — no
+        // field_access may double-represent `a.B`.
+        let reads: Vec<_> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::FieldAccess)
+            .collect();
+        assert!(reads.is_empty(), "callee spine leaked as reads: {reads:?}");
+        let calls: Vec<_> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::Call)
+            .collect();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "Run");
+        assert_eq!(calls[0].path, Some(vec!["a".to_string(), "B".to_string()]));
+    }
+
+    #[test]
+    fn member_read_on_invocation_result_and_in_arguments() {
+        let code = r"
+public class C {
+    public void M(Result r) {
+        var d = Get().Data;
+        Use(r.Value);
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let reads: Vec<_> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::FieldAccess)
+            .map(|r| (r.name.clone(), r.path.clone()))
+            .collect();
+        // `Get().Data`: invocation receiver contributes no path segments
+        // (matches existing invocation-ref behavior); `r.Value` sits inside
+        // an invocation's ARGUMENTS, where the callee-spine flag must reset.
+        assert!(reads.contains(&("Data".to_string(), None)), "{reads:?}");
+        assert!(
+            reads.contains(&("Value".to_string(), Some(vec!["r".to_string()]))),
+            "{reads:?}"
+        );
+        assert_eq!(reads.len(), 2);
+    }
+
+    #[test]
+    fn accessor_body_refs_attribute_to_member_span() {
+        let code = r"
+public class C {
+    public int X => Helper();
+    public bool Y
+    {
+        get
+        {
+            return Check(this.Flag);
+        }
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let x_span = symbols
+            .iter()
+            .find(|s| s.name == "X")
+            .expect("should find X")
+            .span
+            .expect("property symbols carry spans");
+        let helper_call = refs
+            .iter()
+            .find(|r| r.name == "Helper")
+            .expect("should find Helper call");
+        // Expression-bodied arrow body: the call attributes to the property,
+        // not to NULL (the pre-xebx behavior this fence pins against)
+        assert_eq!(helper_call.containing_symbol_span, Some(x_span));
+
+        let y_span = symbols
+            .iter()
+            .find(|s| s.name == "Y")
+            .expect("should find Y")
+            .span
+            .expect("property symbols carry spans");
+        let check_call = refs
+            .iter()
+            .find(|r| r.name == "Check")
+            .expect("should find Check call");
+        assert_eq!(check_call.containing_symbol_span, Some(y_span));
+    }
+
+    #[test]
+    fn member_read_on_assignment_lhs_is_emitted() {
+        let code = r"
+public class C {
+    public void M(Widget w) {
+        w.Count = 5;
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let reads: Vec<_> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::FieldAccess)
+            .collect();
+        assert_eq!(reads.len(), 1);
+        assert_eq!(reads[0].name, "Count");
+    }
+
+    #[test]
+    fn no_member_access_means_no_field_access_refs() {
+        let code = r"
+public class C {
+    public void M() {
+        var x = 1 + 2;
+        Local();
+    }
+}
+";
+        let tree = parse_csharp(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        assert!(
+            refs.iter()
+                .all(|r| r.kind != ExtractedReferenceKind::FieldAccess)
+        );
     }
 
     #[test]
