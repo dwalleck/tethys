@@ -156,6 +156,13 @@ pub enum ExtractedReferenceKind {
     /// Member read: a `member_access_expression` outside an invocation callee
     /// (`result.Data`), one per access level of a chain — tethys-xebx.
     FieldAccess,
+    /// Rust method call through a `field_expression` callee (`x.m()`).
+    /// Never Pass-1 bare-name bound: receiver-aware resolution happens in
+    /// Pass 2 — `qualified_exact` when the receiver's type was locally
+    /// derived (the ref carries a `path`), unique-or-decline name arms
+    /// otherwise (tethys-53iv). Stores as `'call'` via [`Self::to_db_kind`];
+    /// the distinction exists only at insert time.
+    Method,
 }
 
 impl ExtractedReferenceKind {
@@ -163,7 +170,9 @@ impl ExtractedReferenceKind {
     #[must_use]
     pub fn to_db_kind(self) -> crate::types::ReferenceKind {
         match self {
-            Self::Call => crate::types::ReferenceKind::Call,
+            // Method stores as 'call' deliberately (tethys-53iv D6): the
+            // Method/Call distinction is insert-time routing only.
+            Self::Call | Self::Method => crate::types::ReferenceKind::Call,
             Self::Type => crate::types::ReferenceKind::Type,
             Self::Constructor => crate::types::ReferenceKind::Construct,
             Self::Macro => crate::types::ReferenceKind::Macro,

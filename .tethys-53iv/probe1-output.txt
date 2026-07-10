@@ -1,0 +1,25 @@
+== A. all refs named unwrap (line, kind, strategy, bound target) ==
+line|kind|strategy|target
+7|call|same_file|unwrap (method @3)
+11|call|same_file|unwrap (method @3)
+== B. call edges into Thing::unwrap (expect fabricated use_external edge) ==
+caller|callee|call_count
+use_external|unwrap|1
+use_internal|unwrap|1
+== C. panic-points (expect the x.unwrap() at src/lib.rs:7 or a false negative) ==
+Panic Points Analysis
+===============================================================
+
+Summary:
+  Production code:    0 panic points
+  Test code:          0 (use --include-tests to show)
+
+No panic points found matching the filters.
+== D. callers of Thing::unwrap (expect over-attribution) ==
+Callers of "Thing::unwrap":
+
+  src/lib.rs:
+    • use_external
+    • use_internal
+
+Total: 2 direct callers across 1 files

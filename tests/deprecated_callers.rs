@@ -354,14 +354,14 @@ fn same_file_phantoms_never_definite() {
         "phantom-capable sites must never be Definite; got {:?}",
         path.sites
     );
-    // TRIPWIRE (tethys-53iv): today the h.path() call IS misattributed to
-    // the deprecated method (1 phantom site). When 53iv lands and the
-    // resolver kind-gates or declines this binding, this count drops to 0 —
-    // flip this assertion then; the Maybe-only fence above must keep passing.
+    // tethys-53iv landed: method calls never Pass-1 bind by bare name, and
+    // the ambiguous `path` name (two in-crate candidates) declines in the
+    // Pass-2 name arms — the phantom site is gone. This assertion was the
+    // planted tripwire (flipped from 1 exactly as its note prescribed).
     assert_eq!(
         path.sites.len(),
-        1,
-        "documents current 53iv same-file phantom binding; see TRIPWIRE note"
+        0,
+        "the same-file phantom bind must stay dead (tethys-53iv)"
     );
 }
 
@@ -1324,5 +1324,41 @@ fn csharp_obsolete_static_property_definite_site() {
         sites,
         [("Reader.cs", 9, Via::Resolved, Tier::Definite)],
         "type-receiver read resolves qualified_exact and tiers Definite"
+    );
+}
+
+/// tethys-53iv C13: a method call DECLINED by receiver derivation (the
+/// annotated-external shape) keeps its qualified `reference_name`, and
+/// deprecated-callers' Path B surfaces it as a Maybe site by last-segment
+/// match — receiver gating must not silence the deprecation radar (bug
+/// class: dropping declined refs, or storing a shape Path B cannot match).
+#[test]
+fn deprecated_method_declined_call_is_path_b_site() {
+    let (_dir, mut tethys) = workspace_with_files(&[(
+        "src/lib.rs",
+        "pub struct Store;\n\
+         impl Store {\n\
+         \x20   #[deprecated(note = \"use put\")]\n\
+         \x20   pub fn stash(&self) {}\n\
+         }\n\
+         pub fn caller(v: Vec<i32>) {\n\
+         \x20   v.stash();\n\
+         }\n",
+    )]);
+    tethys.index().expect("index failed");
+    let findings = tethys
+        .get_deprecated_callers()
+        .expect("deprecated-callers query failed");
+
+    let stash = finding(&findings, "stash", "src/lib.rs");
+    let sites: Vec<(&str, u32, Via, Tier)> = stash
+        .sites
+        .iter()
+        .map(|s| (s.file.as_str(), s.line, s.via, s.tier))
+        .collect();
+    assert_eq!(
+        sites,
+        [("src/lib.rs", 7, Via::UnresolvedQualified, Tier::Maybe)],
+        "the declined Vec::stash call surfaces via Path B as Maybe"
     );
 }

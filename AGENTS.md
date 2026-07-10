@@ -132,10 +132,16 @@ semantics (this is checkpointed-build's `a-1` step, made tethys-specific):
    `.rivets/index/`; a stale index yields stale callers). `-w <path>` if not cwd.
 2. **Precision tier** — `tethys callers <Type::method> --exclude-speculative`
    returns only provenance-backed (resolved) edges — callers you can trust as
-   real. `--exclude-speculative` drops the ADR-0003 name-shape (speculative) band.
+   real. `--exclude-speculative` drops the ADR-0003 name-shape (speculative)
+   band — which, since tethys-53iv, includes ALL unknown-receiver Rust method
+   calls (they bind unique-or-decline through the name arms; `self`/annotated
+   receivers bind type-anchored and stay in the trusted tiers).
 3. **Recall net** — `tethys callers <sym>` (speculative band included), then
-   `grep`, catch what resolution can't (dynamic dispatch, doc refs, macros). An
-   empty precision list means dead code OR a stale index — never "no work."
+   `grep`, catch what resolution can't (dynamic dispatch, doc refs, macros,
+   and method calls whose ambiguous names now conservatively decline —
+   tethys-53iv trades those edges for zero phantom binds; tethys-k543 is the
+   LSP recovery tier). An empty precision list means dead code OR a stale
+   index — never "no work."
 4. **The carve-out (where the flywheel breaks).** When the slice edits tethys's
    OWN resolution or call-edge logic (`src/resolver.rs`, `src/resolve.rs`,
    `src/db/call_edges.rs`, `src/languages/module_resolver.rs`), its caller

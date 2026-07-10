@@ -13,7 +13,7 @@ use super::common::{
 };
 use super::tree_sitter_utils::{node_span, node_text};
 use crate::types::{FunctionSignature, Parameter, Span, SymbolKind, Visibility};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// Tree-sitter node kind constants for Rust grammar.
 ///
@@ -37,6 +37,8 @@ mod node_kinds {
     pub const DECLARATION_LIST: &str = "declaration_list";
     pub const TYPE_IDENTIFIER: &str = "type_identifier";
     pub const GENERIC_TYPE: &str = "generic_type";
+    pub const REFERENCE_TYPE: &str = "reference_type";
+    pub const MUT_PATTERN: &str = "mut_pattern";
     pub const VISIBILITY_MODIFIER: &str = "visibility_modifier";
     pub const FUNCTION_MODIFIERS: &str = "function_modifiers";
     pub const TYPE_PARAMETERS: &str = "type_parameters";
@@ -157,12 +159,31 @@ impl UseStatement {
     }
 }
 
+/// Receiver-resolution context threaded through reference extraction
+/// (tethys-53iv): the enclosing `impl` block's base type name, used to
+/// derive the receiver type of `self.m()` method calls so they resolve via
+/// `qualified_exact` instead of the name-only arms. `None` outside impls.
+#[derive(Clone, Copy, Default)]
+struct ReceiverCtx<'a> {
+    impl_type: Option<&'a str>,
+    /// Enclosing function's single-binding annotation map (tethys-53iv C5):
+    /// `ident -> TypeBaseName` from [`collect_local_types`].
+    local_types: Option<&'a HashMap<String, String>>,
+}
+
 /// Extract references (usages) from a Rust syntax tree.
 pub fn extract_references(tree: &tree_sitter::Tree, content: &[u8]) -> Vec<ExtractedReference> {
     let mut refs = Vec::new();
     let root = tree.root_node();
 
-    extract_references_recursive(&root, content, &mut refs, None, None);
+    extract_references_recursive(
+        &root,
+        content,
+        &mut refs,
+        None,
+        None,
+        ReceiverCtx::default(),
+    );
 
     refs
 }
@@ -173,6 +194,7 @@ fn extract_references_recursive(
     refs: &mut Vec<ExtractedReference>,
     containing_span: Option<Span>,
     local_bindings: Option<&HashSet<String>>,
+    ctx: ReceiverCtx,
 ) {
     use node_kinds::{
         CALL_EXPRESSION, FUNCTION_ITEM, IDENTIFIER, IMPL_ITEM, MACRO_INVOCATION, STRUCT_EXPRESSION,
@@ -196,7 +218,7 @@ fn extract_references_recursive(
 
         CALL_EXPRESSION => {
             // Function/method call
-            if let Some(ref_data) = extract_call_reference(node, content, containing_span) {
+            if let Some(ref_data) = extract_call_reference(node, content, containing_span, ctx) {
                 refs.push(ref_data);
             }
         }
@@ -253,18 +275,26 @@ fn extract_references_recursive(
         // Function definitions: capture span AND the function's local binding
         // names (the fn-as-value suppression set), and recurse with both.
         FUNCTION_ITEM => {
-            let fn_span = node_span(node);
-            let bindings = collect_local_bindings(node, content);
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                extract_references_recursive(&child, content, refs, Some(fn_span), Some(&bindings));
-            }
+            visit_function_item(node, content, refs, ctx);
             return;
         }
 
-        // Impl blocks: recurse into methods with their own spans/bindings.
+        // Impl blocks: recurse into methods with their own spans/bindings and
+        // the impl's base type as the `self`-receiver context (tethys-53iv).
         IMPL_ITEM => {
-            extract_impl_item_references(node, content, refs, containing_span, local_bindings);
+            let impl_type = impl_type_base_name(node, content);
+            let impl_ctx = ReceiverCtx {
+                impl_type: impl_type.as_deref(),
+                ..ctx
+            };
+            extract_impl_item_references(
+                node,
+                content,
+                refs,
+                containing_span,
+                local_bindings,
+                impl_ctx,
+            );
             return;
         }
 
@@ -278,6 +308,7 @@ fn extract_references_recursive(
                     refs,
                     containing_span,
                     local_bindings,
+                    ctx,
                 );
             }
             return;
@@ -289,7 +320,36 @@ fn extract_references_recursive(
     // Recurse into children
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        extract_references_recursive(&child, content, refs, containing_span, local_bindings);
+        extract_references_recursive(&child, content, refs, containing_span, local_bindings, ctx);
+    }
+}
+
+/// Recurse into a `function_item` with its own containing span, fn-as-value
+/// suppression set (tethys-ygjx), and single-binding annotation map
+/// (tethys-53iv C5).
+fn visit_function_item(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    refs: &mut Vec<ExtractedReference>,
+    ctx: ReceiverCtx,
+) {
+    let fn_span = node_span(node);
+    let bindings = collect_local_bindings(node, content);
+    let local_types = collect_local_types(node, content);
+    let fn_ctx = ReceiverCtx {
+        local_types: Some(&local_types),
+        ..ctx
+    };
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        extract_references_recursive(
+            &child,
+            content,
+            refs,
+            Some(fn_span),
+            Some(&bindings),
+            fn_ctx,
+        );
     }
 }
 
@@ -304,6 +364,7 @@ fn extract_impl_item_references(
     refs: &mut Vec<ExtractedReference>,
     containing_span: Option<Span>,
     local_bindings: Option<&HashSet<String>>,
+    ctx: ReceiverCtx,
 ) {
     use node_kinds::{DECLARATION_LIST, FUNCTION_ITEM};
 
@@ -311,18 +372,38 @@ fn extract_impl_item_references(
     for child in node.children(&mut cursor) {
         if child.kind() != DECLARATION_LIST {
             // Type references in the impl header (e.g., `impl Foo for Bar`).
-            extract_references_recursive(&child, content, refs, containing_span, local_bindings);
+            extract_references_recursive(
+                &child,
+                content,
+                refs,
+                containing_span,
+                local_bindings,
+                ctx,
+            );
             continue;
         }
         let mut inner_cursor = child.walk();
         for item in child.children(&mut inner_cursor) {
             if item.kind() != FUNCTION_ITEM {
-                extract_references_recursive(&item, content, refs, containing_span, local_bindings);
+                extract_references_recursive(
+                    &item,
+                    content,
+                    refs,
+                    containing_span,
+                    local_bindings,
+                    ctx,
+                );
                 continue;
             }
-            // Methods inside impl get their own containing span + bindings.
+            // Methods inside impl get their own containing span, bindings,
+            // and annotation map.
             let method_span = node_span(&item);
             let method_bindings = collect_local_bindings(&item, content);
+            let method_types = collect_local_types(&item, content);
+            let method_ctx = ReceiverCtx {
+                local_types: Some(&method_types),
+                ..ctx
+            };
             let mut method_cursor = item.walk();
             for method_child in item.children(&mut method_cursor) {
                 extract_references_recursive(
@@ -331,9 +412,41 @@ fn extract_impl_item_references(
                     refs,
                     Some(method_span),
                     Some(&method_bindings),
+                    method_ctx,
                 );
             }
         }
+    }
+}
+
+/// Base type name of an `impl` block's target: `impl Widget` and
+/// `impl Run for Widget` both yield `Widget`; generics are stripped to the
+/// base (`impl Gauge<T>` yields `Gauge`) and path types take their last
+/// segment (`impl lib::Widget` yields `Widget`). `None` for shapes with no
+/// single nominal base (references, trait objects, tuples) — receiver
+/// derivation then degrades to unknown, never to a guess (tethys-53iv D2).
+fn impl_type_base_name(node: &tree_sitter::Node, content: &[u8]) -> Option<String> {
+    let ty = node.child_by_field_name("type")?;
+    type_base_name(&ty, content)
+}
+
+/// Last-segment, generics-stripped base name of a type node; `None` when
+/// the type has no single nominal base.
+fn type_base_name(ty: &tree_sitter::Node, content: &[u8]) -> Option<String> {
+    use node_kinds::{GENERIC_TYPE, REFERENCE_TYPE, SCOPED_TYPE_IDENTIFIER, TYPE_IDENTIFIER};
+
+    match ty.kind() {
+        TYPE_IDENTIFIER => node_text(ty, content),
+        // generic_type strips to its base, reference_type to its referent
+        GENERIC_TYPE | REFERENCE_TYPE => {
+            let inner = ty.child_by_field_name("type")?;
+            type_base_name(&inner, content)
+        }
+        SCOPED_TYPE_IDENTIFIER => {
+            let name = ty.child_by_field_name("name")?;
+            node_text(&name, content)
+        }
+        _ => None,
     }
 }
 
@@ -402,6 +515,10 @@ fn value_position_ref(
 /// all its value-position uses there. Conservative by design — "suppressions,
 /// not accusations" (tethys-ygjx). Nested `function_item`s recompute their own
 /// set, so an inner function's uses are scoped to the inner function.
+///
+/// LOCKSTEP: [`collect_types_recursive`] walks the same binding-form node
+/// list for the annotation map — a binding form added here must be added
+/// there too, or derivation can guess from a shape this set suppresses.
 fn collect_local_bindings(fn_node: &tree_sitter::Node, content: &[u8]) -> HashSet<String> {
     let mut names = HashSet::new();
     collect_bindings_recursive(fn_node, content, &mut names);
@@ -439,6 +556,105 @@ fn collect_bindings_recursive(
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         collect_bindings_recursive(&child, content, names);
+    }
+}
+
+/// Collect locally-derivable receiver types for a `function_item`:
+/// `ident -> TypeBaseName` for identifiers bound EXACTLY ONCE in the
+/// function, by a plain annotated shape — a typed parameter (`x: &Thing`)
+/// or an annotated let (`let x: lib::Widget = ..`). Any other binding of
+/// the same name (shadowing let, closure param, destructuring, `for`/
+/// `match`/`if let` pattern — including the deliberate over-harvest those
+/// walkers do) POISONS the entry: deriving a receiver type from the wrong
+/// branch would fabricate qualified binds, so ambiguity always degrades to
+/// unknown, never to a guess (tethys-53iv D2). Sanity hint, not
+/// load-bearing: callers pass a `function_item` (a non-fn node yields an
+/// empty or harmlessly partial map).
+///
+/// LOCKSTEP: [`collect_bindings_recursive`] walks the same binding-form
+/// node list for the fn-as-value suppression set — keep the lists in sync.
+fn collect_local_types(fn_node: &tree_sitter::Node, content: &[u8]) -> HashMap<String, String> {
+    debug_assert!(
+        fn_node.kind() == node_kinds::FUNCTION_ITEM,
+        "collect_local_types expects a function_item node"
+    );
+    // name -> (occurrence count, sole typed candidate). The walk starts at
+    // the fn's CHILDREN so the nested-fn guard in the recursion never fires
+    // on the entry node itself.
+    let mut occ: HashMap<String, (u32, Option<String>)> = HashMap::new();
+    let mut cursor = fn_node.walk();
+    for child in fn_node.children(&mut cursor) {
+        collect_types_recursive(&child, content, &mut occ);
+    }
+    occ.into_iter()
+        .filter_map(|(name, (count, ty))| match (count, ty) {
+            (1, Some(t)) => Some((name, t)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn collect_types_recursive(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    occ: &mut HashMap<String, (u32, Option<String>)>,
+) {
+    use node_kinds::{
+        CLOSURE_PARAMETERS, FOR_EXPRESSION, FUNCTION_ITEM, IDENTIFIER, LET_CONDITION,
+        LET_DECLARATION, MATCH_PATTERN, MUT_PATTERN, PARAMETER, STRUCT_PATTERN,
+        TUPLE_STRUCT_PATTERN,
+    };
+
+    // Nested fns keep their own scope: their bindings must not leak into
+    // (or poison) the parent's map — the recursion recomputes a fresh map
+    // when it reaches them. DELIBERATE divergence from
+    // `collect_bindings_recursive`, which over-collects across nested fns
+    // because suppression is safe to over-approximate; derivation is not.
+    if node.kind() == FUNCTION_ITEM {
+        return;
+    }
+    let mut record = |names: &HashSet<String>, ty: Option<&String>| {
+        for name in names {
+            let entry = occ.entry(name.clone()).or_insert((0, None));
+            entry.0 += 1;
+            entry.1 = if entry.0 == 1 { ty.cloned() } else { None };
+        }
+    };
+    match node.kind() {
+        PARAMETER | LET_DECLARATION => {
+            let pattern = node.child_by_field_name("pattern");
+            let annotated = node
+                .child_by_field_name("type")
+                .and_then(|t| type_base_name(&t, content));
+            if let Some(pattern) = pattern {
+                let mut names = HashSet::new();
+                collect_pattern_idents(&pattern, content, &mut names);
+                // The annotation derives a type only for a PLAIN identifier
+                // pattern (`mut` included — reassignment cannot change the
+                // type); destructured patterns bind without one.
+                let plain = matches!(pattern.kind(), IDENTIFIER | MUT_PATTERN) && names.len() == 1;
+                record(&names, annotated.filter(|_| plain).as_ref());
+            }
+        }
+        // For these, harvest ONLY the pattern field: a `let_condition`'s
+        // value side (`if let Some(v) = w.get()`) must not poison `w`.
+        FOR_EXPRESSION | LET_CONDITION => {
+            if let Some(pattern) = node.child_by_field_name("pattern") {
+                let mut names = HashSet::new();
+                collect_pattern_idents(&pattern, content, &mut names);
+                record(&names, None);
+            }
+        }
+        CLOSURE_PARAMETERS | MATCH_PATTERN | TUPLE_STRUCT_PATTERN | STRUCT_PATTERN => {
+            let mut names = HashSet::new();
+            collect_pattern_idents(node, content, &mut names);
+            record(&names, None);
+        }
+        _ => {}
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_types_recursive(&child, content, occ);
     }
 }
 
@@ -498,6 +714,7 @@ fn extract_call_reference(
     node: &tree_sitter::Node,
     content: &[u8],
     containing_span: Option<Span>,
+    ctx: ReceiverCtx,
 ) -> Option<ExtractedReference> {
     use node_kinds::{FIELD_EXPRESSION, IDENTIFIER, SCOPED_IDENTIFIER};
 
@@ -537,7 +754,9 @@ fn extract_call_reference(
             })
         }
         FIELD_EXPRESSION => {
-            // Method call: `user.greet()` - the method name is the "field"
+            // Method call: `user.greet()` - the method name is the "field".
+            // Emitted as Method (not Call) so Pass 1 never binds it by bare
+            // name — the receiver decides resolution (tethys-53iv).
             let field = function.child_by_field_name("field")?;
             let Some(name) = node_text(&field, content) else {
                 tracing::trace!(
@@ -547,12 +766,27 @@ fn extract_call_reference(
                 );
                 return None;
             };
+            // Receiver-type derivation (tethys-53iv): `self.m()` takes the
+            // enclosing impl's type (C4); an identifier receiver bound
+            // exactly once with a type annotation takes that type (C5).
+            // Either way the ref becomes `Type::m`, resolved by
+            // qualified_exact instead of the name-only arms; underivable
+            // receivers stay bare and go to the unique-or-decline arms.
+            let receiver = function.child_by_field_name("value");
+            let path = match receiver.map(|r| r.kind()) {
+                Some(node_kinds::SELF) => ctx.impl_type.map(|t| vec![t.to_string()]),
+                Some(node_kinds::IDENTIFIER) => receiver
+                    .and_then(|r| node_text(&r, content))
+                    .and_then(|ident| ctx.local_types.and_then(|m| m.get(&ident)))
+                    .map(|t| vec![t.clone()]),
+                _ => None,
+            };
             Some(ExtractedReference {
                 name,
-                kind: ExtractedReferenceKind::Call,
+                kind: ExtractedReferenceKind::Method,
                 line: field.start_position().row as u32 + 1,
                 column: field.start_position().column as u32 + 1,
-                path: None,
+                path,
                 containing_symbol_span: containing_span,
             })
         }
@@ -2933,6 +3167,126 @@ pub enum E {
         assert!(
             refs.is_empty(),
             "macro token must not be a value ref: {refs:?}"
+        );
+    }
+
+    /// tethys-53iv C4: `self.m()` derives its receiver from the ENCLOSING
+    /// impl — two impls in one file each get their own type in the path
+    /// (bug class: file-global attribution), a trait impl derives the
+    /// implementing type, and `self` outside any impl derives nothing.
+    #[test]
+    fn self_receiver_derives_enclosing_impl_type() {
+        let code = r"
+pub struct A;
+impl A {
+    pub fn m(&self) {}
+    pub fn call_a(&self) { self.m(); }
+}
+pub struct B;
+impl B {
+    pub fn m(&self) {}
+    pub fn call_b(&self) { self.m(); }
+}
+pub trait Run { fn go(&self); }
+pub struct C;
+impl Run for C {
+    fn go(&self) { self.helper(); }
+}
+";
+        let tree = parse_rust(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let method_paths: Vec<(u32, Option<Vec<String>>)> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::Method)
+            .map(|r| (r.line, r.path.clone()))
+            .collect();
+        assert_eq!(
+            method_paths,
+            vec![
+                (5, Some(vec!["A".to_string()])),
+                (10, Some(vec!["B".to_string()])),
+                (15, Some(vec!["C".to_string()])),
+            ],
+            "each self call carries its OWN enclosing impl type"
+        );
+    }
+
+    /// tethys-53iv C4 shape coverage: generic and path impl targets strip to
+    /// the base name; `self` in a free fn context stays path-less.
+    #[test]
+    fn self_receiver_impl_type_base_name_shapes() {
+        let code = r"
+pub struct Gauge<T> { v: T }
+impl<T> Gauge<T> {
+    pub fn read(&self) -> &T { self.peek() }
+    pub fn peek(&self) -> &T { &self.v }
+}
+";
+        let tree = parse_rust(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let peek_call = refs
+            .iter()
+            .find(|r| r.kind == ExtractedReferenceKind::Method && r.name == "peek")
+            .expect("should find self.peek() call");
+        assert_eq!(
+            peek_call.path,
+            Some(vec!["Gauge".to_string()]),
+            "generic impl target strips to the base name"
+        );
+    }
+
+    /// tethys-53iv C5 substrate: the single-binding annotation map. Bug
+    /// classes per row: shadow last-wins (`s`), closure-param rebinding
+    /// (`c`), destructuring without per-ident annotation (`a`/`b`),
+    /// reference/path/generic annotation shapes, and external names staying
+    /// IN the map (externality is bind-time, not map-time).
+    #[test]
+    fn local_type_map_single_binding_annotations_only() {
+        let code = r"
+pub fn go(x: &Thing, c: u32, (a, b): (u8, u8)) {
+    let y: lib::Widget = make();
+    let z: Gauge<f64> = gauge();
+    let v: Vec<i32> = vec![];
+    let s: Thing = make_thing();
+    let s = other();
+    let x: Widget = rebind_param();
+    let mut m: Meter = meter();
+    let q: Widget = make_widget();
+    if let Some(inner) = q.peek() {
+        use_it(inner);
+    }
+    fn nested(n: Gauge<u8>) {
+        n.read();
+    }
+    let f = |c: String| c.len();
+    let plain = compute();
+}
+";
+        let tree = parse_rust(code);
+        let root = tree.root_node();
+        let mut cursor = root.walk();
+        let fn_item = root
+            .children(&mut cursor)
+            .find(|n| n.kind() == node_kinds::FUNCTION_ITEM)
+            .expect("fixture has a fn");
+        let map = collect_local_types(&fn_item, code.as_bytes());
+
+        let mut entries: Vec<(String, String)> = map.into_iter().collect();
+        entries.sort();
+        assert_eq!(
+            entries,
+            vec![
+                ("m".to_string(), "Meter".to_string()),
+                ("q".to_string(), "Widget".to_string()),
+                ("v".to_string(), "Vec".to_string()),
+                ("y".to_string(), "Widget".to_string()),
+                ("z".to_string(), "Gauge".to_string()),
+            ],
+            "typed single bindings: s shadowed, c closure-rebound, a/b \
+             destructured, x param+let collision, mut m derivable, if-let \
+             scrutinee q survives, nested fn n scoped out"
         );
     }
 }
