@@ -87,3 +87,56 @@ fn unknown_receiver_skips_pass1_unique_or_decline() {
     assert_eq!(target.as_deref(), Some("free"));
     assert_eq!(strategy.as_deref(), Some("same_file"));
 }
+
+/// 53iv design C4: `self.m()` binds its OWN impl's method via
+/// `qualified_exact` — with two same-file impls sharing the method name,
+/// each self call must reach its own type (bug classes: file-global impl
+/// attribution; Pass-1 leak binding whichever `m` came last; ambiguity
+/// decline killing both). The trait-impl variant covers `impl Run for C`.
+#[test]
+fn self_receiver_binds_qualified_same_file() {
+    let (_dir, mut tethys) = workspace_with_files(&[(
+        "src/lib.rs",
+        "pub struct A;\n\
+         impl A {\n\
+         \x20   pub fn m(&self) {}\n\
+         \x20   pub fn call_a(&self) {\n\
+         \x20       self.m();\n\
+         \x20   }\n\
+         }\n\
+         pub struct B;\n\
+         impl B {\n\
+         \x20   pub fn m(&self) {}\n\
+         \x20   pub fn call_b(&self) {\n\
+         \x20       self.m();\n\
+         \x20   }\n\
+         }\n\
+         pub trait Run {\n\
+         \x20   fn go(&self);\n\
+         }\n\
+         pub struct C;\n\
+         impl Run for C {\n\
+         \x20   fn go(&self) {\n\
+         \x20       self.tick();\n\
+         \x20   }\n\
+         }\n\
+         impl C {\n\
+         \x20   pub fn tick(&self) {}\n\
+         }\n",
+    )]);
+    tethys.index().expect("index failed");
+
+    // self.m() in call_a (line 5) -> A::m, in call_b (line 12) -> B::m.
+    let (strategy, target, _) = method_ref_at(&tethys, "src/lib.rs", 5);
+    assert_eq!(target.as_deref(), Some("A::m"), "call_a must reach A::m");
+    assert_eq!(strategy.as_deref(), Some("qualified_exact"));
+
+    let (strategy, target, _) = method_ref_at(&tethys, "src/lib.rs", 12);
+    assert_eq!(target.as_deref(), Some("B::m"), "call_b must reach B::m");
+    assert_eq!(strategy.as_deref(), Some("qualified_exact"));
+
+    // Trait impl: self.tick() inside `impl Run for C` derives C.
+    let (strategy, target, _) = method_ref_at(&tethys, "src/lib.rs", 21);
+    assert_eq!(target.as_deref(), Some("C::tick"));
+    assert_eq!(strategy.as_deref(), Some("qualified_exact"));
+}

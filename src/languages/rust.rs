@@ -157,12 +157,28 @@ impl UseStatement {
     }
 }
 
+/// Receiver-resolution context threaded through reference extraction
+/// (tethys-53iv): the enclosing `impl` block's base type name, used to
+/// derive the receiver type of `self.m()` method calls so they resolve via
+/// `qualified_exact` instead of the name-only arms. `None` outside impls.
+#[derive(Clone, Copy, Default)]
+struct ReceiverCtx<'a> {
+    impl_type: Option<&'a str>,
+}
+
 /// Extract references (usages) from a Rust syntax tree.
 pub fn extract_references(tree: &tree_sitter::Tree, content: &[u8]) -> Vec<ExtractedReference> {
     let mut refs = Vec::new();
     let root = tree.root_node();
 
-    extract_references_recursive(&root, content, &mut refs, None, None);
+    extract_references_recursive(
+        &root,
+        content,
+        &mut refs,
+        None,
+        None,
+        ReceiverCtx::default(),
+    );
 
     refs
 }
@@ -173,6 +189,7 @@ fn extract_references_recursive(
     refs: &mut Vec<ExtractedReference>,
     containing_span: Option<Span>,
     local_bindings: Option<&HashSet<String>>,
+    ctx: ReceiverCtx,
 ) {
     use node_kinds::{
         CALL_EXPRESSION, FUNCTION_ITEM, IDENTIFIER, IMPL_ITEM, MACRO_INVOCATION, STRUCT_EXPRESSION,
@@ -196,7 +213,7 @@ fn extract_references_recursive(
 
         CALL_EXPRESSION => {
             // Function/method call
-            if let Some(ref_data) = extract_call_reference(node, content, containing_span) {
+            if let Some(ref_data) = extract_call_reference(node, content, containing_span, ctx) {
                 refs.push(ref_data);
             }
         }
@@ -257,14 +274,33 @@ fn extract_references_recursive(
             let bindings = collect_local_bindings(node, content);
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                extract_references_recursive(&child, content, refs, Some(fn_span), Some(&bindings));
+                extract_references_recursive(
+                    &child,
+                    content,
+                    refs,
+                    Some(fn_span),
+                    Some(&bindings),
+                    ctx,
+                );
             }
             return;
         }
 
-        // Impl blocks: recurse into methods with their own spans/bindings.
+        // Impl blocks: recurse into methods with their own spans/bindings and
+        // the impl's base type as the `self`-receiver context (tethys-53iv).
         IMPL_ITEM => {
-            extract_impl_item_references(node, content, refs, containing_span, local_bindings);
+            let impl_type = impl_type_base_name(node, content);
+            let impl_ctx = ReceiverCtx {
+                impl_type: impl_type.as_deref(),
+            };
+            extract_impl_item_references(
+                node,
+                content,
+                refs,
+                containing_span,
+                local_bindings,
+                impl_ctx,
+            );
             return;
         }
 
@@ -278,6 +314,7 @@ fn extract_references_recursive(
                     refs,
                     containing_span,
                     local_bindings,
+                    ctx,
                 );
             }
             return;
@@ -289,7 +326,7 @@ fn extract_references_recursive(
     // Recurse into children
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        extract_references_recursive(&child, content, refs, containing_span, local_bindings);
+        extract_references_recursive(&child, content, refs, containing_span, local_bindings, ctx);
     }
 }
 
@@ -304,6 +341,7 @@ fn extract_impl_item_references(
     refs: &mut Vec<ExtractedReference>,
     containing_span: Option<Span>,
     local_bindings: Option<&HashSet<String>>,
+    ctx: ReceiverCtx,
 ) {
     use node_kinds::{DECLARATION_LIST, FUNCTION_ITEM};
 
@@ -311,13 +349,27 @@ fn extract_impl_item_references(
     for child in node.children(&mut cursor) {
         if child.kind() != DECLARATION_LIST {
             // Type references in the impl header (e.g., `impl Foo for Bar`).
-            extract_references_recursive(&child, content, refs, containing_span, local_bindings);
+            extract_references_recursive(
+                &child,
+                content,
+                refs,
+                containing_span,
+                local_bindings,
+                ctx,
+            );
             continue;
         }
         let mut inner_cursor = child.walk();
         for item in child.children(&mut inner_cursor) {
             if item.kind() != FUNCTION_ITEM {
-                extract_references_recursive(&item, content, refs, containing_span, local_bindings);
+                extract_references_recursive(
+                    &item,
+                    content,
+                    refs,
+                    containing_span,
+                    local_bindings,
+                    ctx,
+                );
                 continue;
             }
             // Methods inside impl get their own containing span + bindings.
@@ -331,9 +383,39 @@ fn extract_impl_item_references(
                     refs,
                     Some(method_span),
                     Some(&method_bindings),
+                    ctx,
                 );
             }
         }
+    }
+}
+
+/// Base type name of an `impl` block's target: `impl Widget` and
+/// `impl Run for Widget` both yield `Widget`; generics are stripped to the
+/// base (`impl Gauge<T>` yields `Gauge`) and path types take their last
+/// segment (`impl lib::Widget` yields `Widget`). `None` for shapes with no
+/// single nominal base (references, trait objects, tuples) — receiver
+/// derivation then degrades to unknown, never to a guess (tethys-53iv D2).
+fn impl_type_base_name(node: &tree_sitter::Node, content: &[u8]) -> Option<String> {
+    let ty = node.child_by_field_name("type")?;
+    type_base_name(&ty, content)
+}
+
+/// Last-segment, generics-stripped base name of a type node; `None` when
+/// the type has no single nominal base.
+fn type_base_name(ty: &tree_sitter::Node, content: &[u8]) -> Option<String> {
+    match ty.kind() {
+        "type_identifier" => node_text(ty, content),
+        // generic_type strips to its base, reference_type to its referent
+        "generic_type" | "reference_type" => {
+            let inner = ty.child_by_field_name("type")?;
+            type_base_name(&inner, content)
+        }
+        "scoped_type_identifier" => {
+            let name = ty.child_by_field_name("name")?;
+            node_text(&name, content)
+        }
+        _ => None,
     }
 }
 
@@ -498,6 +580,7 @@ fn extract_call_reference(
     node: &tree_sitter::Node,
     content: &[u8],
     containing_span: Option<Span>,
+    ctx: ReceiverCtx,
 ) -> Option<ExtractedReference> {
     use node_kinds::{FIELD_EXPRESSION, IDENTIFIER, SCOPED_IDENTIFIER};
 
@@ -549,12 +632,20 @@ fn extract_call_reference(
                 );
                 return None;
             };
+            // `self.m()` derives the receiver type from the enclosing impl:
+            // the ref becomes `Type::m`, resolved by qualified_exact instead
+            // of the name-only arms (tethys-53iv C4).
+            let receiver = function.child_by_field_name("value");
+            let path = match (receiver.map(|r| r.kind()), ctx.impl_type) {
+                (Some("self"), Some(impl_type)) => Some(vec![impl_type.to_string()]),
+                _ => None,
+            };
             Some(ExtractedReference {
                 name,
                 kind: ExtractedReferenceKind::Method,
                 line: field.start_position().row as u32 + 1,
                 column: field.start_position().column as u32 + 1,
-                path: None,
+                path,
                 containing_symbol_span: containing_span,
             })
         }
@@ -2935,6 +3026,73 @@ pub enum E {
         assert!(
             refs.is_empty(),
             "macro token must not be a value ref: {refs:?}"
+        );
+    }
+
+    /// tethys-53iv C4: `self.m()` derives its receiver from the ENCLOSING
+    /// impl — two impls in one file each get their own type in the path
+    /// (bug class: file-global attribution), a trait impl derives the
+    /// implementing type, and `self` outside any impl derives nothing.
+    #[test]
+    fn self_receiver_derives_enclosing_impl_type() {
+        let code = r"
+pub struct A;
+impl A {
+    pub fn m(&self) {}
+    pub fn call_a(&self) { self.m(); }
+}
+pub struct B;
+impl B {
+    pub fn m(&self) {}
+    pub fn call_b(&self) { self.m(); }
+}
+pub trait Run { fn go(&self); }
+pub struct C;
+impl Run for C {
+    fn go(&self) { self.helper(); }
+}
+";
+        let tree = parse_rust(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let method_paths: Vec<(u32, Option<Vec<String>>)> = refs
+            .iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::Method)
+            .map(|r| (r.line, r.path.clone()))
+            .collect();
+        assert_eq!(
+            method_paths,
+            vec![
+                (5, Some(vec!["A".to_string()])),
+                (10, Some(vec!["B".to_string()])),
+                (15, Some(vec!["C".to_string()])),
+            ],
+            "each self call carries its OWN enclosing impl type"
+        );
+    }
+
+    /// tethys-53iv C4 shape coverage: generic and path impl targets strip to
+    /// the base name; `self` in a free fn context stays path-less.
+    #[test]
+    fn self_receiver_impl_type_base_name_shapes() {
+        let code = r"
+pub struct Gauge<T> { v: T }
+impl<T> Gauge<T> {
+    pub fn read(&self) -> &T { self.peek() }
+    pub fn peek(&self) -> &T { &self.v }
+}
+";
+        let tree = parse_rust(code);
+        let refs = extract_references(&tree, code.as_bytes());
+
+        let peek_call = refs
+            .iter()
+            .find(|r| r.kind == ExtractedReferenceKind::Method && r.name == "peek")
+            .expect("should find self.peek() call");
+        assert_eq!(
+            peek_call.path,
+            Some(vec!["Gauge".to_string()]),
+            "generic impl target strips to the base name"
         );
     }
 }
