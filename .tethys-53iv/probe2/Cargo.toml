@@ -1,0 +1,12 @@
+[package]
+name = "probe2-53iv"
+version = "0.1.0"
+edition = "2024"
+
+# probe2 (tethys-53iv): classify every Rust method-call receiver in a real
+# codebase by shape and local type-derivability. Raw grammar walk at the
+# exact versions tethys pins; none of tethys's extraction code.
+
+[dependencies]
+tree-sitter = "=0.24.7"
+tree-sitter-rust = "=0.23.3"

@@ -1,0 +1,36 @@
+== A. call refs bound to method-kind symbols, by strategy ==
+strategy|n
+same_file|419
+unique_workspace|400
+explicit_import|124
+glob_import|62
+qualified_exact|34
+qualified_module_fallback|10
+== B. binds for std-collision names (phantom candidates) ==
+name|kind|decl_file|bind_count
+parse|method|src/types.rs|8
+is_empty|method|src/types.rs|8
+as_str|method|src/types.rs|6
+parse|method|src/types.rs|1
+parse|method|src/types.rs|1
+== C. sample is_empty bind sites (src only, for hand-verification) ==
+path|line|strategy
+src/types.rs|222|same_file
+src/types.rs|780|same_file
+src/types.rs|927|same_file
+src/types.rs|1217|same_file
+src/types.rs|1217|same_file
+src/types.rs|1217|same_file
+src/types.rs|1224|same_file
+src/types.rs|1321|same_file
+== D. panic-points on tethys (expect accurate: no in-crate unwrap/expect methods) ==
+Panic Points Analysis
+===============================================================
+
+Summary:
+  Production code:    337 panic points
+  Test code:          1520 (use --include-tests to show)
+
+--------------------------------------------------------------
+== E. total unwrap/expect refs stored (vs grep oracle) ==
+661
