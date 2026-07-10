@@ -12,6 +12,16 @@ use super::Index;
 use crate::error::Result;
 use crate::types::{PanicKind, PanicPoint};
 
+/// SQL predicate matching panic-prone reference names. Method-call refs
+/// with a derived receiver stay unresolved as `Type::unwrap` (tethys-53iv),
+/// so the filter matches the bare names AND the `::`-qualified last segment
+/// — a raw `= 'unwrap'` filter re-hides exactly the sites the receiver
+/// gating preserved. Kept as one fragment so both queries below stay in
+/// lockstep (the `deprecated.rs` `DEPRECATION_ATTR_NAMES_SQL` precedent).
+const PANIC_NAME_PREDICATE: &str = "(r.reference_name IN ('unwrap', 'expect')
+       OR r.reference_name LIKE '%::unwrap'
+       OR r.reference_name LIKE '%::expect')";
+
 impl Index {
     /// Get all panic points in the codebase.
     ///
@@ -43,16 +53,18 @@ impl Index {
         );
         let conn = self.connection()?;
 
-        let base_query = r"
+        let base_query = format!(
+            r"
             SELECT f.path, r.line, r.reference_name, s.name, s.is_test
             FROM refs r
             JOIN files f ON r.file_id = f.id
             JOIN symbols s ON r.in_symbol_id = s.id
-            WHERE r.reference_name IN ('unwrap', 'expect')
+            WHERE {PANIC_NAME_PREDICATE}
               AND s.kind IN ('function', 'method')
-        ";
+        "
+        );
 
-        let mut query = base_query.to_string();
+        let mut query = base_query;
 
         if !include_tests {
             query.push_str(" AND s.is_test = 0");
@@ -95,16 +107,16 @@ impl Index {
     pub fn count_panic_points(&self) -> Result<(usize, usize)> {
         let conn = self.connection()?;
 
-        let mut stmt = conn.prepare(
+        let mut stmt = conn.prepare(&format!(
             r"
             SELECT s.is_test, COUNT(*)
             FROM refs r
             JOIN symbols s ON r.in_symbol_id = s.id
-            WHERE r.reference_name IN ('unwrap', 'expect')
+            WHERE {PANIC_NAME_PREDICATE}
               AND s.kind IN ('function', 'method')
             GROUP BY s.is_test
-            ",
-        )?;
+            "
+        ))?;
 
         let mut production_count = 0usize;
         let mut test_count = 0usize;
@@ -146,8 +158,14 @@ impl Index {
         let containing_symbol: String = row.get(3)?;
         let is_test: bool = row.get(4)?;
 
-        let Some(kind) = PanicKind::parse(&reference_name) else {
-            // This shouldn't happen since SQL filters for 'unwrap'/'expect',
+        // Qualified names (`Option::unwrap`, tethys-53iv derived receivers)
+        // parse by their last segment; bare names pass through unchanged.
+        let last_segment = reference_name
+            .rsplit("::")
+            .next()
+            .unwrap_or(&reference_name);
+        let Some(kind) = PanicKind::parse(last_segment) else {
+            // This shouldn't happen since SQL filters the same shapes,
             // but if it does (e.g., database corruption or schema change),
             // we skip this row. The caller logs aggregated skip counts.
             return Ok(None);
@@ -417,5 +435,75 @@ mod tests {
                 kind.as_str()
             );
         }
+    }
+
+    /// tethys-53iv D4 fence: qualified `reference_name`s (`Option::unwrap`,
+    /// `a::b::expect` — the shapes derived-receiver declines produce) must
+    /// report as panic points; decoys that merely CONTAIN the words
+    /// (`T::not_unwrap`, `unwrap_or`, `expected`) must not. Kills: a suffix
+    /// match without the `::` anchor, and a raw `= 'unwrap'` filter that
+    /// re-hides qualified sites.
+    #[test]
+    fn panic_points_matches_qualified_last_segment() {
+        let (_dir, mut index) = setup_test_db();
+        let file_id = index
+            .upsert_file(
+                std::path::Path::new("src/qualified.rs"),
+                Language::Rust,
+                1_000_000,
+                1000,
+                None,
+            )
+            .expect("should create file");
+        let prod_fn = index
+            .insert_symbol(&InsertSymbolParams {
+                file_id,
+                name: "qualified_zone",
+                module_path: "crate",
+                qualified_name: "qualified_zone",
+                kind: SymbolKind::Function,
+                line: 100,
+                column: 1,
+                span: None,
+                signature: None,
+                visibility: Visibility::Public,
+                parent_symbol_id: None,
+                is_test: false,
+            })
+            .expect("insert fn");
+        for (line, name) in [
+            (101, "Option::unwrap"),
+            (102, "a::b::expect"),
+            (103, "T::not_unwrap"),
+            (104, "unwrap_or"),
+            (105, "expected"),
+        ] {
+            index
+                .insert_reference(&InsertReferenceParams {
+                    symbol_id: None,
+                    file_id,
+                    kind: "call",
+                    line,
+                    column: 1,
+                    in_symbol_id: Some(prod_fn),
+                    reference_name: Some(name),
+                    strategy: None,
+                })
+                .expect("insert ref");
+        }
+
+        let points = index
+            .get_panic_points(false, None)
+            .expect("panic points query");
+        let qualified_zone: Vec<(u32, PanicKind)> = points
+            .iter()
+            .filter(|p| p.line >= 100)
+            .map(|p| (p.line, p.kind))
+            .collect();
+        assert_eq!(
+            qualified_zone,
+            vec![(101, PanicKind::Unwrap), (102, PanicKind::Expect)],
+            "qualified names report by last segment; decoys stay out"
+        );
     }
 }
