@@ -537,7 +537,9 @@ fn extract_call_reference(
             })
         }
         FIELD_EXPRESSION => {
-            // Method call: `user.greet()` - the method name is the "field"
+            // Method call: `user.greet()` - the method name is the "field".
+            // Emitted as Method (not Call) so Pass 1 never binds it by bare
+            // name — the receiver decides resolution (tethys-53iv).
             let field = function.child_by_field_name("field")?;
             let Some(name) = node_text(&field, content) else {
                 tracing::trace!(
@@ -549,7 +551,7 @@ fn extract_call_reference(
             };
             Some(ExtractedReference {
                 name,
-                kind: ExtractedReferenceKind::Call,
+                kind: ExtractedReferenceKind::Method,
                 line: field.start_position().row as u32 + 1,
                 column: field.start_position().column as u32 + 1,
                 path: None,

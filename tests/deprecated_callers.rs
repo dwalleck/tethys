@@ -354,14 +354,14 @@ fn same_file_phantoms_never_definite() {
         "phantom-capable sites must never be Definite; got {:?}",
         path.sites
     );
-    // TRIPWIRE (tethys-53iv): today the h.path() call IS misattributed to
-    // the deprecated method (1 phantom site). When 53iv lands and the
-    // resolver kind-gates or declines this binding, this count drops to 0 —
-    // flip this assertion then; the Maybe-only fence above must keep passing.
+    // tethys-53iv landed: method calls never Pass-1 bind by bare name, and
+    // the ambiguous `path` name (two in-crate candidates) declines in the
+    // Pass-2 name arms — the phantom site is gone. This assertion was the
+    // planted tripwire (flipped from 1 exactly as its note prescribed).
     assert_eq!(
         path.sites.len(),
-        1,
-        "documents current 53iv same-file phantom binding; see TRIPWIRE note"
+        0,
+        "the same-file phantom bind must stay dead (tethys-53iv)"
     );
 }
 
