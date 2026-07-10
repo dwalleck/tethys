@@ -55,3 +55,14 @@ with the ref-level adjudication; no unexplained rows.
 - The design's C3 predicted `unique_workspace` for the repro's AC3 bind —
   correct on the repro; on richer corpora the same tier also surfaces as
   `same_crate`. Fixtures assert tier membership, not one label.
+
+## Post-review-fix delta (bot findings, 2026-07-09)
+
+Three verified gemini findings (nested-fn map leak; `let_condition`
+scrutinee over-poisoning; `mut_pattern` losing derivation) applied after
+the first audit. Corpus re-run: non-call refs and C# still frozen; 103
+call-ref rows shifted — 101 bare→qualified `reference_name` upgrades on
+still-unresolved refs (`Path::join`, `HashMap::entry`, `Option::is_some`
+— mut/if-let receivers now derive and decline with type-anchored names)
+and 2 same-target `unique_workspace` → `qualified_exact` upgrades. Zero
+bind-target changes.

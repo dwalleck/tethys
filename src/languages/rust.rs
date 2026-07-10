@@ -38,6 +38,7 @@ mod node_kinds {
     pub const TYPE_IDENTIFIER: &str = "type_identifier";
     pub const GENERIC_TYPE: &str = "generic_type";
     pub const REFERENCE_TYPE: &str = "reference_type";
+    pub const MUT_PATTERN: &str = "mut_pattern";
     pub const VISIBILITY_MODIFIER: &str = "visibility_modifier";
     pub const FUNCTION_MODIFIERS: &str = "function_modifiers";
     pub const TYPE_PARAMETERS: &str = "type_parameters";
@@ -577,9 +578,14 @@ fn collect_local_types(fn_node: &tree_sitter::Node, content: &[u8]) -> HashMap<S
         fn_node.kind() == node_kinds::FUNCTION_ITEM,
         "collect_local_types expects a function_item node"
     );
-    // name -> (occurrence count, sole typed candidate)
+    // name -> (occurrence count, sole typed candidate). The walk starts at
+    // the fn's CHILDREN so the nested-fn guard in the recursion never fires
+    // on the entry node itself.
     let mut occ: HashMap<String, (u32, Option<String>)> = HashMap::new();
-    collect_types_recursive(fn_node, content, &mut occ);
+    let mut cursor = fn_node.walk();
+    for child in fn_node.children(&mut cursor) {
+        collect_types_recursive(&child, content, &mut occ);
+    }
     occ.into_iter()
         .filter_map(|(name, (count, ty))| match (count, ty) {
             (1, Some(t)) => Some((name, t)),
@@ -594,9 +600,19 @@ fn collect_types_recursive(
     occ: &mut HashMap<String, (u32, Option<String>)>,
 ) {
     use node_kinds::{
-        CLOSURE_PARAMETERS, FOR_EXPRESSION, IDENTIFIER, LET_CONDITION, LET_DECLARATION,
-        MATCH_PATTERN, PARAMETER, STRUCT_PATTERN, TUPLE_STRUCT_PATTERN,
+        CLOSURE_PARAMETERS, FOR_EXPRESSION, FUNCTION_ITEM, IDENTIFIER, LET_CONDITION,
+        LET_DECLARATION, MATCH_PATTERN, MUT_PATTERN, PARAMETER, STRUCT_PATTERN,
+        TUPLE_STRUCT_PATTERN,
     };
+
+    // Nested fns keep their own scope: their bindings must not leak into
+    // (or poison) the parent's map — the recursion recomputes a fresh map
+    // when it reaches them. DELIBERATE divergence from
+    // `collect_bindings_recursive`, which over-collects across nested fns
+    // because suppression is safe to over-approximate; derivation is not.
+    if node.kind() == FUNCTION_ITEM {
+        return;
+    }
     let mut record = |names: &HashSet<String>, ty: Option<&String>| {
         for name in names {
             let entry = occ.entry(name.clone()).or_insert((0, None));
@@ -614,20 +630,22 @@ fn collect_types_recursive(
                 let mut names = HashSet::new();
                 collect_pattern_idents(&pattern, content, &mut names);
                 // The annotation derives a type only for a PLAIN identifier
-                // pattern; destructured patterns bind without one.
-                let plain = pattern.kind() == IDENTIFIER && names.len() == 1;
+                // pattern (`mut` included — reassignment cannot change the
+                // type); destructured patterns bind without one.
+                let plain = matches!(pattern.kind(), IDENTIFIER | MUT_PATTERN) && names.len() == 1;
                 record(&names, annotated.filter(|_| plain).as_ref());
             }
         }
-        FOR_EXPRESSION => {
+        // For these, harvest ONLY the pattern field: a `let_condition`'s
+        // value side (`if let Some(v) = w.get()`) must not poison `w`.
+        FOR_EXPRESSION | LET_CONDITION => {
             if let Some(pattern) = node.child_by_field_name("pattern") {
                 let mut names = HashSet::new();
                 collect_pattern_idents(&pattern, content, &mut names);
                 record(&names, None);
             }
         }
-        CLOSURE_PARAMETERS | LET_CONDITION | MATCH_PATTERN | TUPLE_STRUCT_PATTERN
-        | STRUCT_PATTERN => {
+        CLOSURE_PARAMETERS | MATCH_PATTERN | TUPLE_STRUCT_PATTERN | STRUCT_PATTERN => {
             let mut names = HashSet::new();
             collect_pattern_idents(node, content, &mut names);
             record(&names, None);
@@ -3234,6 +3252,14 @@ pub fn go(x: &Thing, c: u32, (a, b): (u8, u8)) {
     let s: Thing = make_thing();
     let s = other();
     let x: Widget = rebind_param();
+    let mut m: Meter = meter();
+    let q: Widget = make_widget();
+    if let Some(inner) = q.peek() {
+        use_it(inner);
+    }
+    fn nested(n: Gauge<u8>) {
+        n.read();
+    }
     let f = |c: String| c.len();
     let plain = compute();
 }
@@ -3252,12 +3278,15 @@ pub fn go(x: &Thing, c: u32, (a, b): (u8, u8)) {
         assert_eq!(
             entries,
             vec![
+                ("m".to_string(), "Meter".to_string()),
+                ("q".to_string(), "Widget".to_string()),
                 ("v".to_string(), "Vec".to_string()),
                 ("y".to_string(), "Widget".to_string()),
                 ("z".to_string(), "Gauge".to_string()),
             ],
-            "typed single bindings only: s shadowed, c rebound by closure, \
-             a/b destructured, plain unannotated"
+            "typed single bindings: s shadowed, c closure-rebound, a/b \
+             destructured, x param+let collision, mut m derivable, if-let \
+             scrutinee q survives, nested fn n scoped out"
         );
     }
 }
