@@ -140,3 +140,70 @@ fn self_receiver_binds_qualified_same_file() {
     assert_eq!(target.as_deref(), Some("C::tick"));
     assert_eq!(strategy.as_deref(), Some("qualified_exact"));
 }
+
+/// 53iv design C5 + C6: annotated receivers derive their type and bind
+/// via `qualified_exact` — the same-named method on the adversarial twin
+/// type must never steal a bind (bug class: name-only arms winning over
+/// the derived path). A SHADOWED receiver degrades to unknown (name-arm
+/// decline here, since the name is ambiguous), and a known-EXTERNAL
+/// receiver (`Vec`) declines outright even though an in-crate `contains`
+/// exists (C6), staying visible as `Vec::contains` for Path B/panic-style
+/// consumers.
+#[test]
+fn annotated_receiver_matrix() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "pub mod twin;\n\
+             pub struct Widget;\n\
+             impl Widget {\n\
+             \x20   pub fn m(&self) {}\n\
+             \x20   pub fn contains(&self, _x: i32) {}\n\
+             }\n\
+             pub fn by_param(w: &Widget) {\n\
+             \x20   w.m();\n\
+             }\n\
+             pub fn by_let() {\n\
+             \x20   let w: crate::Widget = Widget;\n\
+             \x20   w.m();\n\
+             }\n\
+             pub fn shadowed() {\n\
+             \x20   let w: Widget = Widget;\n\
+             \x20   let w = twin::Twin;\n\
+             \x20   w.m();\n\
+             }\n\
+             pub fn external(v: Vec<i32>) {\n\
+             \x20   v.contains(&1);\n\
+             }\n",
+        ),
+        (
+            "src/twin.rs",
+            "pub struct Twin;\nimpl Twin {\n    pub fn m(&self) {}\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+
+    // by_param: typed param derives Widget -> qualified_exact, twin ignored.
+    let (strategy, target, _) = method_ref_at(&tethys, "src/lib.rs", 8);
+    assert_eq!(target.as_deref(), Some("Widget::m"));
+    assert_eq!(strategy.as_deref(), Some("qualified_exact"));
+
+    // by_let: path-annotated let derives Widget (last segment).
+    let (strategy, target, _) = method_ref_at(&tethys, "src/lib.rs", 12);
+    assert_eq!(target.as_deref(), Some("Widget::m"));
+    assert_eq!(strategy.as_deref(), Some("qualified_exact"));
+
+    // shadowed: derivation poisoned -> bare name -> ambiguous (Widget::m,
+    // Twin::m) -> declined with the name preserved.
+    let (strategy, target, name) = method_ref_at(&tethys, "src/lib.rs", 17);
+    assert_eq!(target, None, "shadowed receiver must not bind");
+    assert_eq!(strategy, None);
+    assert_eq!(name.as_deref(), Some("m"));
+
+    // external: Vec::contains has no in-crate match -> declined even though
+    // Widget::contains exists; qualified name preserved.
+    let (strategy, target, name) = method_ref_at(&tethys, "src/lib.rs", 20);
+    assert_eq!(target, None, "Vec receiver must not bind in-crate contains");
+    assert_eq!(strategy, None);
+    assert_eq!(name.as_deref(), Some("Vec::contains"));
+}
