@@ -19,3 +19,8 @@ vocabulary; docs/agents/issue-tracker.md is the rivets tracker workflow.
   resolver events are trace-level.
 - Every push to origin/main flips open PRs to BEHIND (full CI re-cycle):
   batch tracker/doc commits locally while a merge queue is draining.
+- Changelog: every PR adds a fragment `changelog.d/<id>.<category>.md`
+  (added/changed/deprecated/removed/fixed/security; 1-5 bullets for CLI
+  users). `skip-changelog` label is the only exemption. Never edit
+  CHANGELOG.md in a PR — `scripts/changelog-release.sh <version>`
+  assembles it at release time (see changelog.d/README.md).

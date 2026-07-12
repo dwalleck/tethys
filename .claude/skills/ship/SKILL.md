@@ -81,6 +81,16 @@ directions); commit fixes as their own conventional commits. Doing this
 pre-PR means the PR opens already-reviewed instead of collecting bot
 churn.
 
+Also before the PR: write the changelog fragment
+`changelog.d/<rivets-id>.<category>.md` — category one of
+added/changed/deprecated/removed/fixed/security; 1-5 bullets written for
+CLI users (name commands, flags, observable behavior; no rivets IDs or
+slice numbers — the PR body carries that story). Commit it
+(`docs(changelog): fragment for <id>`, or ride it with a review-fix
+commit). The `changelog` CI job blocks fragment-less PRs;
+`tests/changelog_lint.rs` fences the format; docs/CI-only PRs take the
+`skip-changelog` label instead. Never edit CHANGELOG.md on a branch.
+
 ## 4. Open the PR
 
 Push (`git push -u origin <branch>`), then `gh pr create` with the house

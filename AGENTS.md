@@ -114,6 +114,17 @@ Things the pipeline enforces that an agent should not violate
 - **Conventional commits** are validated in CI (commitlint). Format:
   `<type>(<scope>): <desc>`; types: feat/fix/docs/style/refactor/perf/test/
   build/ci/chore; scopes are lowercase (e.g. `lsp`, `db`, `languages`, `cli`).
+- **Changelog fragments** are required per PR (`changelog` CI job): add
+  `changelog.d/<rivets-id>.<category>.md` — category one of
+  added/changed/deprecated/removed/fixed/security — with 1-5 bullets written
+  for CLI users (the commit log carries the internal narrative; see
+  `changelog.d/README.md`). Format is fenced by `tests/changelog_lint.rs`;
+  the `skip-changelog` PR label is the only exemption. Never edit
+  CHANGELOG.md in a PR — fragments have distinct filenames precisely so
+  parallel PRs don't conflict; `scripts/changelog-release.sh <version>`
+  assembles CHANGELOG.md at release, and pushing the resulting `v*` tag
+  triggers `.github/workflows/release.yml` (verifies section + version
+  match, builds binaries, publishes the GitHub release).
 - **Tests run under `cargo nextest`** (multi-OS, stable + beta) plus doctests;
   use nextest locally to match CI.
 - **`cargo-deny`** restricts licenses to a fixed allow-list and pins sources to

@@ -60,6 +60,12 @@ discover on its own:
 - **Commit format**: conventional, ONE lowercase scope, no commas —
   CI regex `^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\([a-z][a-z0-9-]*\))?!?: .{3,}`.
   Subject cites the rivets ID: `fix(languages): ... (tethys-lwsc)`.
+- **Changelog fragment**: add `changelog.d/<rivets-id>.fixed.md` with one
+  user-facing bullet (what a CLI user sees fixed — no rivets jargon; the
+  PR body carries the repro/cause story). Required: the `changelog` CI
+  job blocks fragment-less PRs; format fenced by
+  `tests/changelog_lint.rs`. Distinct per-issue filenames are why
+  parallel sweep PRs never conflict here — NEVER edit CHANGELOG.md.
 - **Never touch `.rivets/`** — the tracker belongs to the orchestrator;
   a jsonl change in two branches conflicts at merge nearly every time.
   Discovered side-issues go in the report, not the tracker.
