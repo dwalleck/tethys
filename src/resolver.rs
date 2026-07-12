@@ -77,6 +77,13 @@ pub fn resolve_module_path(
 /// Try to resolve a path as a .rs file or directory with mod.rs.
 ///
 /// Returns `None` if neither variant exists on disk, avoiding phantom dependencies.
+/// Canonicalize `path`, falling back to the path as given when
+/// canonicalization fails (e.g. the path does not exist), so
+/// manually-built fixtures with consistent path forms still compare equal.
+fn canonicalize_or_raw(path: PathBuf) -> PathBuf {
+    path.canonicalize().unwrap_or(path)
+}
+
 fn resolve_as_module(path: &Path) -> Option<PathBuf> {
     // Try as a .rs file first
     let rs_path = path.with_extension("rs");
@@ -117,9 +124,7 @@ fn resolve_as_module(path: &Path) -> Option<PathBuf> {
 /// `.filter(exists)`-guarded, upholding the on-disk guarantee documented
 /// on [`CrateInfo::entry_point_file`].
 fn bare_crate_root_file(current_file: &Path, workspace_crates: &[CrateInfo]) -> Option<PathBuf> {
-    let current = current_file
-        .canonicalize()
-        .unwrap_or_else(|_| current_file.to_path_buf());
+    let current = canonicalize_or_raw(current_file.to_path_buf());
     let krate = crate::cargo::get_crate_for_file(&current, workspace_crates)?;
 
     // Canonicalize the compared paths too: `current` is canonical, but a
@@ -130,14 +135,12 @@ fn bare_crate_root_file(current_file: &Path, workspace_crates: &[CrateInfo]) -> 
     // the lib (PR #24 review finding, verified against a
     // `path = "src/./main.rs"` manifest).
     for (_, bin_rel) in &krate.bin_paths {
-        let bin_path = krate.path.join(bin_rel);
-        let bin_canonical = bin_path.canonicalize().unwrap_or(bin_path);
+        let bin_canonical = canonicalize_or_raw(krate.path.join(bin_rel));
         if bin_canonical == current {
             return Some(current).filter(|p| p.exists());
         }
     }
-    let src_bin = krate.path.join("src").join("bin");
-    let src_bin_canonical = src_bin.canonicalize().unwrap_or(src_bin);
+    let src_bin_canonical = canonicalize_or_raw(krate.path.join("src").join("bin"));
     if current.starts_with(src_bin_canonical) {
         return None;
     }
