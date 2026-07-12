@@ -207,3 +207,11 @@ Single-context layout at the repo root: `CONTEXT.md` (the domain glossary) plus
 `docs/adr/` (architectural decision records; ADR-0001 is the `ModuleResolver` seam,
 ADR-0002 is SQL-CTEs-not-petgraph, ADR-0003 is resolution provenance — store the
 strategy, derive the band). See `docs/agents/domain.md`.
+
+#### Doc maintenance
+
+Update AGENTS.md and CONTEXT.md in the **same commit** as the change that alters
+what they describe — never as a follow-up. A stale claim is worse than none:
+agents act on it as fact. When recording a hard-won lesson, cite the rivets ID
+or PR that taught it. (Adopted 2026-07-12 from the pi-lens project's AGENTS.md
+rule #1.)
