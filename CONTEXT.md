@@ -197,3 +197,15 @@ A symbol-to-symbol call relationship retained in the index. Cross-crate edges ar
 kept only when corroborated by an import ("k-hybrid"); a raw call reference is the
 pre-corroboration signal, a call edge is the retained fact.
 _Avoid_: call, call reference (when you mean the retained edge)
+
+### Query standing
+
+**Confirmed / Indeterminate (query standing)**:
+Whether the index can stand behind an analysis result as a whole. A result is
+*confirmed* when every input file is indexed and fresh; *indeterminate* when an
+input is missing from the index or stale on disk. An indeterminate empty result
+means "cannot see", never "clean" — it must surface distinguishably, not as
+silence.
+_Avoid_: treating an empty result as clean without checking standing; conflating
+standing with confidence bands (bands grade individual edges; standing grades a
+query's inputs).
