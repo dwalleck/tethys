@@ -74,8 +74,10 @@ pub enum Via {
     /// Pass-2-resolved reference (`refs.symbol_id` points at the symbol).
     Resolved,
     /// Unresolved reference whose qualified name ends in `::<symbol name>` —
-    /// the `crate::`/`super::` shape Pass 2 declines (tethys-3i35). Always
-    /// [`Tier::Maybe`].
+    /// the qualified shapes Pass 2 still declines: external-crate prefixes,
+    /// `super::` walks (tethys-nkjd), re-export tails (tethys-qtq5).
+    /// (Bare-`crate` paths resolve since tethys-3i35 and arrive as
+    /// [`Via::Resolved`] instead.) Always [`Tier::Maybe`].
     UnresolvedQualified,
 }
 
@@ -172,8 +174,9 @@ impl Index {
     ///   (`in_symbol_id NULL`, e.g. calls inside `#[cfg(test)] mod tests`)
     ///   are included; `populate_call_edges` skips those;
     /// - unresolved refs whose qualified `reference_name` ends with
-    ///   `::<symbol name>` — the cross-file `crate::`/`super::` shape Pass 2
-    ///   declines (tethys-3i35 / tethys-z9mr). Qualified-only by
+    ///   `::<symbol name>` — the qualified shapes Pass 2 still declines:
+    ///   external prefixes, `super::` walks (tethys-nkjd), re-export tails
+    ///   (tethys-qtq5), relative import paths (tethys-z9mr). Qualified-only by
     ///   measurement: on zbus 4.4.0 every bare unresolved name-match was
     ///   noise (36/36 refuted by rustc). A qualified match whose last
     ///   segment fits several deprecated symbols is attached to each —

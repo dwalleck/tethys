@@ -22,9 +22,14 @@ use tethys::{IndexOptions, Tethys};
 
 /// Create a 2-crate workspace with a cross-crate `use` statement.
 /// `crate_caller::main` imports `crate_target::Widget`, producing one
-/// expected cross-file edge after indexing.
+/// expected cross-file edge after indexing. `crate_target` additionally
+/// has an intra-crate consumer module importing via bare `use crate::…;`
+/// plus a qualified `crate::root_fn()` call — the shapes that only began
+/// producing import-derived edges with tethys-3i35, so double-index
+/// stability now covers them too (an UPSERT double-bump on the newly
+/// resolving import would break `ref_count_sum` equality).
 fn build_two_crate_workspace(dir: &TempDir) {
-    let files: [(&str, &str); 5] = [
+    let files: [(&str, &str); 6] = [
         (
             "Cargo.toml",
             "[workspace]\nmembers = [\"crate_caller\", \"crate_target\"]\nresolver = \"2\"\n",
@@ -48,7 +53,13 @@ fn build_two_crate_workspace(dir: &TempDir) {
         ),
         (
             "crate_target/src/lib.rs",
-            "pub struct Widget;\nimpl Widget { pub fn ping(&self) {} }\n",
+            "pub mod consumer;\npub struct Widget;\n\
+             impl Widget { pub fn ping(&self) {} }\npub fn root_fn() {}\n",
+        ),
+        (
+            "crate_target/src/consumer.rs",
+            "use crate::Widget;\n\npub fn build() -> Widget {\n    \
+             crate::root_fn();\n    Widget\n}\n",
         ),
     ];
     for (rel, content) in files {

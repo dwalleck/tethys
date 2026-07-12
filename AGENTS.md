@@ -177,9 +177,10 @@ semantics (this is checkpointed-build's `a-1` step, made tethys-specific):
 - **C# dependency resolution uses namespace/using corroboration**, not Rust-style
   module paths; its file-deps are treated more conservatively (see the
   `tests/csharp_*` files).
-- **`docs/`, `.separator-fix/`, and `.csharp-ns/`** hold historical plans and
-  past bug-fix artifacts (specs, probe scripts, baseline dumps). They are not
-  the shipping product — don't treat them as current behavior.
+- **`docs/`, `.separator-fix/`, `.csharp-ns/`, and `.tethys-3i35/`** hold
+  historical plans and past bug-fix artifacts (specs, probe scripts, baseline
+  dumps). They are not the shipping product — don't treat them as current
+  behavior.
 - **Cross-crate call edges are corroborated against imports** ("k-hybrid" logic
   in `src/db/call_edges.rs`) before being kept; uncorroborated cross-crate edges
   are dropped.

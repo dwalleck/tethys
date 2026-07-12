@@ -39,7 +39,17 @@ pub fn resolve_module_path(
     }
 
     match path[0].as_str() {
-        "crate" => resolve_crate_path(&path[1..], crate_root),
+        "crate" => {
+            // Bare `crate` refers to the crate itself, which on disk is the
+            // crate-root FILE — mirroring the single-segment workspace-crate
+            // arm below. Returning the src/ directory here (the pre-fix
+            // behavior) fed a path with no `files` row to every consumer
+            // (tethys-3i35; same hole as tethys-xzdr's import side).
+            if path.len() == 1 {
+                return bare_crate_root_file(current_file, workspace_crates);
+            }
+            resolve_crate_path(&path[1..], crate_root)
+        }
         "self" => resolve_self_path(&path[1..], current_file),
         "super" => resolve_super_path(&path[1..], current_file),
         head => {
@@ -67,6 +77,13 @@ pub fn resolve_module_path(
 /// Try to resolve a path as a .rs file or directory with mod.rs.
 ///
 /// Returns `None` if neither variant exists on disk, avoiding phantom dependencies.
+/// Canonicalize `path`, falling back to the path as given when
+/// canonicalization fails (e.g. the path does not exist), so
+/// manually-built fixtures with consistent path forms still compare equal.
+fn canonicalize_or_raw(path: PathBuf) -> PathBuf {
+    path.canonicalize().unwrap_or(path)
+}
+
 fn resolve_as_module(path: &Path) -> Option<PathBuf> {
     // Try as a .rs file first
     let rs_path = path.with_extension("rs");
@@ -84,11 +101,65 @@ fn resolve_as_module(path: &Path) -> Option<PathBuf> {
     None
 }
 
-/// Resolve a crate-relative path.
-fn resolve_crate_path(path: &[String], crate_root: &Path) -> Option<PathBuf> {
-    if path.is_empty() {
-        return Some(crate_root.to_path_buf());
+/// Resolve a bare `crate` path — exactly `["crate"]` — to the referencing
+/// file's own crate-root file.
+///
+/// Compiler-faithful choice, pinned by the tethys-3i35 design's rustc
+/// falsifier (`crate::y()` in `main.rs` with `y` only in `lib.rs` is E0425):
+///
+/// - the referencing file IS one of the crate's bin roots → that file
+///   (`crate` inside `main.rs` denotes the bin crate, not the lib);
+/// - under `src/bin/` without being a bin root → `None` (which bin's module
+///   tree owns the file is unknowable without per-target `mod` walking);
+/// - the crate has a lib target → the lib entry point;
+/// - no lib and exactly one bin → that bin root (single-target crate: all
+///   of `src/` belongs to it);
+/// - no targets, or several bins with no lib → `None`.
+///
+/// `current_file` is canonicalized before matching because discovered
+/// `CrateInfo::path` is canonical (same reason `Tethys::get_crate_for_file`
+/// canonicalizes — though on canonicalize failure that method declines,
+/// while this one falls back to the raw path so manually-built test
+/// fixtures with consistent path forms still match). Returned paths are
+/// `.filter(exists)`-guarded, upholding the on-disk guarantee documented
+/// on [`CrateInfo::entry_point_file`].
+fn bare_crate_root_file(current_file: &Path, workspace_crates: &[CrateInfo]) -> Option<PathBuf> {
+    let current = canonicalize_or_raw(current_file.to_path_buf());
+    let krate = crate::cargo::get_crate_for_file(&current, workspace_crates)?;
+
+    // Canonicalize the compared paths too: `current` is canonical, but a
+    // joined path can differ from its canonical form when the manifest
+    // spells a bin path with `./` components (sanitize_target_path allows
+    // CurDir) or a path component is a symlink. An uncanonicalized
+    // comparison would miss the bin root and mis-anchor its `crate::` to
+    // the lib (PR #24 review finding, verified against a
+    // `path = "src/./main.rs"` manifest).
+    for (_, bin_rel) in &krate.bin_paths {
+        let bin_canonical = canonicalize_or_raw(krate.path.join(bin_rel));
+        if bin_canonical == current {
+            return Some(current).filter(|p| p.exists());
+        }
     }
+    let src_bin_canonical = canonicalize_or_raw(krate.path.join("src").join("bin"));
+    if current.starts_with(src_bin_canonical) {
+        return None;
+    }
+    if krate.lib_path.is_some() || krate.bin_paths.len() == 1 {
+        return krate.entry_point_file().filter(|p| p.exists());
+    }
+    None
+}
+
+/// Resolve a crate-relative path. `path` must be non-empty: the bare
+/// `crate` case is handled by [`bare_crate_root_file`], and both remaining
+/// callers pass a non-empty tail by construction (a release-mode violation
+/// degrades to `resolve_as_module(crate_root)` → almost surely `None`, not
+/// wrong output).
+fn resolve_crate_path(path: &[String], crate_root: &Path) -> Option<PathBuf> {
+    debug_assert!(
+        !path.is_empty(),
+        "bare `crate` paths are routed to bare_crate_root_file"
+    );
 
     // Build the path from crate root
     let mut result = crate_root.to_path_buf();
@@ -536,6 +607,219 @@ mod tests {
             resolved.ends_with("my-crate/src/thing.rs")
                 || resolved.ends_with("my-crate\\src\\thing.rs"),
             "expected my-crate/src/thing.rs, got {resolved:?}"
+        );
+    }
+
+    /// Build a single-crate fixture for bare-`crate` tests. Paths in the
+    /// returned `CrateInfo` are canonicalized to match discovery's contract
+    /// (`cargo.rs` canonicalizes `CrateInfo::path`; `bare_crate_root_file`
+    /// canonicalizes `current_file` before prefix-matching against it).
+    /// `lib` / `bins` list files to create relative to the crate dir; `bins`
+    /// entries also become `bin_paths`.
+    fn crate_fixture(
+        dir: &TempDir,
+        name: &str,
+        lib: bool,
+        bins: &[&str],
+        extra_files: &[&str],
+    ) -> crate::types::CrateInfo {
+        let crate_path = dir.path().join(name);
+        fs::create_dir_all(crate_path.join("src")).expect("crate src");
+        if lib {
+            fs::write(crate_path.join("src/lib.rs"), "").expect("lib.rs");
+        }
+        for rel in bins.iter().chain(extra_files) {
+            let full = crate_path.join(rel);
+            if let Some(parent) = full.parent() {
+                fs::create_dir_all(parent).expect("nested dir");
+            }
+            fs::write(&full, "").expect("file");
+        }
+        crate::types::CrateInfo {
+            name: name.to_string(),
+            path: crate_path.canonicalize().expect("canonicalize crate path"),
+            lib_path: lib.then(|| PathBuf::from("src/lib.rs")),
+            bin_paths: bins
+                .iter()
+                .map(|b| ((*b).to_string(), PathBuf::from(b)))
+                .collect(),
+        }
+    }
+
+    /// Resolve `["crate"]` for a file inside the fixture crate.
+    fn bare_crate_for(file_rel: &str, krate: &crate::types::CrateInfo) -> Option<PathBuf> {
+        let current = krate.path.join(file_rel);
+        resolve_module_path(
+            &["crate".to_string()],
+            &current,
+            &krate.path.join("src"),
+            std::slice::from_ref(krate),
+        )
+    }
+
+    /// Bare `crate` from a lib-owned module resolves to the lib entry-point
+    /// FILE, not the `src/` directory (tethys-3i35 / design C5c baseline).
+    #[test]
+    fn bare_crate_resolves_to_lib_entry_point() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let krate = crate_fixture(&dir, "libonly", true, &[], &["src/inner.rs"]);
+        let resolved = bare_crate_for("src/inner.rs", &krate)
+            .expect("bare crate in a lib crate must resolve to the entry-point file");
+        assert!(
+            resolved.ends_with("libonly/src/lib.rs") || resolved.ends_with("libonly\\src\\lib.rs"),
+            "expected libonly/src/lib.rs, got {resolved:?}"
+        );
+        assert!(resolved.is_file(), "must be a file, not the src/ directory");
+    }
+
+    /// Bare `crate` written inside a bin root denotes the BIN crate: it must
+    /// resolve to that bin file itself, not the lib entry point. rustc-pinned
+    /// (E0425 falsifier, design C5a/C5b).
+    #[test]
+    fn bare_crate_in_bin_root_resolves_to_that_bin() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let krate = crate_fixture(&dir, "binlib", true, &["src/main.rs"], &[]);
+        let resolved = bare_crate_for("src/main.rs", &krate)
+            .expect("bare crate in main.rs must resolve to main.rs (bin crate root)");
+        assert!(
+            resolved.ends_with("binlib/src/main.rs") || resolved.ends_with("binlib\\src\\main.rs"),
+            "lib-preferred-always fabricates resolutions rustc rejects; got {resolved:?}"
+        );
+    }
+
+    /// A manifest may spell a bin path with a `./` component
+    /// (`sanitize_target_path` allows `CurDir`); the joined form then
+    /// differs from the canonicalized `current_file`, so the bin-root
+    /// comparison must canonicalize both sides. An uncanonicalized
+    /// comparison misses the bin root and mis-anchors its bare `crate` to
+    /// the lib entry point (PR #24 review finding).
+    #[test]
+    fn bare_crate_in_bin_root_with_dot_component_manifest_path() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut krate = crate_fixture(&dir, "dotbin", true, &["src/main.rs"], &[]);
+        krate.bin_paths = vec![("dotbin".to_string(), PathBuf::from("src/./main.rs"))];
+        let resolved = bare_crate_for("src/main.rs", &krate)
+            .expect("bare crate in a dot-component bin root must resolve to that bin");
+        assert!(
+            resolved.ends_with("dotbin/src/main.rs") || resolved.ends_with("dotbin\\src\\main.rs"),
+            "expected dotbin/src/main.rs (bin root), got {resolved:?}"
+        );
+    }
+
+    /// Bare `crate` from a lib-owned module of a bin+lib crate prefers the
+    /// lib entry point (design C5c).
+    #[test]
+    fn bare_crate_in_lib_module_of_binlib_prefers_lib() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let krate = crate_fixture(&dir, "binlib2", true, &["src/main.rs"], &["src/sub.rs"]);
+        let resolved = bare_crate_for("src/sub.rs", &krate)
+            .expect("bare crate in a lib module must resolve to lib.rs");
+        assert!(
+            resolved.ends_with("binlib2/src/lib.rs") || resolved.ends_with("binlib2\\src\\lib.rs"),
+            "expected binlib2/src/lib.rs, got {resolved:?}"
+        );
+    }
+
+    /// A file under `src/bin/` that is not itself a bin root belongs to an
+    /// unknowable bin module tree: decline rather than fabricate (design C5e).
+    #[test]
+    fn bare_crate_under_src_bin_non_root_declines() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let krate = crate_fixture(
+            &dir,
+            "tools",
+            true,
+            &["src/bin/tool/main.rs"],
+            &["src/bin/tool/helper.rs"],
+        );
+        let result = bare_crate_for("src/bin/tool/helper.rs", &krate);
+        assert!(
+            result.is_none(),
+            "bin-module files must decline (ambiguous compilation unit), got {result:?}"
+        );
+    }
+
+    /// Single-bin crate with no lib: every src/ file belongs to the one bin
+    /// target, so bare `crate` resolves to that bin root (design C5d).
+    #[test]
+    fn bare_crate_single_bin_no_lib_resolves_to_bin_root() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let krate = crate_fixture(&dir, "binonly", false, &["src/main.rs"], &["src/sub.rs"]);
+        let resolved = bare_crate_for("src/sub.rs", &krate)
+            .expect("single-bin crate must resolve bare crate to its bin root");
+        assert!(
+            resolved.ends_with("binonly/src/main.rs")
+                || resolved.ends_with("binonly\\src\\main.rs"),
+            "expected binonly/src/main.rs, got {resolved:?}"
+        );
+    }
+
+    /// Multiple bins and no lib: which target owns a shared src/ file is
+    /// unknowable — decline (design C5 decline row).
+    #[test]
+    fn bare_crate_multi_bin_no_lib_declines() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let krate = crate_fixture(
+            &dir,
+            "multibin",
+            false,
+            &["src/bin/a.rs", "src/bin/b.rs"],
+            &["src/shared.rs"],
+        );
+        let result = bare_crate_for("src/shared.rs", &krate);
+        assert!(
+            result.is_none(),
+            "multi-bin-no-lib must decline, got {result:?}"
+        );
+    }
+
+    /// No entry point at all (no lib target, no bins): decline without
+    /// panicking (design C6).
+    #[test]
+    fn bare_crate_no_entry_point_declines() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let krate = crate_fixture(&dir, "ghost", false, &[], &["src/floating.rs"]);
+        let result = bare_crate_for("src/floating.rs", &krate);
+        assert!(
+            result.is_none(),
+            "no-entry crate must decline, got {result:?}"
+        );
+    }
+
+    /// `CrateInfo` declares a lib entry point that is missing on disk:
+    /// `.filter(exists)` must decline instead of returning a phantom path
+    /// (mirrors the workspace-crate arm's on-disk guarantee).
+    #[test]
+    fn bare_crate_entry_point_missing_on_disk_declines() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        // Build with a lib on disk, then delete it, keeping lib_path set.
+        let krate = crate_fixture(&dir, "phantom", true, &[], &["src/inner.rs"]);
+        fs::remove_file(krate.path.join("src/lib.rs")).expect("remove lib.rs");
+        let result = bare_crate_for("src/inner.rs", &krate);
+        assert!(
+            result.is_none(),
+            "declared-but-missing entry point must decline, got {result:?}"
+        );
+    }
+
+    /// A file outside every known crate has no `crate` to speak of: decline
+    /// even with a non-empty workspace list (design C6).
+    #[test]
+    fn bare_crate_foreign_file_declines() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let krate = crate_fixture(&dir, "home", true, &[], &[]);
+        let foreign_dir = dir.path().join("stray");
+        fs::create_dir_all(&foreign_dir).expect("stray dir");
+        fs::write(foreign_dir.join("orphan.rs"), "").expect("orphan.rs");
+        let result = resolve_module_path(
+            &["crate".to_string()],
+            &foreign_dir.join("orphan.rs"),
+            &foreign_dir,
+            std::slice::from_ref(&krate),
+        );
+        assert!(
+            result.is_none(),
+            "foreign file must decline bare crate, got {result:?}"
         );
     }
 

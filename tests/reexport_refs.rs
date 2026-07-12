@@ -505,8 +505,9 @@ fn reexport_refs_stay_out_of_call_edges_and_panic_points() {
 
 /// C7: `self::` and `crate::` prefixed re-exports resolve with parity to the
 /// plain-path form — all three land on the defining file via the imports
-/// table (pinned empirically during slice 3; unlike qualified CALLS, import
-/// paths handle the crate prefix — contrast tethys-3i35).
+/// table (pinned empirically during slice 3; multi-segment import paths
+/// always handled the crate prefix, and since tethys-3i35 qualified calls
+/// and bare-`crate` paths do too).
 ///
 /// Bug this fails under: a bespoke path resolution in the emitter diverging
 /// from ModuleResolver semantics for prefixed paths.
