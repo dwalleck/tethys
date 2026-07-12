@@ -171,11 +171,10 @@ no two claims share a single yes-no oracle.
    files reachable from BOTH lib and bin trees anchor to lib, matching the
    dominant layout.
 
-## Open decisions for the design pause
+## Decisions (design pause, 2026-07-12 — user-approved)
 
-1. **Close tethys-xzdr in this PR?** The resolver-level fix is xzdr's
-   "preferred fix" verbatim; C7 implements its ACs. Recommend: yes.
-2. **Crate-root-choice table** — accept the decline rows (bin submodules,
-   multi-bin-no-lib) as the conservative posture?
-3. **`resolve_crate_path` empty-path branch** — remove vs. keep-documented.
-   Recommend: remove (unreachable after the fix; a trap if it returns).
+1. **Close tethys-xzdr in this PR: YES.** C7's fences satisfy xzdr's ACs;
+   xzdr closes at close-out citing this PR.
+2. **Crate-root-choice decline rows: ACCEPTED** (conservative posture).
+3. **`resolve_crate_path` empty-path branch: REMOVE** (unreachable after
+   the fix; a dir-returning branch is a trap for future callers).
