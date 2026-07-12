@@ -110,9 +110,12 @@ fn resolve_as_module(path: &Path) -> Option<PathBuf> {
 /// - no targets, or several bins with no lib → `None`.
 ///
 /// `current_file` is canonicalized before matching because discovered
-/// `CrateInfo::path` is canonical (mirrors `Tethys::get_crate_for_file`).
-/// Returned paths are `.filter(exists)`-guarded, upholding the on-disk
-/// guarantee documented on [`CrateInfo::entry_point_file`].
+/// `CrateInfo::path` is canonical (same reason `Tethys::get_crate_for_file`
+/// canonicalizes — though on canonicalize failure that method declines,
+/// while this one falls back to the raw path so manually-built test
+/// fixtures with consistent path forms still match). Returned paths are
+/// `.filter(exists)`-guarded, upholding the on-disk guarantee documented
+/// on [`CrateInfo::entry_point_file`].
 fn bare_crate_root_file(current_file: &Path, workspace_crates: &[CrateInfo]) -> Option<PathBuf> {
     let current = current_file
         .canonicalize()
