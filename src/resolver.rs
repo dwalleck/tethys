@@ -122,12 +122,23 @@ fn bare_crate_root_file(current_file: &Path, workspace_crates: &[CrateInfo]) -> 
         .unwrap_or_else(|_| current_file.to_path_buf());
     let krate = crate::cargo::get_crate_for_file(&current, workspace_crates)?;
 
+    // Canonicalize the compared paths too: `current` is canonical, but a
+    // joined path can differ from its canonical form when the manifest
+    // spells a bin path with `./` components (sanitize_target_path allows
+    // CurDir) or a path component is a symlink. An uncanonicalized
+    // comparison would miss the bin root and mis-anchor its `crate::` to
+    // the lib (PR #24 review finding, verified against a
+    // `path = "src/./main.rs"` manifest).
     for (_, bin_rel) in &krate.bin_paths {
-        if krate.path.join(bin_rel) == current {
+        let bin_path = krate.path.join(bin_rel);
+        let bin_canonical = bin_path.canonicalize().unwrap_or(bin_path);
+        if bin_canonical == current {
             return Some(current).filter(|p| p.exists());
         }
     }
-    if current.starts_with(krate.path.join("src").join("bin")) {
+    let src_bin = krate.path.join("src").join("bin");
+    let src_bin_canonical = src_bin.canonicalize().unwrap_or(src_bin);
+    if current.starts_with(src_bin_canonical) {
         return None;
     }
     if krate.lib_path.is_some() || krate.bin_paths.len() == 1 {
@@ -670,6 +681,25 @@ mod tests {
         assert!(
             resolved.ends_with("binlib/src/main.rs") || resolved.ends_with("binlib\\src\\main.rs"),
             "lib-preferred-always fabricates resolutions rustc rejects; got {resolved:?}"
+        );
+    }
+
+    /// A manifest may spell a bin path with a `./` component
+    /// (`sanitize_target_path` allows `CurDir`); the joined form then
+    /// differs from the canonicalized `current_file`, so the bin-root
+    /// comparison must canonicalize both sides. An uncanonicalized
+    /// comparison misses the bin root and mis-anchors its bare `crate` to
+    /// the lib entry point (PR #24 review finding).
+    #[test]
+    fn bare_crate_in_bin_root_with_dot_component_manifest_path() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let mut krate = crate_fixture(&dir, "dotbin", true, &["src/main.rs"], &[]);
+        krate.bin_paths = vec![("dotbin".to_string(), PathBuf::from("src/./main.rs"))];
+        let resolved = bare_crate_for("src/main.rs", &krate)
+            .expect("bare crate in a dot-component bin root must resolve to that bin");
+        assert!(
+            resolved.ends_with("dotbin/src/main.rs") || resolved.ends_with("dotbin\\src\\main.rs"),
+            "expected dotbin/src/main.rs (bin root), got {resolved:?}"
         );
     }
 
