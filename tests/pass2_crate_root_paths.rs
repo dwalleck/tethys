@@ -153,11 +153,25 @@ fn method_tail_resolves_to_thing_make() {
 /// produced the call edge (the bare call lives in a different fn, so
 /// `use_it_qualified` can only appear via the qualified ref).
 ///
-/// Name lookup binds the first `helper` match (tethys-bvgb); deterministic
-/// here because `crate_a` indexes before `crate_b`.
+/// This fixture deliberately has NO same-named decoy: `get_callers` binds
+/// the first `qualified_name` match (tethys-bvgb) and file indexing order
+/// is platform-dependent (CI's ubuntu runners walked `crate_b` first and
+/// bound the zero-caller decoy, so the two-crate fixture false-failed
+/// there). Per-crate anchoring under a decoy is C1's job
+/// (`single_segment_tail_resolves_with_decoy`, order-independent SQL);
+/// this test pins the call-edge AC only.
 #[test]
 fn callers_includes_qualified_only_call_site() {
-    let (_dir, tethys) = two_crate_fixture();
+    let (_dir, mut tethys) = workspace_with_files(&[
+        ("src/lib.rs", "pub mod b;\n\npub fn helper() {}\n"),
+        (
+            "src/b.rs",
+            "use crate::helper;\n\n\
+             pub fn use_it() {\n    helper();\n}\n\
+             pub fn use_it_qualified() {\n    crate::helper();\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
 
     let callers = tethys
         .get_callers("helper", false)
@@ -165,7 +179,7 @@ fn callers_includes_qualified_only_call_site() {
     // One Dependent per caller symbol (not per file): aggregate b.rs rows.
     let b_rs_symbols: Vec<&str> = callers
         .iter()
-        .filter(|d| d.file.to_string_lossy().replace('\\', "/") == "crate_a/src/b.rs")
+        .filter(|d| d.file.to_string_lossy().replace('\\', "/") == "src/b.rs")
         .flat_map(|d| d.symbols_used.iter().map(String::as_str))
         .collect();
     assert!(
