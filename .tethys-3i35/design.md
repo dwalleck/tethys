@@ -82,10 +82,18 @@ than left as a trap — plan decides the exact shape against its unit tests.
 2. **C2 (method tail).** `crate::Thing::make()` resolves to crate_a's
    `Thing::make` method symbol (methods store `parent::name` qualified
    names, so the entry-point lookup finds two-segment tails).
-3. **C3 (monotonicity).** On the tethys self-index, every ref resolved
-   pre-fix keeps the identical (symbol_id, strategy) post-fix, and the 13
-   submodule-tail `crate::` refs remain unresolved (tethys-qtq5 territory,
-   not this fix's).
+3. **C3 (monotonicity — amended at plan time).** On the tethys self-index,
+   post-fix: (a) every pre-fix resolved ref keeps its **symbol_id**; (b) no
+   pre-fix resolved ref becomes unresolved; (c) strategy changes are
+   permitted only as `same_crate`/`unique_workspace` → `explicit_import`
+   for names imported via a bare-crate `use crate::X;` (band medium→high
+   upgrade: the explicit-import path previously FAILED on source module
+   `crate` and fell through to fallbacks — post-fix it succeeds earlier);
+   (d) the 13 submodule-tail `crate::` refs remain unresolved (tethys-qtq5
+   territory). Any symbol_id change = STOP and investigate (drift rule).
+   *Amendment rationale (2026-07-12): the original "identical strategy"
+   form was too strict — planning surfaced that `use crate::X;`-imported
+   bare refs legitimately upgrade strategy when the import resolves.*
 4. **C4 (CLI AC).** `tethys callers helper` on the repro lists the
    `crate::helper()` call site in b.rs.
 5. **C5 (crate-root-choice matrix).** Each row of the table above holds:
