@@ -67,6 +67,57 @@ jobs:
           echo ""
           echo "All commits follow conventional format!"
 
+  # Require a changelog fragment in every PR (label skip-changelog to exempt).
+  # Presence is checked here (only CI sees the PR diff); the fragment's
+  # format is fenced by tests/changelog_lint.rs in the test job.
+  changelog:
+    name: Changelog Fragment
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for a changelog fragment
+        env:
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+        run: |
+          if [[ " ${PR_LABELS} " == *" skip-changelog "* ]]; then
+            echo "skip-changelog label present — no fragment required"
+            exit 0
+          fi
+
+          # Fetch base branch to ensure it's available
+          git fetch origin ${{ github.base_ref }}
+
+          # Fragments are ADDED files: each PR ships its own distinct file
+          # (that's what keeps parallel PRs conflict-free), so a merge-base
+          # diff filtered to additions is the whole check.
+          if ! DIFF=$(git diff --name-only --diff-filter=A \
+            "origin/${{ github.base_ref }}...HEAD" -- 'changelog.d/*.md'); then
+            echo "❌ git diff against the base branch failed"
+            exit 1
+          fi
+          FRAGMENTS=$(grep -v '^changelog.d/README\.md$' <<< "$DIFF" || true)
+
+          if [[ -z "$FRAGMENTS" ]]; then
+            echo "❌ No changelog fragment in this PR."
+            echo ""
+            echo "Add changelog.d/<id>.<category>.md — id is the rivets ID,"
+            echo "category one of: added changed deprecated removed fixed security —"
+            echo "with 1-5 user-facing bullets (see changelog.d/README.md)."
+            echo ""
+            echo "Docs/CI/chore-only PRs: apply the 'skip-changelog' label instead."
+            echo "The label is read at event time — after adding it, re-run this"
+            echo "check or push again."
+            exit 1
+          fi
+
+          echo "✅ Changelog fragment(s):"
+          echo "$FRAGMENTS"
+
   format:
     name: Format
     runs-on: ubuntu-latest
@@ -231,15 +282,21 @@ jobs:
   ci-success:
     name: CI Success
     if: always()
-    needs: [commitlint, format, lint, test, build, cargo-deny, coverage]
+    needs: [commitlint, changelog, format, lint, test, build, cargo-deny, coverage]
     runs-on: ubuntu-latest
     steps:
       - name: Check all jobs
         run: |
-          # commitlint is skipped on push events, so we allow "skipped" result
+          # commitlint and changelog are skipped on push events, so we
+          # allow "skipped" result for both
           if [[ "${{ needs.commitlint.result }}" != "success" ]] && \
              [[ "${{ needs.commitlint.result }}" != "skipped" ]]; then
             echo "Commit validation failed"
+            exit 1
+          fi
+          if [[ "${{ needs.changelog.result }}" != "success" ]] && \
+             [[ "${{ needs.changelog.result }}" != "skipped" ]]; then
+            echo "Changelog fragment check failed"
             exit 1
           fi
           if [[ "${{ needs.format.result }}" != "success" ]] || \
