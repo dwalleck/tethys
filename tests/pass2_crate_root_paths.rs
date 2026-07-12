@@ -225,3 +225,185 @@ fn root_decoy_does_not_shadow_submodule_tail() {
         "the crate-root f decoy must gain no call refs from crate::inner::f()"
     );
 }
+
+/// Count unresolved refs stored under the given qualified `reference_name`.
+fn count_unresolved(conn: &Connection, reference_name: &str) -> i64 {
+    conn.query_row(
+        "SELECT COUNT(*) FROM refs WHERE symbol_id IS NULL AND reference_name = ?1",
+        [reference_name],
+        |row| row.get(0),
+    )
+    .expect("count_unresolved query")
+}
+
+/// C5 rows (a)-(c) and (e): the crate-root-choice matrix for a bin+lib
+/// crate, rustc-pinned by the design's E0425 falsifier.
+///
+/// - (a) `crate::x()` written in `main.rs` (a bin root) binds `main.rs`'s
+///   `x` — `crate` inside a bin root denotes the BIN crate;
+/// - (b) `crate::y()` written in `main.rs` with `y` only in `lib.rs` stays
+///   UNRESOLVED — that line is E0425 to rustc, so binding it would
+///   fabricate an edge the compiler rejects (the fixture line is
+///   deliberately invalid Rust; the index must mirror the rejection);
+/// - (c) `crate::y()` in a lib-owned module binds `lib.rs`'s `y`;
+/// - (e) `crate::x()` in `src/bin/tool/helper.rs` (under `src/bin/`, not a
+///   bin root) stays UNRESOLVED — the owning bin's module tree is
+///   unknowable, decline over fabrication.
+///
+/// Buggy impl this kills: lib-preferred-always (binds (a) to `lib.rs` and
+/// resolves (b)); treating every non-root file as lib-owned (resolves (e)).
+#[test]
+fn crate_root_choice_matrix_binlib() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "Cargo.toml",
+            "[package]\nname = \"binlib\"\nversion = \"0.0.0\"\nedition = \"2021\"\n\
+             [[bin]]\nname = \"binlib\"\npath = \"src/main.rs\"\n\
+             [[bin]]\nname = \"tool\"\npath = \"src/bin/tool/main.rs\"\n",
+        ),
+        ("src/lib.rs", "pub mod sub;\n\npub fn y() {}\n"),
+        (
+            "src/sub.rs",
+            "pub fn from_lib_module() {\n    crate::y();\n}\n",
+        ),
+        (
+            "src/main.rs",
+            "fn x() {}\nfn main() {\n    crate::x();\n    crate::y();\n}\n",
+        ),
+        ("src/bin/tool/main.rs", "fn main() {}\n"),
+        (
+            "src/bin/tool/helper.rs",
+            "pub fn h() {\n    crate::x();\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let conn = open_db(&tethys);
+
+    // (a) bin-root file: crate::x() -> main.rs's x. In-driver the same-file
+    // arm wins before the qualified fallback (same outcome, earlier
+    // strategy), so this assert is strategy-agnostic; the resolver-level
+    // row-(a) fence is the `bare_crate_in_bin_root_resolves_to_that_bin`
+    // unit test in src/resolver.rs.
+    let x_bound_in_main: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM refs r
+             JOIN files rf ON r.file_id = rf.id
+             JOIN symbols s ON r.symbol_id = s.id
+             JOIN files tf ON s.file_id = tf.id
+             WHERE rf.path = 'src/main.rs' AND s.qualified_name = 'x'
+               AND tf.path = 'src/main.rs'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("row (a) query");
+    assert_eq!(
+        x_bound_in_main, 1,
+        "(a) crate::x() in main.rs must bind main.rs's x (bin crate root)"
+    );
+
+    // (b) crate::y() in main.rs must NOT resolve (rustc: E0425). This row
+    // exercises the new bin-root rule in-driver: a lib-preferred-always
+    // impl would claim lib.rs, find `y`, and fabricate the edge.
+    assert_eq!(
+        count_unresolved(&conn, "crate::y"),
+        1,
+        "(b) crate::y() in main.rs must stay unresolved"
+    );
+    let resolved_in_main_rs: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM refs r
+             JOIN files rf ON r.file_id = rf.id
+             WHERE rf.path = 'src/main.rs' AND r.symbol_id IS NOT NULL",
+            [],
+            |row| row.get(0),
+        )
+        .expect("resolved-in-main query");
+    assert_eq!(
+        resolved_in_main_rs, 1,
+        "main.rs must have exactly one resolved ref (crate::x) — a second \
+         one means crate::y was fabricated"
+    );
+
+    // (c) lib-owned module: crate::y() -> lib.rs's y.
+    assert_eq!(
+        count_resolved(
+            &conn,
+            "src/sub.rs",
+            "y",
+            "src/lib.rs",
+            "qualified_module_fallback",
+        ),
+        1,
+        "(c) crate::y() in a lib module must bind lib.rs's y"
+    );
+
+    // (e) bin-module file: crate::x() from src/bin/tool/helper.rs declines.
+    assert_eq!(
+        count_unresolved(&conn, "crate::x"),
+        1,
+        "(e) crate::x() under src/bin/ (non-root) must stay unresolved"
+    );
+}
+
+/// C5 row (d): a single-bin crate with no lib — every `src/` file belongs
+/// to the one bin target, so `crate::x()` from a module binds the bin
+/// root's `x`.
+#[test]
+fn crate_root_choice_single_bin_module() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        ("src/main.rs", "mod sub;\n\nfn x() {}\n\nfn main() {}\n"),
+        ("src/sub.rs", "pub fn call() {\n    crate::x();\n}\n"),
+    ]);
+    tethys.index().expect("index failed");
+    let conn = open_db(&tethys);
+
+    assert_eq!(
+        count_resolved(
+            &conn,
+            "src/sub.rs",
+            "x",
+            "src/main.rs",
+            "qualified_module_fallback",
+        ),
+        1,
+        "(d) crate::x() in a single-bin crate's module must bind main.rs's x"
+    );
+}
+
+/// C6: degenerate shapes decline without error — a member crate with no
+/// entry point on disk (no `lib.rs`, no `main.rs`), and a stray file
+/// belonging to no known crate. Both refs stay unresolved; indexing
+/// completes.
+///
+/// Buggy impl this kills: `.unwrap()` on `entry_point_file()`, or a
+/// fallback that treats the workspace root as everyone's crate.
+#[test]
+fn degenerate_crates_decline() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        ("Cargo.toml", "[workspace]\nmembers = [\"noentry\"]\n"),
+        (
+            "noentry/Cargo.toml",
+            "[package]\nname = \"noentry\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+        ),
+        (
+            "noentry/src/floating.rs",
+            "pub fn a() {\n    crate::b();\n}\n",
+        ),
+        ("stray/orphan.rs", "pub fn c() {\n    crate::d();\n}\n"),
+    ]);
+    tethys
+        .index()
+        .expect("indexing must succeed on degenerate shapes");
+    let conn = open_db(&tethys);
+
+    assert_eq!(
+        count_unresolved(&conn, "crate::b"),
+        1,
+        "no-entry-point crate: crate::b() must stay unresolved"
+    );
+    assert_eq!(
+        count_unresolved(&conn, "crate::d"),
+        1,
+        "foreign file: crate::d() must stay unresolved"
+    );
+}
