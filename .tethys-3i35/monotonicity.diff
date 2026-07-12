@@ -1,0 +1,72 @@
+1780c1780
+< src/indexing.rs	127	6	type	Tethys	src/lib.rs	unique_workspace
+---
+> src/indexing.rs	127	6	type	Tethys	src/lib.rs	explicit_import
+1858c1858
+< src/indexing.rs	759	32	call	Tethys::compute_module_path_for_file	src/lib.rs	qualified_exact
+---
+> src/indexing.rs	759	32	call	Tethys::compute_module_path_for_file	src/lib.rs	explicit_import
+1873c1873
+< src/indexing.rs	868	37	call	Tethys::relative_path	src/lib.rs	qualified_exact
+---
+> src/indexing.rs	868	37	call	Tethys::relative_path	src/lib.rs	explicit_import
+1903c1903
+< src/indexing.rs	1053	37	call	Tethys::relative_path	src/lib.rs	qualified_exact
+---
+> src/indexing.rs	1053	37	call	Tethys::relative_path	src/lib.rs	explicit_import
+1930c1930
+< src/indexing.rs	1260	27	call	Tethys::relative_path	src/lib.rs	qualified_exact
+---
+> src/indexing.rs	1260	27	call	Tethys::relative_path	src/lib.rs	explicit_import
+1940c1940
+< src/indexing.rs	1304	73	type	Tethys	src/lib.rs	unique_workspace
+---
+> src/indexing.rs	1304	73	type	Tethys	src/lib.rs	explicit_import
+1966c1966
+< src/indexing.rs	1789	54	type	Tethys	src/lib.rs	unique_workspace
+---
+> src/indexing.rs	1789	54	type	Tethys	src/lib.rs	explicit_import
+3122c3122
+< src/reindex.rs	32	6	type	Tethys	src/lib.rs	unique_workspace
+---
+> src/reindex.rs	32	6	type	Tethys	src/lib.rs	explicit_import
+3144c3144
+< src/reindex.rs	173	29	call	Tethys::relative_path	src/lib.rs	qualified_exact
+---
+> src/reindex.rs	173	29	call	Tethys::relative_path	src/lib.rs	explicit_import
+3166c3166
+< src/resolve.rs	73	6	type	Tethys	src/lib.rs	unique_workspace
+---
+> src/resolve.rs	73	6	type	Tethys	src/lib.rs	explicit_import
+3220c3220
+< src/resolve.rs	466	37	call	Tethys::relative_path	src/lib.rs	qualified_exact
+---
+> src/resolve.rs	466	37	call	Tethys::relative_path	src/lib.rs	explicit_import
+3236c3236
+< src/resolve.rs	565	34	call	Tethys::relative_path	src/lib.rs	qualified_exact
+---
+> src/resolve.rs	565	34	call	Tethys::relative_path	src/lib.rs	explicit_import
+3241,3242c3241,3242
+< src/resolve.rs	601	44	call	Tethys::get_crate_for_file	src/lib.rs	qualified_exact
+< src/resolve.rs	602	35	call	Tethys::relative_path	src/lib.rs	qualified_exact
+---
+> src/resolve.rs	601	44	call	Tethys::get_crate_for_file	src/lib.rs	explicit_import
+> src/resolve.rs	602	35	call	Tethys::relative_path	src/lib.rs	explicit_import
+3304c3304
+< src/resolve.rs	1435	26	call	Tethys::new	src/lib.rs	qualified_exact
+---
+> src/resolve.rs	1435	26	call	Tethys::new	src/lib.rs	explicit_import
+3543c3543
+< src/unused_imports.rs	79	6	type	Tethys	src/lib.rs	unique_workspace
+---
+> src/unused_imports.rs	79	6	type	Tethys	src/lib.rs	explicit_import
+3568c3568
+< src/unused_imports.rs	281	33	call	Tethys::relative_path	src/lib.rs	qualified_exact
+---
+> src/unused_imports.rs	281	33	call	Tethys::relative_path	src/lib.rs	explicit_import
+3574,3575c3574,3575
+< src/unused_imports.rs	373	65	type	Tethys	src/lib.rs	unique_workspace
+< src/unused_imports.rs	382	26	call	Tethys::new	src/lib.rs	qualified_exact
+---
+> src/unused_imports.rs	373	65	type	Tethys	src/lib.rs	explicit_import
+> src/unused_imports.rs	382	26	call	Tethys::new	src/lib.rs	explicit_import

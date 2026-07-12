@@ -85,10 +85,12 @@ than left as a trap — plan decides the exact shape against its unit tests.
 3. **C3 (monotonicity — amended at plan time).** On the tethys self-index,
    post-fix: (a) every pre-fix resolved ref keeps its **symbol_id**; (b) no
    pre-fix resolved ref becomes unresolved; (c) strategy changes are
-   permitted only as `same_crate`/`unique_workspace` → `explicit_import`
-   for names imported via a bare-crate `use crate::X;` (band medium→high
-   upgrade: the explicit-import path previously FAILED on source module
-   `crate` and fell through to fallbacks — post-fix it succeeds earlier);
+   permitted only as a fallback strategy → `explicit_import` for names
+   imported via a bare-crate `use crate::X;` (band upgrade: the
+   explicit-import path previously FAILED on source module `crate` and
+   fell through to fallbacks — post-fix it succeeds earlier; observed at
+   audit: `qualified_exact`×12, `unique_workspace`×7 — the plan-time
+   enumeration said `same_crate` and was incomplete, see audit.md);
    (d) the 13 submodule-tail `crate::` refs remain unresolved (tethys-qtq5
    territory). Any symbol_id change = STOP and investigate (drift rule).
    *Amendment rationale (2026-07-12): the original "identical strategy"
