@@ -26,21 +26,27 @@ const CATEGORIES: [&str; 6] = [
 /// notes, not commit narration (the PR body carries the long story).
 const MAX_LINES: usize = 10;
 
-/// Every fragment in `changelog.d/` (everything except `README.md`),
-/// failing on anything that is not a plain file — the directory stays flat.
+/// Every fragment in `changelog.d/` — everything except `README.md` and
+/// hidden entries (untracked filesystem noise like `.DS_Store` or editor
+/// swap files must not fail the fence) — failing on any other non-file
+/// entry: the directory stays flat.
 fn fragment_paths() -> Vec<PathBuf> {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("changelog.d");
     let mut paths = Vec::new();
     for entry in fs::read_dir(&dir).expect("changelog.d/ must exist at the repo root") {
         let path = entry.expect("readable changelog.d/ entry").path();
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .expect("UTF-8 filename in changelog.d/");
+        if name.starts_with('.') || name == "README.md" {
+            continue;
+        }
         assert!(
             path.is_file(),
             "changelog.d/ must stay flat — unexpected non-file entry: {}",
             path.display()
         );
-        if path.file_name().is_some_and(|name| name == "README.md") {
-            continue;
-        }
         paths.push(path);
     }
     paths
