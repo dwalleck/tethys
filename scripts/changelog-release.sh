@@ -14,6 +14,9 @@
 # Refuses to run on a dirty tree (the release commit should contain exactly
 # this script's output) or with zero fragments. Fragment shape is fenced by
 # tests/changelog_lint.rs — run scripts/gate.sh first.
+#
+# Portability: must run under macOS system bash 3.2 + BSD tools — no GNU
+# `sed -i`/`0,/re/`, no bash-4 `${var^}` (PR #22 review finding).
 set -euo pipefail
 
 cd "$(dirname "$0")/.." || exit 2
@@ -43,7 +46,8 @@ section=""
 for cat in added changed deprecated removed fixed security; do
   files=(changelog.d/*."$cat".md)
   [[ ${#files[@]} -eq 0 ]] && continue
-  section+="### ${cat^}"$'\n\n'
+  heading="$(tr '[:lower:]' '[:upper:]' <<< "${cat:0:1}")${cat:1}"
+  section+="### ${heading}"$'\n\n'
   for f in "${files[@]}"; do
     section+="$(cat "$f")"$'\n'
     consumed+=("$f")
@@ -60,7 +64,11 @@ section="## [$VERSION] - $(date +%Y-%m-%d)"$'\n\n'"$section"
 while [[ "$section" == *$'\n' ]]; do section="${section%$'\n'}"; done
 
 # ── bump Cargo.toml (first `version =` line is [package].version) ──
-sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
+awk -v ver="$VERSION" '
+  !done && /^version = ".*"/ { $0 = "version = \"" ver "\""; done = 1 }
+  { print }
+' Cargo.toml > Cargo.toml.tmp
+mv Cargo.toml.tmp Cargo.toml
 grep -q "^version = \"$VERSION\"$" Cargo.toml || {
   echo "❌ Cargo.toml version bump failed" >&2
   exit 1
