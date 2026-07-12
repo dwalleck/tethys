@@ -407,3 +407,28 @@ fn degenerate_crates_decline() {
         "foreign file: crate::d() must stay unresolved"
     );
 }
+
+/// C8: `use crate::*;` in a submodule now reaches the crate-root file, so
+/// a bare call to a crate-root fn resolves via the glob arm.
+///
+/// Buggy impl this kills: a fix plumbed only through `qualified_splits` —
+/// the glob arm goes through `resolve_import_files` -> `resolve_import`
+/// -> `resolve_module_path(["crate"])` and would still get the directory.
+#[test]
+fn glob_from_crate_root_resolves() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        ("src/lib.rs", "pub mod user;\n\npub fn gadget() {}\n"),
+        (
+            "src/user.rs",
+            "use crate::*;\n\npub fn go() {\n    gadget();\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+    let conn = open_db(&tethys);
+
+    assert_eq!(
+        count_resolved(&conn, "src/user.rs", "gadget", "src/lib.rs", "glob_import",),
+        1,
+        "a bare call under `use crate::*;` must resolve via the glob arm"
+    );
+}
