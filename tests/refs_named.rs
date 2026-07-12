@@ -30,19 +30,16 @@ fn scalar(conn: &rusqlite::Connection, sql: &str) -> i64 {
 /// call sites that RESOLVED (keyed by `symbols.name`) or are BARE-unresolved
 /// (keyed by `reference_name`), INCLUDING cross-file callers.
 ///
-/// `helper` is called 4×: 2 same-file bare, 1 cross-file bare via import (all
-/// resolve → keyed `helper`), and 1 cross-file QUALIFIED `crate::helper()`.
-/// The qualified call does not resolve (tethys-3i35) so it is stored
-/// unresolved with `reference_name='crate::helper'` and is keyed by that
-/// qualified path — a documented limitation, asserted here rather than papered
-/// over. So a bare-name query sees **3**.
+/// `helper` is called 4×: 2 same-file bare, 1 cross-file bare via import,
+/// and 1 cross-file QUALIFIED `crate::helper()`. All four resolve —
+/// tethys-3i35 landed, so the bare-`crate` qualified call binds the
+/// crate-root `helper` and is keyed by `symbols.name` like the rest. A
+/// bare-name query sees **4** and the qualified spelling keys **0**.
+/// (This flip was the TRIPWIRE planted here pre-fix; it fired exactly as
+/// predicted: 3→4 and 1→0.)
 ///
 /// Bug targeted: cross-file resolved calls uncounted (the zp2j-style miscount)
-/// → fewer than 3. Empty companion: `lonely` defined but never called → 0.
-///
-/// TRIPWIRE: when tethys-3i35 lands, `crate::helper()` will resolve →
-/// `name='helper'` becomes 4 and `name='crate::helper'` becomes 0; update the
-/// expectations below (and the design's C1) at that point.
+/// → fewer than 4. Empty companion: `lonely` defined but never called → 0.
 #[test]
 fn name_query_counts_all_callsites_including_cross_file() {
     let (_dir, mut tethys) = workspace_with_files(&[
@@ -78,15 +75,16 @@ pub fn use_it() {
 
     assert_eq!(
         count_named(&conn, "helper", "call"),
-        3,
-        "the 3 resolved/bare call sites of `helper` must be name-queryable by bare name"
+        4,
+        "all 4 call sites of `helper` (incl. the resolved crate::helper()) must \
+         be name-queryable by bare name"
     );
-    // Limitation (tethys-3i35): the unresolved qualified call is keyed by its
-    // stored qualified path, not the bare tail.
+    // tethys-3i35: the qualified call resolves, so nothing is keyed by the
+    // qualified spelling anymore.
     assert_eq!(
         count_named(&conn, "crate::helper", "call"),
-        1,
-        "an unresolved qualified call is keyed by its qualified reference_name"
+        0,
+        "a resolved qualified call must not be keyed by its qualified spelling"
     );
     assert_eq!(
         count_named(&conn, "lonely", "call"),

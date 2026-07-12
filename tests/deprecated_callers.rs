@@ -229,9 +229,11 @@ fn detects_all_kinds() {
     );
 }
 
-/// Fixture for C4/C6: root-level deprecated fns whose only callers use
-/// `crate::`/`super::` paths (the shape Pass 2 declines — tethys-3i35 /
-/// tethys-z9mr), a suffix-boundary decoy (`xold_bare`), a bare ambiguous
+/// Fixture for C4/C6: root-level deprecated fns called through qualified
+/// paths in both resolution regimes — `crate::`/`super::` paths RESOLVE
+/// (tethys-3i35 landed; they tier Definite/Resolved), while external-crate
+/// prefixes (`otherlib::`) stay unresolved by design and exercise Path B
+/// recovery — plus a suffix-boundary decoy (`xold_bare`), a bare ambiguous
 /// decoy that the resolver declines, and a zero-caller symbol.
 fn build_path_b_fixture() -> (tempfile::TempDir, Vec<DeprecatedFinding>) {
     let (dir, mut tethys) = workspace_with_files(&[
@@ -256,8 +258,8 @@ fn build_path_b_fixture() -> (tempfile::TempDir, Vec<DeprecatedFinding>) {
         ),
         (
             "src/consumer.rs",
-            "pub fn use_q() {\n    crate::old_q();\n}\n\
-             pub fn use_x() {\n    crate::xold_bare();\n}\n\
+            "pub fn use_q() {\n    crate::old_q();\n    otherlib::old_q();\n}\n\
+             pub fn use_x() {\n    otherlib::xold_bare();\n}\n\
              pub fn use_amb(g: &crate::gadget::Gadget) -> u32 {\n    g.old_amb()\n}\n",
         ),
     ]);
@@ -273,9 +275,12 @@ fn build_path_b_fixture() -> (tempfile::TempDir, Vec<DeprecatedFinding>) {
 /// names and non-matching suffixes are NOT (zbus measurement: bare matches
 /// were 36/36 noise; suffix must respect the `::` boundary).
 ///
-/// Empirical note (this fixture): the same-file `super::old_q()` call
-/// RESOLVES via Pass 2 (Definite/Resolved — correct, rustc agrees); only
-/// the cross-file `crate::old_q()` is declined and needs Path B recovery.
+/// Empirical note (this fixture): `super::old_q()` and — since tethys-3i35
+/// landed — the cross-file `crate::old_q()` both RESOLVE via Pass 2
+/// (Definite/Resolved; rustc agrees). Path B recovery is exercised by the
+/// external-prefix `otherlib::old_q()`, which the resolver declines by
+/// design (external crates are never indexed), so this fence cannot rot as
+/// resolution improves.
 #[test]
 fn qualified_unresolved_recovered_as_maybe() {
     let (_dir, findings) = build_path_b_fixture();
@@ -292,18 +297,27 @@ fn qualified_unresolved_recovered_as_maybe() {
         vec![
             (
                 "src/consumer.rs:2".to_string(),
+                Tier::Definite,
+                Via::Resolved,
+            ),
+            (
+                "src/consumer.rs:3".to_string(),
                 Tier::Maybe,
                 Via::UnresolvedQualified,
             ),
             ("src/lib.rs:14".to_string(), Tier::Definite, Via::Resolved),
         ],
-        "cross-file crate:: caller recovered as Maybe; same-file super:: caller stays resolved"
+        "crate:: caller resolves Definite (tethys-3i35); external-prefix caller \
+         recovered as Maybe; same-file super:: caller stays resolved"
     );
 }
 
-/// C4 boundary: `crate::xold_bare` must not match deprecated `old_bare`
-/// (kills suffix matching without the `::` separator), and the declined
-/// bare method call `g.old_amb()` must not surface (qualified-only sweep).
+/// C4 boundary: the unresolved `otherlib::xold_bare` must not match
+/// deprecated `old_bare` (kills suffix matching without the `::`
+/// separator), and the declined bare method call `g.old_amb()` must not
+/// surface (qualified-only sweep). The decoy uses an external prefix so it
+/// stays unresolved — a `crate::`-prefixed decoy would resolve post
+/// tethys-3i35 and never reach the Path B suffix check at all.
 #[test]
 fn path_b_respects_suffix_boundary_and_excludes_bare() {
     let (_dir, findings) = build_path_b_fixture();
@@ -311,7 +325,7 @@ fn path_b_respects_suffix_boundary_and_excludes_bare() {
     let old_bare = finding(&findings, "old_bare", "src/lib.rs");
     assert!(
         old_bare.sites.is_empty(),
-        "crate::xold_bare must not suffix-match old_bare; got {:?}",
+        "otherlib::xold_bare must not suffix-match old_bare; got {:?}",
         old_bare.sites
     );
 
@@ -943,7 +957,9 @@ fn no_cross_language_attachment() {
         (
             "src/user.rs",
             // Bare cross-file call resolves (pass 2); crate::Run stays
-            // unresolved (tethys-3i35 shape) with last segment `Run`.
+            // unresolved with last segment `Run` — the bare-crate split now
+            // claims lib.rs (tethys-3i35) but no Rust `Run` symbol exists
+            // there, so the tail lookup misses.
             "pub fn migrate() {\n    old_api();\n}\n\
              pub fn tempted() {\n    crate::Run();\n}\n",
         ),
