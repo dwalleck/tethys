@@ -145,6 +145,15 @@ _Avoid_: incremental index (say "reindex" or "incremental update")
 Divergence between the index and the filesystem, reported in three buckets —
 modified, added, deleted. Drives what a reindex must touch.
 
+**Orphan file**:
+An indexed file whose on-disk counterpart has been deleted since its last
+index — staleness's "deleted" bucket. An orphan-cleanup pass purges its rows
+(FK cascades take the dependents) at the start of every non-rebuild index
+run; left in place, its stale imports and references feed phantom edges to
+dependency queries.
+_Avoid_: stale file (staleness also covers modified and added), deleted file
+(ambiguous with a file the purge already removed)
+
 **Streaming mode**:
 An indexing mode that writes parsed files to SQLite incrementally via a background
 writer thread, bounding memory to the batch size. The contrast is **batch mode**,
