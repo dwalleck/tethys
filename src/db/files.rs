@@ -419,6 +419,36 @@ impl Index {
         Ok(files)
     }
 
+    /// Delete file rows by ID in one transaction, returning how many rows
+    /// were deleted.
+    ///
+    /// Foreign-key cascades (`PRAGMA foreign_keys` is ON from
+    /// [`Self::open`]) remove every dependent row: `symbols`, `refs`,
+    /// `imports`, `file_deps` (both directions), and `arch_file_packages`
+    /// cascade from `files` directly; `attributes` and `call_edges` cascade
+    /// via the deleted `symbols`. Refs in OTHER files that resolved to a
+    /// deleted file's symbols are cascade-deleted too (`refs.symbol_id`),
+    /// which is correct: their target symbol no longer exists.
+    ///
+    /// Used by the orphan-cleanup pass (`Tethys::purge_orphan_files`) to
+    /// drop files that were deleted from disk since their last index.
+    pub fn delete_files(&mut self, ids: &[FileId]) -> Result<usize> {
+        if ids.is_empty() {
+            return Ok(0);
+        }
+        let mut conn = self.connection()?;
+        let tx = conn.transaction()?;
+        let mut deleted = 0;
+        {
+            let mut stmt = tx.prepare_cached("DELETE FROM files WHERE id = ?1")?;
+            for id in ids {
+                deleted += stmt.execute([id.as_i64()])?;
+            }
+        }
+        tx.commit()?;
+        Ok(deleted)
+    }
+
     /// Get all indexed files.
     ///
     /// Used for dependency computation after streaming writes.
@@ -857,6 +887,156 @@ mod list_all_files_tests {
         let (_dir, index) = temp_index();
         let files = index.list_all_files().expect("list_all_files");
         assert!(files.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod delete_files_tests {
+    use crate::db::Index;
+    use crate::types::{FileId, Language};
+    use std::path::Path;
+    use tempfile::TempDir;
+
+    fn temp_index() -> (TempDir, Index) {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let index = Index::open(&dir.path().join("idx.db")).expect("open index");
+        (dir, index)
+    }
+
+    /// Two files with the full spread of dependent rows: symbols (with an
+    /// attribute), refs (own-file and cross-file resolved), imports,
+    /// `file_deps` in both directions, and a `call_edges` row between the
+    /// two files' symbols.
+    fn seed_two_file_fixture(index: &Index) -> (FileId, FileId) {
+        let conn = index.connection().expect("conn");
+        conn.execute_batch(
+            "INSERT INTO files (id, path, language, mtime_ns, size_bytes, indexed_at) VALUES
+                 (1, 'gone.rs', 'rust', 0, 0, 0),
+                 (2, 'kept.rs', 'rust', 0, 0, 0);
+             INSERT INTO symbols (id, file_id, name, module_path, qualified_name,
+                                  kind, line, column, visibility) VALUES
+                 (10, 1, 'gone_fn', '', 'gone_fn', 'function', 1, 1, 'pub'),
+                 (20, 2, 'kept_fn', '', 'kept_fn', 'function', 1, 1, 'pub');
+             INSERT INTO attributes (symbol_id, name, args, line)
+                 VALUES (10, 'derive', 'Clone', 1);
+             -- gone.rs ref resolved to kept.rs's symbol; kept.rs ref resolved
+             -- to gone.rs's symbol (must cascade via refs.symbol_id).
+             INSERT INTO refs (id, symbol_id, file_id, kind, line, column, in_symbol_id) VALUES
+                 (100, 20, 1, 'call', 2, 1, 10),
+                 (200, 10, 2, 'call', 2, 1, 20);
+             INSERT INTO imports (file_id, symbol_name, source_module) VALUES
+                 (1, 'kept_fn', 'crate::kept'),
+                 (2, 'gone_fn', 'crate::gone');
+             INSERT INTO file_deps (from_file_id, to_file_id, ref_count) VALUES
+                 (1, 2, 1),
+                 (2, 1, 1);
+             INSERT INTO call_edges (caller_symbol_id, callee_symbol_id) VALUES
+                 (10, 20),
+                 (20, 10);",
+        )
+        .expect("seed fixture");
+        (FileId::from(1), FileId::from(2))
+    }
+
+    fn table_count(index: &Index, sql: &str) -> i64 {
+        index
+            .connection()
+            .expect("conn")
+            .query_row(sql, [], |row| row.get(0))
+            .expect("count")
+    }
+
+    /// Deleting a file cascades to EVERY dependent table — `symbols`,
+    /// `attributes`, `refs` (own rows AND other files' rows resolved to the
+    /// deleted file's symbols), `imports`, `file_deps` in both directions,
+    /// and `call_edges` via the deleted symbols.
+    #[test]
+    fn delete_files_cascades_to_all_dependent_tables() {
+        let (_dir, mut index) = temp_index();
+        let (gone, _kept) = seed_two_file_fixture(&index);
+
+        let deleted = index.delete_files(&[gone]).expect("delete");
+        assert_eq!(deleted, 1, "exactly one file row deleted");
+
+        for (expected, sql) in [
+            (1, "SELECT COUNT(*) FROM files"),
+            (1, "SELECT COUNT(*) FROM symbols"),
+            (0, "SELECT COUNT(*) FROM attributes"),
+            // Both refs cascade: one by file_id, one by symbol_id.
+            (0, "SELECT COUNT(*) FROM refs"),
+            (1, "SELECT COUNT(*) FROM imports"),
+            (0, "SELECT COUNT(*) FROM file_deps"),
+            (0, "SELECT COUNT(*) FROM call_edges"),
+        ] {
+            let count = table_count(&index, sql);
+            assert_eq!(count, expected, "after delete: {sql} -> {count}");
+        }
+
+        // The surviving rows all belong to kept.rs.
+        let conn = index.connection().expect("conn");
+        let kept_path: String = conn
+            .query_row("SELECT path FROM files", [], |row| row.get(0))
+            .expect("surviving file");
+        assert_eq!(kept_path, "kept.rs");
+    }
+
+    /// Deleting several files in one call works and reports the total.
+    #[test]
+    fn delete_files_removes_multiple_ids() {
+        let (_dir, mut index) = temp_index();
+        let (gone, kept) = seed_two_file_fixture(&index);
+
+        let deleted = index.delete_files(&[gone, kept]).expect("delete");
+        assert_eq!(deleted, 2);
+        assert_eq!(table_count(&index, "SELECT COUNT(*) FROM files"), 0);
+        assert_eq!(table_count(&index, "SELECT COUNT(*) FROM symbols"), 0);
+    }
+
+    /// Empty input is a no-op; unknown IDs delete nothing and don't error.
+    #[test]
+    fn delete_files_handles_empty_and_unknown_ids() {
+        let (_dir, mut index) = temp_index();
+        index
+            .upsert_file(Path::new("a.rs"), Language::Rust, 0, 0, None)
+            .expect("insert file");
+
+        assert_eq!(index.delete_files(&[]).expect("empty"), 0);
+        assert_eq!(
+            index
+                .delete_files(&[FileId::from(999_999)])
+                .expect("unknown id"),
+            0
+        );
+        assert_eq!(table_count(&index, "SELECT COUNT(*) FROM files"), 1);
+    }
+
+    /// The whole purge is one transaction: exactly one commit regardless of
+    /// how many IDs are deleted.
+    #[test]
+    fn delete_files_commits_once() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let (_dir, mut index) = temp_index();
+        let (gone, kept) = seed_two_file_fixture(&index);
+
+        let commits = Arc::new(AtomicUsize::new(0));
+        {
+            let counter = Arc::clone(&commits);
+            let conn = index.connection().expect("conn");
+            conn.commit_hook(Some(move || {
+                counter.fetch_add(1, Ordering::SeqCst);
+                false
+            }));
+        }
+
+        index.delete_files(&[gone, kept]).expect("delete");
+
+        index
+            .connection()
+            .expect("conn")
+            .commit_hook(None::<fn() -> bool>);
+        assert_eq!(commits.load(Ordering::SeqCst), 1);
     }
 }
 

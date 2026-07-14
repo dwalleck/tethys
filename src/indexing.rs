@@ -191,6 +191,21 @@ impl Tethys {
         let total_files = source_files.len();
         let workspace_root = self.workspace_root.clone();
 
+        // Orphan-cleanup pass (tethys-dhxo): purge rows for files deleted
+        // from disk since their last index BEFORE any write/dependency pass.
+        // Nothing else ever deletes them — the files-table DELETE logic only
+        // fires when an existing file is re-indexed — and streaming mode's
+        // `compute_all_dependencies` walks every DB file, so a surviving
+        // orphan re-inserts `file_deps` edges from its stale stored imports
+        // and refs. FK cascades take the orphan's dependent rows with it.
+        let purged_orphans = self.purge_orphan_files(&source_files)?;
+        if purged_orphans > 0 {
+            info!(
+                purged_orphans,
+                "Removed index rows for files deleted from disk"
+            );
+        }
+
         // Clear file_deps before per-file dependency computation so stale rows
         // from prior runs don't accumulate via the UPSERT in
         // `insert_file_dependency`. Mirrors `clear_all_call_edges` at the
