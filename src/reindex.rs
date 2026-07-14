@@ -186,9 +186,10 @@ impl Tethys {
     /// alone. FK cascades remove the orphan's dependent rows (see
     /// [`crate::db::Index::delete_files`]).
     ///
-    /// Runs from `index_with_options` BEFORE the dependency/resolution
-    /// passes: without it, streaming mode's `compute_all_dependencies`
-    /// iterates every DB file — orphans included — and re-inserts
+    /// Runs from `index_with_options` BEFORE the dependency and
+    /// reference-resolution passes: without it, streaming mode's
+    /// `compute_all_dependencies` iterates every DB file — orphans
+    /// included — and re-inserts
     /// `file_deps` edges from the orphan's stale stored imports and refs,
     /// feeding phantom contributions to coupling, callers, cycles, and
     /// impact queries.

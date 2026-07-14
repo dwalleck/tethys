@@ -35,8 +35,9 @@ const ORPHAN_PATH: &str = "crate_caller/src/lib.rs";
 /// `reference_name` intact across runs. That surviving name is what
 /// corroborates the stored import when streaming mode recomputes dependencies
 /// from stored data, so the orphan re-inserts a `file_deps` edge pre-fix.
-/// (Resolved refs can't reproduce this: resolution nulls `reference_name`,
-/// and rewriting the target file cascade-deletes refs bound to its symbols.)
+/// (Resolved refs can't reproduce this: reference resolution nulls
+/// `reference_name`, and rewriting the target file cascade-deletes refs
+/// bound to its symbols.)
 fn build_workspace_with_unresolved_cross_crate_ref(dir: &TempDir) {
     let files: [(&str, &str); 5] = [
         (
