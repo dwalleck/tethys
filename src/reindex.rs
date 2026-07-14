@@ -3,7 +3,7 @@
 //! Thin wrappers around the core indexing pipeline for incremental updates
 //! and full rebuilds.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
@@ -12,7 +12,7 @@ use tracing::{debug, warn};
 use crate::Tethys;
 use crate::db::normalize_path;
 use crate::error::Result;
-use crate::types::{IndexOptions, IndexStats, IndexUpdate, StalenessReport};
+use crate::types::{FileId, IndexOptions, IndexStats, IndexUpdate, Language, StalenessReport};
 
 /// Classification of a single file's state relative to its indexed entry.
 ///
@@ -172,6 +172,58 @@ impl Tethys {
     fn lookup_key(&self, file_path: &Path) -> String {
         let relative = self.relative_path(file_path);
         normalize_path(relative.as_ref())
+    }
+
+    /// Purge index rows for orphan files: files still in the DB whose disk
+    /// counterpart was deleted since their last index.
+    ///
+    /// `disk_files` is the just-discovered source-file set (absolute paths),
+    /// so no second workspace walk is needed. A DB file missing from that
+    /// set is only a CANDIDATE: the purge re-checks the filesystem via
+    /// [`classify_indexed_file`] and deletes the row only on
+    /// [`FileChange::Deleted`] — a file the walk skipped for other reasons
+    /// (e.g. an unreadable directory) still exists on disk and is left
+    /// alone. FK cascades remove the orphan's dependent rows (see
+    /// [`crate::db::Index::delete_files`]).
+    ///
+    /// Runs from `index_with_options` BEFORE the dependency/resolution
+    /// passes: without it, streaming mode's `compute_all_dependencies`
+    /// iterates every DB file — orphans included — and re-inserts
+    /// `file_deps` edges from the orphan's stale stored imports and refs,
+    /// feeding phantom contributions to coupling, callers, cycles, and
+    /// impact queries.
+    ///
+    /// Returns the number of purged file rows.
+    pub(crate) fn purge_orphan_files(
+        &mut self,
+        disk_files: &[(PathBuf, Language)],
+    ) -> Result<usize> {
+        let disk_keys: HashSet<String> = disk_files
+            .iter()
+            .map(|(path, _)| self.lookup_key(path))
+            .collect();
+
+        let orphan_ids: Vec<FileId> = self
+            .db
+            .list_all_files()?
+            .into_iter()
+            .filter(|f| !disk_keys.contains(&normalize_path(&f.path)))
+            .filter(|f| {
+                let abs = self.workspace_root.join(&f.path);
+                classify_indexed_file(&abs, f.mtime_ns, f.size_bytes) == FileChange::Deleted
+            })
+            .map(|f| f.id)
+            .collect();
+
+        if orphan_ids.is_empty() {
+            return Ok(0);
+        }
+        let purged = self.db.delete_files(&orphan_ids)?;
+        debug!(
+            purged,
+            "Purged orphan file rows (files deleted from disk since last index)"
+        );
+        Ok(purged)
     }
 
     /// Rebuild the entire index from scratch.
