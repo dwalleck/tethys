@@ -37,9 +37,9 @@ fn value_snapshot(conn: &Connection) -> Vec<(i64, i64, String)> {
 }
 
 /// Claim 4: a value-position identifier that resolves to no in-crate symbol
-/// leaves no ref row (`drop_unresolved_value_refs`), while a genuine in-crate
-/// fn-as-value is retained. Non-vacuous: skip the drop and `nonexistent_xyz`
-/// survives; over-broaden the drop and `keeper` goes to 0.
+/// leaves no ref row (`drop_unresolved_value_and_macro_call_refs`), while a
+/// genuine in-crate fn-as-value is retained. Non-vacuous: skip the drop and
+/// `nonexistent_xyz` survives; over-broaden the drop and `keeper` goes to 0.
 #[test]
 fn unresolved_value_ref_dropped() {
     let (_dir, mut tethys) = workspace_with_files(&[(

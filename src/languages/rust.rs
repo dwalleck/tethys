@@ -463,7 +463,7 @@ fn type_base_name(ty: &tree_sitter::Node, content: &[u8]) -> Option<String> {
 /// value positions), and for identifiers that shadow a local — the
 /// conservative guard that keeps fn-as-value from accusing every identifier
 /// (tethys-ygjx). Value refs that resolve to no in-crate symbol are dropped
-/// after Pass-2 (`Index::drop_unresolved_value_refs`).
+/// after Pass-2 (`Index::drop_unresolved_value_and_macro_call_refs`).
 fn value_position_ref(
     node: &tree_sitter::Node,
     content: &[u8],
