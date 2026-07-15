@@ -165,14 +165,6 @@ pub enum ExtractedReferenceKind {
     Method,
     /// Call-shaped identifier inside a macro invocation's token tree
     /// (`assert_eq!(helper(), 1)` → `helper`) — tethys-8ym0.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "constructed by the Rust extractor's token walk in the \
-                      next slice; expect() self-removes when that lands"
-        )
-    )]
     MacroCall,
 }
 
