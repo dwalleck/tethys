@@ -13,6 +13,7 @@ pub mod panic_points;
 pub mod reachable;
 pub mod search;
 pub mod stats;
+pub mod untested_code;
 pub mod unused_imports;
 pub mod visibility_tightening;
 

@@ -194,6 +194,14 @@ enum Commands {
         #[arg(long)]
         all: bool,
     },
+
+    /// List product functions/methods no test can reach (reachability,
+    /// not verification — see facade docs for false-positive sources)
+    UntestedCode {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -277,6 +285,7 @@ fn main() -> ExitCode {
             workspace_closed,
         } => cli::visibility_tightening::run(&workspace, json, workspace_closed),
         Commands::UnusedImports { json, all } => cli::unused_imports::run(&workspace, json, all),
+        Commands::UntestedCode { json } => cli::untested_code::run(&workspace, json),
     };
 
     match result {

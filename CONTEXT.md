@@ -221,9 +221,11 @@ _Avoid_: call, call reference (when you mean the retained edge)
 **Confirmed / Indeterminate (query standing)**:
 Whether the index can stand behind an analysis result as a whole. A result is
 *confirmed* when every input file is indexed and fresh; *indeterminate* when an
-input is missing from the index or stale on disk. An indeterminate empty result
-means "cannot see", never "clean" — it must surface distinguishably, not as
-silence.
+input is missing from the index or stale on disk — or when an analysis's root
+set is empty (untested-code with zero test roots indexed: every product symbol
+is trivially unreachable, so the analysis reports nothing rather than accusing
+everything). An indeterminate empty result means "cannot see", never "clean" —
+it must surface distinguishably, not as silence.
 _Avoid_: treating an empty result as clean without checking standing; conflating
 standing with confidence bands (bands grade individual edges; standing grades a
 query's inputs).
