@@ -137,16 +137,14 @@ binds and fails).
 - Existing-LSP-test strengthening: queued in `.tethys-2mjj/to-file.md`,
   files at close-out.
 
-## Open decisions for design approval
+## Decisions (approved by user, 2026-07-15)
 
-1. **Advert scope**: unconditional for both providers (recommended —
-   csharp-ls verified tolerant; simpler) vs rust-analyzer-only.
-2. **C3's regression fence is `manual`** (audit-trail logs only) — the
-   skill requires explicit approval for a manual fence. Rationale: the
-   fixed product path cannot reach pre-quiescence queries, so no CI test
-   can exercise the claim without deleting the fix.
-3. **Timeout reuse**: `lsp_timeout_secs` (60s) doubles as the readiness
-   budget (recommended) vs a separate readiness timeout.
-4. **Method name**: `wait_for_quiescence` (rust-analyzer-specific,
-   recommended) vs generalizing `wait_for_ready(language)` inside the
-   client.
+1. **Advert scope**: unconditional for both providers (csharp-ls
+   verified tolerant live).
+2. **C3's regression fence is `manual`** — explicitly approved. The
+   fixed product path cannot reach pre-quiescence queries; the claim and
+   probe logs are the audit trail, and C8 guards the fix itself.
+3. **Timeout**: `lsp_timeout_secs` (60s default) doubles as the
+   readiness budget; no new flag.
+4. **Method name**: `wait_for_quiescence`.
+Design approved as presented (all recommended options).
