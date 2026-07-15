@@ -1,0 +1,6 @@
+Callers of "crate_glob_covers":
+
+  src/db/visibility.rs:
+    • Index::get_visibility_candidates
+
+Total: 1 direct callers across 1 files
