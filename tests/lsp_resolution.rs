@@ -271,6 +271,139 @@ fn internal_work() -> i32 {
     );
 }
 
+/// Position encoding fence (byte columns vs `utf-16` code units): a
+/// `goto_definition` at a byte column AFTER non-ASCII text on the same line
+/// must land on the right symbol.
+///
+/// Tethys stores tree-sitter columns, which are BYTE offsets (`utf-8` code
+/// units). LSP positions default to `utf-16` code units unless an encoding
+/// is negotiated at `initialize`. Without negotiation, a method call after a
+/// CJK string literal is queried at a column far past its real position and
+/// rust-analyzer finds no definition (verified: byte col 55 vs `utf-16` col
+/// 35 on this fixture line). Negotiating `utf-8` — which rust-analyzer
+/// accepts — makes the stored byte column exact.
+///
+/// This exercises `LspClient` directly rather than the full indexing
+/// pipeline: Pass 3 currently queries rust-analyzer immediately after
+/// `initialize`, racing its asynchronous workspace load, so pipeline-level
+/// LSP resolution is not deterministic on a cold fixture (tracked
+/// separately from the encoding defect this test fences).
+#[test]
+#[ignore = "requires rust-analyzer installed"]
+fn lsp_resolves_ref_after_non_ascii_text_on_same_line() {
+    use tethys::lsp::{LspClient, RustAnalyzerProvider};
+
+    if !rust_analyzer_available() {
+        eprintln!("Skipping test: rust-analyzer not available");
+        return;
+    }
+
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    fs::create_dir_all(dir.path().join("src")).expect("failed to create src dir");
+
+    // The `w.render()` call sits after a CJK + em-dash string literal on the
+    // same line: its byte column (55) is far larger than its utf-16 column
+    // (35). The receiver comes from a call so rust-analyzer must infer its
+    // type — same shape the indexing pipeline sends to Pass 3.
+    let lib_rs_content = "pub mod other;
+
+pub struct Widget;
+
+impl Widget {
+    pub fn render(&self) -> i32 {
+        1
+    }
+}
+
+pub fn make_widget() -> Widget {
+    Widget
+}
+
+pub fn draw() -> i32 {
+    let w = make_widget();
+    let _label = \"\u{65e5}\u{672c}\u{8a9e}\u{30e9}\u{30d9}\u{30eb} \u{2014} \u{30c6}\u{30b9}\u{30c8}\"; w.render()
+}
+";
+    let lib_rs = dir.path().join("src/lib.rs");
+    fs::write(&lib_rs, lib_rs_content).expect("failed to write lib.rs");
+
+    fs::write(
+        dir.path().join("src/other.rs"),
+        "pub struct Panel;
+
+impl Panel {
+    pub fn render(&self) -> i32 {
+        2
+    }
+}
+",
+    )
+    .expect("failed to write other.rs");
+
+    create_cargo_toml(&dir);
+
+    // Locate the call and the definition by content, byte-offset columns —
+    // exactly what tethys stores from tree-sitter.
+    let (call_line, call_col) = find_byte_position(lib_rs_content, "w.render()", "render");
+    let (def_line, _) = find_byte_position(lib_rs_content, "pub fn render", "render");
+
+    let mut client =
+        LspClient::start(&RustAnalyzerProvider, dir.path()).expect("failed to start LSP client");
+    client
+        .did_open(&lib_rs, lib_rs_content, "rust")
+        .expect("didOpen failed");
+
+    // rust-analyzer loads the workspace asynchronously after initialize and
+    // answers goto_definition with None — or a transient -32801 "content
+    // modified" error — until it finishes (~2s on this fixture); poll until
+    // it produces an answer.
+    let mut definition = None;
+    for _ in 0..60 {
+        match client.goto_definition(&lib_rs, call_line, call_col) {
+            Ok(Some(loc)) => {
+                definition = Some(loc);
+                break;
+            }
+            Ok(None) | Err(tethys::lsp::LspError::ServerError { code: -32801, .. }) => {
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+            Err(e) => panic!("goto_definition failed: {e}"),
+        }
+    }
+    client.shutdown().expect("shutdown failed");
+
+    let definition = definition.expect(
+        "goto_definition at the byte column of w.render() (after the non-ASCII \
+         literal) should find Widget::render — a miss means the position was \
+         interpreted in the wrong encoding",
+    );
+
+    assert!(
+        definition.uri.as_str().ends_with("src/lib.rs"),
+        "definition should be in lib.rs, got {}",
+        definition.uri.as_str()
+    );
+    assert_eq!(
+        definition.range.start.line, def_line,
+        "definition should be Widget::render's declaration line"
+    );
+}
+
+/// Find `needle` inside the first line containing `line_marker` and return
+/// its 0-indexed (line, byte column) — tree-sitter position semantics.
+fn find_byte_position(content: &str, line_marker: &str, needle: &str) -> (u32, u32) {
+    let (idx, line) = content
+        .lines()
+        .enumerate()
+        .find(|(_, l)| l.contains(line_marker))
+        .expect("marker line present in fixture");
+    let col = line.find(needle).expect("needle present on marker line");
+    (
+        u32::try_from(idx).expect("line fits u32"),
+        u32::try_from(col).expect("col fits u32"),
+    )
+}
+
 /// Test LSP resolution with generic types and type parameters.
 #[test]
 #[ignore = "requires rust-analyzer installed"]
