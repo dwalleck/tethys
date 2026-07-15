@@ -1027,7 +1027,13 @@ impl Tethys {
             return Ok(false);
         };
 
-        // LSP returns 0-indexed, convert to 1-indexed for DB lookup
+        // LSP returns 0-indexed, convert to 1-indexed for DB lookup.
+        //
+        // ENCODING FENCE: only the LINE of the incoming range is used —
+        // match-back is line-granular and line numbers are identical in every
+        // position encoding. If match-back ever becomes column-sensitive,
+        // incoming columns are in the negotiated encoding (see
+        // src/lsp/encoding.rs) and need the inverse conversion to bytes.
         let def_line = definition.range.start.line + 1;
 
         // Find the symbol at that line
@@ -1210,7 +1216,9 @@ impl Tethys {
                 continue;
             };
 
-            // LSP returns 0-indexed, convert to 1-indexed for DB lookup
+            // LSP returns 0-indexed, convert to 1-indexed for DB lookup.
+            // ENCODING FENCE: line-granular match-back — see the fence note
+            // in resolve_single_ref_via_lsp before adding column use here.
             let ref_line = loc.range.start.line + 1;
 
             // Find the symbol that contains this reference location

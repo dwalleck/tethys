@@ -17,7 +17,7 @@
 //! let location = client.goto_definition(
 //!     Path::new("src/main.rs"),
 //!     10,  // line (0-indexed)
-//!     5,   // column (0-indexed)
+//!     5,   // column (0-indexed byte offset)
 //! )?;
 //!
 //! // Clean shutdown
@@ -32,6 +32,7 @@
 //! - Request IDs are incrementing integers
 //! - Supports both successful responses and error responses
 
+mod encoding;
 mod error;
 mod provider;
 mod transport;
