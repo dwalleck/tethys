@@ -17,6 +17,11 @@
 //!
 //! # Known false-positive sources (documented, deliberately not filtered)
 //!
+//! The fn-as-value callback gap the original acceptance criteria pointed at
+//! is CLOSED (tethys-ygjx shipped `value` refs; tethys-8ym0 shipped
+//! `macro_call` refs) — callback-tested and assert-tested code counts as
+//! reached. The remaining sources:
+//!
 //! - Method-shape calls inside macro arguments (`assert!(x.is_valid())`)
 //!   emit no reference yet (tethys-9l27), so methods tested only that way
 //!   read untested.
@@ -149,23 +154,25 @@ impl Index {
             }
         }
 
-        // Indeterminate posture: zero roots means the closure is vacuous and
-        // every product symbol would be "untested" — report none instead.
-        if roots.is_empty() {
-            findings.clear();
-        }
-
-        trace!(
-            test_roots = roots.len(),
-            product_fns,
-            untested = findings.len(),
-            "Untested-code report complete"
-        );
-        Ok(UntestedReport {
+        let mut report = UntestedReport {
             test_roots: roots.len(),
             product_fns,
             findings,
-        })
+        };
+        // Indeterminate posture: zero roots means the closure is vacuous and
+        // every product symbol would be "untested" — report none instead.
+        // Driven by the SAME predicate consumers see, so the two can't drift.
+        if report.is_indeterminate() {
+            report.findings.clear();
+        }
+
+        trace!(
+            test_roots = report.test_roots,
+            product_fns,
+            untested = report.findings.len(),
+            "Untested-code report complete"
+        );
+        Ok(report)
     }
 }
 

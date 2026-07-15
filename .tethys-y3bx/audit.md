@@ -10,9 +10,9 @@ itself (the branch's own new code is part of the indexed universe).
 | slice 2 commit | roots 911 / prod 705 / untested 241 | 911 / 705 / 241 (**exact**) |
 | slice 4 final | roots 917 / prod 706 / untested 241 | 917 / 706 / 241 (**exact**) |
 
-Item checks at final state (grep-trace oracle recorded in findings.md):
-`crate_glob_covers` covered ✓, `scalar` covered ✓,
-`print_reachability_result` untested ✓.
+Item checks at final state (grep-trace oracle recorded in findings.md),
+4/4: `crate_glob_covers` covered ✓, `scalar` covered ✓,
+`is_excluded_dir` covered ✓, `print_reachability_result` untested ✓.
 
 refs-vs-call_edges divergence at final state: 241 vs 272 (gap 31) — the
 substrate choice stays load-bearing; CI form is F-U2's SQL divergence

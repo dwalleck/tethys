@@ -123,7 +123,9 @@ fn render_human(report: &UntestedReport) -> String {
         buf,
         "{}",
         "Reachability, not verification: a listed fn has no test-inbound \
-         reference path; see module docs for known false-positive sources."
+         reference path. Known false-positive sources: methods called only \
+         inside macro arguments, functions defined by macros (proptest), \
+         and dyn-dispatch-only call sites."
             .dimmed()
     );
     buf
