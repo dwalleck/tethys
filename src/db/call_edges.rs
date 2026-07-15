@@ -49,20 +49,25 @@ impl Index {
 
         // Insert aggregated edges from refs table
         // ON CONFLICT handles duplicates by adding to call_count.
-        // Two ref kinds are EXCLUDED as uses-not-calls that must not inflate
-        // the call graph (`callers`/`impact`):
+        // Three ref kinds are EXCLUDED as uses-not-calls that must not
+        // inflate the call graph (`callers`/`impact`):
         // - `value` (fn-as-value, tethys-ygjx): the analyses meant to consume
         //   them in `refs` — dead-code (tethys-dvsw) and hotspots
         //   (tethys-7p54) — are not built yet.
         // - `field_access` (C# member reads, tethys-xebx D3): a property or
         //   field read is not a call edge; `deprecated-callers` still lists
         //   reader sites because it reads `refs` directly, not this table.
+        // - `macro_call` (macro-token calls, tethys-8ym0): token-soup
+        //   provenance — on DSL-heavy code a token like `div(...)` can bind
+        //   a same-named in-crate fn. Suppression consumers (dead-code,
+        //   untested-code) read them from `refs`; the precision graph
+        //   excludes them by default.
         let inserted = conn.execute(
             "INSERT INTO call_edges (caller_symbol_id, callee_symbol_id, call_count)
              SELECT in_symbol_id, symbol_id, COUNT(*) as call_count
              FROM refs
              WHERE in_symbol_id IS NOT NULL AND symbol_id IS NOT NULL
-               AND kind NOT IN ('value', 'field_access')
+               AND kind NOT IN ('value', 'field_access', 'macro_call')
              GROUP BY in_symbol_id, symbol_id
              ON CONFLICT(caller_symbol_id, callee_symbol_id) DO UPDATE SET
                  call_count = call_edges.call_count + excluded.call_count",

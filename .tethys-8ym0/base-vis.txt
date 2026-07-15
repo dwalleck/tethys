@@ -1,0 +1,161 @@
+Visibility Tightening Analysis
+===============================================================
+
+Summary:
+  Candidates:                 153
+  Definite (tighten):         107
+  Maybe (verify first):       46
+
+  [Maybe]    struct IndexedWorkspace — benches/common.rs:14 (root-reachable)
+  [Maybe]    function create_workspace — benches/common.rs:24 (root-reachable)
+  [Maybe]    function as_file_refs — benches/common.rs:40 (root-reachable)
+  [Maybe]    function create_indexed_workspace — benches/common.rs:49 (root-reachable)
+  [Definite] struct WriteStats — src/batch_writer.rs:54
+  [Definite] struct BatchWriteResult — src/batch_writer.rs:69
+  [Definite] struct BatchWriter — src/batch_writer.rs:85
+  [Maybe]    function compute_module_path — src/cargo.rs:255 (root-reachable)
+  [Maybe]    function get_crate_for_file — src/cargo.rs:375 (shared-name, root-reachable)
+  [Maybe]    function run — src/cli/affected_tests.rs:10 (shared-name, root-reachable)
+  [Maybe]    function run — src/cli/callers.rs:13 (shared-name, root-reachable)
+  [Maybe]    enum SortFlag — src/cli/coupling.rs:15 (root-reachable)
+  [Maybe]    function run — src/cli/coupling.rs:43 (shared-name, root-reachable)
+  [Maybe]    function run — src/cli/cycles.rs:9 (shared-name, root-reachable)
+  [Maybe]    function run — src/cli/deprecated_callers.rs:15 (shared-name, root-reachable)
+  [Maybe]    function print_dependents — src/cli/display.rs:15 (root-reachable)
+  [Maybe]    function print_callers_by_file — src/cli/display.rs:38 (root-reachable)
+  [Maybe]    function run — src/cli/impact.rs:12 (shared-name, root-reachable)
+  [Maybe]    function run — src/cli/index.rs:12 (shared-name, root-reachable)
+  [Maybe]    function check_lsp_availability — src/cli/mod.rs:73 (root-reachable)
+  [Maybe]    function ensure_lsp_if_requested — src/cli/mod.rs:111 (root-reachable)
+  [Maybe]    function run — src/cli/panic_points.rs:14 (shared-name, root-reachable)
+  [Maybe]    function run — src/cli/reachable.rs:13 (shared-name, root-reachable)
+  [Maybe]    function run — src/cli/search.rs:9 (shared-name, root-reachable)
+  [Maybe]    function run — src/cli/stats.rs:9 (shared-name, root-reachable)
+  [Maybe]    function run — src/cli/unused_imports.rs:20 (shared-name, root-reachable)
+  [Maybe]    function run — src/cli/visibility_tightening.rs:16 (shared-name, root-reachable)
+  [Definite] struct SymbolData — src/db/mod.rs:78
+  [Maybe]    struct Index — src/db/mod.rs:100 (shared-name)
+  [Maybe]    type_alias Result — src/error.rs:25 (shared-name)
+  [Definite] trait SymbolGraphOps — src/graph/mod.rs:33
+  [Definite] trait FileGraphOps — src/graph/mod.rs:70
+  [Definite] struct ExtractedSymbol — src/languages/common.rs:10
+  [Definite] struct ExtractedAttribute — src/languages/common.rs:54
+  [Definite] struct ExtractedReference — src/languages/common.rs:76
+  [Definite] enum ExtractedReferenceKind — src/languages/common.rs:141
+  [Definite] struct ImportStatement — src/languages/common.rs:191
+  [Definite] const CLASS_DECLARATION — src/languages/csharp.rs:23
+  [Definite] const STRUCT_DECLARATION — src/languages/csharp.rs:24
+  [Definite] const INTERFACE_DECLARATION — src/languages/csharp.rs:25
+  [Definite] const ENUM_DECLARATION — src/languages/csharp.rs:26
+  [Definite] const RECORD_DECLARATION — src/languages/csharp.rs:27
+  [Definite] const METHOD_DECLARATION — src/languages/csharp.rs:30
+  [Definite] const CONSTRUCTOR_DECLARATION — src/languages/csharp.rs:31
+  [Definite] const PROPERTY_DECLARATION — src/languages/csharp.rs:32
+  [Maybe]    const FIELD_DECLARATION — src/languages/csharp.rs:33 (shared-name)
+  [Definite] const EVENT_FIELD_DECLARATION — src/languages/csharp.rs:34
+  [Definite] const EVENT_DECLARATION — src/languages/csharp.rs:35
+  [Definite] const DELEGATE_DECLARATION — src/languages/csharp.rs:36
+  [Definite] const VARIABLE_DECLARATION — src/languages/csharp.rs:37
+  [Definite] const VARIABLE_DECLARATOR — src/languages/csharp.rs:38
+  [Definite] const NAMESPACE_DECLARATION — src/languages/csharp.rs:41
+  [Definite] const FILE_SCOPED_NAMESPACE_DECLARATION — src/languages/csharp.rs:42
+  [Definite] const USING_DIRECTIVE — src/languages/csharp.rs:43
+  [Definite] const INVOCATION_EXPRESSION — src/languages/csharp.rs:46
+  [Definite] const OBJECT_CREATION_EXPRESSION — src/languages/csharp.rs:47
+  [Definite] const MEMBER_ACCESS_EXPRESSION — src/languages/csharp.rs:48
+  [Maybe]    const IDENTIFIER — src/languages/csharp.rs:51 (shared-name)
+  [Definite] const QUALIFIED_NAME — src/languages/csharp.rs:52
+  [Definite] const GENERIC_NAME — src/languages/csharp.rs:53
+  [Maybe]    const DECLARATION_LIST — src/languages/csharp.rs:56 (shared-name)
+  [Definite] const PARAMETER_LIST — src/languages/csharp.rs:57
+  [Maybe]    const PARAMETER — src/languages/csharp.rs:58 (shared-name)
+  [Definite] const MODIFIER — src/languages/csharp.rs:59
+  [Definite] const PUBLIC — src/languages/csharp.rs:62
+  [Definite] const PRIVATE — src/languages/csharp.rs:63
+  [Definite] const PROTECTED — src/languages/csharp.rs:64
+  [Definite] const INTERNAL — src/languages/csharp.rs:65
+  [Definite] const ATTRIBUTE_LIST — src/languages/csharp.rs:68
+  [Maybe]    const ATTRIBUTE — src/languages/csharp.rs:69 (shared-name)
+  [Definite] const ATTRIBUTE_ARGUMENT_LIST — src/languages/csharp.rs:70
+  [Definite] struct CSharpLanguage — src/languages/csharp.rs:74
+  [Definite] struct UsingDirective — src/languages/csharp.rs:113
+  [Maybe]    function extract_references — src/languages/csharp.rs:142 (shared-name)
+  [Definite] function extract_using_directives — src/languages/csharp.rs:530
+  [Maybe]    function extract_symbols — src/languages/csharp.rs:637 (shared-name)
+  [Definite] function get_language_support — src/languages/mod.rs:35
+  [Definite] trait LanguageSupport — src/languages/mod.rs:46
+  [Definite] const FUNCTION_ITEM — src/languages/rust.rs:24
+  [Definite] const STRUCT_ITEM — src/languages/rust.rs:25
+  [Definite] const ENUM_ITEM — src/languages/rust.rs:26
+  [Definite] const TRAIT_ITEM — src/languages/rust.rs:27
+  [Definite] const IMPL_ITEM — src/languages/rust.rs:28
+  [Definite] const CONST_ITEM — src/languages/rust.rs:29
+  [Definite] const STATIC_ITEM — src/languages/rust.rs:30
+  [Definite] const TYPE_ITEM — src/languages/rust.rs:31
+  [Definite] const MACRO_DEFINITION — src/languages/rust.rs:32
+  [Definite] const MOD_ITEM — src/languages/rust.rs:33
+  [Definite] const USE_DECLARATION — src/languages/rust.rs:34
+  [Maybe]    const DECLARATION_LIST — src/languages/rust.rs:37 (shared-name)
+  [Definite] const TYPE_IDENTIFIER — src/languages/rust.rs:38
+  [Definite] const GENERIC_TYPE — src/languages/rust.rs:39
+  [Definite] const REFERENCE_TYPE — src/languages/rust.rs:40
+  [Definite] const MUT_PATTERN — src/languages/rust.rs:41
+  [Definite] const VISIBILITY_MODIFIER — src/languages/rust.rs:42
+  [Definite] const FUNCTION_MODIFIERS — src/languages/rust.rs:43
+  [Definite] const TYPE_PARAMETERS — src/languages/rust.rs:44
+  [Maybe]    const PARAMETER — src/languages/rust.rs:45 (shared-name)
+  [Definite] const SELF_PARAMETER — src/languages/rust.rs:46
+  [Definite] const USE_LIST — src/languages/rust.rs:49
+  [Definite] const SCOPED_USE_LIST — src/languages/rust.rs:50
+  [Definite] const USE_WILDCARD — src/languages/rust.rs:51
+  [Definite] const USE_AS_CLAUSE — src/languages/rust.rs:52
+  [Definite] const SCOPED_IDENTIFIER — src/languages/rust.rs:53
+  [Maybe]    const IDENTIFIER — src/languages/rust.rs:54 (shared-name)
+  [Definite] const CRATE — src/languages/rust.rs:55
+  [Definite] const SELF — src/languages/rust.rs:56
+  [Definite] const SUPER — src/languages/rust.rs:57
+  [Definite] const ASYNC — src/languages/rust.rs:60
+  [Definite] const UNSAFE — src/languages/rust.rs:61
+  [Definite] const CONST — src/languages/rust.rs:62
+  [Definite] const ATTRIBUTE_ITEM — src/languages/rust.rs:65
+  [Maybe]    const ATTRIBUTE — src/languages/rust.rs:66 (shared-name)
+  [Definite] const TOKEN_TREE — src/languages/rust.rs:67
+  [Definite] const LINE_COMMENT — src/languages/rust.rs:70
+  [Definite] const BLOCK_COMMENT — src/languages/rust.rs:71
+  [Definite] const ENUM_VARIANT_LIST — src/languages/rust.rs:74
+  [Definite] const ENUM_VARIANT — src/languages/rust.rs:75
+  [Definite] const FIELD_DECLARATION_LIST — src/languages/rust.rs:76
+  [Maybe]    const FIELD_DECLARATION — src/languages/rust.rs:77 (shared-name)
+  [Definite] const ORDERED_FIELD_DECLARATION_LIST — src/languages/rust.rs:78
+  [Definite] const CALL_EXPRESSION — src/languages/rust.rs:81
+  [Definite] const STRUCT_EXPRESSION — src/languages/rust.rs:82
+  [Definite] const FIELD_EXPRESSION — src/languages/rust.rs:83
+  [Definite] const SCOPED_TYPE_IDENTIFIER — src/languages/rust.rs:84
+  [Definite] const MACRO_INVOCATION — src/languages/rust.rs:85
+  [Definite] const LET_DECLARATION — src/languages/rust.rs:88
+  [Definite] const FOR_EXPRESSION — src/languages/rust.rs:89
+  [Definite] const CLOSURE_PARAMETERS — src/languages/rust.rs:90
+  [Definite] const LET_CONDITION — src/languages/rust.rs:91
+  [Definite] const MATCH_PATTERN — src/languages/rust.rs:92
+  [Definite] const TUPLE_STRUCT_PATTERN — src/languages/rust.rs:93
+  [Definite] const STRUCT_PATTERN — src/languages/rust.rs:94
+  [Definite] const ARGUMENTS — src/languages/rust.rs:95
+  [Definite] const RETURN_EXPRESSION — src/languages/rust.rs:96
+  [Definite] struct RustLanguage — src/languages/rust.rs:100
+  [Definite] struct UseStatement — src/languages/rust.rs:132
+  [Maybe]    function extract_references — src/languages/rust.rs:175 (shared-name)
+  [Definite] function extract_use_statements — src/languages/rust.rs:918
+  [Maybe]    function extract_symbols — src/languages/rust.rs:1275 (shared-name)
+  [Definite] function node_text — src/languages/tree_sitter_utils.rs:15
+  [Definite] function node_span — src/languages/tree_sitter_utils.rs:34
+  [Maybe]    struct Tethys — src/lib.rs:80 (root-reachable)
+  [Maybe]    type_alias Result — src/lsp/mod.rs:44 (shared-name, root-reachable)
+  [Definite] struct ParsedFileData — src/parallel.rs:48
+  [Definite] struct OwnedSymbolData — src/parallel.rs:71
+  [Definite] function resolve_module_path — src/resolver.rs:31
+  [Definite] struct RefId — src/types.rs:87
+  [Maybe]    struct Import — src/types.rs:793 (shared-name)
+  [Definite] const DEFAULT_LSP_TIMEOUT_SECS — src/types.rs:878
+  [Maybe]    struct Impact — src/types.rs:1238 (shared-name)
+  [Maybe]    function workspace_with_files — tests/common/mod.rs:29 (shared-name, root-reachable)
+  [Maybe]    function open_db — tests/common/mod.rs:53 (root-reachable)

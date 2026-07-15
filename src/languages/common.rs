@@ -163,6 +163,9 @@ pub enum ExtractedReferenceKind {
     /// otherwise (tethys-53iv). Stores as `'call'` via [`Self::to_db_kind`];
     /// the distinction exists only at insert time.
     Method,
+    /// Call-shaped identifier inside a macro invocation's token tree
+    /// (`assert_eq!(helper(), 1)` → `helper`) — tethys-8ym0.
+    MacroCall,
 }
 
 impl ExtractedReferenceKind {
@@ -179,6 +182,7 @@ impl ExtractedReferenceKind {
             Self::Reexport => crate::types::ReferenceKind::Reexport,
             Self::Value => crate::types::ReferenceKind::Value,
             Self::FieldAccess => crate::types::ReferenceKind::FieldAccess,
+            Self::MacroCall => crate::types::ReferenceKind::MacroCall,
         }
     }
 }
@@ -206,4 +210,26 @@ pub struct ImportStatement {
     /// imports table; only populated on freshly parsed statements
     /// (always `false` when reconstructed from the database).
     pub is_reexport: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ExtractedReferenceKind;
+    use crate::types::ReferenceKind;
+
+    /// The extraction→storage mapping for `macro_call` (tethys-8ym0): a
+    /// wrong arm here (e.g. falling into the `Call` bucket like `Method`
+    /// does) would silently put macro-token refs INTO `call_edges`,
+    /// defeating the kind-exclusion posture.
+    #[test]
+    fn macro_call_maps_to_its_own_db_kind() {
+        assert_eq!(
+            ExtractedReferenceKind::MacroCall.to_db_kind(),
+            ReferenceKind::MacroCall
+        );
+        assert_eq!(
+            ExtractedReferenceKind::MacroCall.to_db_kind().as_str(),
+            "macro_call"
+        );
+    }
 }

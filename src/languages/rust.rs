@@ -230,8 +230,12 @@ fn extract_references_recursive(
             if let Some(ref_data) = extract_macro_reference(node, content, containing_span) {
                 refs.push(ref_data);
             }
-            // The macro's token_tree contains raw tokens, not expression
-            // nodes — nothing further to extract inside.
+            // The token tree holds raw tokens, not expression nodes. Bare
+            // call-shaped identifiers inside it become MacroCall refs
+            // (tethys-8ym0); every other token shape stays unextracted
+            // (method shapes: tethys-9l27, path shapes: tethys-ewa7,
+            // nested macro names: tethys-7dqj).
+            extract_macro_token_calls(node, content, refs, containing_span, local_bindings);
             return;
         }
 
@@ -459,7 +463,7 @@ fn type_base_name(ty: &tree_sitter::Node, content: &[u8]) -> Option<String> {
 /// value positions), and for identifiers that shadow a local — the
 /// conservative guard that keeps fn-as-value from accusing every identifier
 /// (tethys-ygjx). Value refs that resolve to no in-crate symbol are dropped
-/// after Pass-2 (`Index::drop_unresolved_value_refs`).
+/// after Pass-2 (`Index::drop_unresolved_value_and_macro_call_refs`).
 fn value_position_ref(
     node: &tree_sitter::Node,
     content: &[u8],
@@ -839,6 +843,116 @@ fn extract_macro_reference(
         }
         _ => None,
     }
+}
+
+/// Emit [`ExtractedReferenceKind::MacroCall`] refs for bare call-shaped
+/// identifier tokens inside a macro invocation's token tree (tethys-8ym0).
+///
+/// tree-sitter parses macro arguments as raw tokens, so
+/// `assert_eq!(helper(), 1)` contains no `call_expression` — `helper` is an
+/// `identifier` token whose next sibling is a parenthesized `token_tree`.
+/// An identifier token qualifies iff:
+///
+/// - its next sibling is a `(`-delimited `token_tree` (call shape; this
+///   already excludes nested macro names `matches!(…)`, whose next sibling
+///   is `!` — tethys-7dqj — and path heads `m::f(…)`, whose next sibling is
+///   `::` — tethys-ewa7);
+/// - its previous sibling is neither `.` (method shape — tethys-9l27) nor
+///   `::` (path tail — tethys-ewa7);
+/// - its text does not shadow a local binding of the enclosing function
+///   (the fn-as-value suppression set, tethys-ygjx).
+///
+/// Emitted refs flow through reference resolution unchanged; rows that
+/// bind no in-crate symbol are dropped after the final pass, mirroring
+/// `Value` refs. Called only from the `MACRO_INVOCATION` arm — the
+/// function locates the invocation's own token trees, so `macro_rules!`
+/// definition templates (a different node kind) are never walked.
+fn extract_macro_token_calls(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    refs: &mut Vec<ExtractedReference>,
+    containing_span: Option<Span>,
+    local_bindings: Option<&HashSet<String>>,
+) {
+    use node_kinds::{IDENTIFIER, TOKEN_TREE};
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            // Nested trees: `assert!(f(g(1)))` and the argument tree of a
+            // nested macro both recurse.
+            TOKEN_TREE => {
+                extract_macro_token_calls(&child, content, refs, containing_span, local_bindings);
+            }
+            // Only identifiers that are TOKENS qualify (parent is a
+            // token_tree). On the entry call `node` is the macro_invocation
+            // itself, whose identifier child is the macro NAME — skip it.
+            IDENTIFIER if node.kind() == TOKEN_TREE => {
+                if !is_bare_call_shape_token(&child) {
+                    continue;
+                }
+                let Some(name) = node_text(&child, content) else {
+                    continue;
+                };
+                if local_bindings.is_some_and(|b| b.contains(&name)) {
+                    continue;
+                }
+                refs.push(ExtractedReference {
+                    name,
+                    kind: ExtractedReferenceKind::MacroCall,
+                    line: child.start_position().row as u32 + 1,
+                    column: child.start_position().column as u32 + 1,
+                    path: None,
+                    containing_symbol_span: containing_span,
+                });
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Shape test for [`extract_macro_token_calls`]: a bare call-shaped
+/// identifier token — followed by a `(`-delimited `token_tree`, not preceded
+/// by `.` (method) or `::` (path tail). Comments parse as sibling nodes even
+/// inside token trees (`helper /* c */ ()`, `x. /* c */ unwrap()`), so both
+/// neighbor lookups skip them — a direct-sibling check would miss the call
+/// shape in the first case and, worse, miss the method guard in the second
+/// (verified against the grammar; gemini review, PR #26).
+fn is_bare_call_shape_token(ident: &tree_sitter::Node) -> bool {
+    let followed_by_paren_tree = next_non_comment_sibling(ident).is_some_and(|n| {
+        n.kind() == node_kinds::TOKEN_TREE && n.child(0).is_some_and(|d| d.kind() == "(")
+    });
+    let method_or_path_tail =
+        prev_non_comment_sibling(ident).is_some_and(|p| matches!(p.kind(), "." | "::"));
+    followed_by_paren_tree && !method_or_path_tail
+}
+
+fn next_non_comment_sibling<'t>(node: &tree_sitter::Node<'t>) -> Option<tree_sitter::Node<'t>> {
+    let mut cur = node.next_sibling();
+    while let Some(s) = cur {
+        if !matches!(
+            s.kind(),
+            node_kinds::LINE_COMMENT | node_kinds::BLOCK_COMMENT
+        ) {
+            return Some(s);
+        }
+        cur = s.next_sibling();
+    }
+    None
+}
+
+fn prev_non_comment_sibling<'t>(node: &tree_sitter::Node<'t>) -> Option<tree_sitter::Node<'t>> {
+    let mut cur = node.prev_sibling();
+    while let Some(s) = cur {
+        if !matches!(
+            s.kind(),
+            node_kinds::LINE_COMMENT | node_kinds::BLOCK_COMMENT
+        ) {
+            return Some(s);
+        }
+        cur = s.prev_sibling();
+    }
+    None
 }
 
 /// Extract a struct constructor reference from a `struct_expression` node.
@@ -3160,14 +3274,118 @@ pub enum E {
 
     #[test]
     fn macro_token_identifier_not_emitted_as_value() {
-        // Category 2 is out of scope (tethys-8ym0): identifiers inside a macro
-        // token tree must not become value refs (MACRO_INVOCATION returns
-        // early, so the token tree is never walked).
-        let refs = value_refs("fn caller() { dbg!(target_fn); }");
+        // The macro token walk (tethys-8ym0) emits only CALL-shaped tokens
+        // as MacroCall refs; a bare identifier inside a token tree is still
+        // neither a value ref (ygjx cat-2 stays out of the value channel)
+        // nor a macro_call ref (not call-shaped — see negative-space S7).
+        let code = "fn caller() { dbg!(target_fn); }";
+        let refs = value_refs(code);
         assert!(
             refs.is_empty(),
             "macro token must not be a value ref: {refs:?}"
         );
+        assert!(
+            macro_call_refs(code).is_empty(),
+            "bare (non-call-shape) macro token must not be a macro_call ref"
+        );
+    }
+
+    // ========================================================================
+    // Macro token-tree call extraction (tethys-8ym0)
+    // ========================================================================
+
+    fn macro_call_refs(code: &str) -> Vec<ExtractedReference> {
+        let tree = parse_rust(code);
+        extract_references(&tree, code.as_bytes())
+            .into_iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::MacroCall)
+            .collect()
+    }
+
+    /// The plan's slice-2 stress fixture: every token shape in one source.
+    /// Expected emissions were written down BEFORE implementation:
+    /// `target` (assert), `cross` (nested inside `matches!`'s tree),
+    /// `target` (vec![]) — and nothing else. Attacks shape
+    /// misclassification (method/path/nested-name leaks), nested-tree
+    /// misses, and local-shadow leaks.
+    #[test]
+    fn macro_token_call_shapes_emit_exactly_bare_calls() {
+        let code = r"
+fn target() {}
+fn cross() {}
+fn user(recv: Recv) {
+    let clos = |x: i32| x;
+    assert!(target() == 1);
+    assert_eq!(clos(1), m::path_fn(2));
+    assert!(matches!(cross(), 0));
+    assert!(recv.meth(3));
+    let v = vec![target(), clos(2)];
+}
+";
+        let refs = macro_call_refs(code);
+        let names: Vec<&str> = refs.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["target", "cross", "target"],
+            "exactly the bare call-shapes emit, in source order: {refs:?}"
+        );
+        // Position sanity: the first `target` is on the assert! line.
+        assert_eq!(refs[0].line, 6);
+    }
+
+    /// Deep nesting: both callee tokens inside `assert!(f(g(1)))` emit —
+    /// `g` lives in `f`'s argument `token_tree`, two trees down.
+    #[test]
+    fn macro_token_nested_call_trees_all_emit() {
+        let refs = macro_call_refs("fn t() { assert!(f(g(1))); }");
+        let names: Vec<&str> = refs.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, vec!["f", "g"]);
+    }
+
+    /// `macro_rules!` DEFINITION templates are a different node kind and
+    /// must stay ref-free: a walk hooked at `token_tree` level generically
+    /// (instead of from the `MACRO_INVOCATION` arm) would leak `inner_call`.
+    #[test]
+    fn macro_rules_definition_template_emits_nothing() {
+        let code = "macro_rules! deffy { () => { inner_call() }; }";
+        let tree = parse_rust(code);
+        let refs = extract_references(&tree, code.as_bytes());
+        assert!(
+            refs.is_empty(),
+            "macro definition template must emit no refs: {refs:?}"
+        );
+    }
+
+    /// Comments are sibling nodes even inside token trees (verified against
+    /// the grammar; gemini review, PR #26): a comment between the identifier
+    /// and its parens must not hide the call shape, and a comment between
+    /// `.` and the method name must not defeat the method guard.
+    #[test]
+    fn macro_token_comment_siblings_skipped_in_shape_test() {
+        let refs = macro_call_refs("fn t() { assert!(helper /* c */ ()); }");
+        let names: Vec<&str> = refs.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["helper"],
+            "comment must not hide the call shape"
+        );
+
+        let refs = macro_call_refs("fn t() { assert!(x. /* c */ unwrap()); }");
+        assert!(
+            refs.is_empty(),
+            "comment must not defeat the method-shape guard: {refs:?}"
+        );
+    }
+
+    /// Top-level macro invocation (no enclosing fn): emits with no
+    /// containing span and no binding set — the guard is vacuous, not a
+    /// panic (S10).
+    #[test]
+    fn macro_token_call_at_module_level_emits_unattached() {
+        let refs = macro_call_refs("thread_local! { static X: i32 = init_x(); }");
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].name, "init_x");
+        assert!(refs[0].containing_symbol_span.is_none());
     }
 
     /// tethys-53iv C4: `self.m()` derives its receiver from the ENCLOSING
