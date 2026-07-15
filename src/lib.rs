@@ -50,7 +50,8 @@ mod unused_imports;
 
 pub use cargo::discover_crates;
 pub use db::{
-    Demotion, DeprecatedFinding, DeprecatedSymbol, ReferenceSite, Tier, Via, VisibilityFinding,
+    Demotion, DeprecatedFinding, DeprecatedSymbol, ReferenceSite, Tier, UntestedFinding,
+    UntestedReport, Via, VisibilityFinding,
 };
 pub use error::{Error, IndexError, IndexErrorKind, Result};
 pub use types::{
@@ -1002,6 +1003,34 @@ impl Tethys {
         workspace_closed: bool,
     ) -> Result<Vec<VisibilityFinding>> {
         self.db.get_visibility_candidates(workspace_closed)
+    }
+
+    /// Product functions/methods that no test can reach: multi-root forward
+    /// closure from `is_test` symbols over the reference graph, complemented
+    /// against product `function`/`method` symbols.
+    ///
+    /// Reachability, not verification — a reached function may still be
+    /// asserted on weakly. Known false-positive sources and the zero-roots
+    /// indeterminate posture are documented on [`UntestedReport`] and its
+    /// module. The traversal reads `refs`, not `call_edges`, so functions
+    /// tested only through macro arguments (`assert_eq!(helper(), 1)`)
+    /// count as reached (tethys-8ym0).
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use tethys::Tethys;
+    /// use std::path::Path;
+    ///
+    /// let tethys = Tethys::new(Path::new("/path/to/workspace"))?;
+    /// let report = tethys.get_untested_code()?;
+    /// for finding in &report.findings {
+    ///     println!("{}:{} {}", finding.file, finding.line, finding.name);
+    /// }
+    /// # Ok::<(), tethys::Error>(())
+    /// ```
+    pub fn get_untested_code(&self) -> Result<UntestedReport> {
+        self.db.get_untested_code()
     }
 
     /// Count panic points grouped by test/production code.

@@ -32,9 +32,11 @@ mod panic_points;
 mod references;
 mod schema;
 mod symbols;
+mod untested;
 mod visibility;
 
 pub use deprecated::{DeprecatedFinding, DeprecatedSymbol, ReferenceSite, Tier, Via};
+pub use untested::{UntestedFinding, UntestedReport};
 pub use visibility::{Demotion, VisibilityFinding};
 
 // Re-export helper functions and SQL constants used by other modules
