@@ -347,3 +347,119 @@ fn deprecated_caller_inside_macro_listed() {
         old_api.sites
     );
 }
+
+/// Canonical, order-independent dump of every `macro_call` ref and every
+/// `file_deps` row — the comparison surface for F9/F10.
+fn macro_and_deps_dump(conn: &Connection) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut stmt = conn
+        .prepare(
+            "SELECT f.path, r.line, r.column, s.name, r.strategy
+             FROM refs r
+             JOIN files f ON r.file_id = f.id
+             JOIN symbols s ON r.symbol_id = s.id
+             WHERE r.kind = 'macro_call'",
+        )
+        .expect("prep macro dump");
+    let rows = stmt
+        .query_map([], |r| {
+            Ok(format!(
+                "ref|{}|{}|{}|{}|{}",
+                r.get::<_, String>(0)?,
+                r.get::<_, i64>(1)?,
+                r.get::<_, i64>(2)?,
+                r.get::<_, String>(3)?,
+                r.get::<_, String>(4)?
+            ))
+        })
+        .expect("macro dump rows");
+    for row in rows {
+        out.push(row.expect("row"));
+    }
+    let mut deps = conn
+        .prepare(
+            "SELECT ff.path, tf.path FROM file_deps d
+             JOIN files ff ON d.from_file_id = ff.id
+             JOIN files tf ON d.to_file_id = tf.id",
+        )
+        .expect("prep deps dump");
+    let rows = deps
+        .query_map([], |r| {
+            Ok(format!(
+                "dep|{}|{}",
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?
+            ))
+        })
+        .expect("deps rows");
+    for row in rows {
+        out.push(row.expect("dep row"));
+    }
+    out.sort();
+    out
+}
+
+/// The F9/F10 fixture: a cross-file import consumed ONLY inside `assert!`,
+/// with a DUPLICATE call line (attacks row-collapse/count bugs and the
+/// import-corroboration path — no non-macro usage of `helper` exists).
+const PARITY_FILES: &[(&str, &str)] = &[
+    ("src/lib.rs", "pub mod a;\npub mod b;\n"),
+    (
+        "src/a.rs",
+        "use crate::b::helper;\n\
+         pub fn twice() -> bool {\n\
+         \x20   assert!(helper());\n\
+         \x20   assert!(helper());\n\
+         \x20   true\n\
+         }\n",
+    ),
+    ("src/b.rs", "pub fn helper() -> bool {\n    true\n}\n"),
+];
+
+/// F9 (claim C9): two rebuilds of the same workspace produce identical
+/// macro_call/file_deps content — nondeterministic iteration in the token
+/// walk or resolution would flake here.
+#[test]
+fn macro_token_refs_deterministic_across_rebuilds() {
+    let (_dir, mut tethys) = workspace_with_files(PARITY_FILES);
+    tethys.rebuild().expect("first rebuild");
+    let first = macro_and_deps_dump(&open_db(&tethys));
+    tethys.rebuild().expect("second rebuild");
+    let second = macro_and_deps_dump(&open_db(&tethys));
+    assert_eq!(first, second, "rebuild must be content-deterministic");
+    assert_eq!(
+        first.iter().filter(|l| l.starts_with("ref|")).count(),
+        2,
+        "both duplicate call lines carry their own row: {first:?}"
+    );
+}
+
+/// F10 (claim C10): batch and streaming produce identical macro_call refs
+/// AND the import consumed only inside a macro corroborates its file_dep
+/// (a.rs -> b.rs) in every mode — a streaming path computing deps from a
+/// refs_set that lacks macro tokens would lose the dep edge.
+#[test]
+fn batch_and_streaming_parity_with_macro_only_corroboration() {
+    let (dir, mut tethys) = workspace_with_files(PARITY_FILES);
+    tethys.rebuild().expect("rebuild (batch)");
+    let batch = macro_and_deps_dump(&open_db(&tethys));
+    drop(tethys);
+
+    let mut streaming = tethys::Tethys::new(dir.path()).expect("Tethys::new");
+    streaming
+        .rebuild_with_options(tethys::IndexOptions::with_streaming())
+        .expect("rebuild (streaming)");
+    let stream_default = macro_and_deps_dump(&open_db(&streaming));
+
+    streaming
+        .rebuild_with_options(tethys::IndexOptions::with_streaming_batch_size(1))
+        .expect("rebuild (streaming, batch=1)");
+    let stream_one = macro_and_deps_dump(&open_db(&streaming));
+
+    assert_eq!(batch, stream_default, "batch == streaming(default)");
+    assert_eq!(batch, stream_one, "batch == streaming(batch_size=1)");
+    assert!(
+        batch.contains(&"dep|src/a.rs|src/b.rs".to_string()),
+        "macro-only usage corroborates the a->b file dep: {batch:?}"
+    );
+}
