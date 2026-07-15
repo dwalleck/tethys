@@ -7,10 +7,11 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use lsp_types::{
-    ClientCapabilities, DidOpenTextDocumentParams, GotoDefinitionParams, GotoDefinitionResponse,
-    InitializeParams, InitializeResult, Location, PartialResultParams, Position, ReferenceContext,
-    ReferenceParams, TextDocumentIdentifier, TextDocumentItem, TextDocumentPositionParams, Uri,
-    WindowClientCapabilities, WorkDoneProgressParams,
+    ClientCapabilities, DidOpenTextDocumentParams, GeneralClientCapabilities, GotoDefinitionParams,
+    GotoDefinitionResponse, InitializeParams, InitializeResult, Location, PartialResultParams,
+    Position, PositionEncodingKind, ReferenceContext, ReferenceParams, TextDocumentIdentifier,
+    TextDocumentItem, TextDocumentPositionParams, Uri, WindowClientCapabilities,
+    WorkDoneProgressParams,
     notification::{DidOpenTextDocument, Notification},
     request::{GotoDefinition, Initialize, References, Shutdown},
 };
@@ -20,6 +21,7 @@ use serde_json::{Value, json};
 use tracing::{debug, trace, warn};
 
 use super::Result;
+use super::encoding::PositionEncoding;
 use super::error::LspError;
 use super::provider::LspProvider;
 
@@ -37,6 +39,10 @@ pub struct LspClient {
     stdout: BufReader<ChildStdout>,
     request_id: i64,
     response_timeout: Duration,
+    /// Position encoding negotiated during `initialize`. Tethys's stored
+    /// columns are byte offsets, so `Utf8` means outgoing positions pass
+    /// through unchanged; `Utf16` requires per-request conversion.
+    position_encoding: PositionEncoding,
     /// Background thread draining the server's stderr into tracing logs.
     /// Joined on shutdown to avoid leaking threads.
     stderr_thread: Option<JoinHandle<()>>,
@@ -130,6 +136,8 @@ impl LspClient {
             stdout,
             request_id: 0,
             response_timeout: DEFAULT_RESPONSE_TIMEOUT,
+            // LSP spec default until initialize() negotiates otherwise.
+            position_encoding: PositionEncoding::Utf16,
             stderr_thread,
         };
 
@@ -146,32 +154,56 @@ impl LspClient {
     fn initialize(&mut self, workspace_path: &Path, init_options: Option<Value>) -> Result<()> {
         let workspace_uri = path_to_uri(workspace_path)?;
 
-        // Set up client capabilities
-        // - window.workDoneProgress: We handle server->client requests with null responses,
-        //   which satisfies the progress protocol. This prevents servers like csharp-ls from
-        //   having issues when they try to report progress.
-        let capabilities = ClientCapabilities {
-            window: Some(WindowClientCapabilities {
-                work_done_progress: Some(true),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-
         let params = InitializeParams {
             root_uri: Some(workspace_uri),
-            capabilities,
+            capabilities: client_capabilities(),
             initialization_options: init_options,
             ..Default::default()
         };
 
-        let _result: InitializeResult = self.send_request::<Initialize>(params)?;
+        let result: InitializeResult = self.send_request::<Initialize>(params)?;
+        self.position_encoding = PositionEncoding::from_initialize_result(&result);
 
         // Send initialized notification
         self.send_notification("initialized", &json!({}))?;
 
-        debug!("LSP initialize handshake complete");
+        debug!(
+            position_encoding = ?self.position_encoding,
+            "LSP initialize handshake complete"
+        );
         Ok(())
+    }
+
+    /// Convert an outgoing 0-indexed BYTE column to the negotiated encoding.
+    ///
+    /// Identity when the server accepted `utf-8` (tethys's stored columns
+    /// ARE byte offsets). When the negotiated encoding is `utf-16`, the
+    /// target line's text is read and its byte prefix re-measured as
+    /// `utf-16` code units. On a line-text read failure the raw byte offset
+    /// is sent rather than dropping the request — correct for ASCII-only
+    /// prefixes, best-effort otherwise.
+    fn encode_outgoing_col(&self, file: &Path, line: u32, byte_col: u32) -> u32 {
+        if self.position_encoding == PositionEncoding::Utf8 {
+            return byte_col;
+        }
+        let line_text = match std::fs::read_to_string(file) {
+            Ok(content) => usize::try_from(line)
+                .ok()
+                .and_then(|n| content.lines().nth(n).map(str::to_owned)),
+            Err(e) => {
+                debug!(
+                    file = %file.display(),
+                    line,
+                    error = %e,
+                    "Cannot read line text for utf-16 conversion; sending raw byte column"
+                );
+                None
+            }
+        };
+        match line_text {
+            Some(text) => self.position_encoding.col_from_utf8(&text, byte_col),
+            None => byte_col,
+        }
     }
 
     /// Send an LSP request and wait for the response.
@@ -361,7 +393,8 @@ impl LspClient {
     ///
     /// * `file` - Path to the source file
     /// * `line` - Line number (0-indexed)
-    /// * `col` - Column number (0-indexed)
+    /// * `col` - Column number (0-indexed BYTE offset; converted to the
+    ///   negotiated position encoding before sending)
     ///
     /// # Returns
     ///
@@ -378,6 +411,7 @@ impl LspClient {
         col: u32,
     ) -> Result<Option<Location>> {
         let uri = path_to_uri(file)?;
+        let col = self.encode_outgoing_col(file, line, col);
 
         let params = GotoDefinitionParams {
             text_document_position_params: TextDocumentPositionParams {
@@ -569,7 +603,8 @@ impl LspClient {
     ///
     /// * `file` - Path to the source file
     /// * `line` - Line number (0-indexed)
-    /// * `col` - Column number (0-indexed)
+    /// * `col` - Column number (0-indexed BYTE offset; converted to the
+    ///   negotiated position encoding before sending)
     ///
     /// # Returns
     ///
@@ -581,6 +616,7 @@ impl LspClient {
     /// Returns an error if the file path is invalid or communication fails.
     pub fn find_references(&mut self, file: &Path, line: u32, col: u32) -> Result<Vec<Location>> {
         let uri = path_to_uri(file)?;
+        let col = self.encode_outgoing_col(file, line, col);
 
         let params = ReferenceParams {
             text_document_position: TextDocumentPositionParams {
@@ -676,6 +712,35 @@ impl Drop for LspClient {
         // Reap the child process to prevent zombies. The exit status is
         // irrelevant during cleanup — we already attempted kill() above.
         let _ = self.process.wait();
+    }
+}
+
+/// Client capabilities advertised during the `initialize` handshake.
+///
+/// - `window.workDoneProgress`: We handle server->client requests with null
+///   responses, which satisfies the progress protocol. This prevents servers
+///   like csharp-ls from having issues when they try to report progress.
+/// - `general.positionEncodings` (LSP 3.17): `utf-8` is listed first because
+///   tethys's stored columns ARE byte offsets — a server that accepts it
+///   (rust-analyzer does) makes outgoing position conversion an identity
+///   no-op. `utf-16` is the spec-mandated fallback every server supports.
+///   Without this advert, servers assume `utf-16` and byte columns point at
+///   the wrong character on any line with non-ASCII text before the
+///   reference.
+fn client_capabilities() -> ClientCapabilities {
+    ClientCapabilities {
+        window: Some(WindowClientCapabilities {
+            work_done_progress: Some(true),
+            ..Default::default()
+        }),
+        general: Some(GeneralClientCapabilities {
+            position_encodings: Some(vec![
+                PositionEncodingKind::UTF8,
+                PositionEncodingKind::UTF16,
+            ]),
+            ..Default::default()
+        }),
+        ..Default::default()
     }
 }
 
@@ -854,6 +919,32 @@ mod tests {
 
     fn parse_uri(s: &str) -> Uri {
         s.parse().expect("valid URI")
+    }
+
+    /// Position-encoding fence (tethys-2d1x bug class): the `initialize`
+    /// handshake must advertise `general.positionEncodings` with `utf-8`
+    /// preferred (identity for tethys's stored byte columns) and `utf-16`
+    /// as the spec-mandated fallback. Without the advert, servers assume
+    /// `utf-16` and byte columns land on the wrong character on any line
+    /// with non-ASCII text before the reference.
+    #[test]
+    fn client_capabilities_advertise_utf8_first_position_encoding() {
+        let caps = client_capabilities();
+        let encodings = caps
+            .general
+            .expect("general client capabilities must be declared")
+            .position_encodings
+            .expect("positionEncodings must be declared");
+
+        assert_eq!(
+            encodings.first(),
+            Some(&PositionEncodingKind::UTF8),
+            "utf-8 must be preferred: stored columns are byte offsets"
+        );
+        assert!(
+            encodings.contains(&PositionEncodingKind::UTF16),
+            "utf-16 is the mandatory fallback every server supports"
+        );
     }
 
     #[test]
