@@ -53,6 +53,15 @@ what stops a symbol consumed only via re-export from looking dead. A plain
 (non-`pub`) `use` emits no reference.
 _Avoid_: re-export (bare, when you mean the reference)
 
+**Macro-token call reference**:
+The `macro_call` reference kind emitted for a bare call-shaped identifier token
+inside a macro invocation's token tree (`assert_eq!(helper(), 1)` → `helper`).
+Distinct from the `macro` kind, which binds the macro NAME itself (`assert_eq`).
+Token-soup provenance: rows that reference resolution cannot bind are dropped,
+and resolved rows never enter call edges — suppression consumers (dead code,
+untested code, deprecated callers) read them from refs.
+_Avoid_: macro ref (ambiguous between the two kinds)
+
 **Indexed file**:
 A source file recorded in the index with its language, mtime, and size. The unit
 that reindexing and staleness track.

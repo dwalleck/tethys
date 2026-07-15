@@ -862,11 +862,11 @@ fn extract_macro_reference(
 /// - its text does not shadow a local binding of the enclosing function
 ///   (the fn-as-value suppression set, tethys-ygjx).
 ///
-/// Emitted refs resolve through the normal passes; rows that bind no
-/// in-crate symbol are dropped post-resolution, mirroring `Value` refs.
-/// Called only from the `MACRO_INVOCATION` arm — the function locates the
-/// invocation's own token trees, so `macro_rules!` definition templates
-/// (a different node kind) are never walked.
+/// Emitted refs flow through reference resolution unchanged; rows that
+/// bind no in-crate symbol are dropped after the final pass, mirroring
+/// `Value` refs. Called only from the `MACRO_INVOCATION` arm — the
+/// function locates the invocation's own token trees, so `macro_rules!`
+/// definition templates (a different node kind) are never walked.
 fn extract_macro_token_calls(
     node: &tree_sitter::Node,
     content: &[u8],

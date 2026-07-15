@@ -61,7 +61,7 @@ impl Index {
         //   provenance — on DSL-heavy code a token like `div(...)` can bind
         //   a same-named in-crate fn. Suppression consumers (dead-code,
         //   untested-code) read them from `refs`; the precision graph
-        //   excludes them by default (approved posture D-A).
+        //   excludes them by default.
         let inserted = conn.execute(
             "INSERT INTO call_edges (caller_symbol_id, callee_symbol_id, call_count)
              SELECT in_symbol_id, symbol_id, COUNT(*) as call_count

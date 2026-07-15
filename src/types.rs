@@ -457,8 +457,8 @@ pub enum ReferenceKind {
     /// (`assert_eq!(helper(), 1)` → `helper`) — tethys-8ym0. Token-soup
     /// provenance: suppression consumers (dead-code, untested-code,
     /// deprecated-callers) read these from `refs`; excluded from
-    /// `call_edges` like `Value`, and unresolved rows are dropped
-    /// post-resolution like `Value`.
+    /// `call_edges` like `Value`, and rows that reference resolution
+    /// cannot bind are dropped like `Value`.
     MacroCall,
     /// Unknown reference kind from database (possible version mismatch or corruption).
     /// Contains the raw string value that could not be parsed.

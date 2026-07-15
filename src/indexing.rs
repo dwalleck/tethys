@@ -505,10 +505,10 @@ impl Tethys {
         // name locals/externals and would otherwise pad the refs table.
         // Must run after all resolution passes, before call-edge population
         // reads the refs table.
-        let dropped_ephemeral_refs = self.db.drop_unresolved_value_and_macro_call_refs()?;
-        if dropped_ephemeral_refs > 0 {
+        let dropped_unresolved_refs = self.db.drop_unresolved_value_and_macro_call_refs()?;
+        if dropped_unresolved_refs > 0 {
             tracing::debug!(
-                dropped = dropped_ephemeral_refs,
+                dropped = dropped_unresolved_refs,
                 "Dropped unresolved value/macro_call refs"
             );
         }
