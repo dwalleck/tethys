@@ -463,3 +463,41 @@ fn batch_and_streaming_parity_with_macro_only_corroboration() {
         "macro-only usage corroborates the a->b file dep: {batch:?}"
     );
 }
+
+/// C2's cross-file half (spec-review finding): a macro-token call whose
+/// target lives in ANOTHER file, unique across the workspace, binds via the
+/// `unique_workspace` arm — a resolver that only ran the same-file map
+/// would leave this row unresolved and the drop would erase it.
+#[test]
+fn macro_token_call_cross_file_binds_unique_workspace() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/lib.rs",
+            "pub mod other;\n\
+             #[cfg(test)]\nmod tests {\n\
+             \x20   #[test]\n\
+             \x20   fn t() {\n\
+             \x20       assert!(cross_helper() > 0);\n\
+             \x20   }\n\
+             }\n",
+        ),
+        ("src/other.rs", "pub fn cross_helper() -> i32 {\n    7\n}\n"),
+    ]);
+    tethys.index().expect("index");
+    let conn = open_db(&tethys);
+    let (bound_file, strategy): (String, String) = conn
+        .query_row(
+            "SELECT f.path, r.strategy FROM refs r
+             JOIN symbols s ON r.symbol_id = s.id
+             JOIN files f   ON s.file_id = f.id
+             WHERE r.kind = 'macro_call'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("the cross-file macro-token ref resolves");
+    assert_eq!(bound_file, "src/other.rs");
+    assert_eq!(
+        strategy, "unique_workspace",
+        "cross-file unique binding arm"
+    );
+}
