@@ -63,3 +63,52 @@ a fixture pins a case call_edges misses" is unsatisfiable (no such case exists).
 ## DECISION (2026-07-04): PIVOT — fix tethys-ygjx (cat 2) first, then resume y3bx.
 y3bx is blocked-by ygjx. This probe (refs≡call_edges, 251 untested, the textual
 -guard posture option) is preserved for the resumed y3bx pipeline.
+
+---
+
+# RESUMED probe (2026-07-15, post tethys-8ym0, fresh index on merged main)
+
+Substrate changed since the 2026-07-04 probe: tethys-8ym0 shipped macro-token
+call refs (kind `macro_call`, EXCLUDED from call_edges), tethys-53iv shipped
+receiver-typed method resolution. Re-measured everything; the old probe's
+central finding is now FALSE by design.
+
+## Q1 — refs vs call_edges (the AC #2 premise)
+
+- untested(refs) = **235**; untested(call_edges) = **266**; gap = **30**.
+- The 2026-07-04 finding "refs ≡ call_edges, AC #2 unsatisfiable" is
+  OVERTURNED: macro_call refs exist only in `refs`, so the analysis MUST
+  traverse refs (or a view) — call_edges misses every assert-only-tested fn.
+  AC #2's fixture case is now real (tests/macro_token_refs.rs F1 fixture).
+- Cross-validation: 235 exactly matches the independent prediction from
+  `.tethys-8ym0/probe2.py` (260 → 235 with bare-call edges).
+
+## Q2 — item checks (grep-trace oracle, independent of the refs graph)
+
+| symbol | probe | oracle (grep) | agree |
+|---|---|---|---|
+| crate_glob_covers | TESTED | 8 assert-context sites in visibility.rs | ✓ |
+| scalar (tests/value_refs.rs) | TESTED | 11 assert sites (8ym0 oracle slice) | ✓ |
+| is_excluded_dir | TESTED | assert!(Tethys::is_excluded_dir(...)) | ✓ |
+| print_reachability_result | UNTESTED | sole caller cli/reachable.rs:31 run(), non-test | ✓ |
+
+## Q3 — composition of the 235 (design-driving)
+
+src core **152**, src/cli+main **43**, benches/ **20**, src/lsp **14**
+(LSP tests are ignored-by-default), proptest `arb_*` **5** (tethys-0nar),
+tests/ helper **1**. Known-FP classes visible in src core: method-shape
+calls inside asserts (`as_str` ×6, `as_i64` ×2, `debug_assert_valid` ×6 —
+tethys-9l27). The CLI layer (43) is genuinely untested-by-unit-tests but is
+exercised by no test root by construction — a reporting/scoping decision
+for the design, not a bug.
+
+## What I learned that I did not know before re-running
+
+> **The parked probe's conclusion inverted: refs-vs-call_edges now differ by
+> 30 symbols on self-index, so the traversal-substrate choice is load-bearing
+> — and the noise floor of the report is dominated not by resolver gaps but
+> by SCOPING decisions (benches/CLI/LSP = 77 of 235; the 9l27 method-shape
+> class is real but ~14 sites).**
+
+Gate: probe runs against real codebase ✓; oracle (grep-trace) agrees 4/4 ✓;
+non-obvious learning recorded ✓.
