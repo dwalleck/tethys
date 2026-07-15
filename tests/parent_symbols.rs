@@ -9,7 +9,7 @@ mod common;
 use common::{open_db, workspace_with_files};
 use rusqlite::Connection;
 
-/// (child_name, parent_name) pairs via the persisted linkage.
+/// (child_name, parent_name, child_kind) triples via the persisted linkage.
 fn links(conn: &Connection) -> Vec<(String, String, String)> {
     let mut stmt = conn
         .prepare(

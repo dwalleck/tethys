@@ -79,8 +79,8 @@ pub struct OwnedSymbolData {
     pub signature: Option<String>,
     pub visibility: Visibility,
     pub parent_symbol_id: Option<SymbolId>,
-    /// Extracted container name, resolved to `parent_symbol_id` at insert
-    /// time against same-file containers (tethys-aay4).
+    /// Extracted container name, linked to `parent_symbol_id` at insert
+    /// time against same-file containers (parent linkage, tethys-aay4).
     pub parent_name: Option<String>,
     /// Whether this symbol is a test function.
     pub is_test: bool,

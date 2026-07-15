@@ -2341,6 +2341,39 @@ impl<T> From<T> for Widget {
         );
     }
 
+    /// The `type_base_name` contract arms: a reference-typed impl target
+    /// strips to its REFERENT (`&mut Foo` → `Foo` — the 53iv refs-side
+    /// contract, now shared); a genuinely non-nominal target (a tuple) has
+    /// no base name, so its methods carry NO parent rather than a
+    /// fabricated one.
+    #[test]
+    fn impl_target_base_name_contract() {
+        let code = r"
+trait Anchor { fn hold(&self); fn grip(&self); }
+struct Foo {}
+
+impl Anchor for &mut Foo {
+    fn hold(&self) {}
+}
+impl Anchor for (i32, i32) {
+    fn grip(&self) {}
+}
+";
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+        let hold = symbols.iter().find(|s| s.name == "hold").unwrap();
+        assert_eq!(
+            hold.parent_name.as_deref(),
+            Some("Foo"),
+            "reference-typed impl target strips to its referent"
+        );
+        let grip = symbols.iter().find(|s| s.name == "grip").unwrap();
+        assert_eq!(
+            grip.parent_name, None,
+            "tuple impl target has no nominal base — no fabricated parent"
+        );
+    }
+
     #[test]
     fn extracts_multiple_items() {
         let code = r"

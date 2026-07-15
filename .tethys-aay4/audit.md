@@ -4,8 +4,12 @@ Final branch state; workspace = tethys itself.
 
 ## Probe ⇄ binary agreement (C3)
 
-Self-index: **699 links, 0 cross-file** (invariant query). Pair-set diff vs
-the probe's independent AST walk, fully decomposed:
+Self-index: **699 links, 0 cross-file** (invariant query); **168
+parent-prefixed symbols remain NULL** — cross-file impl targets plus
+compound prefixes (enum-variant struct fields like `E::Bad`), the probe's
+orphan class (it measured 109 on the Rust subset; the delta is compound
+prefixes and benches/test universe edges). Pair-set diff vs the probe's
+independent AST walk, fully decomposed:
 
 | class | count | verdict |
 |---|---|---|
