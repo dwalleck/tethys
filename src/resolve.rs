@@ -46,7 +46,12 @@ use crate::types::{
 fn ref_binds_to_symbol_kind(ref_kind: &ReferenceKind, symbol_kind: SymbolKind) -> bool {
     match ref_kind {
         ReferenceKind::Macro => symbol_kind == SymbolKind::Macro,
-        ReferenceKind::Call | ReferenceKind::Construct => !symbol_kind.is_data_member(),
+        // MacroCall joins Call/Construct: a call-shaped token must not bind a
+        // data member (tethys-8ym0; the `_ => true` default would silently
+        // allow it).
+        ReferenceKind::Call | ReferenceKind::Construct | ReferenceKind::MacroCall => {
+            !symbol_kind.is_data_member()
+        }
         _ => true,
     }
 }
@@ -1273,6 +1278,26 @@ impl Tethys {
 mod tests {
     use super::*;
     use crate::types::{FileId, Import};
+
+    // ========================================================================
+    // ref_binds_to_symbol_kind Tests
+    // ========================================================================
+
+    /// `MacroCall` must gate like `Call` (tethys-8ym0): binds functions and
+    /// structs (tuple ctors), refuses data members; the `Macro` gate is
+    /// untouched (macro-name refs still bind only macro symbols).
+    #[test]
+    fn macro_call_gates_like_call() {
+        use crate::types::SymbolKind;
+        let mc = ReferenceKind::MacroCall;
+        assert!(ref_binds_to_symbol_kind(&mc, SymbolKind::Function));
+        assert!(ref_binds_to_symbol_kind(&mc, SymbolKind::Struct));
+        assert!(!ref_binds_to_symbol_kind(&mc, SymbolKind::StructField));
+        assert!(!ref_binds_to_symbol_kind(
+            &ReferenceKind::Macro,
+            SymbolKind::Function
+        ));
+    }
 
     // ========================================================================
     // build_import_maps Tests

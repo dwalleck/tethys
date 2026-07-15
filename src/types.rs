@@ -453,6 +453,13 @@ pub enum ReferenceKind {
     /// referenced without being called (`iter.map(foo)`, `let g = foo;`).
     /// Distinct from `Call`; deliberately kept out of `call_edges` (tethys-ygjx).
     Value,
+    /// Call-shaped identifier inside a macro invocation's token tree
+    /// (`assert_eq!(helper(), 1)` → `helper`) — tethys-8ym0. Token-soup
+    /// provenance: suppression consumers (dead-code, untested-code,
+    /// deprecated-callers) read these from `refs`; excluded from
+    /// `call_edges` like `Value`, and unresolved rows are dropped
+    /// post-resolution like `Value`.
+    MacroCall,
     /// Unknown reference kind from database (possible version mismatch or corruption).
     /// Contains the raw string value that could not be parsed.
     Unknown(String),
@@ -474,6 +481,7 @@ impl ReferenceKind {
             Self::Macro => "macro",
             Self::Reexport => "reexport",
             Self::Value => "value",
+            Self::MacroCall => "macro_call",
             Self::Unknown(_) => "unknown",
         }
     }
@@ -494,6 +502,7 @@ impl ReferenceKind {
             "macro" => Some(Self::Macro),
             "reexport" => Some(Self::Reexport),
             "value" => Some(Self::Value),
+            "macro_call" => Some(Self::MacroCall),
             _ => None,
         }
     }
@@ -1953,6 +1962,21 @@ mod tests {
         assert_eq!(
             ReferenceKind::parse(ReferenceKind::Reexport.as_str()),
             Some(ReferenceKind::Reexport)
+        );
+    }
+
+    /// `as_str` → `parse` identity for the `macro_call` kind (tethys-8ym0):
+    /// same silent-drop risk as the reexport round-trip above.
+    #[test]
+    fn reference_kind_macro_call_round_trips_through_str() {
+        assert_eq!(ReferenceKind::MacroCall.as_str(), "macro_call");
+        assert_eq!(
+            ReferenceKind::parse(ReferenceKind::MacroCall.as_str()),
+            Some(ReferenceKind::MacroCall)
+        );
+        assert_eq!(
+            ReferenceKind::parse_or_unknown("macro_call"),
+            ReferenceKind::MacroCall
         );
     }
 
