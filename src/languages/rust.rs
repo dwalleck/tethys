@@ -1820,20 +1820,12 @@ fn extract_enum_variants(
 
 /// Find the type name being implemented in an impl block.
 fn find_impl_type(node: &tree_sitter::Node, content: &[u8]) -> Option<String> {
-    use node_kinds::{GENERIC_TYPE, TYPE_IDENTIFIER};
-
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.kind() == TYPE_IDENTIFIER {
-            return node_text(&child, content);
-        }
-        // Handle generic types like `impl<T> Foo<T>`
-        if child.kind() == GENERIC_TYPE {
-            let type_node = child.child_by_field_name("type")?;
-            return node_text(&type_node, content);
-        }
-    }
-    None
+    // Delegate to the refs side's impl-identity helper (tethys-53iv): the
+    // grammar's `type` FIELD is the implementing type for both inherent and
+    // trait impls. The previous first-`type_identifier` scan returned the
+    // TRAIT for `impl Trait for Type`, so the symbol and reference sides
+    // disagreed on every trait impl (tethys-dl7l). One shared rule now.
+    impl_type_base_name(node, content)
 }
 
 /// Extract visibility from an item-level node (struct, enum, fn, ...).
@@ -2313,6 +2305,73 @@ impl User {
         let new_sym = symbols.iter().find(|s| s.name == "new").unwrap();
         assert_eq!(new_sym.kind, SymbolKind::Method);
         assert_eq!(new_sym.parent_name, Some("User".to_string()));
+    }
+
+    /// tethys-dl7l: `impl Trait for Type` methods must record the
+    /// IMPLEMENTING TYPE as parent — the first-type_identifier scan
+    /// recorded the trait, disagreeing with the refs side
+    /// (`impl_type_base_name`, tethys-53iv) on every trait impl.
+    #[test]
+    fn trait_impl_methods_parent_is_the_implementing_type() {
+        let code = r"
+trait Anchor { fn hold(&self); }
+struct Widget {}
+
+impl Anchor for Widget {
+    fn hold(&self) {}
+}
+impl<T> From<T> for Widget {
+    fn from(_: T) -> Self { Widget {} }
+}
+";
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let hold = symbols.iter().find(|s| s.name == "hold").unwrap();
+        assert_eq!(
+            hold.parent_name.as_deref(),
+            Some("Widget"),
+            "trait-impl method parent is the TYPE, not the trait"
+        );
+        let from = symbols.iter().find(|s| s.name == "from").unwrap();
+        assert_eq!(
+            from.parent_name.as_deref(),
+            Some("Widget"),
+            "generic trait impl still resolves the implementing type"
+        );
+    }
+
+    /// The `type_base_name` contract arms: a reference-typed impl target
+    /// strips to its REFERENT (`&mut Foo` → `Foo` — the 53iv refs-side
+    /// contract, now shared); a genuinely non-nominal target (a tuple) has
+    /// no base name, so its methods carry NO parent rather than a
+    /// fabricated one.
+    #[test]
+    fn impl_target_base_name_contract() {
+        let code = r"
+trait Anchor { fn hold(&self); fn grip(&self); }
+struct Foo {}
+
+impl Anchor for &mut Foo {
+    fn hold(&self) {}
+}
+impl Anchor for (i32, i32) {
+    fn grip(&self) {}
+}
+";
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+        let hold = symbols.iter().find(|s| s.name == "hold").unwrap();
+        assert_eq!(
+            hold.parent_name.as_deref(),
+            Some("Foo"),
+            "reference-typed impl target strips to its referent"
+        );
+        let grip = symbols.iter().find(|s| s.name == "grip").unwrap();
+        assert_eq!(
+            grip.parent_name, None,
+            "tuple impl target has no nominal base — no fabricated parent"
+        );
     }
 
     #[test]
