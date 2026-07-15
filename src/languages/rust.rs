@@ -913,15 +913,46 @@ fn extract_macro_token_calls(
 
 /// Shape test for [`extract_macro_token_calls`]: a bare call-shaped
 /// identifier token — followed by a `(`-delimited `token_tree`, not preceded
-/// by `.` (method) or `::` (path tail).
+/// by `.` (method) or `::` (path tail). Comments parse as sibling nodes even
+/// inside token trees (`helper /* c */ ()`, `x. /* c */ unwrap()`), so both
+/// neighbor lookups skip them — a direct-sibling check would miss the call
+/// shape in the first case and, worse, miss the method guard in the second
+/// (verified against the grammar; gemini review, PR #26).
 fn is_bare_call_shape_token(ident: &tree_sitter::Node) -> bool {
-    let followed_by_paren_tree = ident.next_sibling().is_some_and(|n| {
+    let followed_by_paren_tree = next_non_comment_sibling(ident).is_some_and(|n| {
         n.kind() == node_kinds::TOKEN_TREE && n.child(0).is_some_and(|d| d.kind() == "(")
     });
-    let method_or_path_tail = ident
-        .prev_sibling()
-        .is_some_and(|p| matches!(p.kind(), "." | "::"));
+    let method_or_path_tail =
+        prev_non_comment_sibling(ident).is_some_and(|p| matches!(p.kind(), "." | "::"));
     followed_by_paren_tree && !method_or_path_tail
+}
+
+fn next_non_comment_sibling<'t>(node: &tree_sitter::Node<'t>) -> Option<tree_sitter::Node<'t>> {
+    let mut cur = node.next_sibling();
+    while let Some(s) = cur {
+        if !matches!(
+            s.kind(),
+            node_kinds::LINE_COMMENT | node_kinds::BLOCK_COMMENT
+        ) {
+            return Some(s);
+        }
+        cur = s.next_sibling();
+    }
+    None
+}
+
+fn prev_non_comment_sibling<'t>(node: &tree_sitter::Node<'t>) -> Option<tree_sitter::Node<'t>> {
+    let mut cur = node.prev_sibling();
+    while let Some(s) = cur {
+        if !matches!(
+            s.kind(),
+            node_kinds::LINE_COMMENT | node_kinds::BLOCK_COMMENT
+        ) {
+            return Some(s);
+        }
+        cur = s.prev_sibling();
+    }
+    None
 }
 
 /// Extract a struct constructor reference from a `struct_expression` node.
@@ -3322,6 +3353,27 @@ fn user(recv: Recv) {
         assert!(
             refs.is_empty(),
             "macro definition template must emit no refs: {refs:?}"
+        );
+    }
+
+    /// Comments are sibling nodes even inside token trees (verified against
+    /// the grammar; gemini review, PR #26): a comment between the identifier
+    /// and its parens must not hide the call shape, and a comment between
+    /// `.` and the method name must not defeat the method guard.
+    #[test]
+    fn macro_token_comment_siblings_skipped_in_shape_test() {
+        let refs = macro_call_refs("fn t() { assert!(helper /* c */ ()); }");
+        let names: Vec<&str> = refs.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["helper"],
+            "comment must not hide the call shape"
+        );
+
+        let refs = macro_call_refs("fn t() { assert!(x. /* c */ unwrap()); }");
+        assert!(
+            refs.is_empty(),
+            "comment must not defeat the method-shape guard: {refs:?}"
         );
     }
 
