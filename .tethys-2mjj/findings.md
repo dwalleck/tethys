@@ -79,3 +79,17 @@ does this: wait once, then loop).
 - Timings are per-machine: 8.7s cold / 4.9s warm on the tethys workspace
   here; larger workspaces scale up. The wait needs the same timeout
   posture as the csharp-ls path (proceed with a warning on timeout).
+
+## Post-implementation observation (2026-07-15, slice 4 oracle run)
+
+Self-indexing tethys with the fix: strategy=lsp bind count went 0 → 396.
+One nuance the 3-poll probes could not see: on a self-index run started
+seconds after a `cargo build` had mutated `target/`, a burst of
+post-quiescence queries failed with transient `-32801` (rust-analyzer
+re-fetching the changed build directory mid-session); an immediately
+following steady-state run had zero such errors. The affected refs were
+std-method names (`iter`, `map`, `collect`) that cannot match back to
+in-workspace definitions regardless, the error path is the existing
+counted-and-logged one, and the terminal state (ref stays unresolved)
+equals pre-fix behavior — so the no-retry negative-space decision stands,
+now with its boundary documented rather than assumed universal.

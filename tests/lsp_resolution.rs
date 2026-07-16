@@ -502,6 +502,42 @@ impl Panel {
     );
 }
 
+/// Timeout fence (readiness wait): a zero budget must return `Ok(false)`
+/// promptly — the deadline is checked before each blocking read, so a wait
+/// that cannot succeed degrades to a warning instead of hanging Pass 3.
+#[test]
+#[ignore = "requires rust-analyzer installed"]
+fn readiness_wait_returns_false_on_zero_timeout() {
+    use tethys::lsp::{LspClient, RustAnalyzerProvider};
+
+    if !rust_analyzer_available() {
+        eprintln!("Skipping test: rust-analyzer not available");
+        return;
+    }
+
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    fs::create_dir_all(dir.path().join("src")).expect("failed to create src dir");
+    fs::write(dir.path().join("src/lib.rs"), "pub fn noop() {}\n").expect("failed to write lib.rs");
+    create_cargo_toml(&dir);
+
+    let mut client =
+        LspClient::start(&RustAnalyzerProvider, dir.path()).expect("failed to start LSP client");
+
+    let start = std::time::Instant::now();
+    let ready = client
+        .wait_for_quiescence(std::time::Duration::ZERO)
+        .expect("readiness wait must not error on timeout");
+    let elapsed = start.elapsed();
+    client.shutdown().expect("shutdown failed");
+
+    assert!(!ready, "zero timeout must report not-ready");
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "zero-timeout wait took {elapsed:?}; the deadline must be checked \
+         before blocking reads"
+    );
+}
+
 /// Find `needle` inside the first line containing `line_marker` and return
 /// its 0-indexed (line, byte column) — tree-sitter position semantics.
 fn find_byte_position(content: &str, line_marker: &str, needle: &str) -> (u32, u32) {
