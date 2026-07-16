@@ -10,8 +10,8 @@ C6→S4, C7→S4, C8→S1 (red) + S4 (green).
 with `strategy=lsp`; today it binds 0 because Pass 3 races the workspace
 load. (Also carries C2's fence.)
 
-**Oracle:** the `refs.strategy` column in the persisted SQLite DB,
-queried directly by the test — independent of the resolver's own
+**Oracle:** the `refs.strategy` column in the persisted index,
+queried directly by the test — independent of the LSP session's own
 `LspCompletedSession` counters and of the wait's logging. Cross-check at
 S4: `probe.py`'s poll channel proved the fixture class resolvable
 post-quiescence.
@@ -24,7 +24,7 @@ written BEFORE implementation: **red today** with lsp-strategy count = 0
 (the assert message must show the count so red is diagnosable); green
 post-S4 with count ≥ 1.
 
-**Loop budget:** test-only DB scan, O(refs in fixture) ≈ 10¹ rows. No
+**Loop budget:** test-only index scan, O(refs in fixture) ≈ 10¹ rows. No
 production loops.
 
 **Wall budget:** n/a (ignored test, nightly job; observed class ~15-30s
@@ -36,7 +36,7 @@ with rust-analyzer load).
 test `lsp_pipeline_binds_refs_on_cold_workspace`; fixture crate with
 `trait Processor` / `impl` / `dyn` call; `index_with_options(IndexOptions::with_lsp())`;
 then `SELECT COUNT(*) FROM refs WHERE strategy = 'lsp'` ≥ 1 via the
-test's own rusqlite connection to the workspace DB.
+test's own rusqlite connection to the workspace index.
 
 **Verification:**
 - [ ] Test compiles; runs RED against unfixed code with count = 0 (record output in `.tethys-2mjj/slice1-red.txt`)
@@ -141,7 +141,7 @@ the initial status notification arrives immediately: probe-edge observed
 Rust routes to `wait_for_quiescence`; C6 — zero timeout returns false
 immediately (no hang); C8 — S1's test goes green.
 
-**Oracle:** C8: S1's DB-column oracle, now expected ≥1. Self-index
+**Oracle:** C8: S1's index-column oracle, now expected ≥1. Self-index
 cross-check: `tethys index --lsp` on the tethys workspace itself, then
 count `strategy='lsp'` refs — the same workspace where `probe.py`'s
 independent poll channel proved post-quiescence resolution; pre-fix
@@ -177,13 +177,13 @@ asynchronously; pre-quiescence queries return empty or -32801 — see
 - [ ] Zero-timeout test green; dispatch unit test green
 - [ ] Self-index oracle: strategy='lsp' count on tethys workspace 0 → >0 (record numbers)
 - [ ] Full gate (`cargo nextest run`, clippy pedantic `-D warnings`, `cargo fmt --check`, doctests — real exit codes)
-- [ ] Impact analysis: `wait_for_solution_load` callers unchanged (grep — this slice edits tethys's own resolver path, so grep is the source of truth, not `tethys callers`)
+- [ ] Impact analysis: `wait_for_solution_load` callers unchanged (grep — this slice edits tethys's own reference-resolution path, so grep is the source of truth, not `tethys callers`)
 
 ## Plan self-review
 
 1. **Loops:** S3 drain loop — O(messages-to-quiescence), ~2×10³ observed,
    timeout-bounded, once per opt-in session: within budget. S1/S4 test
-   DB scans O(10¹). No other new loops. No gaps.
+   index scans O(10¹). No other new loops. No gaps.
 2. **Fixtures:** S1 — dyn-dispatch ref on a cold workspace (fails
    readiness race and dispatch inversion); S2 — malformed/loose-typed
    params + verbatim captured production JSON (fails panic and

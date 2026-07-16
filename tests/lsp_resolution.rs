@@ -404,8 +404,8 @@ impl Panel {
 /// pick one, so the `w.render()` ref lands in Pass 3's candidate set,
 /// where only a readiness-gated LSP query can bind it. The temp dir has
 /// no `target/`, so the workspace is maximally cold. The oracle is the
-/// persisted `refs.strategy` column, read directly from the index DB —
-/// independent of the resolver's in-memory counters.
+/// persisted `refs.strategy` column, read directly from the index —
+/// independent of the LSP resolution session's in-memory counters.
 #[test]
 #[ignore = "requires rust-analyzer installed"]
 fn lsp_pipeline_binds_refs_on_cold_workspace() {
