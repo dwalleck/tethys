@@ -665,7 +665,10 @@ impl Tethys {
     ///
     /// After tree-sitter resolution (Pass 2), some references may still be unresolved
     /// (e.g., external crate symbols, complex type inference). This pass uses the
-    /// language server to resolve them.
+    /// language server to resolve them. Queries start only after the
+    /// server's readiness signal (see [`lsp::ReadinessWait`]) — both
+    /// supported servers load their workspace asynchronously, and
+    /// pre-readiness queries silently return nothing.
     ///
     /// # Design
     ///
@@ -807,28 +810,30 @@ impl Tethys {
             }
         }
 
-        // For servers like csharp-ls that load solutions asynchronously, wait for
-        // solution loading to complete by monitoring $/progress notifications.
-        // rust-analyzer indexes on startup and responds immediately, so no wait needed.
-        if language == Language::CSharp {
-            let timeout = std::time::Duration::from_secs(lsp_timeout_secs);
-            match client.wait_for_solution_load(timeout) {
-                Ok(true) => {
-                    debug!(language = ?language, "Solution loading completed");
-                }
-                Ok(false) => {
-                    warn!(
-                        language = ?language,
-                        "Solution loading not detected or timed out, queries may fail"
-                    );
-                }
-                Err(e) => {
-                    warn!(
-                        language = ?language,
-                        error = %e,
-                        "Error while waiting for solution load"
-                    );
-                }
+        // Both supported servers load their workspace asynchronously after
+        // initialize; queries sent before the load completes return empty
+        // results (indistinguishable from "no definition") or transient
+        // `-32801` errors, so an ungated Pass 3 silently resolves nothing
+        // on a cold workspace (probed for rust-analyzer — see
+        // .tethys-2mjj/findings.md). Wait for the readiness signal the
+        // provider declares for its server before the query loop.
+        let timeout = std::time::Duration::from_secs(lsp_timeout_secs);
+        match client.wait_until_ready(provider.readiness_wait(), timeout) {
+            Ok(true) => {
+                debug!(language = ?language, "LSP server ready");
+            }
+            Ok(false) => {
+                warn!(
+                    language = ?language,
+                    "LSP readiness not detected or timed out, queries may fail"
+                );
+            }
+            Err(e) => {
+                warn!(
+                    language = ?language,
+                    error = %e,
+                    "Error while waiting for LSP readiness"
+                );
             }
         }
 
