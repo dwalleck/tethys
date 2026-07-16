@@ -277,6 +277,25 @@ impl LspClient {
     ///
     /// Times out after `self.response_timeout` to prevent infinite hangs if the
     /// server enters a pathological state (e.g., sending endless notifications).
+    /// Read the next complete JSON-RPC message (header + body) from the server.
+    fn read_message(&mut self) -> Result<Value> {
+        let content_length = self.read_content_length()?;
+        let mut body = vec![0u8; content_length];
+        self.stdout.read_exact(&mut body)?;
+        serde_json::from_slice(&body).map_err(LspError::Deserialize)
+    }
+
+    /// Acknowledge a server->client request with a `null` result so the
+    /// server doesn't stall waiting on a reply we'll never otherwise send.
+    fn ack_server_request(&mut self, request_id: &Value) -> Result<()> {
+        let response = json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "result": null,
+        });
+        self.write_message(&response)
+    }
+
     fn read_response<T: DeserializeOwned>(&mut self, expected_id: i64) -> Result<T> {
         let start = Instant::now();
         let mut skipped_messages: u32 = 0;
@@ -290,27 +309,14 @@ impl LspClient {
                 )));
             }
 
-            // Read Content-Length header
-            let content_length = self.read_content_length()?;
-
-            // Read the JSON body
-            let mut body = vec![0u8; content_length];
-            self.stdout.read_exact(&mut body)?;
-
-            let message: Value = serde_json::from_slice(&body).map_err(LspError::Deserialize)?;
+            let message = self.read_message()?;
 
             // Check if this message has a method field (notification or server request)
             if let Some(method) = message.get("method").and_then(Value::as_str) {
                 // If it also has an id, it's a server->client request that needs a response
                 if let Some(request_id) = message.get("id") {
                     trace!(method = method, "Acknowledging server request");
-                    // Send a null response to acknowledge the request
-                    let response = json!({
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "result": null,
-                    });
-                    self.write_message(&response)?;
+                    self.ack_server_request(request_id)?;
                 } else {
                     trace!(method = method, "Skipping LSP notification");
                 }
@@ -505,12 +511,7 @@ impl LspClient {
                 return Ok(false);
             }
 
-            // Read next message
-            let content_length = self.read_content_length()?;
-            let mut body = vec![0u8; content_length];
-            self.stdout.read_exact(&mut body)?;
-
-            let message: Value = serde_json::from_slice(&body).map_err(LspError::Deserialize)?;
+            let message = self.read_message()?;
 
             // Check if this is a notification or server request
             if let Some(method) = message.get("method").and_then(Value::as_str) {
@@ -520,12 +521,7 @@ impl LspClient {
                         method = method,
                         "Acknowledging server request during solution load"
                     );
-                    let response = json!({
-                        "jsonrpc": "2.0",
-                        "id": request_id,
-                        "result": null,
-                    });
-                    self.write_message(&response)?;
+                    self.ack_server_request(request_id)?;
                 }
 
                 // Check for $/progress notifications
@@ -641,11 +637,7 @@ impl LspClient {
                 return Ok(false);
             }
 
-            let content_length = self.read_content_length()?;
-            let mut body = vec![0u8; content_length];
-            self.stdout.read_exact(&mut body)?;
-
-            let message: Value = serde_json::from_slice(&body).map_err(LspError::Deserialize)?;
+            let message = self.read_message()?;
 
             let Some(method) = message.get("method").and_then(Value::as_str) else {
                 continue;
@@ -658,12 +650,7 @@ impl LspClient {
                     method,
                     "Acknowledging server request during quiescence wait"
                 );
-                let response = json!({
-                    "jsonrpc": "2.0",
-                    "id": request_id,
-                    "result": null,
-                });
-                self.write_message(&response)?;
+                self.ack_server_request(request_id)?;
             }
 
             if method == "experimental/serverStatus"
