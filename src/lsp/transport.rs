@@ -23,7 +23,7 @@ use tracing::{debug, trace, warn};
 use super::Result;
 use super::encoding::PositionEncoding;
 use super::error::LspError;
-use super::provider::LspProvider;
+use super::provider::{LspProvider, ReadinessWait};
 use super::status::{ReadyState, classify_server_status};
 
 /// Default timeout for waiting for a response to a single LSP request.
@@ -591,6 +591,23 @@ impl LspClient {
             if message.get("id").is_some() {
                 trace!("Received unexpected response during solution load wait");
             }
+        }
+    }
+
+    /// Wait for the server's readiness signal before issuing queries.
+    ///
+    /// Dispatches on the provider-declared [`ReadinessWait`] kind (see
+    /// [`LspProvider::readiness_wait`]) so callers stay free of
+    /// server-specific knowledge.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication with the LSP server fails (I/O
+    /// error, JSON parsing error, or server exit).
+    pub fn wait_until_ready(&mut self, kind: ReadinessWait, timeout: Duration) -> Result<bool> {
+        match kind {
+            ReadinessWait::SolutionLoad => self.wait_for_solution_load(timeout),
+            ReadinessWait::Quiescence => self.wait_for_quiescence(timeout),
         }
     }
 

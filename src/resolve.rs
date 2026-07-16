@@ -663,9 +663,9 @@ impl Tethys {
     /// After tree-sitter resolution (Pass 2), some references may still be unresolved
     /// (e.g., external crate symbols, complex type inference). This pass uses the
     /// language server to resolve them. Queries start only after the
-    /// server's readiness signal (see [`ReadinessWait`]) — both supported
-    /// servers load their workspace asynchronously, and pre-readiness
-    /// queries silently return nothing.
+    /// server's readiness signal (see [`lsp::ReadinessWait`]) — both
+    /// supported servers load their workspace asynchronously, and
+    /// pre-readiness queries silently return nothing.
     ///
     /// # Design
     ///
@@ -812,14 +812,10 @@ impl Tethys {
         // results (indistinguishable from "no definition") or transient
         // `-32801` errors, so an ungated Pass 3 silently resolves nothing
         // on a cold workspace (probed for rust-analyzer — see
-        // .tethys-2mjj/findings.md). Wait for the per-server readiness
-        // signal before the query loop.
+        // .tethys-2mjj/findings.md). Wait for the readiness signal the
+        // provider declares for its server before the query loop.
         let timeout = std::time::Duration::from_secs(lsp_timeout_secs);
-        let readiness = match readiness_wait_kind(language) {
-            ReadinessWait::SolutionLoad => client.wait_for_solution_load(timeout),
-            ReadinessWait::Quiescence => client.wait_for_quiescence(timeout),
-        };
-        match readiness {
+        match client.wait_until_ready(provider.readiness_wait(), timeout) {
             Ok(true) => {
                 debug!(language = ?language, "LSP server ready");
             }
@@ -1291,53 +1287,10 @@ impl Tethys {
     }
 }
 
-/// Which readiness signal a language's LSP server emits before Pass 3
-/// queries can be answered.
-///
-/// Both supported servers load their workspace asynchronously after
-/// `initialize`, but they signal completion differently; waiting on the
-/// wrong signal never fires and degrades to the timeout path (queries
-/// then silently return nothing, the pre-fix behavior).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ReadinessWait {
-    /// csharp-ls: `$/progress` with a title starting "Loading workspace"
-    /// (see `LspClient::wait_for_solution_load`).
-    SolutionLoad,
-    /// rust-analyzer: `experimental/serverStatus` with `quiescent: true`
-    /// (see `LspClient::wait_for_quiescence`); its progress titles never
-    /// match the csharp-ls pattern.
-    Quiescence,
-}
-
-/// Map a language to the readiness wait its LSP server needs.
-fn readiness_wait_kind(language: Language) -> ReadinessWait {
-    match language {
-        Language::CSharp => ReadinessWait::SolutionLoad,
-        Language::Rust => ReadinessWait::Quiescence,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::types::{FileId, Import};
-
-    /// Readiness-dispatch fence (tethys-2mjj bug class): each language must
-    /// wait on the signal its server actually emits. Rerouting Rust to the
-    /// csharp-ls progress-title matcher (or C# to quiescence) never fires —
-    /// the wait times out and Pass 3 reverts to silently resolving nothing
-    /// on cold workspaces.
-    #[test]
-    fn readiness_dispatch_per_language() {
-        assert_eq!(
-            readiness_wait_kind(Language::Rust),
-            ReadinessWait::Quiescence
-        );
-        assert_eq!(
-            readiness_wait_kind(Language::CSharp),
-            ReadinessWait::SolutionLoad
-        );
-    }
 
     // ========================================================================
     // ref_binds_to_symbol_kind Tests

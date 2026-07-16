@@ -3,6 +3,25 @@
 use crate::types::Language;
 use serde_json::Value;
 
+/// Readiness signal a language server emits after `initialize`, gating
+/// Pass 3 queries (see `LspClient::wait_until_ready`).
+///
+/// Both bundled servers load their workspace asynchronously after
+/// `initialize` but signal completion differently; declaring the wrong
+/// kind means the wait never fires and LSP resolution degrades to the
+/// (warned) timeout path — queries then silently return nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadinessWait {
+    /// `$/progress` with a title starting "Loading workspace"
+    /// (csharp-ls; see `LspClient::wait_for_solution_load`).
+    SolutionLoad,
+    /// `experimental/serverStatus` with `quiescent: true`
+    /// (rust-analyzer; see `LspClient::wait_for_quiescence`). Its
+    /// progress titles never match the csharp-ls pattern, so
+    /// [`ReadinessWait::SolutionLoad`] can never fire for it.
+    Quiescence,
+}
+
 /// Trait for configuring LSP server providers.
 ///
 /// Implementations define how to spawn and configure a specific LSP server.
@@ -10,13 +29,14 @@ use serde_json::Value;
 /// # Example
 ///
 /// ```rust
-/// use tethys::lsp::LspProvider;
+/// use tethys::lsp::{LspProvider, ReadinessWait};
 ///
 /// struct MyCustomLsp;
 ///
 /// impl LspProvider for MyCustomLsp {
 ///     fn command(&self) -> &'static str { "my-lsp" }
 ///     fn args(&self) -> Vec<&str> { vec!["--stdio"] }
+///     fn readiness_wait(&self) -> ReadinessWait { ReadinessWait::Quiescence }
 /// }
 /// ```
 pub trait LspProvider: Send + Sync {
@@ -39,6 +59,14 @@ pub trait LspProvider: Send + Sync {
     fn install_hint(&self) -> &'static str {
         "Please install the language server and ensure it's in your PATH."
     }
+
+    /// Which readiness signal this server emits after `initialize`.
+    ///
+    /// Pass 3 waits on this signal before its query loop
+    /// (`LspClient::wait_until_ready`). Required rather than defaulted:
+    /// there is no signal every server emits, and a wrong declaration
+    /// silently degrades resolution to the timeout path.
+    fn readiness_wait(&self) -> ReadinessWait;
 }
 
 /// LSP provider for rust-analyzer.
@@ -66,6 +94,10 @@ impl LspProvider for RustAnalyzerProvider {
     fn install_hint(&self) -> &'static str {
         "Install rust-analyzer: https://rust-analyzer.github.io/manual.html#installation"
     }
+
+    fn readiness_wait(&self) -> ReadinessWait {
+        ReadinessWait::Quiescence
+    }
 }
 
 /// LSP provider for csharp-ls.
@@ -92,6 +124,10 @@ impl LspProvider for CSharpLsProvider {
 
     fn install_hint(&self) -> &'static str {
         "Install csharp-ls: dotnet tool install --global csharp-ls"
+    }
+
+    fn readiness_wait(&self) -> ReadinessWait {
+        ReadinessWait::SolutionLoad
     }
 }
 
@@ -133,6 +169,13 @@ impl LspProvider for AnyProvider {
         match self {
             Self::Rust(p) => p.install_hint(),
             Self::CSharp(p) => p.install_hint(),
+        }
+    }
+
+    fn readiness_wait(&self) -> ReadinessWait {
+        match self {
+            Self::Rust(p) => p.readiness_wait(),
+            Self::CSharp(p) => p.readiness_wait(),
         }
     }
 }
@@ -229,6 +272,37 @@ mod tests {
 
         assert!(rust.install_hint().contains("rust-analyzer"));
         assert!(csharp.install_hint().contains("csharp-ls"));
+    }
+
+    /// Readiness-dispatch fence (tethys-2mjj bug class): each provider must
+    /// declare the signal its server actually emits. Declaring the csharp-ls
+    /// progress-title wait for rust-analyzer (or vice versa) never fires —
+    /// the wait times out and Pass 3 reverts to silently resolving nothing
+    /// on cold workspaces.
+    #[test]
+    fn readiness_wait_per_provider() {
+        assert_eq!(
+            RustAnalyzerProvider.readiness_wait(),
+            ReadinessWait::Quiescence
+        );
+        assert_eq!(
+            CSharpLsProvider.readiness_wait(),
+            ReadinessWait::SolutionLoad
+        );
+    }
+
+    #[test]
+    fn any_provider_delegates_readiness_wait() {
+        use crate::types::Language;
+
+        assert_eq!(
+            AnyProvider::for_language(Language::Rust).readiness_wait(),
+            ReadinessWait::Quiescence
+        );
+        assert_eq!(
+            AnyProvider::for_language(Language::CSharp).readiness_wait(),
+            ReadinessWait::SolutionLoad
+        );
     }
 
     #[test]

@@ -39,7 +39,9 @@ mod status;
 mod transport;
 
 pub use error::LspError;
-pub use provider::{AnyProvider, CSharpLsProvider, LspProvider, RustAnalyzerProvider};
+pub use provider::{
+    AnyProvider, CSharpLsProvider, LspProvider, ReadinessWait, RustAnalyzerProvider,
+};
 pub use transport::LspClient;
 
 /// Result type for LSP operations.
