@@ -1,0 +1,8 @@
+L0 symbols=2669  L1 non-public non-test candidates=820
+L2 alive via resolved ref: 489 (of which speculative-band-only: 34)
+L3 alive via unresolved textual match: 74
+L4 alive via inherit method marker: 2
+L5 alive via live descendant (containers): 1
+
+SURVIVORS: 254  (funnel: 820 - 489 - 74 - 2 - 1)
+

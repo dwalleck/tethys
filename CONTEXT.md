@@ -233,6 +233,17 @@ instability metric `Ce / (Ca + Ce)`.
 **Cycle**:
 A circular dependency among files.
 
+**Dead code**:
+A non-public, non-test symbol with zero inbound evidence — no resolved reference
+from outside itself (every confidence band counts, speculative included), no
+unresolved name match, no trait-impl inherit marker, no live descendant
+(containers), not an entry point. Tiered by a textual word-boundary scan:
+*Definite* means the name occurs nowhere in the indexed corpus outside its own
+definition span; *Maybe* means it appears somewhere reference extraction cannot
+see. Public symbols are never reported (external consumers are invisible).
+_Avoid_: unreferenced symbol (that's the pre-tier candidate, not the finding);
+unused code (that's rustc's lint vocabulary)
+
 **Call edge**:
 A symbol-to-symbol call relationship retained in the index. Cross-crate edges are
 kept only when corroborated by an import ("k-hybrid"); a raw call reference is the

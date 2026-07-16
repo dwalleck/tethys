@@ -36,6 +36,7 @@
 mod batch_writer;
 pub mod cargo;
 mod db;
+mod dead_code;
 mod error;
 mod graph;
 mod indexing;
@@ -53,6 +54,7 @@ pub use db::{
     Demotion, DeprecatedFinding, DeprecatedSymbol, HierarchyDirection, HierarchyNode,
     ReferenceSite, Tier, TypeHierarchy, UntestedFinding, UntestedReport, Via, VisibilityFinding,
 };
+pub use dead_code::{DeadCodeFinding, DeadCodeReport, DeadCodeSummary};
 pub use error::{Error, IndexError, IndexErrorKind, Result};
 pub use types::{
     ArchPhaseResult, ArchStats, CouplingDetail, CouplingMetrics, CouplingSort, CrateInfo, Cycle,
@@ -1031,6 +1033,50 @@ impl Tethys {
     /// ```
     pub fn get_untested_code(&self) -> Result<UntestedReport> {
         self.db.get_untested_code()
+    }
+
+    /// Dead-code candidates: non-public, non-test symbols with zero
+    /// inbound evidence, tiered by a textual word-boundary scan —
+    /// [`Tier::Definite`] findings have no occurrence of their name
+    /// anywhere in the indexed corpus outside their own definition span;
+    /// [`Tier::Maybe`] findings appear somewhere reference extraction
+    /// cannot see (macro token trees, format-string captures, fn-as-value
+    /// shapes) and need human verification before deletion.
+    ///
+    /// Suppression channels (any sign of life removes a candidate):
+    /// resolved references in EVERY confidence band including speculative
+    /// (ADR-0003), unresolved name matches, trait-impl `inherit` markers
+    /// (tethys-j2r1), live descendants for containers, entry points.
+    /// Known false-positive sources are documented in the `dead_code`
+    /// module docs. Public symbols are never reported — external
+    /// consumers are invisible to the index; compose with
+    /// `get_visibility_candidates` to shrink the public surface first.
+    ///
+    /// `limit` truncates `findings` after the (file, line, name) sort;
+    /// the summary always carries full-population counts.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use tethys::Tethys;
+    /// use std::path::Path;
+    ///
+    /// let tethys = Tethys::new(Path::new("/path/to/workspace"))?;
+    /// let report = tethys.find_dead_code(None)?;
+    /// for finding in &report.findings {
+    ///     println!("{}:{} {} ({:?})", finding.file, finding.line, finding.name, finding.tier);
+    /// }
+    /// # Ok::<(), tethys::Error>(())
+    /// ```
+    pub fn find_dead_code(&self, limit: Option<usize>) -> Result<DeadCodeReport> {
+        let candidates = self.db.dead_code_zero_evidence()?;
+        let files = self.db.list_all_files()?;
+        Ok(dead_code::build_report(
+            &self.workspace_root,
+            &files,
+            candidates,
+            limit,
+        ))
     }
 
     /// Walk the type hierarchy from the type named `name` over `inherit`

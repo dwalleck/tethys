@@ -1,0 +1,2655 @@
+{
+  "summary": {
+    "production_count": 378,
+    "test_count": 1717,
+    "include_tests": false
+  },
+  "panic_points": [
+    {
+      "path": "benches/common.rs",
+      "line": 25,
+      "kind": "expect",
+      "containing_symbol": "create_workspace",
+      "is_test": false
+    },
+    {
+      "path": "benches/common.rs",
+      "line": 30,
+      "kind": "expect",
+      "containing_symbol": "create_workspace",
+      "is_test": false
+    },
+    {
+      "path": "benches/common.rs",
+      "line": 32,
+      "kind": "expect",
+      "containing_symbol": "create_workspace",
+      "is_test": false
+    },
+    {
+      "path": "benches/common.rs",
+      "line": 51,
+      "kind": "expect",
+      "containing_symbol": "create_indexed_workspace",
+      "is_test": false
+    },
+    {
+      "path": "benches/common.rs",
+      "line": 52,
+      "kind": "expect",
+      "containing_symbol": "create_indexed_workspace",
+      "is_test": false
+    },
+    {
+      "path": "benches/indexing.rs",
+      "line": 135,
+      "kind": "expect",
+      "containing_symbol": "bench_full_index",
+      "is_test": false
+    },
+    {
+      "path": "benches/indexing.rs",
+      "line": 139,
+      "kind": "expect",
+      "containing_symbol": "bench_full_index",
+      "is_test": false
+    },
+    {
+      "path": "benches/indexing.rs",
+      "line": 163,
+      "kind": "expect",
+      "containing_symbol": "bench_indexing_phases",
+      "is_test": false
+    },
+    {
+      "path": "benches/indexing.rs",
+      "line": 167,
+      "kind": "expect",
+      "containing_symbol": "bench_indexing_phases",
+      "is_test": false
+    },
+    {
+      "path": "benches/indexing.rs",
+      "line": 179,
+      "kind": "expect",
+      "containing_symbol": "bench_indexing_phases",
+      "is_test": false
+    },
+    {
+      "path": "benches/indexing.rs",
+      "line": 182,
+      "kind": "expect",
+      "containing_symbol": "bench_indexing_phases",
+      "is_test": false
+    },
+    {
+      "path": "benches/indexing.rs",
+      "line": 212,
+      "kind": "expect",
+      "containing_symbol": "bench_reindex",
+      "is_test": false
+    },
+    {
+      "path": "benches/indexing.rs",
+      "line": 232,
+      "kind": "expect",
+      "containing_symbol": "bench_post_index_operations",
+      "is_test": false
+    },
+    {
+      "path": "benches/indexing.rs",
+      "line": 239,
+      "kind": "expect",
+      "containing_symbol": "bench_post_index_operations",
+      "is_test": false
+    },
+    {
+      "path": "benches/indexing.rs",
+      "line": 249,
+      "kind": "expect",
+      "containing_symbol": "bench_post_index_operations",
+      "is_test": false
+    },
+    {
+      "path": "benches/indexing.rs",
+      "line": 278,
+      "kind": "expect",
+      "containing_symbol": "bench_symbol_density",
+      "is_test": false
+    },
+    {
+      "path": "benches/indexing.rs",
+      "line": 282,
+      "kind": "expect",
+      "containing_symbol": "bench_symbol_density",
+      "is_test": false
+    },
+    {
+      "path": "benches/queries.rs",
+      "line": 198,
+      "kind": "expect",
+      "containing_symbol": "bench_get_callers",
+      "is_test": false
+    },
+    {
+      "path": "benches/queries.rs",
+      "line": 226,
+      "kind": "expect",
+      "containing_symbol": "bench_get_symbol_impact_depth",
+      "is_test": false
+    },
+    {
+      "path": "benches/queries.rs",
+      "line": 254,
+      "kind": "expect",
+      "containing_symbol": "bench_get_symbol_impact_mixed",
+      "is_test": false
+    },
+    {
+      "path": "benches/queries.rs",
+      "line": 285,
+      "kind": "expect",
+      "containing_symbol": "bench_get_file_impact",
+      "is_test": false
+    },
+    {
+      "path": "benches/queries.rs",
+      "line": 319,
+      "kind": "expect",
+      "containing_symbol": "bench_get_references",
+      "is_test": false
+    },
+    {
+      "path": "benches/queries.rs",
+      "line": 350,
+      "kind": "expect",
+      "containing_symbol": "bench_dependency_chain",
+      "is_test": false
+    },
+    {
+      "path": "benches/queries.rs",
+      "line": 374,
+      "kind": "expect",
+      "containing_symbol": "analyze_query_plans",
+      "is_test": false
+    },
+    {
+      "path": "benches/queries.rs",
+      "line": 383,
+      "kind": "expect",
+      "containing_symbol": "analyze_query_plans",
+      "is_test": false
+    },
+    {
+      "path": "examples/idxperf_stream.rs",
+      "line": 12,
+      "kind": "expect",
+      "containing_symbol": "main",
+      "is_test": false
+    },
+    {
+      "path": "examples/idxperf_stream.rs",
+      "line": 13,
+      "kind": "expect",
+      "containing_symbol": "main",
+      "is_test": false
+    },
+    {
+      "path": "examples/idxperf_stream.rs",
+      "line": 16,
+      "kind": "expect",
+      "containing_symbol": "main",
+      "is_test": false
+    },
+    {
+      "path": "src/batch_writer.rs",
+      "line": 275,
+      "kind": "expect",
+      "containing_symbol": "temp_db_path",
+      "is_test": false
+    },
+    {
+      "path": "src/cli/coupling.rs",
+      "line": 682,
+      "kind": "expect",
+      "containing_symbol": "empty_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/cli/coupling.rs",
+      "line": 683,
+      "kind": "expect",
+      "containing_symbol": "empty_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/cli/coupling.rs",
+      "line": 685,
+      "kind": "expect",
+      "containing_symbol": "empty_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/cli/coupling.rs",
+      "line": 690,
+      "kind": "expect",
+      "containing_symbol": "single_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/cli/coupling.rs",
+      "line": 696,
+      "kind": "expect",
+      "containing_symbol": "single_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/cli/coupling.rs",
+      "line": 697,
+      "kind": "expect",
+      "containing_symbol": "single_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/cli/coupling.rs",
+      "line": 702,
+      "kind": "expect",
+      "containing_symbol": "single_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/cli/coupling.rs",
+      "line": 703,
+      "kind": "expect",
+      "containing_symbol": "single_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/cli/coupling.rs",
+      "line": 705,
+      "kind": "expect",
+      "containing_symbol": "single_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/cli/coupling.rs",
+      "line": 706,
+      "kind": "expect",
+      "containing_symbol": "single_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 265,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 267,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 282,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 503,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 504,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 508,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 511,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 514,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 516,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 517,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 518,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 540,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1073,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1074,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1078,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1081,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1084,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1086,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1087,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1088,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1110,
+      "kind": "expect",
+      "containing_symbol": "seeded_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1274,
+      "kind": "expect",
+      "containing_symbol": "temp_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1276,
+      "kind": "expect",
+      "containing_symbol": "temp_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1284,
+      "kind": "expect",
+      "containing_symbol": "add_file",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1427,
+      "kind": "expect",
+      "containing_symbol": "instability_for",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1431,
+      "kind": "expect",
+      "containing_symbol": "instability_for",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1432,
+      "kind": "expect",
+      "containing_symbol": "instability_for",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1439,
+      "kind": "expect",
+      "containing_symbol": "instability_for",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1454,
+      "kind": "expect",
+      "containing_symbol": "instability_for",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1459,
+      "kind": "expect",
+      "containing_symbol": "instability_for",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1467,
+      "kind": "expect",
+      "containing_symbol": "instability_for",
+      "is_test": false
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "line": 1469,
+      "kind": "expect",
+      "containing_symbol": "instability_for",
+      "is_test": false
+    },
+    {
+      "path": "src/db/call_edges.rs",
+      "line": 360,
+      "kind": "expect",
+      "containing_symbol": "fresh_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/call_edges.rs",
+      "line": 361,
+      "kind": "expect",
+      "containing_symbol": "fresh_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/call_edges.rs",
+      "line": 368,
+      "kind": "expect",
+      "containing_symbol": "upsert",
+      "is_test": false
+    },
+    {
+      "path": "src/db/call_edges.rs",
+      "line": 387,
+      "kind": "expect",
+      "containing_symbol": "insert_sym",
+      "is_test": false
+    },
+    {
+      "path": "src/db/call_edges.rs",
+      "line": 397,
+      "kind": "expect",
+      "containing_symbol": "insert_call_edge",
+      "is_test": false
+    },
+    {
+      "path": "src/db/call_edges.rs",
+      "line": 403,
+      "kind": "expect",
+      "containing_symbol": "insert_call_edge",
+      "is_test": false
+    },
+    {
+      "path": "src/db/call_edges.rs",
+      "line": 409,
+      "kind": "expect",
+      "containing_symbol": "count_file_deps",
+      "is_test": false
+    },
+    {
+      "path": "src/db/call_edges.rs",
+      "line": 415,
+      "kind": "expect",
+      "containing_symbol": "count_file_deps",
+      "is_test": false
+    },
+    {
+      "path": "src/db/files.rs",
+      "line": 577,
+      "kind": "expect",
+      "containing_symbol": "temp_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/files.rs",
+      "line": 578,
+      "kind": "expect",
+      "containing_symbol": "temp_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/files.rs",
+      "line": 957,
+      "kind": "expect",
+      "containing_symbol": "temp_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/files.rs",
+      "line": 959,
+      "kind": "expect",
+      "containing_symbol": "temp_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/files.rs",
+      "line": 998,
+      "kind": "expect",
+      "containing_symbol": "temp_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/files.rs",
+      "line": 999,
+      "kind": "expect",
+      "containing_symbol": "temp_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/files.rs",
+      "line": 1008,
+      "kind": "expect",
+      "containing_symbol": "seed_two_file_fixture",
+      "is_test": false
+    },
+    {
+      "path": "src/db/files.rs",
+      "line": 1034,
+      "kind": "expect",
+      "containing_symbol": "seed_two_file_fixture",
+      "is_test": false
+    },
+    {
+      "path": "src/db/files.rs",
+      "line": 1041,
+      "kind": "expect",
+      "containing_symbol": "table_count",
+      "is_test": false
+    },
+    {
+      "path": "src/db/files.rs",
+      "line": 1043,
+      "kind": "expect",
+      "containing_symbol": "table_count",
+      "is_test": false
+    },
+    {
+      "path": "src/db/mod.rs",
+      "line": 376,
+      "kind": "expect",
+      "containing_symbol": "temp_db",
+      "is_test": false
+    },
+    {
+      "path": "src/db/panic_points.rs",
+      "line": 198,
+      "kind": "expect",
+      "containing_symbol": "setup_test_db",
+      "is_test": false
+    },
+    {
+      "path": "src/db/panic_points.rs",
+      "line": 200,
+      "kind": "expect",
+      "containing_symbol": "setup_test_db",
+      "is_test": false
+    },
+    {
+      "path": "src/db/panic_points.rs",
+      "line": 211,
+      "kind": "expect",
+      "containing_symbol": "setup_test_db",
+      "is_test": false
+    },
+    {
+      "path": "src/db/panic_points.rs",
+      "line": 229,
+      "kind": "expect",
+      "containing_symbol": "setup_test_db",
+      "is_test": false
+    },
+    {
+      "path": "src/db/panic_points.rs",
+      "line": 247,
+      "kind": "expect",
+      "containing_symbol": "setup_test_db",
+      "is_test": false
+    },
+    {
+      "path": "src/db/panic_points.rs",
+      "line": 261,
+      "kind": "expect",
+      "containing_symbol": "setup_test_db",
+      "is_test": false
+    },
+    {
+      "path": "src/db/panic_points.rs",
+      "line": 275,
+      "kind": "expect",
+      "containing_symbol": "setup_test_db",
+      "is_test": false
+    },
+    {
+      "path": "src/db/panic_points.rs",
+      "line": 289,
+      "kind": "expect",
+      "containing_symbol": "setup_test_db",
+      "is_test": false
+    },
+    {
+      "path": "src/db/references.rs",
+      "line": 282,
+      "kind": "expect",
+      "containing_symbol": "fixture",
+      "is_test": false
+    },
+    {
+      "path": "src/db/references.rs",
+      "line": 298,
+      "kind": "expect",
+      "containing_symbol": "fixture",
+      "is_test": false
+    },
+    {
+      "path": "src/db/references.rs",
+      "line": 313,
+      "kind": "expect",
+      "containing_symbol": "fixture",
+      "is_test": false
+    },
+    {
+      "path": "src/db/schema.rs",
+      "line": 221,
+      "kind": "expect",
+      "containing_symbol": "open_test_conn",
+      "is_test": false
+    },
+    {
+      "path": "src/db/schema.rs",
+      "line": 224,
+      "kind": "expect",
+      "containing_symbol": "open_test_conn",
+      "is_test": false
+    },
+    {
+      "path": "src/db/schema.rs",
+      "line": 225,
+      "kind": "expect",
+      "containing_symbol": "open_test_conn",
+      "is_test": false
+    },
+    {
+      "path": "src/db/schema.rs",
+      "line": 451,
+      "kind": "expect",
+      "containing_symbol": "seed_refs_fixture",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 489,
+      "kind": "expect",
+      "containing_symbol": "two_crate_workspace_with_shared_foo",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 490,
+      "kind": "expect",
+      "containing_symbol": "two_crate_workspace_with_shared_foo",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 500,
+      "kind": "expect",
+      "containing_symbol": "two_crate_workspace_with_shared_foo",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 509,
+      "kind": "expect",
+      "containing_symbol": "two_crate_workspace_with_shared_foo",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 526,
+      "kind": "expect",
+      "containing_symbol": "two_crate_workspace_with_shared_foo",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 542,
+      "kind": "expect",
+      "containing_symbol": "two_crate_workspace_with_shared_foo",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 708,
+      "kind": "expect",
+      "containing_symbol": "insert_bar_in",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 724,
+      "kind": "expect",
+      "containing_symbol": "insert_bar_in",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 728,
+      "kind": "expect",
+      "containing_symbol": "fresh_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 729,
+      "kind": "expect",
+      "containing_symbol": "fresh_index",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 783,
+      "kind": "unwrap",
+      "containing_symbol": "unique_in_files",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 795,
+      "kind": "expect",
+      "containing_symbol": "insert_sym",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 811,
+      "kind": "expect",
+      "containing_symbol": "insert_sym",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 937,
+      "kind": "expect",
+      "containing_symbol": "insert_members",
+      "is_test": false
+    },
+    {
+      "path": "src/db/symbols.rs",
+      "line": 956,
+      "kind": "expect",
+      "containing_symbol": "insert_members",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1324,
+      "kind": "expect",
+      "containing_symbol": "indexed_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1328,
+      "kind": "expect",
+      "containing_symbol": "indexed_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1330,
+      "kind": "expect",
+      "containing_symbol": "indexed_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1332,
+      "kind": "expect",
+      "containing_symbol": "indexed_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1333,
+      "kind": "expect",
+      "containing_symbol": "indexed_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1809,
+      "kind": "expect",
+      "containing_symbol": "make_workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1819,
+      "kind": "expect",
+      "containing_symbol": "make_workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1821,
+      "kind": "expect",
+      "containing_symbol": "make_workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1830,
+      "kind": "expect",
+      "containing_symbol": "make_workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1835,
+      "kind": "expect",
+      "containing_symbol": "make_workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1837,
+      "kind": "expect",
+      "containing_symbol": "make_workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1846,
+      "kind": "expect",
+      "containing_symbol": "make_workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1851,
+      "kind": "expect",
+      "containing_symbol": "make_workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/indexing.rs",
+      "line": 1853,
+      "kind": "expect",
+      "containing_symbol": "make_workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/languages/csharp.rs",
+      "line": 1541,
+      "kind": "expect",
+      "containing_symbol": "parse_csharp",
+      "is_test": false
+    },
+    {
+      "path": "src/languages/csharp.rs",
+      "line": 1544,
+      "kind": "expect",
+      "containing_symbol": "parse_csharp",
+      "is_test": false
+    },
+    {
+      "path": "src/languages/module_resolver.rs",
+      "line": 689,
+      "kind": "expect",
+      "containing_symbol": "make_crate",
+      "is_test": false
+    },
+    {
+      "path": "src/languages/module_resolver.rs",
+      "line": 690,
+      "kind": "expect",
+      "containing_symbol": "make_crate",
+      "is_test": false
+    },
+    {
+      "path": "src/languages/module_resolver.rs",
+      "line": 694,
+      "kind": "expect",
+      "containing_symbol": "make_crate",
+      "is_test": false
+    },
+    {
+      "path": "src/languages/module_resolver.rs",
+      "line": 696,
+      "kind": "expect",
+      "containing_symbol": "make_crate",
+      "is_test": false
+    },
+    {
+      "path": "src/languages/rust.rs",
+      "line": 2288,
+      "kind": "expect",
+      "containing_symbol": "parse_rust",
+      "is_test": false
+    },
+    {
+      "path": "src/languages/rust.rs",
+      "line": 2291,
+      "kind": "expect",
+      "containing_symbol": "parse_rust",
+      "is_test": false
+    },
+    {
+      "path": "src/lib.rs",
+      "line": 1123,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/lib.rs",
+      "line": 1129,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/lib.rs",
+      "line": 1131,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/lib.rs",
+      "line": 1136,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/lib.rs",
+      "line": 1138,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/lib.rs",
+      "line": 1140,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/lib.rs",
+      "line": 1141,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_two_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/lib.rs",
+      "line": 1181,
+      "kind": "expect",
+      "containing_symbol": "temp_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/lsp/transport.rs",
+      "line": 998,
+      "kind": "unwrap",
+      "containing_symbol": "mock_response",
+      "is_test": false
+    },
+    {
+      "path": "src/lsp/transport.rs",
+      "line": 1012,
+      "kind": "unwrap",
+      "containing_symbol": "mock_error_response",
+      "is_test": false
+    },
+    {
+      "path": "src/lsp/transport.rs",
+      "line": 1033,
+      "kind": "expect",
+      "containing_symbol": "parse_uri",
+      "is_test": false
+    },
+    {
+      "path": "src/reindex.rs",
+      "line": 331,
+      "kind": "expect",
+      "containing_symbol": "write_and_stat",
+      "is_test": false
+    },
+    {
+      "path": "src/reindex.rs",
+      "line": 332,
+      "kind": "expect",
+      "containing_symbol": "write_and_stat",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 230,
+      "kind": "expect",
+      "containing_symbol": "create_test_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 232,
+      "kind": "expect",
+      "containing_symbol": "create_test_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 235,
+      "kind": "expect",
+      "containing_symbol": "create_test_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 236,
+      "kind": "expect",
+      "containing_symbol": "create_test_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 240,
+      "kind": "expect",
+      "containing_symbol": "create_test_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 242,
+      "kind": "expect",
+      "containing_symbol": "create_test_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 244,
+      "kind": "expect",
+      "containing_symbol": "create_test_workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 395,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 400,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 401,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 405,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 407,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_crates",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 627,
+      "kind": "expect",
+      "containing_symbol": "crate_fixture",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 629,
+      "kind": "expect",
+      "containing_symbol": "crate_fixture",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 634,
+      "kind": "expect",
+      "containing_symbol": "crate_fixture",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 636,
+      "kind": "expect",
+      "containing_symbol": "crate_fixture",
+      "is_test": false
+    },
+    {
+      "path": "src/resolver.rs",
+      "line": 640,
+      "kind": "expect",
+      "containing_symbol": "crate_fixture",
+      "is_test": false
+    },
+    {
+      "path": "src/unused_imports.rs",
+      "line": 374,
+      "kind": "expect",
+      "containing_symbol": "workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/unused_imports.rs",
+      "line": 378,
+      "kind": "expect",
+      "containing_symbol": "workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/unused_imports.rs",
+      "line": 380,
+      "kind": "expect",
+      "containing_symbol": "workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/unused_imports.rs",
+      "line": 382,
+      "kind": "expect",
+      "containing_symbol": "workspace",
+      "is_test": false
+    },
+    {
+      "path": "src/unused_imports.rs",
+      "line": 383,
+      "kind": "expect",
+      "containing_symbol": "workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/architecture.rs",
+      "line": 13,
+      "kind": "expect",
+      "containing_symbol": "three_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/architecture.rs",
+      "line": 23,
+      "kind": "expect",
+      "containing_symbol": "three_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/architecture.rs",
+      "line": 25,
+      "kind": "expect",
+      "containing_symbol": "three_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/architecture.rs",
+      "line": 34,
+      "kind": "expect",
+      "containing_symbol": "three_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/architecture.rs",
+      "line": 39,
+      "kind": "expect",
+      "containing_symbol": "three_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/architecture.rs",
+      "line": 41,
+      "kind": "expect",
+      "containing_symbol": "three_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/architecture.rs",
+      "line": 53,
+      "kind": "expect",
+      "containing_symbol": "three_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/architecture.rs",
+      "line": 58,
+      "kind": "expect",
+      "containing_symbol": "three_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/architecture.rs",
+      "line": 60,
+      "kind": "expect",
+      "containing_symbol": "three_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/architecture.rs",
+      "line": 73,
+      "kind": "expect",
+      "containing_symbol": "three_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/architecture.rs",
+      "line": 78,
+      "kind": "expect",
+      "containing_symbol": "three_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/architecture.rs",
+      "line": 80,
+      "kind": "expect",
+      "containing_symbol": "three_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/architecture.rs",
+      "line": 81,
+      "kind": "expect",
+      "containing_symbol": "three_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/changelog_lint.rs",
+      "line": 36,
+      "kind": "expect",
+      "containing_symbol": "fragment_paths",
+      "is_test": false
+    },
+    {
+      "path": "tests/changelog_lint.rs",
+      "line": 37,
+      "kind": "expect",
+      "containing_symbol": "fragment_paths",
+      "is_test": false
+    },
+    {
+      "path": "tests/changelog_lint.rs",
+      "line": 41,
+      "kind": "expect",
+      "containing_symbol": "fragment_paths",
+      "is_test": false
+    },
+    {
+      "path": "tests/common/mod.rs",
+      "line": 30,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/common/mod.rs",
+      "line": 37,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/common/mod.rs",
+      "line": 43,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/common/mod.rs",
+      "line": 45,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/common/mod.rs",
+      "line": 47,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/common/mod.rs",
+      "line": 54,
+      "kind": "expect",
+      "containing_symbol": "open_db",
+      "is_test": false
+    },
+    {
+      "path": "tests/concurrency_and_filesystem.rs",
+      "line": 20,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/concurrency_and_filesystem.rs",
+      "line": 25,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/concurrency_and_filesystem.rs",
+      "line": 27,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/concurrency_and_filesystem.rs",
+      "line": 30,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/csharp_cross_dir_deps.rs",
+      "line": 32,
+      "kind": "expect",
+      "containing_symbol": "dep_count",
+      "is_test": false
+    },
+    {
+      "path": "tests/csharp_using_disambiguation.rs",
+      "line": 58,
+      "kind": "expect",
+      "containing_symbol": "fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/csharp_using_disambiguation.rs",
+      "line": 83,
+      "kind": "expect",
+      "containing_symbol": "ref_target",
+      "is_test": false
+    },
+    {
+      "path": "tests/csharp_using_static.rs",
+      "line": 30,
+      "kind": "expect",
+      "containing_symbol": "ref_target",
+      "is_test": false
+    },
+    {
+      "path": "tests/deprecated_callers.rs",
+      "line": 62,
+      "kind": "expect",
+      "containing_symbol": "build_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/deprecated_callers.rs",
+      "line": 65,
+      "kind": "expect",
+      "containing_symbol": "build_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/deprecated_callers.rs",
+      "line": 266,
+      "kind": "expect",
+      "containing_symbol": "build_path_b_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/deprecated_callers.rs",
+      "line": 269,
+      "kind": "expect",
+      "containing_symbol": "build_path_b_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/deprecated_callers.rs",
+      "line": 480,
+      "kind": "expect",
+      "containing_symbol": "build_path_b_fixture_raw",
+      "is_test": false
+    },
+    {
+      "path": "tests/deprecated_callers.rs",
+      "line": 570,
+      "kind": "expect",
+      "containing_symbol": "cli_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/deprecated_callers.rs",
+      "line": 582,
+      "kind": "expect",
+      "containing_symbol": "run_cli",
+      "is_test": false
+    },
+    {
+      "path": "tests/deprecated_callers.rs",
+      "line": 589,
+      "kind": "expect",
+      "containing_symbol": "run_cli",
+      "is_test": false
+    },
+    {
+      "path": "tests/deprecated_callers.rs",
+      "line": 677,
+      "kind": "expect",
+      "containing_symbol": "build_csharp_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/deprecated_callers.rs",
+      "line": 680,
+      "kind": "expect",
+      "containing_symbol": "build_csharp_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/deprecated_callers.rs",
+      "line": 1277,
+      "kind": "expect",
+      "containing_symbol": "build_csharp_property_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/deprecated_callers.rs",
+      "line": 1280,
+      "kind": "expect",
+      "containing_symbol": "build_csharp_property_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/error_paths.rs",
+      "line": 12,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/error_paths.rs",
+      "line": 17,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/error_paths.rs",
+      "line": 19,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/error_paths.rs",
+      "line": 22,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/file_deps_idempotency.rs",
+      "line": 67,
+      "kind": "expect",
+      "containing_symbol": "build_two_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/file_deps_idempotency.rs",
+      "line": 68,
+      "kind": "expect",
+      "containing_symbol": "build_two_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/file_deps_idempotency.rs",
+      "line": 69,
+      "kind": "expect",
+      "containing_symbol": "build_two_crate_workspace",
+      "is_test": false
+    },
+    {
+      "path": "tests/file_deps_idempotency.rs",
+      "line": 85,
+      "kind": "expect",
+      "containing_symbol": "file_deps_snapshot",
+      "is_test": false
+    },
+    {
+      "path": "tests/file_deps_idempotency.rs",
+      "line": 96,
+      "kind": "expect",
+      "containing_symbol": "file_deps_snapshot",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 25,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_call_graph",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 34,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_call_graph",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 37,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_call_graph",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 52,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_call_graph",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 69,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_call_graph",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 86,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_call_graph",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 95,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_call_graph",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 106,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_call_graph",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 108,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_call_graph",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 668,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_intra_file_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 674,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_intra_file_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 676,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_intra_file_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 703,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_intra_file_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 705,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_intra_file_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 1384,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_cyclic_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 1390,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_cyclic_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 1392,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_cyclic_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 1414,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_cyclic_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/graph.rs",
+      "line": 1416,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_cyclic_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 38,
+      "kind": "expect",
+      "containing_symbol": "write_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 39,
+      "kind": "expect",
+      "containing_symbol": "write_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 40,
+      "kind": "expect",
+      "containing_symbol": "write_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 41,
+      "kind": "expect",
+      "containing_symbol": "write_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 42,
+      "kind": "expect",
+      "containing_symbol": "write_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 43,
+      "kind": "expect",
+      "containing_symbol": "write_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 44,
+      "kind": "expect",
+      "containing_symbol": "write_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 55,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 62,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 72,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 74,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 84,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 95,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 97,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 117,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 136,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 139,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 158,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 172,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 174,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 189,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 199,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 201,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 213,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 222,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 224,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 236,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 245,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 247,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 259,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 269,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 271,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 284,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 294,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 296,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 302,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 305,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 307,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 316,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 325,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 327,
+      "kind": "expect",
+      "containing_symbol": "canonical_rows",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 413,
+      "kind": "expect",
+      "containing_symbol": "index_batch",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 414,
+      "kind": "expect",
+      "containing_symbol": "index_batch",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 419,
+      "kind": "expect",
+      "containing_symbol": "index_streaming",
+      "is_test": false
+    },
+    {
+      "path": "tests/idxperf_golden.rs",
+      "line": 422,
+      "kind": "expect",
+      "containing_symbol": "index_streaming",
+      "is_test": false
+    },
+    {
+      "path": "tests/indexing.rs",
+      "line": 13,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/indexing.rs",
+      "line": 26,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/indexing.rs",
+      "line": 32,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/indexing.rs",
+      "line": 34,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/indexing.rs",
+      "line": 37,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/lsp_callers.rs",
+      "line": 33,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_intra_file_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/lsp_callers.rs",
+      "line": 35,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_intra_file_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/lsp_callers.rs",
+      "line": 62,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_intra_file_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/lsp_callers.rs",
+      "line": 74,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_intra_file_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/lsp_callers.rs",
+      "line": 76,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_intra_file_calls",
+      "is_test": false
+    },
+    {
+      "path": "tests/lsp_multi_crate.rs",
+      "line": 82,
+      "kind": "expect",
+      "containing_symbol": "build_2_crate_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/lsp_multi_crate.rs",
+      "line": 82,
+      "kind": "expect",
+      "containing_symbol": "build_2_crate_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/lsp_multi_crate.rs",
+      "line": 83,
+      "kind": "expect",
+      "containing_symbol": "build_2_crate_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/lsp_resolution.rs",
+      "line": 37,
+      "kind": "expect",
+      "containing_symbol": "create_cargo_toml",
+      "is_test": false
+    },
+    {
+      "path": "tests/lsp_resolution.rs",
+      "line": 548,
+      "kind": "expect",
+      "containing_symbol": "find_byte_position",
+      "is_test": false
+    },
+    {
+      "path": "tests/lsp_resolution.rs",
+      "line": 549,
+      "kind": "expect",
+      "containing_symbol": "find_byte_position",
+      "is_test": false
+    },
+    {
+      "path": "tests/lsp_resolution.rs",
+      "line": 551,
+      "kind": "expect",
+      "containing_symbol": "find_byte_position",
+      "is_test": false
+    },
+    {
+      "path": "tests/lsp_resolution.rs",
+      "line": 552,
+      "kind": "expect",
+      "containing_symbol": "find_byte_position",
+      "is_test": false
+    },
+    {
+      "path": "tests/macro_token_refs.rs",
+      "line": 19,
+      "kind": "expect",
+      "containing_symbol": "scalar",
+      "is_test": false
+    },
+    {
+      "path": "tests/macro_token_refs.rs",
+      "line": 363,
+      "kind": "expect",
+      "containing_symbol": "macro_and_deps_dump",
+      "is_test": false
+    },
+    {
+      "path": "tests/macro_token_refs.rs",
+      "line": 375,
+      "kind": "expect",
+      "containing_symbol": "macro_and_deps_dump",
+      "is_test": false
+    },
+    {
+      "path": "tests/macro_token_refs.rs",
+      "line": 377,
+      "kind": "expect",
+      "containing_symbol": "macro_and_deps_dump",
+      "is_test": false
+    },
+    {
+      "path": "tests/macro_token_refs.rs",
+      "line": 385,
+      "kind": "expect",
+      "containing_symbol": "macro_and_deps_dump",
+      "is_test": false
+    },
+    {
+      "path": "tests/macro_token_refs.rs",
+      "line": 394,
+      "kind": "expect",
+      "containing_symbol": "macro_and_deps_dump",
+      "is_test": false
+    },
+    {
+      "path": "tests/macro_token_refs.rs",
+      "line": 396,
+      "kind": "expect",
+      "containing_symbol": "macro_and_deps_dump",
+      "is_test": false
+    },
+    {
+      "path": "tests/method_calls.rs",
+      "line": 27,
+      "kind": "expect",
+      "containing_symbol": "method_ref_at",
+      "is_test": false
+    },
+    {
+      "path": "tests/method_calls.rs",
+      "line": 32,
+      "kind": "expect",
+      "containing_symbol": "method_ref_at",
+      "is_test": false
+    },
+    {
+      "path": "tests/method_calls.rs",
+      "line": 34,
+      "kind": "expect",
+      "containing_symbol": "method_ref_at",
+      "is_test": false
+    },
+    {
+      "path": "tests/method_calls.rs",
+      "line": 40,
+      "kind": "expect",
+      "containing_symbol": "method_ref_at",
+      "is_test": false
+    },
+    {
+      "path": "tests/module_path_integration.rs",
+      "line": 14,
+      "kind": "expect",
+      "containing_symbol": "get_workspace_with_crates",
+      "is_test": false
+    },
+    {
+      "path": "tests/module_path_integration.rs",
+      "line": 16,
+      "kind": "expect",
+      "containing_symbol": "get_workspace_with_crates",
+      "is_test": false
+    },
+    {
+      "path": "tests/module_path_integration.rs",
+      "line": 41,
+      "kind": "expect",
+      "containing_symbol": "assert_symbol_has_module_path",
+      "is_test": false
+    },
+    {
+      "path": "tests/orphan_files.rs",
+      "line": 78,
+      "kind": "expect",
+      "containing_symbol": "build_workspace_with_unresolved_cross_crate_ref",
+      "is_test": false
+    },
+    {
+      "path": "tests/orphan_files.rs",
+      "line": 79,
+      "kind": "expect",
+      "containing_symbol": "build_workspace_with_unresolved_cross_crate_ref",
+      "is_test": false
+    },
+    {
+      "path": "tests/orphan_files.rs",
+      "line": 80,
+      "kind": "expect",
+      "containing_symbol": "build_workspace_with_unresolved_cross_crate_ref",
+      "is_test": false
+    },
+    {
+      "path": "tests/orphan_files.rs",
+      "line": 86,
+      "kind": "expect",
+      "containing_symbol": "open_readonly",
+      "is_test": false
+    },
+    {
+      "path": "tests/orphan_files.rs",
+      "line": 105,
+      "kind": "expect",
+      "containing_symbol": "count",
+      "is_test": false
+    },
+    {
+      "path": "tests/parent_symbols.rs",
+      "line": 20,
+      "kind": "expect",
+      "containing_symbol": "links",
+      "is_test": false
+    },
+    {
+      "path": "tests/parent_symbols.rs",
+      "line": 22,
+      "kind": "expect",
+      "containing_symbol": "links",
+      "is_test": false
+    },
+    {
+      "path": "tests/parent_symbols.rs",
+      "line": 24,
+      "kind": "expect",
+      "containing_symbol": "links",
+      "is_test": false
+    },
+    {
+      "path": "tests/pass2_crate_root_paths.rs",
+      "line": 47,
+      "kind": "expect",
+      "containing_symbol": "two_crate_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/pass2_crate_root_paths.rs",
+      "line": 70,
+      "kind": "expect",
+      "containing_symbol": "count_resolved",
+      "is_test": false
+    },
+    {
+      "path": "tests/pass2_crate_root_paths.rs",
+      "line": 250,
+      "kind": "expect",
+      "containing_symbol": "count_unresolved",
+      "is_test": false
+    },
+    {
+      "path": "tests/reexport_refs.rs",
+      "line": 26,
+      "kind": "expect",
+      "containing_symbol": "resolved_reexport_targets",
+      "is_test": false
+    },
+    {
+      "path": "tests/reexport_refs.rs",
+      "line": 29,
+      "kind": "expect",
+      "containing_symbol": "resolved_reexport_targets",
+      "is_test": false
+    },
+    {
+      "path": "tests/reexport_refs.rs",
+      "line": 30,
+      "kind": "expect",
+      "containing_symbol": "resolved_reexport_targets",
+      "is_test": false
+    },
+    {
+      "path": "tests/reexport_refs.rs",
+      "line": 34,
+      "kind": "expect",
+      "containing_symbol": "scalar",
+      "is_test": false
+    },
+    {
+      "path": "tests/refs_named.rs",
+      "line": 21,
+      "kind": "expect",
+      "containing_symbol": "count_named",
+      "is_test": false
+    },
+    {
+      "path": "tests/refs_named.rs",
+      "line": 26,
+      "kind": "expect",
+      "containing_symbol": "scalar",
+      "is_test": false
+    },
+    {
+      "path": "tests/reindex_cascade.rs",
+      "line": 28,
+      "kind": "expect",
+      "containing_symbol": "count_lib_refs_by_target_names",
+      "is_test": false
+    },
+    {
+      "path": "tests/reindex_cascade.rs",
+      "line": 138,
+      "kind": "expect",
+      "containing_symbol": "count_attrs_for_symbol",
+      "is_test": false
+    },
+    {
+      "path": "tests/reindex_cascade.rs",
+      "line": 148,
+      "kind": "expect",
+      "containing_symbol": "count_symbols_by_name",
+      "is_test": false
+    },
+    {
+      "path": "tests/reindex_cascade.rs",
+      "line": 240,
+      "kind": "expect",
+      "containing_symbol": "snapshot_clear_all_tables",
+      "is_test": false
+    },
+    {
+      "path": "tests/reindex_cascade.rs",
+      "line": 243,
+      "kind": "expect",
+      "containing_symbol": "snapshot_clear_all_tables",
+      "is_test": false
+    },
+    {
+      "path": "tests/reindex_cascade.rs",
+      "line": 250,
+      "kind": "expect",
+      "containing_symbol": "snapshot_clear_all_tables",
+      "is_test": false
+    },
+    {
+      "path": "tests/resolver_routing.rs",
+      "line": 277,
+      "kind": "expect",
+      "containing_symbol": "file_deps_edges",
+      "is_test": false
+    },
+    {
+      "path": "tests/resolver_routing.rs",
+      "line": 279,
+      "kind": "expect",
+      "containing_symbol": "file_deps_edges",
+      "is_test": false
+    },
+    {
+      "path": "tests/resolver_routing.rs",
+      "line": 281,
+      "kind": "expect",
+      "containing_symbol": "file_deps_edges",
+      "is_test": false
+    },
+    {
+      "path": "tests/staleness.rs",
+      "line": 11,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/staleness.rs",
+      "line": 15,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/staleness.rs",
+      "line": 17,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/staleness.rs",
+      "line": 19,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/staleness.rs",
+      "line": 30,
+      "kind": "expect",
+      "containing_symbol": "write_and_advance_mtime",
+      "is_test": false
+    },
+    {
+      "path": "tests/staleness.rs",
+      "line": 32,
+      "kind": "expect",
+      "containing_symbol": "write_and_advance_mtime",
+      "is_test": false
+    },
+    {
+      "path": "tests/staleness.rs",
+      "line": 36,
+      "kind": "expect",
+      "containing_symbol": "write_and_advance_mtime",
+      "is_test": false
+    },
+    {
+      "path": "tests/staleness.rs",
+      "line": 38,
+      "kind": "expect",
+      "containing_symbol": "write_and_advance_mtime",
+      "is_test": false
+    },
+    {
+      "path": "tests/staleness.rs",
+      "line": 40,
+      "kind": "expect",
+      "containing_symbol": "write_and_advance_mtime",
+      "is_test": false
+    },
+    {
+      "path": "tests/strategy.rs",
+      "line": 21,
+      "kind": "expect",
+      "containing_symbol": "count_refs",
+      "is_test": false
+    },
+    {
+      "path": "tests/strategy.rs",
+      "line": 223,
+      "kind": "expect",
+      "containing_symbol": "strategy_of",
+      "is_test": false
+    },
+    {
+      "path": "tests/strategy.rs",
+      "line": 226,
+      "kind": "expect",
+      "containing_symbol": "strategy_of",
+      "is_test": false
+    },
+    {
+      "path": "tests/strategy.rs",
+      "line": 227,
+      "kind": "expect",
+      "containing_symbol": "strategy_of",
+      "is_test": false
+    },
+    {
+      "path": "tests/strategy.rs",
+      "line": 396,
+      "kind": "expect",
+      "containing_symbol": "exclusion_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/test_topology.rs",
+      "line": 23,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/test_topology.rs",
+      "line": 30,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/test_topology.rs",
+      "line": 36,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/test_topology.rs",
+      "line": 38,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/test_topology.rs",
+      "line": 41,
+      "kind": "expect",
+      "containing_symbol": "workspace_with_files",
+      "is_test": false
+    },
+    {
+      "path": "tests/type_hierarchy.rs",
+      "line": 13,
+      "kind": "expect",
+      "containing_symbol": "scalar",
+      "is_test": false
+    },
+    {
+      "path": "tests/value_refs.rs",
+      "line": 18,
+      "kind": "expect",
+      "containing_symbol": "scalar",
+      "is_test": false
+    },
+    {
+      "path": "tests/value_refs.rs",
+      "line": 32,
+      "kind": "expect",
+      "containing_symbol": "value_snapshot",
+      "is_test": false
+    },
+    {
+      "path": "tests/value_refs.rs",
+      "line": 34,
+      "kind": "expect",
+      "containing_symbol": "value_snapshot",
+      "is_test": false
+    },
+    {
+      "path": "tests/value_refs.rs",
+      "line": 36,
+      "kind": "expect",
+      "containing_symbol": "value_snapshot",
+      "is_test": false
+    },
+    {
+      "path": "tests/visibility.rs",
+      "line": 92,
+      "kind": "expect",
+      "containing_symbol": "two_crate_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/visibility.rs",
+      "line": 250,
+      "kind": "expect",
+      "containing_symbol": "single_package_fixture",
+      "is_test": false
+    },
+    {
+      "path": "tests/visibility.rs",
+      "line": 262,
+      "kind": "expect",
+      "containing_symbol": "run_cli",
+      "is_test": false
+    },
+    {
+      "path": "tests/visibility.rs",
+      "line": 269,
+      "kind": "expect",
+      "containing_symbol": "run_cli",
+      "is_test": false
+    }
+  ]
+}

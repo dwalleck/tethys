@@ -62,7 +62,8 @@ pub struct TypeHierarchy {
     pub down: Vec<HierarchyNode>,
 }
 
-const CONTAINER_KINDS_SQL: &str = "('struct','class','enum','trait','interface','type_alias')";
+pub(crate) const CONTAINER_KINDS_SQL: &str =
+    "('struct','class','enum','trait','interface','type_alias')";
 
 impl Index {
     /// Walk the type hierarchy from the type named `name`.

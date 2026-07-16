@@ -203,6 +203,17 @@ enum Commands {
         json: bool,
     },
 
+    /// List non-public symbols with zero inbound references, tiered
+    /// Definite/Maybe by a textual scan (suppressions, not accusations)
+    DeadCode {
+        /// Maximum findings to list (summary always counts everything)
+        #[arg(long)]
+        limit: Option<usize>,
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+
     /// Walk the type hierarchy of a type: implemented traits / base types
     /// (up) and implementors / derived types (down)
     Hierarchy {
@@ -301,6 +312,7 @@ fn main() -> ExitCode {
         } => cli::visibility_tightening::run(&workspace, json, workspace_closed),
         Commands::UnusedImports { json, all } => cli::unused_imports::run(&workspace, json, all),
         Commands::UntestedCode { json } => cli::untested_code::run(&workspace, json),
+        Commands::DeadCode { limit, json } => cli::dead_code::run(&workspace, limit, json),
         Commands::Hierarchy {
             symbol,
             direction,
