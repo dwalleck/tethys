@@ -1,0 +1,25 @@
+    Starting 1 test across 1 binary (5 tests skipped)
+        FAIL [   0.070s] (1/1) tethys::lsp_resolution lsp_pipeline_binds_refs_on_cold_workspace
+  stdout ───
+
+    running 1 test
+    test lsp_pipeline_binds_refs_on_cold_workspace ... FAILED
+
+    failures:
+
+    failures:
+        lsp_pipeline_binds_refs_on_cold_workspace
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.07s
+
+  stderr ───
+
+    thread 'lsp_pipeline_binds_refs_on_cold_workspace' (980251) panicked at tests/lsp_resolution.rs:495:5:
+    cold-workspace pipeline bound no refs via LSP (strategy='lsp' count=0, still-unresolved=1, stats lsp_resolved=0): Pass 3 queried rust-analyzer before its workspace load completed
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 
+────────────
+     Summary [   0.071s] 1 test run: 0 passed, 1 failed, 5 skipped
+        FAIL [   0.070s] (1/1) tethys::lsp_resolution lsp_pipeline_binds_refs_on_cold_workspace
+error: test run failed
