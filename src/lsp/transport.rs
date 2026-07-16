@@ -632,7 +632,9 @@ impl LspClient {
         );
 
         loop {
-            if start.elapsed() > timeout {
+            // `>=`, not `>`: a zero timeout must exit before the first
+            // blocking read even when the clock has not advanced yet.
+            if start.elapsed() >= timeout {
                 warn!("Timeout waiting for rust-analyzer quiescence");
                 return Ok(false);
             }
