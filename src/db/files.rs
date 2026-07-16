@@ -277,15 +277,7 @@ impl Index {
         {
             let mut containers: HashMap<&str, Vec<i64>> = HashMap::new();
             for (sym, id) in symbols.iter().zip(&symbol_ids) {
-                if matches!(
-                    sym.kind,
-                    SymbolKind::Struct
-                        | SymbolKind::Class
-                        | SymbolKind::Enum
-                        | SymbolKind::Trait
-                        | SymbolKind::Interface
-                        | SymbolKind::TypeAlias
-                ) {
+                if sym.kind.is_container() {
                     containers.entry(sym.name).or_default().push(id.as_i64());
                 }
             }
@@ -337,18 +329,19 @@ impl Index {
         let mut container_name_to_id: HashMap<&str, Option<SymbolId>> = HashMap::new();
         let mut span_to_id: HashMap<Span, SymbolId> = HashMap::new();
         for (sym, &id) in symbols.iter().zip(&symbol_ids) {
-            if matches!(
-                sym.kind,
-                SymbolKind::Struct
-                    | SymbolKind::Class
-                    | SymbolKind::Enum
-                    | SymbolKind::Trait
-                    | SymbolKind::Interface
-                    | SymbolKind::TypeAlias
-            ) {
+            if sym.kind.is_container() {
                 container_name_to_id
                     .entry(sym.name)
-                    .and_modify(|e| *e = None)
+                    .and_modify(|e| {
+                        if e.is_some() {
+                            trace!(
+                                name = %sym.name,
+                                "Duplicate container name in file; inherit \
+                                 edges to it stay unresolved"
+                            );
+                        }
+                        *e = None;
+                    })
                     .or_insert(Some(id));
             }
             if sym.kind.is_data_member() {

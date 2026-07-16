@@ -345,6 +345,24 @@ impl SymbolKind {
     pub fn is_data_member(&self) -> bool {
         matches!(self, Self::Property | Self::Event | Self::StructField)
     }
+
+    /// Type containers — the kinds that can parent members (tethys-aay4)
+    /// and terminate hierarchy edges (tethys-j2r1). Single definition for
+    /// the parent-linkage map, the inherit bind map, and the `Inherit`
+    /// kind gate; `db/hierarchy.rs`'s SQL literal is fenced against this
+    /// set by a schema test.
+    #[must_use]
+    pub fn is_container(&self) -> bool {
+        matches!(
+            self,
+            Self::Struct
+                | Self::Class
+                | Self::Enum
+                | Self::Trait
+                | Self::Interface
+                | Self::TypeAlias
+        )
+    }
 }
 
 /// Which resolution mechanism bound a reference (ADR-0003, tethys-9z7i).

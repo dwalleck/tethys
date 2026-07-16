@@ -3468,6 +3468,45 @@ impl Widget {
         assert_eq!(refs.len(), 3, "inherent impl contributes nothing: {refs:?}");
     }
 
+    /// S6/S7 inherit arms: a generic trait impl still carries the
+    /// implementing type as its anchor path; a non-nominal target (tuple)
+    /// emits the edge with NO anchor path (`in_symbol` stays NULL at insert)
+    /// and still emits method markers.
+    #[test]
+    fn generic_and_non_nominal_impl_inherit_edges() {
+        let code = r"
+trait Anchor { fn hold(&self); }
+struct Widget {}
+
+impl<T> From<T> for Widget {
+    fn from(_: T) -> Self { Widget {} }
+}
+impl Anchor for (i32, i32) {
+    fn hold(&self) {}
+}
+";
+        let refs = inherit_refs(code);
+        let generic_edge = refs
+            .iter()
+            .find(|r| r.name == "From" && r.containing_symbol_span.is_none())
+            .expect("generic impl type edge");
+        assert_eq!(
+            generic_edge.path.as_deref(),
+            Some(&["Widget".to_string()][..]),
+            "generic impl anchors to the implementing type"
+        );
+        let tuple_edge = refs
+            .iter()
+            .find(|r| r.name == "Anchor" && r.containing_symbol_span.is_none())
+            .expect("tuple impl type edge");
+        assert_eq!(tuple_edge.path, None, "non-nominal target: no anchor path");
+        assert!(
+            refs.iter()
+                .any(|r| r.name == "Anchor" && r.containing_symbol_span.is_some()),
+            "method marker still emitted for the tuple impl"
+        );
+    }
+
     /// Supertrait bounds emit one edge per bound, anchored to the declaring
     /// trait's span; lifetimes in the bound list are skipped.
     #[test]

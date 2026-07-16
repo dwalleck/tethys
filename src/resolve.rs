@@ -54,15 +54,7 @@ fn ref_binds_to_symbol_kind(ref_kind: &ReferenceKind, symbol_kind: SymbolKind) -
         }
         // A hierarchy edge names a TYPE container (tethys-j2r1): binding a
         // same-named fn or field would fabricate an edge.
-        ReferenceKind::Inherit => matches!(
-            symbol_kind,
-            SymbolKind::Struct
-                | SymbolKind::Class
-                | SymbolKind::Enum
-                | SymbolKind::Trait
-                | SymbolKind::Interface
-                | SymbolKind::TypeAlias
-        ),
+        ReferenceKind::Inherit => symbol_kind.is_container(),
         _ => true,
     }
 }

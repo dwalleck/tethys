@@ -169,6 +169,23 @@ fn hierarchy_walks_are_transitive_with_depths() {
     assert!(err.is_err(), "unknown type errors NotFound");
 }
 
+/// S12 cycle guard: a cyclic supertrait pair — illegal Rust, but tethys
+/// indexes without compiling — must terminate with each node visited once.
+#[test]
+fn cyclic_hierarchy_terminates() {
+    let (_dir, mut tethys) = workspace_with_files(&[(
+        "src/lib.rs",
+        "pub trait Ca: Cb {\n    fn x(&self) -> i32;\n}\n\
+         pub trait Cb: Ca {\n    fn y(&self) -> i32;\n}\n",
+    )]);
+    tethys.index().expect("index");
+    let up = tethys
+        .get_type_hierarchy("Ca", HierarchyDirection::Up)
+        .expect("cycle walk terminates");
+    let names: Vec<&str> = up.up.iter().map(|n| n.name.as_str()).collect();
+    assert_eq!(names, vec!["Cb"], "each node visited once: {names:?}");
+}
+
 /// F-H6 (claim C5): C# base lists e2e — `class X : Base, IFace` walks both
 /// ways; interface extension chains too.
 #[test]
@@ -178,11 +195,13 @@ fn csharp_base_lists_walk_both_directions() {
         r"
 namespace My.Lib
 {
-    public interface IFace { }
+    public interface IRoot { }
+    public interface IFace : IRoot { }
     public class Base { }
     public class X : Base, IFace
     {
         public void M() { }
+        public class NestedChild : Base { }
     }
 }
 ",
@@ -194,15 +213,18 @@ namespace My.Lib
     let names: Vec<&str> = up.up.iter().map(|n| n.name.as_str()).collect();
     assert_eq!(
         names,
-        vec!["Base", "IFace"],
-        "both base-list entries: {names:?}"
+        vec!["Base", "IFace", "IRoot"],
+        "base-list entries plus the transitive interface extension: {names:?}"
     );
 
     let down = tethys
         .get_type_hierarchy("Base", HierarchyDirection::Down)
         .expect("down");
-    assert_eq!(down.down.len(), 1);
-    assert_eq!(down.down[0].name, "X");
+    let subs: Vec<&str> = down.down.iter().map(|n| n.name.as_str()).collect();
+    assert!(
+        subs.contains(&"X") && subs.contains(&"NestedChild"),
+        "both direct implementors incl. the NESTED class: {subs:?}"
+    );
 }
 
 /// F-H8 (claim C7): the binary seam — `--json` envelope fields, pure-JSON
