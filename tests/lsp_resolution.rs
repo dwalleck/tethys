@@ -389,6 +389,155 @@ impl Panel {
     );
 }
 
+/// Readiness fence (cold-workspace race): the full indexing pipeline must
+/// bind Pass-2-declined refs via LSP without any manual readiness poll.
+///
+/// rust-analyzer loads the workspace asynchronously after `initialize`;
+/// until it reports quiescence, `goto_definition` returns empty results
+/// (indistinguishable from "no definition") or `-32801 content modified`.
+/// A pipeline that queries immediately therefore resolves nothing on a
+/// cold workspace — silently, since empty results are recorded as
+/// plain unresolved refs.
+///
+/// The fixture forces a Pass-2 decline with two same-named methods
+/// (`Widget::render` and `Panel::render`): bare-name resolution cannot
+/// pick one, so the `w.render()` ref lands in Pass 3's candidate set,
+/// where only a readiness-gated LSP query can bind it. The temp dir has
+/// no `target/`, so the workspace is maximally cold. The oracle is the
+/// persisted `refs.strategy` column, read directly from the index —
+/// independent of the LSP resolution session's in-memory counters.
+#[test]
+#[ignore = "requires rust-analyzer installed"]
+fn lsp_pipeline_binds_refs_on_cold_workspace() {
+    if !rust_analyzer_available() {
+        eprintln!("Skipping test: rust-analyzer not available");
+        return;
+    }
+
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    fs::create_dir_all(dir.path().join("src")).expect("failed to create src dir");
+
+    fs::write(
+        dir.path().join("src/lib.rs"),
+        "pub mod other;
+
+pub struct Widget;
+
+impl Widget {
+    pub fn render(&self) -> i32 {
+        1
+    }
+}
+
+pub fn make_widget() -> Widget {
+    Widget
+}
+
+pub fn draw() -> i32 {
+    let w = make_widget();
+    w.render()
+}
+",
+    )
+    .expect("failed to write lib.rs");
+
+    fs::write(
+        dir.path().join("src/other.rs"),
+        "pub struct Panel;
+
+impl Panel {
+    pub fn render(&self) -> i32 {
+        2
+    }
+}
+",
+    )
+    .expect("failed to write other.rs");
+
+    create_cargo_toml(&dir);
+
+    let mut tethys = Tethys::new(dir.path()).expect("failed to create Tethys");
+    let stats = tethys
+        .index_with_options(IndexOptions::with_lsp())
+        .expect("index with LSP failed");
+
+    let conn = rusqlite::Connection::open_with_flags(
+        tethys.db_path(),
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )
+    .expect("failed to open index db read-only");
+
+    let lsp_bound: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM refs WHERE strategy = 'lsp'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("strategy count query failed");
+    let still_unresolved: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM refs WHERE symbol_id IS NULL",
+            [],
+            |row| row.get(0),
+        )
+        .expect("unresolved count query failed");
+
+    // Fixture sanity: if nothing was declined by Pass 2 AND nothing was
+    // LSP-bound, the ambiguity fixture never produced a Pass-3 candidate
+    // and the assertion below would be red for the wrong reason.
+    assert!(
+        lsp_bound + still_unresolved > 0,
+        "fixture bug: no ref was declined by Pass 2 (lsp_bound={lsp_bound}, \
+         still_unresolved={still_unresolved}); the ambiguous-method fixture \
+         no longer reaches Pass 3"
+    );
+
+    assert!(
+        lsp_bound >= 1,
+        "cold-workspace pipeline bound no refs via LSP \
+         (strategy='lsp' count={lsp_bound}, still-unresolved={still_unresolved}, \
+         stats lsp_resolved={}): Pass 3 queried rust-analyzer before its \
+         workspace load completed",
+        stats.total_lsp_resolved()
+    );
+}
+
+/// Timeout fence (readiness wait): a zero budget must return `Ok(false)`
+/// promptly — the deadline is checked before each blocking read, so a wait
+/// that cannot succeed degrades to a warning instead of hanging Pass 3.
+#[test]
+#[ignore = "requires rust-analyzer installed"]
+fn readiness_wait_returns_false_on_zero_timeout() {
+    use tethys::lsp::{LspClient, RustAnalyzerProvider};
+
+    if !rust_analyzer_available() {
+        eprintln!("Skipping test: rust-analyzer not available");
+        return;
+    }
+
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    fs::create_dir_all(dir.path().join("src")).expect("failed to create src dir");
+    fs::write(dir.path().join("src/lib.rs"), "pub fn noop() {}\n").expect("failed to write lib.rs");
+    create_cargo_toml(&dir);
+
+    let mut client =
+        LspClient::start(&RustAnalyzerProvider, dir.path()).expect("failed to start LSP client");
+
+    let start = std::time::Instant::now();
+    let ready = client
+        .wait_for_quiescence(std::time::Duration::ZERO)
+        .expect("readiness wait must not error on timeout");
+    let elapsed = start.elapsed();
+    client.shutdown().expect("shutdown failed");
+
+    assert!(!ready, "zero timeout must report not-ready");
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "zero-timeout wait took {elapsed:?}; the deadline must be checked \
+         before blocking reads"
+    );
+}
+
 /// Find `needle` inside the first line containing `line_marker` and return
 /// its 0-indexed (line, byte column) — tree-sitter position semantics.
 fn find_byte_position(content: &str, line_marker: &str, needle: &str) -> (u32, u32) {

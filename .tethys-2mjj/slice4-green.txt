@@ -1,0 +1,7 @@
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.08s
+────────────
+ Nextest run ID ec01148e-ed52-4de6-b922-c2b17061cc13 with nextest profile: default
+    Starting 1 test across 1 binary (6 tests skipped)
+        PASS [   2.695s] (1/1) tethys::lsp_resolution lsp_pipeline_binds_refs_on_cold_workspace
+────────────
+     Summary [   2.696s] 1 test run: 1 passed, 6 skipped
