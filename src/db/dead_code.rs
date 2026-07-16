@@ -18,8 +18,16 @@
 //!   (bare-equal or last `::`-segment equal — post-tethys-53iv ambiguous
 //!   method calls decline and land here), again ignoring self-originated
 //!   rows;
-//! - (slice 2) no method-level `inherit` marker, no live descendant, and
-//!   not an entry point.
+//! - no method-level `inherit` marker (`kind='inherit'` with
+//!   `in_symbol_id` = the method — tethys-j2r1's suppression channel for
+//!   trait-impl methods; keyed by `in_symbol_id` so markers for EXTERNAL
+//!   traits, whose `symbol_id` is NULL, still suppress);
+//! - for container kinds ([`crate::types::SymbolKind::is_container`]), no
+//!   live transitive descendant via `parent_symbol_id` (a struct used only
+//!   through its methods carries no refs on the type symbol itself);
+//! - not an entry point: Rust `fn main` in a binary root (`src/main.rs`,
+//!   `src/bin/`, `examples/`, `build.rs`) or any C# `Main` method
+//!   (deliberate over-suppression — conservative direction).
 //!
 //! Self-originated rows are excluded so a recursive-but-otherwise-dead
 //! function is still reported — `rustc`'s `dead_code` lint agrees.
@@ -39,6 +47,7 @@ use rusqlite::params;
 use tracing::trace;
 
 use super::Index;
+use super::hierarchy::CONTAINER_KINDS_SQL;
 use crate::error::Result;
 use crate::types::SymbolId;
 
@@ -86,6 +95,36 @@ fn last_segment(reference_name: &str) -> &str {
     reference_name.rsplit("::").next().unwrap_or(reference_name)
 }
 
+/// True when the path is a Rust binary root whose `fn main` the toolchain
+/// invokes: `src/main.rs`, `src/bin/*`, `examples/*`, `build.rs` —
+/// matched per path SEGMENT (workspace- or crate-relative), so
+/// `crates/x/src/bin/tool.rs` qualifies while a lib module named
+/// `src/domain/examples_helper.rs` does not. A directory literally named
+/// `examples` outside a crate root over-matches; over-suppression is the
+/// accepted conservative direction (design C9).
+fn rust_binary_root(path: &str) -> bool {
+    if path == "src/main.rs" || path == "build.rs" {
+        return true;
+    }
+    if path.ends_with("/src/main.rs") || path.ends_with("/build.rs") {
+        return true;
+    }
+    let segments: Vec<&str> = path.split('/').collect();
+    segments.windows(2).any(|pair| pair == ["src", "bin"])
+        || segments[..segments.len().saturating_sub(1)].contains(&"examples")
+}
+
+/// Entry points are alive by contract with the toolchain, not by inbound
+/// references — the probe measured `main` surviving only via 203
+/// unrelated textual hits (design C9: remove the luck dependency).
+fn is_entry_point(language: &str, kind: &str, name: &str, path: &str) -> bool {
+    match language {
+        "rust" => kind == "function" && name == "main" && rust_binary_root(path),
+        "csharp" => kind == "method" && name == "Main",
+        _ => false,
+    }
+}
+
 impl Index {
     /// Candidates (non-public, non-test, analyzable kind) with no inbound
     /// reference evidence: no resolved ref and no name-matching unresolved
@@ -118,9 +157,12 @@ impl Index {
                 .insert(in_symbol);
         }
 
+        let has_live_descendant = live_descendant_ancestors(&conn, &unresolved_by_name)?;
+
         let sql = format!(
             "SELECT s.id, s.name, s.qualified_name, s.kind, s.visibility,
-                    f.path, s.line, s.end_line
+                    f.path, s.line, s.end_line, f.language,
+                    s.kind IN {CONTAINER_KINDS_SQL} AS is_container
              FROM symbols s
              JOIN files f ON f.id = s.file_id
              WHERE s.visibility != 'public'
@@ -131,26 +173,33 @@ impl Index {
                    SELECT 1 FROM refs r
                    WHERE r.symbol_id = s.id
                      AND (r.in_symbol_id IS NULL OR r.in_symbol_id != s.id))
+               AND NOT EXISTS (
+                   SELECT 1 FROM refs m
+                   WHERE m.kind = 'inherit' AND m.in_symbol_id = s.id)
              ORDER BY f.path, s.line, s.name"
         );
         let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(params![], |row| {
-            Ok(ZeroEvidenceCandidate {
-                id: SymbolId::from(row.get::<_, i64>(0)?),
-                name: row.get(1)?,
-                qualified_name: row.get(2)?,
-                kind: row.get(3)?,
-                visibility: row.get(4)?,
-                file: row.get(5)?,
-                line: row.get(6)?,
-                end_line: row.get(7)?,
-            })
+            Ok((
+                ZeroEvidenceCandidate {
+                    id: SymbolId::from(row.get::<_, i64>(0)?),
+                    name: row.get(1)?,
+                    qualified_name: row.get(2)?,
+                    kind: row.get(3)?,
+                    visibility: row.get(4)?,
+                    file: row.get(5)?,
+                    line: row.get(6)?,
+                    end_line: row.get(7)?,
+                },
+                row.get::<_, String>(8)?,
+                row.get::<_, bool>(9)?,
+            ))
         })?;
 
         let mut candidates = Vec::new();
         for row in rows {
-            let candidate = row?;
-            let suppressed =
+            let (candidate, language, is_container) = row?;
+            let unresolved_match =
                 unresolved_by_name
                     .get(candidate.name.as_str())
                     .is_some_and(|origins| {
@@ -158,7 +207,11 @@ impl Index {
                             .iter()
                             .any(|origin| *origin != Some(candidate.id.as_i64()))
                     });
-            if !suppressed {
+            let container_alive =
+                is_container && has_live_descendant.contains(&candidate.id.as_i64());
+            let entry_point =
+                is_entry_point(&language, &candidate.kind, &candidate.name, &candidate.file);
+            if !unresolved_match && !container_alive && !entry_point {
                 candidates.push(candidate);
             }
         }
@@ -168,6 +221,76 @@ impl Index {
         );
         Ok(candidates)
     }
+}
+
+/// Ancestor set of every *live* symbol, walked up `parent_symbol_id`.
+/// Live = `is_test`, a resolved non-self inbound ref, an `inherit`
+/// marker, or an unresolved name match (self-originated rows ignored)
+/// — the same evidence vocabulary as candidacy, so the two cannot
+/// disagree on what counts as a sign of life.
+///
+/// Takes the already-held connection: the `Index` connection mutex is
+/// not reentrant, so re-locking from inside `dead_code_zero_evidence`
+/// would self-deadlock (caught by the S2 gate hanging all 14 tests).
+///
+/// Cost: three indexed scans + one O(symbols) pass + an upward walk
+/// that visits each ancestor once (early exit on already-marked
+/// ancestors, which also guards hypothetical parent cycles).
+fn live_descendant_ancestors(
+    conn: &rusqlite::Connection,
+    unresolved_by_name: &HashMap<String, HashSet<Option<i64>>>,
+) -> Result<HashSet<i64>> {
+    let mut parent_of: HashMap<i64, i64> = HashMap::new();
+    let mut live: HashSet<i64> = HashSet::new();
+
+    let mut sym_stmt = conn.prepare("SELECT id, parent_symbol_id, name, is_test FROM symbols")?;
+    for row in sym_stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, Option<i64>>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, bool>(3)?,
+        ))
+    })? {
+        let (id, parent, name, is_test) = row?;
+        if let Some(parent) = parent {
+            parent_of.insert(id, parent);
+        }
+        let unresolved_match = unresolved_by_name
+            .get(name.as_str())
+            .is_some_and(|origins| origins.iter().any(|origin| *origin != Some(id)));
+        if is_test || unresolved_match {
+            live.insert(id);
+        }
+    }
+
+    let mut resolved_stmt = conn.prepare(
+        "SELECT DISTINCT symbol_id FROM refs
+             WHERE symbol_id IS NOT NULL
+               AND (in_symbol_id IS NULL OR in_symbol_id != symbol_id)",
+    )?;
+    for row in resolved_stmt.query_map([], |row| row.get::<_, i64>(0))? {
+        live.insert(row?);
+    }
+    let mut marker_stmt = conn.prepare(
+        "SELECT DISTINCT in_symbol_id FROM refs
+             WHERE kind = 'inherit' AND in_symbol_id IS NOT NULL",
+    )?;
+    for row in marker_stmt.query_map([], |row| row.get::<_, i64>(0))? {
+        live.insert(row?);
+    }
+
+    let mut ancestors: HashSet<i64> = HashSet::new();
+    for &id in &live {
+        let mut current = id;
+        while let Some(&parent) = parent_of.get(&current) {
+            if !ancestors.insert(parent) {
+                break;
+            }
+            current = parent;
+        }
+    }
+    Ok(ancestors)
 }
 
 #[cfg(test)]
@@ -197,6 +320,7 @@ mod tests {
         kind: SymbolKind,
         visibility: Visibility,
         is_test: bool,
+        parent: Option<SymbolId>,
     }
 
     fn add_symbol(index: &Index, sym: &Sym<'_>) -> SymbolId {
@@ -212,7 +336,7 @@ mod tests {
                 span: None,
                 signature: None,
                 visibility: sym.visibility,
-                parent_symbol_id: None,
+                parent_symbol_id: sym.parent,
                 is_test: sym.is_test,
             })
             .expect("insert symbol")
@@ -225,6 +349,7 @@ mod tests {
             kind: SymbolKind::Function,
             visibility: Visibility::Private,
             is_test: false,
+            parent: None,
         }
     }
 
@@ -419,5 +544,214 @@ mod tests {
         add_symbol(&index, &private_fn(b, "in_b"));
         add_symbol(&index, &private_fn(a, "in_a"));
         assert_eq!(candidate_names(&index), vec!["in_a", "in_b"]);
+    }
+
+    /// C4: a method carrying an `inherit` marker is suppressed even when
+    /// the trait is EXTERNAL — the marker row's `symbol_id` is NULL and
+    /// only `in_symbol_id` points at the method. Kills: joining the
+    /// marker through `symbol_id` instead of `in_symbol_id`.
+    #[test]
+    fn trait_impl_marker_suppresses_external_trait() {
+        let (_dir, mut index) = temp_index();
+        let file = add_file(&mut index, "src/lib.rs", Language::Rust);
+        let fmt = add_symbol(
+            &index,
+            &Sym {
+                kind: SymbolKind::Method,
+                ..private_fn(file, "fmt")
+            },
+        );
+        add_symbol(
+            &index,
+            &Sym {
+                kind: SymbolKind::Method,
+                ..private_fn(file, "inherent_dead")
+            },
+        );
+        index
+            .insert_reference(&InsertReferenceParams {
+                symbol_id: None,
+                file_id: file,
+                kind: "inherit",
+                line: 3,
+                column: 1,
+                in_symbol_id: Some(fmt),
+                reference_name: Some("Display"),
+                strategy: None,
+            })
+            .expect("insert marker");
+        assert_eq!(candidate_names(&index), vec!["inherent_dead"]);
+    }
+
+    /// C5: a container with a live descendant is suppressed — including
+    /// through TWO parent hops (the C# nested-class shape). A dead
+    /// container with only dead children stays reported, and so do the
+    /// dead children. Kills: a direct-children-only liveness check.
+    #[test]
+    fn container_live_descendant_transitive() {
+        let (_dir, mut index) = temp_index();
+        let file = add_file(&mut index, "src/lib.rs", Language::Rust);
+        let grandparent = add_symbol(
+            &index,
+            &Sym {
+                kind: SymbolKind::Struct,
+                ..private_fn(file, "Outer")
+            },
+        );
+        let parent = add_symbol(
+            &index,
+            &Sym {
+                kind: SymbolKind::Struct,
+                parent: Some(grandparent),
+                ..private_fn(file, "Inner")
+            },
+        );
+        let used_method = add_symbol(
+            &index,
+            &Sym {
+                kind: SymbolKind::Method,
+                parent: Some(parent),
+                ..private_fn(file, "used")
+            },
+        );
+        let caller = add_symbol(&index, &private_fn(file, "caller"));
+        add_ref(
+            &index,
+            Some(used_method),
+            file,
+            Some(caller),
+            None,
+            Some(ResolutionStrategy::SameFile),
+        );
+        add_ref(
+            &index,
+            Some(caller),
+            file,
+            None,
+            None,
+            Some(ResolutionStrategy::SameFile),
+        );
+        add_symbol(
+            &index,
+            &Sym {
+                kind: SymbolKind::Struct,
+                ..private_fn(file, "DeadOuter")
+            },
+        );
+        // Outer and Inner suppressed via the grandchild; DeadOuter reported.
+        assert_eq!(candidate_names(&index), vec!["DeadOuter"]);
+    }
+
+    /// C5: an `is_test` descendant counts as life — test scaffolding
+    /// containers are not dead. Kills: liveness limited to ref evidence.
+    #[test]
+    fn container_with_test_descendant_suppressed() {
+        let (_dir, mut index) = temp_index();
+        let file = add_file(&mut index, "src/lib.rs", Language::Rust);
+        let scaffold = add_symbol(
+            &index,
+            &Sym {
+                kind: SymbolKind::Struct,
+                ..private_fn(file, "Scaffold")
+            },
+        );
+        add_symbol(
+            &index,
+            &Sym {
+                kind: SymbolKind::Method,
+                is_test: true,
+                parent: Some(scaffold),
+                ..private_fn(file, "test_case")
+            },
+        );
+        assert_eq!(candidate_names(&index), Vec::<String>::new());
+    }
+
+    /// C5 scope guard: live-descendant suppression applies to CONTAINER
+    /// kinds only — a dead function is still reported even though its
+    /// nested fn is referenced (from inside the dead fn itself, which is
+    /// exactly why child evidence must not revive a function).
+    #[test]
+    fn function_not_suppressed_by_live_nested_fn() {
+        let (_dir, mut index) = temp_index();
+        let file = add_file(&mut index, "src/lib.rs", Language::Rust);
+        let outer = add_symbol(&index, &private_fn(file, "dead_outer"));
+        let nested = add_symbol(
+            &index,
+            &Sym {
+                parent: Some(outer),
+                ..private_fn(file, "nested")
+            },
+        );
+        add_ref(
+            &index,
+            Some(nested),
+            file,
+            Some(outer),
+            None,
+            Some(ResolutionStrategy::SameFile),
+        );
+        assert_eq!(candidate_names(&index), vec!["dead_outer"]);
+    }
+
+    /// C9: entry points are excluded by path role and language — bin-root
+    /// and example mains are out; a `main` in a lib module stays a
+    /// candidate (kills path-blind name matching); a Rust method named
+    /// `Main` stays (kills language-blind C# rule); a C# `Main` method is
+    /// out.
+    #[test]
+    fn entry_points_excluded_by_path_and_language() {
+        let (_dir, mut index) = temp_index();
+        let bin = add_file(&mut index, "src/main.rs", Language::Rust);
+        let crate_bin = add_file(&mut index, "crates/x/src/bin/tool.rs", Language::Rust);
+        let example = add_file(&mut index, "examples/demo.rs", Language::Rust);
+        let lib = add_file(&mut index, "src/util.rs", Language::Rust);
+        let cs = add_file(&mut index, "src/App.cs", Language::CSharp);
+        add_symbol(&index, &private_fn(bin, "main"));
+        add_symbol(&index, &private_fn(crate_bin, "main"));
+        add_symbol(&index, &private_fn(example, "main"));
+        add_symbol(&index, &private_fn(lib, "main"));
+        add_symbol(
+            &index,
+            &Sym {
+                kind: SymbolKind::Method,
+                ..private_fn(lib, "Main")
+            },
+        );
+        add_symbol(
+            &index,
+            &Sym {
+                file: cs,
+                kind: SymbolKind::Method,
+                ..private_fn(cs, "Main")
+            },
+        );
+        let mut names = candidate_names(&index);
+        names.sort();
+        assert_eq!(names, vec!["Main", "main"]);
+    }
+
+    /// `rust_binary_root` path-shape table: segment matching, not
+    /// substring matching. Kills: `contains("examples")` false-matching
+    /// `src/examples_helper.rs`, and missing crate-relative roots.
+    #[test]
+    fn rust_binary_root_segment_shapes() {
+        let cases = [
+            ("src/main.rs", true),
+            ("build.rs", true),
+            ("crates/x/src/main.rs", true),
+            ("crates/x/build.rs", true),
+            ("src/bin/tool.rs", true),
+            ("crates/x/src/bin/nested/tool.rs", true),
+            ("examples/demo.rs", true),
+            ("crates/x/examples/demo.rs", true),
+            ("src/util.rs", false),
+            ("src/examples_helper.rs", false),
+            ("src/binary.rs", false),
+            ("examples_data/main.rs", false),
+        ];
+        for (path, expected) in cases {
+            assert_eq!(super::rust_binary_root(path), expected, "path {path:?}");
+        }
     }
 }
