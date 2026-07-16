@@ -265,6 +265,56 @@ impl Index {
             }
         }
 
+        // Parent linkage (tethys-aay4): resolve each symbol's extracted
+        // parent_name against SAME-FILE container symbols and persist
+        // parent_symbol_id. Two phases because an impl block legally
+        // precedes its type's declaration in file order. Same-file by
+        // construction, so the schema's ON DELETE CASCADE on
+        // parent_symbol_id can never cross files. Container kinds only
+        // (approved D-C): a same-named function must never become a parent.
+        // A missing container (cross-file impl target) or a same-file name
+        // collision leaves NULL — suppression, not fabrication.
+        {
+            let mut containers: HashMap<&str, Vec<i64>> = HashMap::new();
+            for (sym, id) in symbols.iter().zip(&symbol_ids) {
+                if matches!(
+                    sym.kind,
+                    SymbolKind::Struct
+                        | SymbolKind::Class
+                        | SymbolKind::Enum
+                        | SymbolKind::Trait
+                        | SymbolKind::Interface
+                        | SymbolKind::TypeAlias
+                ) {
+                    containers.entry(sym.name).or_default().push(id.as_i64());
+                }
+            }
+            let mut link_stmt =
+                tx.prepare_cached("UPDATE symbols SET parent_symbol_id = ?1 WHERE id = ?2")?;
+            for (sym, id) in symbols.iter().zip(&symbol_ids) {
+                if sym.parent_symbol_id.is_some() {
+                    continue; // explicitly provided (fixtures/tests) wins
+                }
+                let Some(parent_name) = sym.parent_name else {
+                    continue;
+                };
+                match containers.get(parent_name).map(Vec::as_slice) {
+                    Some([parent_id]) if *parent_id != id.as_i64() => {
+                        link_stmt.execute(params![parent_id, id.as_i64()])?;
+                    }
+                    Some([_]) | None => {} // self or cross-file target: NULL
+                    Some(multi) => {
+                        trace!(
+                            symbol = sym.name,
+                            parent = parent_name,
+                            candidates = multi.len(),
+                            "ambiguous same-file parent; leaving NULL"
+                        );
+                    }
+                }
+            }
+        }
+
         // Same-file resolution maps, built from the data just inserted (no
         // read-back query). Duplicate names: last wins, preserved behavior.
         let mut name_to_id: HashMap<&str, SymbolId> = HashMap::new();
@@ -495,6 +545,7 @@ mod index_parsed_file_atomic_tests {
             signature: None,
             visibility: Visibility::Public,
             parent_symbol_id: None,
+            parent_name: None,
             is_test: false,
             attributes: &[],
         }

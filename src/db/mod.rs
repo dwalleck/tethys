@@ -88,6 +88,12 @@ pub struct SymbolData<'a> {
     pub signature: Option<&'a str>,
     pub visibility: Visibility,
     pub parent_symbol_id: Option<crate::types::SymbolId>,
+    /// Name of the enclosing container as extracted (impl's implementing
+    /// type, struct, enum, C# class) — linked to `parent_symbol_id`
+    /// against SAME-FILE container symbols during the insert transaction
+    /// (parent linkage, tethys-aay4). `None` for top-level symbols.
+    /// Ignored when `parent_symbol_id` is already set explicitly.
+    pub parent_name: Option<&'a str>,
     /// Whether this symbol is a test function.
     pub is_test: bool,
     /// Attributes to persist alongside the symbol row.

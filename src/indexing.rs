@@ -724,6 +724,9 @@ impl Tethys {
                     signature: sym.signature,
                     visibility: sym.visibility,
                     parent_symbol_id: None,
+                    // Linked to an id against same-file containers during
+                    // the insert transaction (parent linkage, tethys-aay4).
+                    parent_name: sym.parent_name,
                     is_test: sym.is_test,
                     attributes: sym.attributes,
                 };

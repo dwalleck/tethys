@@ -79,6 +79,9 @@ pub struct OwnedSymbolData {
     pub signature: Option<String>,
     pub visibility: Visibility,
     pub parent_symbol_id: Option<SymbolId>,
+    /// Extracted container name, linked to `parent_symbol_id` at insert
+    /// time against same-file containers (parent linkage, tethys-aay4).
+    pub parent_name: Option<String>,
     /// Whether this symbol is a test function.
     pub is_test: bool,
     /// Attributes attached to this symbol (e.g. `#[derive(Clone)]`, `#[source]`).
@@ -138,6 +141,7 @@ impl OwnedSymbolData {
             signature: self.signature.as_deref(),
             visibility: self.visibility,
             parent_symbol_id: self.parent_symbol_id,
+            parent_name: self.parent_name.as_deref(),
             is_test: self.is_test,
             attributes: &self.attributes,
         }
@@ -161,6 +165,7 @@ mod tests {
             signature: Some("fn foo() -> i32".to_string()),
             visibility: Visibility::Public,
             parent_symbol_id: None,
+            parent_name: None,
             is_test: false,
             attributes: Vec::new(),
         };
@@ -204,6 +209,7 @@ mod tests {
             signature: Some("fn test_fn()".to_string()),
             visibility: Visibility::Public,
             parent_symbol_id: None,
+            parent_name: None,
             is_test: true,
             attributes: Vec::new(),
         };
