@@ -112,10 +112,14 @@ fn rust_binary_root(path: &str) -> bool {
 /// Entry points are alive by contract with the toolchain, not by inbound
 /// references — the probe measured `main` surviving only via 203
 /// unrelated textual hits (design C9: remove the luck dependency).
+/// C# accepts both callable kinds: the extractor classifies
+/// `static void Main()` as `function`, instance methods as `method`
+/// (measured on the S6 fixture), and over-suppression is the accepted
+/// conservative direction.
 fn is_entry_point(language: &str, kind: &str, name: &str, path: &str) -> bool {
     match language {
         "rust" => kind == "function" && name == "main" && rust_binary_root(path),
-        "csharp" => kind == "method" && name == "Main",
+        "csharp" => (kind == "method" || kind == "function") && name == "Main",
         _ => false,
     }
 }
@@ -220,9 +224,11 @@ impl Index {
 
 /// Ancestor set of every *live* symbol, walked up `parent_symbol_id`.
 /// Live = `is_test`, a resolved non-self inbound ref, an `inherit`
-/// marker, or an unresolved name match (self-originated rows ignored)
-/// — the same evidence vocabulary as candidacy, so the two cannot
-/// disagree on what counts as a sign of life.
+/// marker, an unresolved name match (self-originated rows ignored), or
+/// an entry point — the same evidence vocabulary as candidacy, so the
+/// two cannot disagree on what counts as a sign of life. Entry points
+/// confer liveness upward: a C# `Program` class whose only member is
+/// `Main` is scaffolding the toolchain invokes, not dead code.
 ///
 /// Takes the already-held connection: the `Index` connection mutex is
 /// not reentrant, so re-locking from inside `dead_code_zero_evidence`
@@ -238,23 +244,29 @@ fn live_descendant_ancestors(
     let mut parent_of: HashMap<i64, i64> = HashMap::new();
     let mut live: HashSet<i64> = HashSet::new();
 
-    let mut sym_stmt = conn.prepare("SELECT id, parent_symbol_id, name, is_test FROM symbols")?;
+    let mut sym_stmt = conn.prepare(
+        "SELECT s.id, s.parent_symbol_id, s.name, s.is_test, s.kind, f.path, f.language
+         FROM symbols s JOIN files f ON f.id = s.file_id",
+    )?;
     for row in sym_stmt.query_map([], |row| {
         Ok((
             row.get::<_, i64>(0)?,
             row.get::<_, Option<i64>>(1)?,
             row.get::<_, String>(2)?,
             row.get::<_, bool>(3)?,
+            row.get::<_, String>(4)?,
+            row.get::<_, String>(5)?,
+            row.get::<_, String>(6)?,
         ))
     })? {
-        let (id, parent, name, is_test) = row?;
+        let (id, parent, name, is_test, kind, path, language) = row?;
         if let Some(parent) = parent {
             parent_of.insert(id, parent);
         }
         let unresolved_match = unresolved_by_name
             .get(name.as_str())
             .is_some_and(|origins| origins.iter().any(|origin| *origin != Some(id)));
-        if is_test || unresolved_match {
+        if is_test || unresolved_match || is_entry_point(&language, &kind, &name, &path) {
             live.insert(id);
         }
     }

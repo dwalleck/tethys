@@ -37,31 +37,6 @@ def unresolved_match(name, sym_id):
     origins = unresolved.get(name, set())
     return any(o != sym_id for o in origins)
 
-resolved_nonself = {r[0] for r in db.execute(
-    "SELECT DISTINCT symbol_id FROM refs WHERE symbol_id IS NOT NULL "
-    "AND (in_symbol_id IS NULL OR in_symbol_id != symbol_id)")}
-markers = {r[0] for r in db.execute(
-    "SELECT DISTINCT in_symbol_id FROM refs WHERE kind='inherit' "
-    "AND in_symbol_id IS NOT NULL")}
-
-# liveness + parent map over ALL symbols
-parent_of, live = {}, set()
-for s in db.execute("SELECT id, parent_symbol_id, name, is_test FROM symbols"):
-    if s["parent_symbol_id"] is not None:
-        parent_of[s["id"]] = s["parent_symbol_id"]
-    if s["is_test"] or s["id"] in resolved_nonself or s["id"] in markers \
-       or unresolved_match(s["name"], s["id"]):
-        live.add(s["id"])
-has_live_desc = set()
-for i in live:
-    cur = i
-    while cur in parent_of:
-        p = parent_of[cur]
-        if p in has_live_desc:
-            break
-        has_live_desc.add(p)
-        cur = p
-
 def rust_binary_root(path):
     if path in ("src/main.rs", "build.rs"): return True
     if path.endswith(("/src/main.rs", "/build.rs")): return True
@@ -72,7 +47,36 @@ def rust_binary_root(path):
 def entry_point(lang, kind, name, path):
     if lang == "rust":
         return kind == "function" and name == "main" and rust_binary_root(path)
-    return lang == "csharp" and kind == "method" and name == "Main"
+    # C# static Main extracts as kind 'function' (S6 fixture measurement)
+    return lang == "csharp" and kind in ("method", "function") and name == "Main"
+
+resolved_nonself = {r[0] for r in db.execute(
+    "SELECT DISTINCT symbol_id FROM refs WHERE symbol_id IS NOT NULL "
+    "AND (in_symbol_id IS NULL OR in_symbol_id != symbol_id)")}
+markers = {r[0] for r in db.execute(
+    "SELECT DISTINCT in_symbol_id FROM refs WHERE kind='inherit' "
+    "AND in_symbol_id IS NOT NULL")}
+
+# liveness + parent map over ALL symbols (entry points confer liveness
+# upward — a C# Program class holding only Main is toolchain scaffolding)
+parent_of, live = {}, set()
+for s in db.execute("SELECT s.id, s.parent_symbol_id, s.name, s.is_test, s.kind, "
+                    "f.path, f.language FROM symbols s JOIN files f ON f.id = s.file_id"):
+    if s["parent_symbol_id"] is not None:
+        parent_of[s["id"]] = s["parent_symbol_id"]
+    if s["is_test"] or s["id"] in resolved_nonself or s["id"] in markers \
+       or unresolved_match(s["name"], s["id"]) \
+       or entry_point(s["language"], s["kind"], s["name"], s["path"]):
+        live.add(s["id"])
+has_live_desc = set()
+for i in live:
+    cur = i
+    while cur in parent_of:
+        p = parent_of[cur]
+        if p in has_live_desc:
+            break
+        has_live_desc.add(p)
+        cur = p
 
 candidates = []
 for s in db.execute(

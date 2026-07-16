@@ -245,3 +245,114 @@ fn tier_serialization_contract() {
     );
     assert_eq!(serde_json::to_string(&Tier::Maybe).unwrap(), "\"Maybe\"");
 }
+
+/// Design C10: C# flows the same funnel. Verified against the S6
+/// scratch probe: implicit-this and `this.`-qualified calls bind
+/// (`UsedVx` alive), construct refs bind the type (`InnerVx` alive),
+/// nested-class members reach depth-2 (`Worker` suppressed via
+/// linkage), properties are candidates (`DeadPropVx` reported), and
+/// `static void Main` — which the extractor classifies as kind
+/// `function`, not `method` — is entry-point-excluded AND confers
+/// liveness on its `Program` container. The Rust sibling file pins the
+/// cross-language textual scan: a C# name mentioned in Rust text
+/// demotes to Maybe. Kills: a method-only C# Main rule (the S6
+/// discovery), language-blind kind lists, liveness without entry
+/// points.
+#[test]
+fn csharp_funnel() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        (
+            "src/App.cs",
+            "namespace Fixture\n{\n\
+             \x20   internal class Worker\n    {\n\
+             \x20       private int DeadHelperVx() { return 1; }\n\
+             \x20       private int UsedVx() { return 2; }\n\
+             \x20       public int Run() { return this.UsedVx() + UsedVx(); }\n\
+             \x20       private int DeadPropVx { get; set; }\n\
+             \x20       private int MentionedVx() { return 4; }\n\
+             \x20       private class InnerVx\n        {\n\
+             \x20           public int Ping() { return 3; }\n\
+             \x20       }\n\
+             \x20       public int CallInner() { var i = new InnerVx(); return i.Ping(); }\n\
+             \x20   }\n\
+             \x20   internal class Program\n    {\n\
+             \x20       private static void Main() { }\n\
+             \x20   }\n}\n",
+        ),
+        (
+            "src/lib.rs",
+            "// migration note: MentionedVx moves to the Rust side\n",
+        ),
+    ]);
+    tethys.index().expect("index");
+    let report = tethys.find_dead_code(None).expect("report");
+
+    let names = finding_names(&report);
+    for (definite, kind) in [("DeadHelperVx", "method"), ("DeadPropVx", "property")] {
+        assert!(
+            names.iter().any(|(n, t)| n == definite && t == "Definite"),
+            "{definite} ({kind}) must be Definite: {names:?}"
+        );
+    }
+    assert!(
+        names
+            .iter()
+            .any(|(n, t)| n == "MentionedVx" && t == "Maybe"),
+        "Rust-file comment mention must demote MentionedVx to Maybe: {names:?}"
+    );
+    for absent in [
+        "Main", "Program", "UsedVx", "InnerVx", "Ping", "Worker", "Run", "Fixture",
+    ] {
+        assert!(
+            !names.iter().any(|(n, _)| n == absent),
+            "{absent} must not be reported: {names:?}"
+        );
+    }
+}
+
+/// Design C7 — the PRD's self-index oracle as a permanent CI fence.
+/// tethys compiles warning-free (rustc `dead_code` on, clippy -D
+/// warnings in CI), so the true dead set is empty and any Definite
+/// finding on tethys's own source is by definition a false positive.
+/// Indexes a COPY of the repo source (never the ambient index; the
+/// design-time falsifier measured 0 Definite / 37 would-be FPs all
+/// absorbed). Kills: any suppression-channel regression — dropping the
+/// textual channel alone would resurrect ~30 known FPs as Definite.
+#[test]
+fn self_index_zero_definite() {
+    fn copy_tree(from: &std::path::Path, to: &std::path::Path) {
+        std::fs::create_dir_all(to).expect("mkdir");
+        for entry in std::fs::read_dir(from).expect("read_dir") {
+            let entry = entry.expect("entry");
+            let target = to.join(entry.file_name());
+            if entry.file_type().expect("file_type").is_dir() {
+                copy_tree(&entry.path(), &target);
+            } else {
+                std::fs::copy(entry.path(), &target).expect("copy");
+            }
+        }
+    }
+
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let dir = tempfile::tempdir().expect("temp dir");
+    std::fs::copy(repo.join("Cargo.toml"), dir.path().join("Cargo.toml")).expect("Cargo.toml");
+    for tree in ["src", "tests", "benches", "examples"] {
+        copy_tree(&repo.join(tree), &dir.path().join(tree));
+    }
+
+    let mut tethys = tethys::Tethys::new(dir.path()).expect("Tethys::new");
+    tethys.index().expect("index the self-copy");
+    let report = tethys.find_dead_code(None).expect("report");
+
+    let definite: Vec<_> = report
+        .findings
+        .iter()
+        .filter(|f| f.tier == Tier::Definite)
+        .map(|f| format!("{}:{} {}", f.file, f.line, f.name))
+        .collect();
+    assert!(
+        definite.is_empty(),
+        "warning-free self-index must have ZERO Definite findings; \
+         every entry here is a false positive: {definite:#?}"
+    );
+}
