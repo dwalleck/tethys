@@ -24,7 +24,7 @@ use super::Result;
 use super::encoding::PositionEncoding;
 use super::error::LspError;
 use super::provider::{LspProvider, ReadinessWait};
-use super::status::{ReadyState, classify_server_status};
+use super::status::{ReadyState, SERVER_STATUS_METHOD, classify_server_status};
 
 /// Default timeout for waiting for a response to a single LSP request.
 /// Individual requests (`goto_definition`, `find_references`) should not take
@@ -672,7 +672,7 @@ impl LspClient {
                 self.ack_server_request(request_id)?;
             }
 
-            if method == "experimental/serverStatus"
+            if method == SERVER_STATUS_METHOD
                 && let Some(params) = message.get("params")
             {
                 match classify_server_status(params) {

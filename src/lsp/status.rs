@@ -10,6 +10,12 @@
 
 use serde_json::Value;
 
+/// The rust-analyzer extension notification method carrying server status.
+///
+/// Colocated with the classifier so the method the transport matches on
+/// and the params shape classified here cannot drift apart.
+pub(crate) const SERVER_STATUS_METHOD: &str = "experimental/serverStatus";
+
 /// Readiness classification of one `experimental/serverStatus` notification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ReadyState {
