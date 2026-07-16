@@ -202,6 +202,21 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+
+    /// Walk the type hierarchy of a type: implemented traits / base types
+    /// (up) and implementors / derived types (down)
+    Hierarchy {
+        /// Type name to walk from
+        symbol: String,
+
+        /// Walk direction
+        #[arg(long, default_value = "both", value_parser = ["up", "down", "both"])]
+        direction: String,
+
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -286,6 +301,11 @@ fn main() -> ExitCode {
         } => cli::visibility_tightening::run(&workspace, json, workspace_closed),
         Commands::UnusedImports { json, all } => cli::unused_imports::run(&workspace, json, all),
         Commands::UntestedCode { json } => cli::untested_code::run(&workspace, json),
+        Commands::Hierarchy {
+            symbol,
+            direction,
+            json,
+        } => cli::hierarchy::run(&workspace, &symbol, &direction, json),
     };
 
     match result {
