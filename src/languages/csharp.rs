@@ -207,7 +207,8 @@ fn extract_references_recursive(
     use node_kinds::{
         CLASS_DECLARATION, CONSTRUCTOR_DECLARATION, DECLARATION_LIST, EVENT_DECLARATION,
         INTERFACE_DECLARATION, INVOCATION_EXPRESSION, MEMBER_ACCESS_EXPRESSION, METHOD_DECLARATION,
-        OBJECT_CREATION_EXPRESSION, PROPERTY_DECLARATION, STRUCT_DECLARATION, USING_DIRECTIVE,
+        OBJECT_CREATION_EXPRESSION, PROPERTY_DECLARATION, RECORD_DECLARATION, STRUCT_DECLARATION,
+        USING_DIRECTIVE,
     };
 
     match node.kind() {
@@ -246,8 +247,12 @@ fn extract_references_recursive(
             return;
         }
 
-        // Class/struct/interface definitions: recurse into methods with their own spans
-        CLASS_DECLARATION | STRUCT_DECLARATION | INTERFACE_DECLARATION => {
+        // Class/struct/interface/record definitions: recurse into methods
+        // with their own spans. Records map to SymbolKind::Class on the
+        // symbol side, so their base lists must emit hierarchy edges here
+        // too (gemini review, PR #31 — records were reachable only through
+        // the generic recursion, which skips push_base_list_edges).
+        CLASS_DECLARATION | STRUCT_DECLARATION | INTERFACE_DECLARATION | RECORD_DECLARATION => {
             // Type-hierarchy edges (tethys-j2r1): one Inherit ref per
             // base-list entry (`class X : Base, IFace`), anchored to the
             // declaring type's span so the subtype becomes `in_symbol_id`.
@@ -1508,6 +1513,7 @@ class X : Base, IFace<int>
 {
     void M() { }
 }
+record R(int A) : Base;
 ";
         let tree = parse_csharp(code);
         let refs: Vec<_> = extract_references(&tree, code.as_bytes())
@@ -1515,7 +1521,11 @@ class X : Base, IFace<int>
             .filter(|r| r.kind == ExtractedReferenceKind::Inherit)
             .collect();
         let names: Vec<&str> = refs.iter().map(|r| r.name.as_str()).collect();
-        assert_eq!(names, vec!["Base", "IFace"], "one edge per entry: {refs:?}");
+        assert_eq!(
+            names,
+            vec!["Base", "IFace", "Base"],
+            "one edge per entry, records included (PR #31 review): {refs:?}"
+        );
         assert!(
             refs.iter().all(|r| r.containing_symbol_span.is_some()),
             "anchored to the declaring class"
