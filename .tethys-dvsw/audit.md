@@ -60,6 +60,31 @@ the binding result.)
    keep nested classes alive; same-file container linkage reaches
    depth 2; properties are candidates; cross-language textual scan
    demotes a C# name mentioned in Rust text.
+4. **Recorded implementation deviations from the design text** (flagged
+   by the pre-PR spec review): (a) `static` added to the Rust candidate
+   kinds — the design's C1 list omitted it, but `static_item` IS
+   extracted (`src/languages/rust.rs`) and behaves like `const`;
+   zero-effect on the self-index (no statics indexed). (b)
+   `rust_binary_root` matches path SEGMENTS at any depth
+   (`crates/x/src/bin/nested/tool.rs`, any `examples/` dir), broader
+   than the design's literal `src/bin/*.rs` / `examples/*.rs` wording —
+   over-suppression is C9's accepted conservative direction; documented
+   on the function.
+
+## Pre-PR review outcomes (both axes)
+
+- Spec axis: all ACs met; MCP deferral to tethys-o4re verified against
+  its v2 tool table; `--limit 0` fence added post-review; deviations
+  above recorded. FP-docs-in-private-module note REJECTED with
+  rationale: rivets IDs are internal vocabulary (changelog rule), the
+  public facade doc carries the category summary, and the AC's "module
+  docs" exist.
+- Standards axis: extracted the shared `unresolved_name_match` helper
+  (duplication); `is_entry_point` now takes `Language`/`SymbolKind`
+  enums via the `db/helpers` parsers (enum-not-string standard); the
+  Rust-side liveness walk documented as a deliberate ADR-0002 deviation
+  on `db/hierarchy.rs` grounds. Word-boundary reimplementation kept
+  (already documented as deliberate).
 
 ## Fence inventory (all passing, `cargo nextest run`)
 

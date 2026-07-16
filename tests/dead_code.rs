@@ -186,6 +186,22 @@ fn cli_json_envelope_sort_and_limit() {
     );
 
     let out = std::process::Command::new(env!("CARGO_BIN_EXE_tethys"))
+        .args(["dead-code", "--json", "--limit", "0", "-w"])
+        .arg(dir.path())
+        .output()
+        .expect("run binary");
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).expect("limit-0 JSON");
+    assert!(
+        json["findings"].as_array().unwrap().is_empty(),
+        "--limit 0 lists nothing"
+    );
+    assert_eq!(
+        json["summary"]["candidates"].as_u64().unwrap(),
+        3,
+        "--limit 0 still reports the full summary"
+    );
+
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_tethys"))
         .args(["dead-code", "--json", "--limit", "1", "-w"])
         .arg(dir.path())
         .output()

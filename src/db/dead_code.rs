@@ -42,9 +42,10 @@ use rusqlite::params;
 use tracing::trace;
 
 use super::Index;
+use super::helpers::{parse_language, parse_symbol_kind};
 use super::hierarchy::CONTAINER_KINDS_SQL;
 use crate::error::Result;
-use crate::types::SymbolId;
+use crate::types::{Language, SymbolId, SymbolKind};
 
 /// Kinds analyzable for Rust files: kinds with at least one working
 /// reference channel. Excludes `module` and `struct_field` (no channel;
@@ -90,6 +91,21 @@ fn last_segment(reference_name: &str) -> &str {
     reference_name.rsplit("::").next().unwrap_or(reference_name)
 }
 
+/// Non-self unresolved-name match: does any unresolved reference row —
+/// other than rows the symbol itself originated (recursion must not
+/// self-suppress) — name this symbol by bare name or last `::` segment?
+/// The ONE definition candidacy and container liveness both call, so
+/// the two cannot drift on this channel.
+fn unresolved_name_match(
+    unresolved_by_name: &HashMap<String, HashSet<Option<i64>>>,
+    name: &str,
+    symbol_id: i64,
+) -> bool {
+    unresolved_by_name
+        .get(name)
+        .is_some_and(|origins| origins.iter().any(|origin| *origin != Some(symbol_id)))
+}
+
 /// True when the path is a Rust binary root whose `fn main` the toolchain
 /// invokes: `src/main.rs`, `src/bin/*`, `examples/*`, `build.rs` —
 /// matched per path SEGMENT (workspace- or crate-relative), so
@@ -116,11 +132,12 @@ fn rust_binary_root(path: &str) -> bool {
 /// `static void Main()` as `function`, instance methods as `method`
 /// (measured on the S6 fixture), and over-suppression is the accepted
 /// conservative direction.
-fn is_entry_point(language: &str, kind: &str, name: &str, path: &str) -> bool {
+fn is_entry_point(language: Language, kind: SymbolKind, name: &str, path: &str) -> bool {
     match language {
-        "rust" => kind == "function" && name == "main" && rust_binary_root(path),
-        "csharp" => (kind == "method" || kind == "function") && name == "Main",
-        _ => false,
+        Language::Rust => kind == SymbolKind::Function && name == "main" && rust_binary_root(path),
+        Language::CSharp => {
+            matches!(kind, SymbolKind::Method | SymbolKind::Function) && name == "Main"
+        }
     }
 }
 
@@ -179,37 +196,34 @@ impl Index {
         );
         let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(params![], |row| {
+            let kind: String = row.get(3)?;
+            let kind_enum = parse_symbol_kind(&kind)?;
+            let language = parse_language(&row.get::<_, String>(8)?)?;
             Ok((
                 ZeroEvidenceCandidate {
                     id: SymbolId::from(row.get::<_, i64>(0)?),
                     name: row.get(1)?,
                     qualified_name: row.get(2)?,
-                    kind: row.get(3)?,
+                    kind,
                     visibility: row.get(4)?,
                     file: row.get(5)?,
                     line: row.get(6)?,
                     end_line: row.get(7)?,
                 },
-                row.get::<_, String>(8)?,
+                language,
+                kind_enum,
                 row.get::<_, bool>(9)?,
             ))
         })?;
 
         let mut candidates = Vec::new();
         for row in rows {
-            let (candidate, language, is_container) = row?;
+            let (candidate, language, kind, is_container) = row?;
             let unresolved_match =
-                unresolved_by_name
-                    .get(candidate.name.as_str())
-                    .is_some_and(|origins| {
-                        origins
-                            .iter()
-                            .any(|origin| *origin != Some(candidate.id.as_i64()))
-                    });
+                unresolved_name_match(&unresolved_by_name, &candidate.name, candidate.id.as_i64());
             let container_alive =
                 is_container && has_live_descendant.contains(&candidate.id.as_i64());
-            let entry_point =
-                is_entry_point(&language, &candidate.kind, &candidate.name, &candidate.file);
+            let entry_point = is_entry_point(language, kind, &candidate.name, &candidate.file);
             if !unresolved_match && !container_alive && !entry_point {
                 candidates.push(candidate);
             }
@@ -225,14 +239,22 @@ impl Index {
 /// Ancestor set of every *live* symbol, walked up `parent_symbol_id`.
 /// Live = `is_test`, a resolved non-self inbound ref, an `inherit`
 /// marker, an unresolved name match (self-originated rows ignored), or
-/// an entry point — the same evidence vocabulary as candidacy, so the
-/// two cannot disagree on what counts as a sign of life. Entry points
-/// confer liveness upward: a C# `Program` class whose only member is
-/// `Main` is scaffolding the toolchain invokes, not dead code.
+/// an entry point — the same evidence vocabulary as candidacy
+/// (name-match shares [`unresolved_name_match`]; the SQL-side channels
+/// are pinned to this walk's set-scans by the self-index and fixture
+/// fences). Entry points confer liveness upward: a C# `Program` class
+/// whose only member is `Main` is scaffolding the toolchain invokes,
+/// not dead code.
 ///
 /// Takes the already-held connection: the `Index` connection mutex is
 /// not reentrant, so re-locking from inside `dead_code_zero_evidence`
 /// would self-deadlock (caught by the S2 gate hanging all 14 tests).
+///
+/// Deliberate deviation from the recursive-CTE graph-query convention
+/// (ADR-0002), same grounds as `db/hierarchy.rs`: the live seed set
+/// mixes SQL-visible evidence with Rust-side predicates (the
+/// unresolved-name map with self-exclusion, entry-point path logic) a
+/// CTE cannot carry without temp tables.
 ///
 /// Cost: three indexed scans + one O(symbols) pass + an upward walk
 /// that visits each ancestor once (early exit on already-marked
@@ -254,19 +276,19 @@ fn live_descendant_ancestors(
             row.get::<_, Option<i64>>(1)?,
             row.get::<_, String>(2)?,
             row.get::<_, bool>(3)?,
-            row.get::<_, String>(4)?,
+            parse_symbol_kind(&row.get::<_, String>(4)?)?,
             row.get::<_, String>(5)?,
-            row.get::<_, String>(6)?,
+            parse_language(&row.get::<_, String>(6)?)?,
         ))
     })? {
         let (id, parent, name, is_test, kind, path, language) = row?;
         if let Some(parent) = parent {
             parent_of.insert(id, parent);
         }
-        let unresolved_match = unresolved_by_name
-            .get(name.as_str())
-            .is_some_and(|origins| origins.iter().any(|origin| *origin != Some(id)));
-        if is_test || unresolved_match || is_entry_point(&language, &kind, &name, &path) {
+        if is_test
+            || unresolved_name_match(unresolved_by_name, &name, id)
+            || is_entry_point(language, kind, &name, &path)
+        {
             live.insert(id);
         }
     }
