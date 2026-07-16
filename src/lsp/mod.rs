@@ -35,6 +35,7 @@
 mod encoding;
 mod error;
 mod provider;
+mod status;
 mod transport;
 
 pub use error::LspError;

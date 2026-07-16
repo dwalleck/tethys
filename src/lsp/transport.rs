@@ -24,6 +24,7 @@ use super::Result;
 use super::encoding::PositionEncoding;
 use super::error::LspError;
 use super::provider::LspProvider;
+use super::status::{ReadyState, classify_server_status};
 
 /// Default timeout for waiting for a response to a single LSP request.
 /// Individual requests (`goto_definition`, `find_references`) should not take
@@ -597,6 +598,103 @@ impl LspClient {
         }
     }
 
+    /// Wait for rust-analyzer to become quiescent (workspace load complete).
+    ///
+    /// rust-analyzer loads the workspace asynchronously after `initialize`;
+    /// until it finishes, definition queries return empty results
+    /// (indistinguishable from "no definition") or `-32801 content
+    /// modified`. This method monitors `experimental/serverStatus`
+    /// notifications — sent because [`client_capabilities`] advertises
+    /// `experimental.serverStatusNotification` — and returns once one
+    /// classifies [`ReadyState::Ready`] (`quiescent: true`). A degraded
+    /// `health` (e.g. no Cargo project discovered) still counts as ready —
+    /// queries are answerable, they may just legitimately find nothing —
+    /// and is logged as a warning.
+    ///
+    /// Safe to call at any point after initialization: if the server is
+    /// already quiescent, the initial status notification arrives
+    /// immediately (observed ≤0.1s). The timeout is checked between
+    /// messages, so it bounds the wait only while the server keeps
+    /// talking — the same posture as [`Self::wait_for_solution_load`].
+    ///
+    /// # Returns
+    ///
+    /// `Ok(true)` once quiescence is reported, `Ok(false)` if the timeout
+    /// elapsed first (callers proceed and queries behave as before this
+    /// wait existed).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if communication with the LSP server fails (I/O
+    /// error, JSON parsing error, or server exit).
+    pub fn wait_for_quiescence(&mut self, timeout: Duration) -> Result<bool> {
+        let start = Instant::now();
+
+        debug!(
+            timeout_secs = timeout.as_secs(),
+            "Waiting for rust-analyzer quiescence..."
+        );
+
+        loop {
+            if start.elapsed() > timeout {
+                warn!("Timeout waiting for rust-analyzer quiescence");
+                return Ok(false);
+            }
+
+            let content_length = self.read_content_length()?;
+            let mut body = vec![0u8; content_length];
+            self.stdout.read_exact(&mut body)?;
+
+            let message: Value = serde_json::from_slice(&body).map_err(LspError::Deserialize)?;
+
+            let Some(method) = message.get("method").and_then(Value::as_str) else {
+                continue;
+            };
+
+            // Acknowledge server->client requests with null so the server
+            // doesn't stall waiting on us (same as wait_for_solution_load).
+            if let Some(request_id) = message.get("id") {
+                trace!(
+                    method,
+                    "Acknowledging server request during quiescence wait"
+                );
+                let response = json!({
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "result": null,
+                });
+                self.write_message(&response)?;
+            }
+
+            if method == "experimental/serverStatus"
+                && let Some(params) = message.get("params")
+            {
+                match classify_server_status(params) {
+                    ReadyState::Ready { degraded } => {
+                        #[expect(
+                            clippy::cast_possible_truncation,
+                            reason = "elapsed millis for logging; truncation harmless"
+                        )]
+                        let elapsed_ms = start.elapsed().as_millis() as u64;
+                        if degraded {
+                            warn!(
+                                elapsed_ms,
+                                status = %params,
+                                "rust-analyzer quiescent but degraded; queries may find nothing"
+                            );
+                        } else {
+                            debug!(elapsed_ms, "rust-analyzer quiescent");
+                        }
+                        return Ok(true);
+                    }
+                    ReadyState::NotReady => {
+                        trace!(status = %params, "rust-analyzer not yet quiescent");
+                    }
+                }
+            }
+        }
+    }
+
     /// Find all references to a symbol at the given position.
     ///
     /// # Arguments
@@ -727,6 +825,13 @@ impl Drop for LspClient {
 ///   Without this advert, servers assume `utf-16` and byte columns point at
 ///   the wrong character on any line with non-ASCII text before the
 ///   reference.
+/// - `experimental.serverStatusNotification` (rust-analyzer extension):
+///   opts in to `experimental/serverStatus` notifications, whose
+///   `quiescent: true` is the signal [`LspClient::wait_for_quiescence`]
+///   waits on. Without the advert rust-analyzer sends none (verified: zero
+///   notifications in a probe without it). Advertised unconditionally —
+///   experimental capabilities are opt-in extensions that other servers
+///   ignore (csharp-ls handshake verified tolerant).
 fn client_capabilities() -> ClientCapabilities {
     ClientCapabilities {
         window: Some(WindowClientCapabilities {
@@ -740,6 +845,7 @@ fn client_capabilities() -> ClientCapabilities {
             ]),
             ..Default::default()
         }),
+        experimental: Some(json!({"serverStatusNotification": true})),
         ..Default::default()
     }
 }
@@ -944,6 +1050,29 @@ mod tests {
         assert!(
             encodings.contains(&PositionEncodingKind::UTF16),
             "utf-16 is the mandatory fallback every server supports"
+        );
+    }
+
+    /// Readiness fence (tethys-2mjj bug class): the `initialize` handshake
+    /// must advertise `experimental.serverStatusNotification` — at exactly
+    /// that JSON path. rust-analyzer sends `experimental/serverStatus`
+    /// notifications (the quiescence signal the readiness wait relies on)
+    /// only when this advert is present; nesting it elsewhere (e.g. under
+    /// `general`, where the position encodings live) or mis-casing the key
+    /// silently disables the signal and the wait always times out.
+    #[test]
+    fn client_capabilities_advertise_server_status_notification() {
+        let caps = client_capabilities();
+        let advert = caps
+            .experimental
+            .expect("experimental client capabilities must be declared");
+
+        assert_eq!(
+            advert
+                .get("serverStatusNotification")
+                .and_then(Value::as_bool),
+            Some(true),
+            "experimental.serverStatusNotification must be exactly true; got {advert}"
         );
     }
 
