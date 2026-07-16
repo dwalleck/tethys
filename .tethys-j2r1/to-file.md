@@ -1,0 +1,1 @@
+- C# method-level interface-member suppression requires override resolution (name-matching against interface members is the 0aqj kind-blind class) — file when dvsw's C# design lands, or absorb there.
