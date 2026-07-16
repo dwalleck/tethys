@@ -82,6 +82,17 @@ the qualifier is the IMPLEMENTING TYPE (`Type::method`, never `Trait::method`)
 — the same identity the reference side derives for receivers, so
 receiver-typed references can bind exactly.
 
+**Hierarchy edge / inherit reference**:
+The `inherit` reference kind (tethys-j2r1), emitted at TWO granularities:
+a *type-level edge* (`impl Trait for Type`, supertrait bounds, C# base
+lists — `in_symbol` is the subtype, the named target is the supertype)
+and a *method-level marker* (each method in a Rust trait-impl block —
+"this method implements a trait member", the dead-code suppression
+channel). Unresolved inherit references are RETAINED: external supertypes
+(`Display`) are the majority and are themselves the suppression signal.
+Never in call edges — implementing a trait is not a call.
+_Avoid_: conflating the edge (type-to-type) with the marker (method-scoped)
+
 **Parent linkage**:
 The insert-time step that sets `symbols.parent_symbol_id` from the extracted
 container name: a member (method, struct field, enum variant, C# class

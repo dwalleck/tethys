@@ -277,15 +277,7 @@ impl Index {
         {
             let mut containers: HashMap<&str, Vec<i64>> = HashMap::new();
             for (sym, id) in symbols.iter().zip(&symbol_ids) {
-                if matches!(
-                    sym.kind,
-                    SymbolKind::Struct
-                        | SymbolKind::Class
-                        | SymbolKind::Enum
-                        | SymbolKind::Trait
-                        | SymbolKind::Interface
-                        | SymbolKind::TypeAlias
-                ) {
+                if sym.kind.is_container() {
                     containers.entry(sym.name).or_default().push(id.as_i64());
                 }
             }
@@ -329,8 +321,29 @@ impl Index {
         // can never bind to a property named `Exception` (tethys-xebx D10;
         // the general kind-aware binding work is tethys-0aqj).
         let mut data_member_name_to_id: HashMap<&str, SymbolId> = HashMap::new();
+        // Container types only, unique-name-only (None marks a collision):
+        // inherit edges bind supertypes and anchor subtypes through this map
+        // exclusively, so a same-named fn can never fabricate a hierarchy
+        // edge at Pass 1 (tethys-j2r1; the Pass-2 gate is
+        // `ref_binds_to_symbol_kind`).
+        let mut container_name_to_id: HashMap<&str, Option<SymbolId>> = HashMap::new();
         let mut span_to_id: HashMap<Span, SymbolId> = HashMap::new();
         for (sym, &id) in symbols.iter().zip(&symbol_ids) {
+            if sym.kind.is_container() {
+                container_name_to_id
+                    .entry(sym.name)
+                    .and_modify(|e| {
+                        if e.is_some() {
+                            trace!(
+                                name = %sym.name,
+                                "Duplicate container name in file; inherit \
+                                 edges to it stay unresolved"
+                            );
+                        }
+                        *e = None;
+                    })
+                    .or_insert(Some(id));
+            }
             if sym.kind.is_data_member() {
                 if let Some(prev_id) = data_member_name_to_id.insert(sym.name, id) {
                     trace!(
@@ -364,6 +377,39 @@ impl Index {
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             )?;
             for r in references {
+                // Type-hierarchy edges (tethys-j2r1) bypass the generic
+                // path handling entirely: their `path` is the ANCHOR (the
+                // subtype for `impl Trait for Type` edges), not a qualified
+                // prefix — folding it into `reference_name` would store a
+                // phantom "Type::Trait" path that Pass 2 would try to walk
+                // and deprecated-callers' qualified-suffix recovery would
+                // scan. Supertype binds by bare name through the container
+                // map; unresolved rows RETAIN the bare name (external
+                // traits are the majority and the suppression signal).
+                if r.kind == ExtractedReferenceKind::Inherit {
+                    let symbol_id = container_name_to_id.get(r.name.as_str()).copied().flatten();
+                    let in_symbol_id = match (&r.path, r.containing_symbol_span) {
+                        (Some(path), _) => path
+                            .first()
+                            .and_then(|t| container_name_to_id.get(t.as_str()))
+                            .copied()
+                            .flatten(),
+                        (None, Some(span)) => span_to_id.get(&span).copied(),
+                        (None, None) => None,
+                    };
+                    insert_ref_stmt.execute(params![
+                        symbol_id.map(SymbolId::as_i64),
+                        file_id,
+                        r.kind.to_db_kind().as_str(),
+                        r.line,
+                        r.column,
+                        in_symbol_id.map(SymbolId::as_i64),
+                        symbol_id.is_none().then_some(r.name.as_str()),
+                        symbol_id.map(|_| ResolutionStrategy::SameFile.as_str())
+                    ])?;
+                    refs_stored += 1;
+                    continue;
+                }
                 let qualified_name = build_qualified_name(&r.name, r.path.as_deref());
                 // Macro invocations resolve only to macro definitions (see
                 // `macro_name_to_id`); member reads prefer data members and

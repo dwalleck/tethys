@@ -50,8 +50,8 @@ mod unused_imports;
 
 pub use cargo::discover_crates;
 pub use db::{
-    Demotion, DeprecatedFinding, DeprecatedSymbol, ReferenceSite, Tier, UntestedFinding,
-    UntestedReport, Via, VisibilityFinding,
+    Demotion, DeprecatedFinding, DeprecatedSymbol, HierarchyDirection, HierarchyNode,
+    ReferenceSite, Tier, TypeHierarchy, UntestedFinding, UntestedReport, Via, VisibilityFinding,
 };
 pub use error::{Error, IndexError, IndexErrorKind, Result};
 pub use types::{
@@ -1031,6 +1031,30 @@ impl Tethys {
     /// ```
     pub fn get_untested_code(&self) -> Result<UntestedReport> {
         self.db.get_untested_code()
+    }
+
+    /// Walk the type hierarchy from the type named `name` over `inherit`
+    /// edges (tethys-j2r1): up = supertypes (implemented traits, extended
+    /// bases — external ones as name-only nodes), down = subtypes.
+    /// Method-level inherit markers are excluded from both walks.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use tethys::{HierarchyDirection, Tethys};
+    /// use std::path::Path;
+    ///
+    /// let tethys = Tethys::new(Path::new("/path/to/workspace"))?;
+    /// let h = tethys.get_type_hierarchy("Widget", HierarchyDirection::Both)?;
+    /// println!("{} supertypes, {} subtypes", h.up.len(), h.down.len());
+    /// # Ok::<(), tethys::Error>(())
+    /// ```
+    pub fn get_type_hierarchy(
+        &self,
+        name: &str,
+        direction: HierarchyDirection,
+    ) -> Result<TypeHierarchy> {
+        self.db.get_type_hierarchy(name, direction)
     }
 
     /// Count panic points grouped by test/production code.

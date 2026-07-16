@@ -27,6 +27,7 @@ mod file_deps;
 mod files;
 mod graph;
 mod helpers;
+mod hierarchy;
 mod imports;
 mod panic_points;
 mod references;
@@ -36,6 +37,7 @@ mod untested;
 mod visibility;
 
 pub use deprecated::{DeprecatedFinding, DeprecatedSymbol, ReferenceSite, Tier, Via};
+pub use hierarchy::{HierarchyDirection, HierarchyNode, TypeHierarchy};
 pub use untested::{UntestedFinding, UntestedReport};
 pub use visibility::{Demotion, VisibilityFinding};
 
