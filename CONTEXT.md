@@ -77,7 +77,19 @@ A symbol's bare identifier, with no qualification (`save`).
 
 **Qualified name**:
 A symbol's hierarchy path *within its file* (`IssueStorage::save`) — enclosing
-types and scopes, but not the module.
+types and scopes, but not the module. For a method in `impl Trait for Type`,
+the qualifier is the IMPLEMENTING TYPE (`Type::method`, never `Trait::method`)
+— the same identity the reference side derives for receivers, so
+receiver-typed references can bind exactly.
+
+**Parent linkage**:
+The insert-time step that sets `symbols.parent_symbol_id` from the extracted
+container name: a member (method, struct field, enum variant, C# class
+member) is linked to the SAME-FILE container symbol its name came from, or
+left NULL when the container lives in another file or the name collides.
+Same-file by construction — distinct from all three resolution operations
+above (no imports, no module paths, no cross-file search).
+_Avoid_: "resolving the parent" (reserve resolve for the three operations)
 
 **Module path**:
 The chain of modules leading to a symbol (`crate::storage::issue`) — where it

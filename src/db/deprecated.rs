@@ -587,6 +587,7 @@ mod tests {
                 signature: None,
                 visibility: Visibility::Public,
                 parent_symbol_id: None,
+                parent_name: None,
                 is_test: false,
                 attributes: attrs,
             })
@@ -616,6 +617,7 @@ mod tests {
             signature: None,
             visibility: Visibility::Public,
             parent_symbol_id: None,
+            parent_name: None,
             is_test: false,
             attributes: &rust_attrs,
         };
