@@ -157,6 +157,46 @@ pub fn extract_references(tree: &tree_sitter::Tree, content: &[u8]) -> Vec<Extra
 /// `member_access_expression` nodes — any other node (an invocation receiver,
 /// a parenthesized expression, arguments) resets it, so `Get(x.P).M()` still
 /// emits the `x.P` read.
+/// Base-list hierarchy edges (tethys-j2r1): `class X : Base, IFace<T>`
+/// emits one Inherit ref per entry, anchored to the declaring type's span
+/// (the innermost class for nested types). Generic entries strip to their
+/// base identifier; qualified entries (`Ns.IFace`) keep the last segment.
+fn push_base_list_edges(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    refs: &mut Vec<ExtractedReference>,
+) {
+    let mut cursor = node.walk();
+    let Some(base_list) = node.children(&mut cursor).find(|c| c.kind() == "base_list") else {
+        return;
+    };
+    let type_span = node_span(node);
+    let mut bases = base_list.walk();
+    for entry in base_list.children(&mut bases) {
+        let name = match entry.kind() {
+            "identifier" => node_text(&entry, content),
+            node_kinds::GENERIC_NAME => entry
+                .child_by_field_name("name")
+                .or_else(|| entry.child(0))
+                .and_then(|n| node_text(&n, content)),
+            "qualified_name" => entry
+                .child_by_field_name("name")
+                .and_then(|n| node_text(&n, content)),
+            _ => None,
+        };
+        if let Some(name) = name {
+            refs.push(ExtractedReference {
+                name,
+                kind: ExtractedReferenceKind::Inherit,
+                line: entry.start_position().row as u32 + 1,
+                column: entry.start_position().column as u32 + 1,
+                path: None,
+                containing_symbol_span: Some(type_span),
+            });
+        }
+    }
+}
+
 fn extract_references_recursive(
     node: &tree_sitter::Node,
     content: &[u8],
@@ -208,6 +248,12 @@ fn extract_references_recursive(
 
         // Class/struct/interface definitions: recurse into methods with their own spans
         CLASS_DECLARATION | STRUCT_DECLARATION | INTERFACE_DECLARATION => {
+            // Type-hierarchy edges (tethys-j2r1): one Inherit ref per
+            // base-list entry (`class X : Base, IFace`), anchored to the
+            // declaring type's span so the subtype becomes `in_symbol_id`.
+            // C# syntax cannot distinguish the base class from interfaces
+            // in the list — all entries emit the single `inherit` kind.
+            push_base_list_edges(node, content, refs);
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 if child.kind() == DECLARATION_LIST {
@@ -1446,6 +1492,36 @@ fn extract_parameter(param_node: &tree_sitter::Node, content: &[u8]) -> Option<P
 
 #[cfg(test)]
 mod tests {
+    // ========================================================================
+    // Base-list hierarchy edges (tethys-j2r1)
+    // ========================================================================
+
+    /// `class X : Base, IFace<T>` emits one anchored Inherit ref per entry;
+    /// generic entries strip to the base identifier; a class with no base
+    /// list emits nothing.
+    #[test]
+    fn base_list_emits_anchored_inherit_edges() {
+        let code = r"
+class Base { }
+class Solo { }
+class X : Base, IFace<int>
+{
+    void M() { }
+}
+";
+        let tree = parse_csharp(code);
+        let refs: Vec<_> = extract_references(&tree, code.as_bytes())
+            .into_iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::Inherit)
+            .collect();
+        let names: Vec<&str> = refs.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, vec!["Base", "IFace"], "one edge per entry: {refs:?}");
+        assert!(
+            refs.iter().all(|r| r.containing_symbol_span.is_some()),
+            "anchored to the declaring class"
+        );
+    }
+
     use super::*;
 
     fn parse_csharp(code: &str) -> tree_sitter::Tree {
