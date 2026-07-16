@@ -36,11 +36,6 @@
 //! scan) lives at the facade layer; this module only produces the
 //! zero-evidence set.
 
-// Consumed by `Tethys::find_dead_code` from slice 3 of the tethys-dvsw
-// plan; until that facade lands, non-test builds see this module as
-// unreachable. Removed in slice 3.
-#![allow(dead_code)]
-
 use std::collections::{HashMap, HashSet};
 
 use rusqlite::params;
@@ -68,7 +63,7 @@ const CSHARP_CANDIDATE_KINDS_SQL: &str = "('class', 'interface', 'struct', 'stru
 /// Tier assignment (the textual scan) happens at the facade layer.
 #[derive(Debug, Clone)]
 pub(crate) struct ZeroEvidenceCandidate {
-    /// Symbol row id (used by slice-2 channels and diagnostics).
+    /// Symbol row id (used for self-origin checks and liveness lookups).
     pub id: SymbolId,
     /// Bare declared name.
     pub name: String,

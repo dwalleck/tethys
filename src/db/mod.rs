@@ -22,7 +22,7 @@
 
 mod architecture;
 mod call_edges;
-mod dead_code;
+pub(crate) mod dead_code;
 mod deprecated;
 mod file_deps;
 mod files;
