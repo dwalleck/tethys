@@ -1,0 +1,1363 @@
+{
+  "summary": {
+    "candidate_count": 155,
+    "definite": 107,
+    "maybe": 48
+  },
+  "findings": [
+    {
+      "name": "IndexedWorkspace",
+      "kind": "struct",
+      "file": "benches/common.rs",
+      "line": 14,
+      "tier": "Maybe",
+      "demotions": [
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "create_workspace",
+      "kind": "function",
+      "file": "benches/common.rs",
+      "line": 24,
+      "tier": "Maybe",
+      "demotions": [
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "as_file_refs",
+      "kind": "function",
+      "file": "benches/common.rs",
+      "line": 40,
+      "tier": "Maybe",
+      "demotions": [
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "create_indexed_workspace",
+      "kind": "function",
+      "file": "benches/common.rs",
+      "line": 49,
+      "tier": "Maybe",
+      "demotions": [
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "WriteStats",
+      "kind": "struct",
+      "file": "src/batch_writer.rs",
+      "line": 54,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "BatchWriteResult",
+      "kind": "struct",
+      "file": "src/batch_writer.rs",
+      "line": 69,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "BatchWriter",
+      "kind": "struct",
+      "file": "src/batch_writer.rs",
+      "line": 85,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "compute_module_path",
+      "kind": "function",
+      "file": "src/cargo.rs",
+      "line": 255,
+      "tier": "Maybe",
+      "demotions": [
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "get_crate_for_file",
+      "kind": "function",
+      "file": "src/cargo.rs",
+      "line": 375,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/affected_tests.rs",
+      "line": 10,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/callers.rs",
+      "line": 13,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "SortFlag",
+      "kind": "enum",
+      "file": "src/cli/coupling.rs",
+      "line": 15,
+      "tier": "Maybe",
+      "demotions": [
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/coupling.rs",
+      "line": 43,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/cycles.rs",
+      "line": 9,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/deprecated_callers.rs",
+      "line": 15,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "print_dependents",
+      "kind": "function",
+      "file": "src/cli/display.rs",
+      "line": 15,
+      "tier": "Maybe",
+      "demotions": [
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "print_callers_by_file",
+      "kind": "function",
+      "file": "src/cli/display.rs",
+      "line": 38,
+      "tier": "Maybe",
+      "demotions": [
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/hierarchy.rs",
+      "line": 13,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/impact.rs",
+      "line": 12,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/index.rs",
+      "line": 12,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "check_lsp_availability",
+      "kind": "function",
+      "file": "src/cli/mod.rs",
+      "line": 75,
+      "tier": "Maybe",
+      "demotions": [
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "ensure_lsp_if_requested",
+      "kind": "function",
+      "file": "src/cli/mod.rs",
+      "line": 113,
+      "tier": "Maybe",
+      "demotions": [
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/panic_points.rs",
+      "line": 14,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/reachable.rs",
+      "line": 13,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/search.rs",
+      "line": 9,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/stats.rs",
+      "line": 9,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/untested_code.rs",
+      "line": 17,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/unused_imports.rs",
+      "line": 20,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/visibility_tightening.rs",
+      "line": 16,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "SymbolData",
+      "kind": "struct",
+      "file": "src/db/mod.rs",
+      "line": 82,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "Index",
+      "kind": "struct",
+      "file": "src/db/mod.rs",
+      "line": 110,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "Result",
+      "kind": "type_alias",
+      "file": "src/error.rs",
+      "line": 25,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "SymbolGraphOps",
+      "kind": "trait",
+      "file": "src/graph/mod.rs",
+      "line": 33,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "FileGraphOps",
+      "kind": "trait",
+      "file": "src/graph/mod.rs",
+      "line": 70,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ExtractedSymbol",
+      "kind": "struct",
+      "file": "src/languages/common.rs",
+      "line": 10,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ExtractedAttribute",
+      "kind": "struct",
+      "file": "src/languages/common.rs",
+      "line": 54,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ExtractedReference",
+      "kind": "struct",
+      "file": "src/languages/common.rs",
+      "line": 76,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ExtractedReferenceKind",
+      "kind": "enum",
+      "file": "src/languages/common.rs",
+      "line": 141,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ImportStatement",
+      "kind": "struct",
+      "file": "src/languages/common.rs",
+      "line": 203,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "CLASS_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 23,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "STRUCT_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 24,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "INTERFACE_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 25,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ENUM_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 26,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "RECORD_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 27,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "METHOD_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 30,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "CONSTRUCTOR_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 31,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "PROPERTY_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 32,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "FIELD_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 33,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "EVENT_FIELD_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 34,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "EVENT_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 35,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "DELEGATE_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 36,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "VARIABLE_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 37,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "VARIABLE_DECLARATOR",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 38,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "NAMESPACE_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 41,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "FILE_SCOPED_NAMESPACE_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 42,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "USING_DIRECTIVE",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 43,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "INVOCATION_EXPRESSION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 46,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "OBJECT_CREATION_EXPRESSION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 47,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "MEMBER_ACCESS_EXPRESSION",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 48,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "IDENTIFIER",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 51,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "QUALIFIED_NAME",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 52,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "GENERIC_NAME",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 53,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "DECLARATION_LIST",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 56,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "PARAMETER_LIST",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 57,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "PARAMETER",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 58,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "MODIFIER",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 59,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "PUBLIC",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 62,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "PRIVATE",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 63,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "PROTECTED",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 64,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "INTERNAL",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 65,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ATTRIBUTE_LIST",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 68,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ATTRIBUTE",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 69,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "ATTRIBUTE_ARGUMENT_LIST",
+      "kind": "const",
+      "file": "src/languages/csharp.rs",
+      "line": 70,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "CSharpLanguage",
+      "kind": "struct",
+      "file": "src/languages/csharp.rs",
+      "line": 74,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "UsingDirective",
+      "kind": "struct",
+      "file": "src/languages/csharp.rs",
+      "line": 113,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "extract_references",
+      "kind": "function",
+      "file": "src/languages/csharp.rs",
+      "line": 142,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "extract_using_directives",
+      "kind": "function",
+      "file": "src/languages/csharp.rs",
+      "line": 581,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "extract_symbols",
+      "kind": "function",
+      "file": "src/languages/csharp.rs",
+      "line": 688,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "get_language_support",
+      "kind": "function",
+      "file": "src/languages/mod.rs",
+      "line": 35,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "LanguageSupport",
+      "kind": "trait",
+      "file": "src/languages/mod.rs",
+      "line": 46,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "FUNCTION_ITEM",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 24,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "STRUCT_ITEM",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 25,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ENUM_ITEM",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 26,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "TRAIT_ITEM",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 27,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "IMPL_ITEM",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 28,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "CONST_ITEM",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 29,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "STATIC_ITEM",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 30,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "TYPE_ITEM",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 31,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "MACRO_DEFINITION",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 32,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "MOD_ITEM",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 33,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "USE_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 34,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "DECLARATION_LIST",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 37,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "TYPE_IDENTIFIER",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 38,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "GENERIC_TYPE",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 39,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "REFERENCE_TYPE",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 40,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "MUT_PATTERN",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 41,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "VISIBILITY_MODIFIER",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 42,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "FUNCTION_MODIFIERS",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 43,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "TYPE_PARAMETERS",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 44,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "PARAMETER",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 45,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "SELF_PARAMETER",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 46,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "USE_LIST",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 49,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "SCOPED_USE_LIST",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 50,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "USE_WILDCARD",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 51,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "USE_AS_CLAUSE",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 52,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "SCOPED_IDENTIFIER",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 53,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "IDENTIFIER",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 54,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "CRATE",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 55,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "SELF",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 56,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "SUPER",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 57,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ASYNC",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 60,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "UNSAFE",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 61,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "CONST",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 62,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ATTRIBUTE_ITEM",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 65,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ATTRIBUTE",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 66,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "TOKEN_TREE",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 67,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "LINE_COMMENT",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 70,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "BLOCK_COMMENT",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 71,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ENUM_VARIANT_LIST",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 74,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ENUM_VARIANT",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 75,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "FIELD_DECLARATION_LIST",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 76,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "FIELD_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 77,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "ORDERED_FIELD_DECLARATION_LIST",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 78,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "CALL_EXPRESSION",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 81,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "STRUCT_EXPRESSION",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 82,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "FIELD_EXPRESSION",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 83,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "SCOPED_TYPE_IDENTIFIER",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 84,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "MACRO_INVOCATION",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 85,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "LET_DECLARATION",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 88,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "FOR_EXPRESSION",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 89,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "CLOSURE_PARAMETERS",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 90,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "LET_CONDITION",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 91,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "MATCH_PATTERN",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 92,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "TUPLE_STRUCT_PATTERN",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 93,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "STRUCT_PATTERN",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 94,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "ARGUMENTS",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 95,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "RETURN_EXPRESSION",
+      "kind": "const",
+      "file": "src/languages/rust.rs",
+      "line": 96,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "RustLanguage",
+      "kind": "struct",
+      "file": "src/languages/rust.rs",
+      "line": 100,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "UseStatement",
+      "kind": "struct",
+      "file": "src/languages/rust.rs",
+      "line": 132,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "extract_references",
+      "kind": "function",
+      "file": "src/languages/rust.rs",
+      "line": 175,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "extract_use_statements",
+      "kind": "function",
+      "file": "src/languages/rust.rs",
+      "line": 1100,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "extract_symbols",
+      "kind": "function",
+      "file": "src/languages/rust.rs",
+      "line": 1457,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "node_text",
+      "kind": "function",
+      "file": "src/languages/tree_sitter_utils.rs",
+      "line": 15,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "node_span",
+      "kind": "function",
+      "file": "src/languages/tree_sitter_utils.rs",
+      "line": 34,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "Tethys",
+      "kind": "struct",
+      "file": "src/lib.rs",
+      "line": 81,
+      "tier": "Maybe",
+      "demotions": [
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "Result",
+      "kind": "type_alias",
+      "file": "src/lsp/mod.rs",
+      "line": 48,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "ParsedFileData",
+      "kind": "struct",
+      "file": "src/parallel.rs",
+      "line": 48,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "OwnedSymbolData",
+      "kind": "struct",
+      "file": "src/parallel.rs",
+      "line": 71,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "resolve_module_path",
+      "kind": "function",
+      "file": "src/resolver.rs",
+      "line": 31,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "RefId",
+      "kind": "struct",
+      "file": "src/types.rs",
+      "line": 87,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "Import",
+      "kind": "struct",
+      "file": "src/types.rs",
+      "line": 820,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "DEFAULT_LSP_TIMEOUT_SECS",
+      "kind": "const",
+      "file": "src/types.rs",
+      "line": 905,
+      "tier": "Definite",
+      "demotions": []
+    },
+    {
+      "name": "Impact",
+      "kind": "struct",
+      "file": "src/types.rs",
+      "line": 1265,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name"
+      ]
+    },
+    {
+      "name": "workspace_with_files",
+      "kind": "function",
+      "file": "tests/common/mod.rs",
+      "line": 29,
+      "tier": "Maybe",
+      "demotions": [
+        "shared-name",
+        "root-reachable"
+      ]
+    },
+    {
+      "name": "open_db",
+      "kind": "function",
+      "file": "tests/common/mod.rs",
+      "line": 53,
+      "tier": "Maybe",
+      "demotions": [
+        "root-reachable"
+      ]
+    }
+  ]
+}

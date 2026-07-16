@@ -22,6 +22,7 @@
 
 mod architecture;
 mod call_edges;
+mod dead_code;
 mod deprecated;
 mod file_deps;
 mod files;

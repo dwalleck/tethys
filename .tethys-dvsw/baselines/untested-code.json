@@ -1,0 +1,1732 @@
+{
+  "summary": {
+    "test_roots": 959,
+    "product_fns": 735,
+    "untested_count": 246,
+    "indeterminate": false
+  },
+  "findings": [
+    {
+      "name": "create_workspace",
+      "kind": "function",
+      "file": "benches/common.rs",
+      "line": 24,
+      "module_path": ""
+    },
+    {
+      "name": "as_file_refs",
+      "kind": "function",
+      "file": "benches/common.rs",
+      "line": 40,
+      "module_path": ""
+    },
+    {
+      "name": "create_indexed_workspace",
+      "kind": "function",
+      "file": "benches/common.rs",
+      "line": 49,
+      "module_path": ""
+    },
+    {
+      "name": "generate_rust_file",
+      "kind": "function",
+      "file": "benches/indexing.rs",
+      "line": 23,
+      "module_path": ""
+    },
+    {
+      "name": "generate_multi_module_workspace",
+      "kind": "function",
+      "file": "benches/indexing.rs",
+      "line": 78,
+      "module_path": ""
+    },
+    {
+      "name": "bench_full_index",
+      "kind": "function",
+      "file": "benches/indexing.rs",
+      "line": 119,
+      "module_path": ""
+    },
+    {
+      "name": "bench_indexing_phases",
+      "kind": "function",
+      "file": "benches/indexing.rs",
+      "line": 153,
+      "module_path": ""
+    },
+    {
+      "name": "bench_reindex",
+      "kind": "function",
+      "file": "benches/indexing.rs",
+      "line": 202,
+      "module_path": ""
+    },
+    {
+      "name": "bench_post_index_operations",
+      "kind": "function",
+      "file": "benches/indexing.rs",
+      "line": 222,
+      "module_path": ""
+    },
+    {
+      "name": "bench_symbol_density",
+      "kind": "function",
+      "file": "benches/indexing.rs",
+      "line": 260,
+      "module_path": ""
+    },
+    {
+      "name": "generate_caller_test_workspace",
+      "kind": "function",
+      "file": "benches/queries.rs",
+      "line": 28,
+      "module_path": ""
+    },
+    {
+      "name": "generate_deep_call_chain",
+      "kind": "function",
+      "file": "benches/queries.rs",
+      "line": 86,
+      "module_path": ""
+    },
+    {
+      "name": "generate_mixed_call_graph",
+      "kind": "function",
+      "file": "benches/queries.rs",
+      "line": 121,
+      "module_path": ""
+    },
+    {
+      "name": "bench_get_callers",
+      "kind": "function",
+      "file": "benches/queries.rs",
+      "line": 180,
+      "module_path": ""
+    },
+    {
+      "name": "bench_get_symbol_impact_depth",
+      "kind": "function",
+      "file": "benches/queries.rs",
+      "line": 211,
+      "module_path": ""
+    },
+    {
+      "name": "bench_get_symbol_impact_mixed",
+      "kind": "function",
+      "file": "benches/queries.rs",
+      "line": 238,
+      "module_path": ""
+    },
+    {
+      "name": "bench_get_file_impact",
+      "kind": "function",
+      "file": "benches/queries.rs",
+      "line": 266,
+      "module_path": ""
+    },
+    {
+      "name": "bench_get_references",
+      "kind": "function",
+      "file": "benches/queries.rs",
+      "line": 298,
+      "module_path": ""
+    },
+    {
+      "name": "bench_dependency_chain",
+      "kind": "function",
+      "file": "benches/queries.rs",
+      "line": 332,
+      "module_path": ""
+    },
+    {
+      "name": "analyze_query_plans",
+      "kind": "function",
+      "file": "benches/queries.rs",
+      "line": 362,
+      "module_path": ""
+    },
+    {
+      "name": "main",
+      "kind": "function",
+      "file": "examples/idxperf_stream.rs",
+      "line": 9,
+      "module_path": ""
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/affected_tests.rs",
+      "line": 10,
+      "module_path": "crate::cli::affected_tests"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/callers.rs",
+      "line": 13,
+      "module_path": "crate::cli::callers"
+    },
+    {
+      "name": "from",
+      "kind": "method",
+      "file": "src/cli/coupling.rs",
+      "line": 28,
+      "module_path": "crate::cli::coupling"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/coupling.rs",
+      "line": 43,
+      "module_path": "crate::cli::coupling"
+    },
+    {
+      "name": "run_table",
+      "kind": "function",
+      "file": "src/cli/coupling.rs",
+      "line": 58,
+      "module_path": "crate::cli::coupling"
+    },
+    {
+      "name": "run_detail",
+      "kind": "function",
+      "file": "src/cli/coupling.rs",
+      "line": 71,
+      "module_path": "crate::cli::coupling"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/cycles.rs",
+      "line": 9,
+      "module_path": "crate::cli::cycles"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/deprecated_callers.rs",
+      "line": 15,
+      "module_path": "crate::cli::deprecated_callers"
+    },
+    {
+      "name": "render_json",
+      "kind": "function",
+      "file": "src/cli/deprecated_callers.rs",
+      "line": 34,
+      "module_path": "crate::cli::deprecated_callers"
+    },
+    {
+      "name": "one_line",
+      "kind": "function",
+      "file": "src/cli/deprecated_callers.rs",
+      "line": 62,
+      "module_path": "crate::cli::deprecated_callers"
+    },
+    {
+      "name": "deprecation_meta",
+      "kind": "function",
+      "file": "src/cli/deprecated_callers.rs",
+      "line": 72,
+      "module_path": "crate::cli::deprecated_callers"
+    },
+    {
+      "name": "render_human",
+      "kind": "function",
+      "file": "src/cli/deprecated_callers.rs",
+      "line": 91,
+      "module_path": "crate::cli::deprecated_callers"
+    },
+    {
+      "name": "print_dependents",
+      "kind": "function",
+      "file": "src/cli/display.rs",
+      "line": 15,
+      "module_path": "crate::cli::display"
+    },
+    {
+      "name": "print_callers_by_file",
+      "kind": "function",
+      "file": "src/cli/display.rs",
+      "line": 38,
+      "module_path": "crate::cli::display"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/hierarchy.rs",
+      "line": 13,
+      "module_path": "crate::cli::hierarchy"
+    },
+    {
+      "name": "render_json",
+      "kind": "function",
+      "file": "src/cli/hierarchy.rs",
+      "line": 37,
+      "module_path": "crate::cli::hierarchy"
+    },
+    {
+      "name": "write_nodes",
+      "kind": "function",
+      "file": "src/cli/hierarchy.rs",
+      "line": 58,
+      "module_path": "crate::cli::hierarchy"
+    },
+    {
+      "name": "render_human",
+      "kind": "function",
+      "file": "src/cli/hierarchy.rs",
+      "line": 77,
+      "module_path": "crate::cli::hierarchy"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/impact.rs",
+      "line": 12,
+      "module_path": "crate::cli::impact"
+    },
+    {
+      "name": "print_impact_analysis",
+      "kind": "function",
+      "file": "src/cli/impact.rs",
+      "line": 38,
+      "module_path": "crate::cli::impact"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/index.rs",
+      "line": 12,
+      "module_path": "crate::cli::index"
+    },
+    {
+      "name": "print_lsp_session_errors",
+      "kind": "function",
+      "file": "src/cli/index.rs",
+      "line": 159,
+      "module_path": "crate::cli::index"
+    },
+    {
+      "name": "ignore_broken_pipe",
+      "kind": "function",
+      "file": "src/cli/mod.rs",
+      "line": 32,
+      "module_path": "crate::cli"
+    },
+    {
+      "name": "write_report",
+      "kind": "function",
+      "file": "src/cli/mod.rs",
+      "line": 44,
+      "module_path": "crate::cli"
+    },
+    {
+      "name": "to_json_pretty",
+      "kind": "function",
+      "file": "src/cli/mod.rs",
+      "line": 58,
+      "module_path": "crate::cli"
+    },
+    {
+      "name": "ensure_lsp_if_requested",
+      "kind": "function",
+      "file": "src/cli/mod.rs",
+      "line": 113,
+      "module_path": "crate::cli"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/panic_points.rs",
+      "line": 14,
+      "module_path": "crate::cli::panic_points"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/reachable.rs",
+      "line": 13,
+      "module_path": "crate::cli::reachable"
+    },
+    {
+      "name": "print_reachability_result",
+      "kind": "function",
+      "file": "src/cli/reachable.rs",
+      "line": 37,
+      "module_path": "crate::cli::reachable"
+    },
+    {
+      "name": "print_reachable_by_depth",
+      "kind": "function",
+      "file": "src/cli/reachable.rs",
+      "line": 81,
+      "module_path": "crate::cli::reachable"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/search.rs",
+      "line": 9,
+      "module_path": "crate::cli::search"
+    },
+    {
+      "name": "parse_kind",
+      "kind": "function",
+      "file": "src/cli/search.rs",
+      "line": 100,
+      "module_path": "crate::cli::search"
+    },
+    {
+      "name": "format_kind",
+      "kind": "function",
+      "file": "src/cli/search.rs",
+      "line": 123,
+      "module_path": "crate::cli::search"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/stats.rs",
+      "line": 9,
+      "module_path": "crate::cli::stats"
+    },
+    {
+      "name": "print_file_stats",
+      "kind": "function",
+      "file": "src/cli/stats.rs",
+      "line": 56,
+      "module_path": "crate::cli::stats"
+    },
+    {
+      "name": "print_symbol_stats",
+      "kind": "function",
+      "file": "src/cli/stats.rs",
+      "line": 81,
+      "module_path": "crate::cli::stats"
+    },
+    {
+      "name": "print_reference_stats",
+      "kind": "function",
+      "file": "src/cli/stats.rs",
+      "line": 118,
+      "module_path": "crate::cli::stats"
+    },
+    {
+      "name": "print_warnings",
+      "kind": "function",
+      "file": "src/cli/stats.rs",
+      "line": 132,
+      "module_path": "crate::cli::stats"
+    },
+    {
+      "name": "format_size",
+      "kind": "function",
+      "file": "src/cli/stats.rs",
+      "line": 162,
+      "module_path": "crate::cli::stats"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/untested_code.rs",
+      "line": 17,
+      "module_path": "crate::cli::untested_code"
+    },
+    {
+      "name": "render_json",
+      "kind": "function",
+      "file": "src/cli/untested_code.rs",
+      "line": 45,
+      "module_path": "crate::cli::untested_code"
+    },
+    {
+      "name": "render_human",
+      "kind": "function",
+      "file": "src/cli/untested_code.rs",
+      "line": 72,
+      "module_path": "crate::cli::untested_code"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/unused_imports.rs",
+      "line": 20,
+      "module_path": "crate::cli::unused_imports"
+    },
+    {
+      "name": "output_json",
+      "kind": "function",
+      "file": "src/cli/unused_imports.rs",
+      "line": 51,
+      "module_path": "crate::cli::unused_imports"
+    },
+    {
+      "name": "output_human",
+      "kind": "function",
+      "file": "src/cli/unused_imports.rs",
+      "line": 85,
+      "module_path": "crate::cli::unused_imports"
+    },
+    {
+      "name": "run",
+      "kind": "function",
+      "file": "src/cli/visibility_tightening.rs",
+      "line": 16,
+      "module_path": "crate::cli::visibility_tightening"
+    },
+    {
+      "name": "render_json",
+      "kind": "function",
+      "file": "src/cli/visibility_tightening.rs",
+      "line": 35,
+      "module_path": "crate::cli::visibility_tightening"
+    },
+    {
+      "name": "demotion_label",
+      "kind": "function",
+      "file": "src/cli/visibility_tightening.rs",
+      "line": 62,
+      "module_path": "crate::cli::visibility_tightening"
+    },
+    {
+      "name": "render_human",
+      "kind": "function",
+      "file": "src/cli/visibility_tightening.rs",
+      "line": 70,
+      "module_path": "crate::cli::visibility_tightening"
+    },
+    {
+      "name": "get_packages",
+      "kind": "method",
+      "file": "src/db/architecture.rs",
+      "line": 123,
+      "module_path": "crate::db::architecture"
+    },
+    {
+      "name": "get_coupling_metrics",
+      "kind": "method",
+      "file": "src/db/architecture.rs",
+      "line": 166,
+      "module_path": "crate::db::architecture"
+    },
+    {
+      "name": "saturating_coupling_to_u32",
+      "kind": "function",
+      "file": "src/db/architecture.rs",
+      "line": 246,
+      "module_path": "crate::db::architecture"
+    },
+    {
+      "name": "seeded_index",
+      "kind": "function",
+      "file": "src/db/architecture.rs",
+      "line": 264,
+      "module_path": "crate::db::architecture"
+    },
+    {
+      "name": "fmt",
+      "kind": "method",
+      "file": "src/db/architecture.rs",
+      "line": 319,
+      "module_path": "crate::db::architecture"
+    },
+    {
+      "name": "get_package_coupling",
+      "kind": "method",
+      "file": "src/db/architecture.rs",
+      "line": 353,
+      "module_path": "crate::db::architecture"
+    },
+    {
+      "name": "fetch_neighbors",
+      "kind": "method",
+      "file": "src/db/architecture.rs",
+      "line": 427,
+      "module_path": "crate::db::architecture"
+    },
+    {
+      "name": "seeded_index",
+      "kind": "function",
+      "file": "src/db/architecture.rs",
+      "line": 502,
+      "module_path": "crate::db::architecture"
+    },
+    {
+      "name": "instability_of",
+      "kind": "function",
+      "file": "src/db/architecture.rs",
+      "line": 1406,
+      "module_path": "crate::db::architecture"
+    },
+    {
+      "name": "instability_for",
+      "kind": "function",
+      "file": "src/db/architecture.rs",
+      "line": 1426,
+      "module_path": "crate::db::architecture"
+    },
+    {
+      "name": "get_deprecated_symbols",
+      "kind": "method",
+      "file": "src/db/deprecated.rs",
+      "line": 132,
+      "module_path": "crate::db::deprecated"
+    },
+    {
+      "name": "get_deprecated_callers",
+      "kind": "method",
+      "file": "src/db/deprecated.rs",
+      "line": 184,
+      "module_path": "crate::db::deprecated"
+    },
+    {
+      "name": "get_file_dependencies",
+      "kind": "method",
+      "file": "src/db/file_deps.rs",
+      "line": 48,
+      "module_path": "crate::db::file_deps"
+    },
+    {
+      "name": "get_file_dependents",
+      "kind": "method",
+      "file": "src/db/file_deps.rs",
+      "line": 63,
+      "module_path": "crate::db::file_deps"
+    },
+    {
+      "name": "get_file",
+      "kind": "method",
+      "file": "src/db/files.rs",
+      "line": 81,
+      "module_path": "crate::db::files"
+    },
+    {
+      "name": "temp_index",
+      "kind": "function",
+      "file": "src/db/files.rs",
+      "line": 576,
+      "module_path": "crate::db::files"
+    },
+    {
+      "name": "temp_index",
+      "kind": "function",
+      "file": "src/db/files.rs",
+      "line": 956,
+      "module_path": "crate::db::files"
+    },
+    {
+      "name": "get_callers",
+      "kind": "method",
+      "file": "src/db/graph.rs",
+      "line": 44,
+      "module_path": "crate::db::graph"
+    },
+    {
+      "name": "find_call_path",
+      "kind": "method",
+      "file": "src/db/graph.rs",
+      "line": 215,
+      "module_path": "crate::db::graph"
+    },
+    {
+      "name": "get_dependents",
+      "kind": "method",
+      "file": "src/db/graph.rs",
+      "line": 293,
+      "module_path": "crate::db::graph"
+    },
+    {
+      "name": "get_dependencies",
+      "kind": "method",
+      "file": "src/db/graph.rs",
+      "line": 327,
+      "module_path": "crate::db::graph"
+    },
+    {
+      "name": "detect_cycles",
+      "kind": "method",
+      "file": "src/db/graph.rs",
+      "line": 505,
+      "module_path": "crate::db::graph"
+    },
+    {
+      "name": "detect_cycles_involving",
+      "kind": "method",
+      "file": "src/db/graph.rs",
+      "line": 510,
+      "module_path": "crate::db::graph"
+    },
+    {
+      "name": "build_adjacency_list",
+      "kind": "method",
+      "file": "src/db/graph.rs",
+      "line": 532,
+      "module_path": "crate::db::graph"
+    },
+    {
+      "name": "find_cycles_dfs",
+      "kind": "method",
+      "file": "src/db/graph.rs",
+      "line": 556,
+      "module_path": "crate::db::graph"
+    },
+    {
+      "name": "ids_to_cycle",
+      "kind": "method",
+      "file": "src/db/graph.rs",
+      "line": 613,
+      "module_path": "crate::db::graph"
+    },
+    {
+      "name": "dfs_visit_for_cycles",
+      "kind": "function",
+      "file": "src/db/graph.rs",
+      "line": 659,
+      "module_path": "crate::db::graph"
+    },
+    {
+      "name": "deduplicate_cycles",
+      "kind": "function",
+      "file": "src/db/graph.rs",
+      "line": 697,
+      "module_path": "crate::db::graph"
+    },
+    {
+      "name": "get_type_hierarchy",
+      "kind": "method",
+      "file": "src/db/hierarchy.rs",
+      "line": 73,
+      "module_path": "crate::db::hierarchy"
+    },
+    {
+      "name": "walk_up",
+      "kind": "function",
+      "file": "src/db/hierarchy.rs",
+      "line": 116,
+      "module_path": "crate::db::hierarchy"
+    },
+    {
+      "name": "walk_down",
+      "kind": "function",
+      "file": "src/db/hierarchy.rs",
+      "line": 183,
+      "module_path": "crate::db::hierarchy"
+    },
+    {
+      "name": "now_ns",
+      "kind": "method",
+      "file": "src/db/mod.rs",
+      "line": 188,
+      "module_path": "crate::db"
+    },
+    {
+      "name": "get_stats",
+      "kind": "method",
+      "file": "src/db/mod.rs",
+      "line": 279,
+      "module_path": "crate::db"
+    },
+    {
+      "name": "vacuum",
+      "kind": "method",
+      "file": "src/db/mod.rs",
+      "line": 360,
+      "module_path": "crate::db"
+    },
+    {
+      "name": "get_panic_points",
+      "kind": "method",
+      "file": "src/db/panic_points.rs",
+      "line": 49,
+      "module_path": "crate::db::panic_points"
+    },
+    {
+      "name": "count_panic_points",
+      "kind": "method",
+      "file": "src/db/panic_points.rs",
+      "line": 112,
+      "module_path": "crate::db::panic_points"
+    },
+    {
+      "name": "row_to_panic_point",
+      "kind": "method",
+      "file": "src/db/panic_points.rs",
+      "line": 159,
+      "module_path": "crate::db::panic_points"
+    },
+    {
+      "name": "list_references_in_file",
+      "kind": "method",
+      "file": "src/db/references.rs",
+      "line": 251,
+      "module_path": "crate::db::references"
+    },
+    {
+      "name": "search_symbols",
+      "kind": "method",
+      "file": "src/db/symbols.rs",
+      "line": 73,
+      "module_path": "crate::db::symbols"
+    },
+    {
+      "name": "get_symbol_by_qualified_name",
+      "kind": "method",
+      "file": "src/db/symbols.rs",
+      "line": 111,
+      "module_path": "crate::db::symbols"
+    },
+    {
+      "name": "get_test_symbols",
+      "kind": "method",
+      "file": "src/db/symbols.rs",
+      "line": 146,
+      "module_path": "crate::db::symbols"
+    },
+    {
+      "name": "is_indeterminate",
+      "kind": "method",
+      "file": "src/db/untested.rs",
+      "line": 81,
+      "module_path": "crate::db::untested"
+    },
+    {
+      "name": "get_untested_code",
+      "kind": "method",
+      "file": "src/db/untested.rs",
+      "line": 108,
+      "module_path": "crate::db::untested"
+    },
+    {
+      "name": "get_visibility_candidates",
+      "kind": "method",
+      "file": "src/db/visibility.rs",
+      "line": 128,
+      "module_path": "crate::db::visibility"
+    },
+    {
+      "name": "module_visibility_map",
+      "kind": "function",
+      "file": "src/db/visibility.rs",
+      "line": 306,
+      "module_path": "crate::db::visibility"
+    },
+    {
+      "name": "shared_names",
+      "kind": "function",
+      "file": "src/db/visibility.rs",
+      "line": 362,
+      "module_path": "crate::db::visibility"
+    },
+    {
+      "name": "glob_import_rows",
+      "kind": "function",
+      "file": "src/db/visibility.rs",
+      "line": 371,
+      "module_path": "crate::db::visibility"
+    },
+    {
+      "name": "import_evidence",
+      "kind": "function",
+      "file": "src/db/visibility.rs",
+      "line": 388,
+      "module_path": "crate::db::visibility"
+    },
+    {
+      "name": "unresolved_qualified_evidence",
+      "kind": "function",
+      "file": "src/db/visibility.rs",
+      "line": 419,
+      "module_path": "crate::db::visibility"
+    },
+    {
+      "name": "fmt",
+      "kind": "method",
+      "file": "src/error.rs",
+      "line": 73,
+      "module_path": "crate::error"
+    },
+    {
+      "name": "fmt",
+      "kind": "method",
+      "file": "src/error.rs",
+      "line": 112,
+      "module_path": "crate::error"
+    },
+    {
+      "name": "is_input_error",
+      "kind": "method",
+      "file": "src/error.rs",
+      "line": 128,
+      "module_path": "crate::error"
+    },
+    {
+      "name": "is_internal_error",
+      "kind": "method",
+      "file": "src/error.rs",
+      "line": 139,
+      "module_path": "crate::error"
+    },
+    {
+      "name": "encoding_error",
+      "kind": "method",
+      "file": "src/error.rs",
+      "line": 186,
+      "module_path": "crate::error"
+    },
+    {
+      "name": "io_error",
+      "kind": "method",
+      "file": "src/error.rs",
+      "line": 196,
+      "module_path": "crate::error"
+    },
+    {
+      "name": "total_caller_count",
+      "kind": "method",
+      "file": "src/graph/types.rs",
+      "line": 48,
+      "module_path": "crate::graph::types"
+    },
+    {
+      "name": "new",
+      "kind": "method",
+      "file": "src/graph/types.rs",
+      "line": 69,
+      "module_path": "crate::graph::types"
+    },
+    {
+      "name": "single",
+      "kind": "method",
+      "file": "src/graph/types.rs",
+      "line": 81,
+      "module_path": "crate::graph::types"
+    },
+    {
+      "name": "symbols",
+      "kind": "method",
+      "file": "src/graph/types.rs",
+      "line": 90,
+      "module_path": "crate::graph::types"
+    },
+    {
+      "name": "edges",
+      "kind": "method",
+      "file": "src/graph/types.rs",
+      "line": 96,
+      "module_path": "crate::graph::types"
+    },
+    {
+      "name": "total_dependent_count",
+      "kind": "method",
+      "file": "src/graph/types.rs",
+      "line": 124,
+      "module_path": "crate::graph::types"
+    },
+    {
+      "name": "files",
+      "kind": "method",
+      "file": "src/graph/types.rs",
+      "line": 156,
+      "module_path": "crate::graph::types"
+    },
+    {
+      "name": "debug_assert_valid",
+      "kind": "method",
+      "file": "src/indexing.rs",
+      "line": 97,
+      "module_path": "crate::indexing"
+    },
+    {
+      "name": "debug_assert_valid",
+      "kind": "method",
+      "file": "src/indexing.rs",
+      "line": 108,
+      "module_path": "crate::indexing"
+    },
+    {
+      "name": "reexport_referenced_names",
+      "kind": "function",
+      "file": "src/languages/common.rs",
+      "line": 127,
+      "module_path": "crate::languages::common"
+    },
+    {
+      "name": "to_db_kind",
+      "kind": "method",
+      "file": "src/languages/common.rs",
+      "line": 181,
+      "module_path": "crate::languages::common"
+    },
+    {
+      "name": "tree_sitter_language",
+      "kind": "method",
+      "file": "src/languages/csharp.rs",
+      "line": 77,
+      "module_path": "crate::languages::csharp"
+    },
+    {
+      "name": "extract_symbols",
+      "kind": "method",
+      "file": "src/languages/csharp.rs",
+      "line": 81,
+      "module_path": "crate::languages::csharp"
+    },
+    {
+      "name": "extract_references",
+      "kind": "method",
+      "file": "src/languages/csharp.rs",
+      "line": 89,
+      "module_path": "crate::languages::csharp"
+    },
+    {
+      "name": "extract_imports",
+      "kind": "method",
+      "file": "src/languages/csharp.rs",
+      "line": 97,
+      "module_path": "crate::languages::csharp"
+    },
+    {
+      "name": "to_import_statement",
+      "kind": "method",
+      "file": "src/languages/csharp.rs",
+      "line": 127,
+      "module_path": "crate::languages::csharp"
+    },
+    {
+      "name": "rust_src_root_for",
+      "kind": "function",
+      "file": "src/languages/module_resolver.rs",
+      "line": 230,
+      "module_path": "crate::languages::module_resolver"
+    },
+    {
+      "name": "import_separator",
+      "kind": "method",
+      "file": "src/languages/module_resolver.rs",
+      "line": 257,
+      "module_path": "crate::languages::module_resolver"
+    },
+    {
+      "name": "file_anchor",
+      "kind": "method",
+      "file": "src/languages/module_resolver.rs",
+      "line": 261,
+      "module_path": "crate::languages::module_resolver"
+    },
+    {
+      "name": "resolve_import_segments",
+      "kind": "method",
+      "file": "src/languages/module_resolver.rs",
+      "line": 270,
+      "module_path": "crate::languages::module_resolver"
+    },
+    {
+      "name": "qualified_splits",
+      "kind": "method",
+      "file": "src/languages/module_resolver.rs",
+      "line": 291,
+      "module_path": "crate::languages::module_resolver"
+    },
+    {
+      "name": "import_separator",
+      "kind": "method",
+      "file": "src/languages/module_resolver.rs",
+      "line": 344,
+      "module_path": "crate::languages::module_resolver"
+    },
+    {
+      "name": "file_anchor",
+      "kind": "method",
+      "file": "src/languages/module_resolver.rs",
+      "line": 348,
+      "module_path": "crate::languages::module_resolver"
+    },
+    {
+      "name": "resolve_import_segments",
+      "kind": "method",
+      "file": "src/languages/module_resolver.rs",
+      "line": 357,
+      "module_path": "crate::languages::module_resolver"
+    },
+    {
+      "name": "qualified_splits",
+      "kind": "method",
+      "file": "src/languages/module_resolver.rs",
+      "line": 408,
+      "module_path": "crate::languages::module_resolver"
+    },
+    {
+      "name": "tree_sitter_language",
+      "kind": "method",
+      "file": "src/languages/rust.rs",
+      "line": 103,
+      "module_path": "crate::languages::rust"
+    },
+    {
+      "name": "extract_symbols",
+      "kind": "method",
+      "file": "src/languages/rust.rs",
+      "line": 107,
+      "module_path": "crate::languages::rust"
+    },
+    {
+      "name": "extract_references",
+      "kind": "method",
+      "file": "src/languages/rust.rs",
+      "line": 111,
+      "module_path": "crate::languages::rust"
+    },
+    {
+      "name": "extract_imports",
+      "kind": "method",
+      "file": "src/languages/rust.rs",
+      "line": 119,
+      "module_path": "crate::languages::rust"
+    },
+    {
+      "name": "to_import_statement",
+      "kind": "method",
+      "file": "src/languages/rust.rs",
+      "line": 150,
+      "module_path": "crate::languages::rust"
+    },
+    {
+      "name": "remove_index_files",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 165,
+      "module_path": "crate"
+    },
+    {
+      "name": "file_ids_to_paths",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 254,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_file",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 279,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_symbol_by_id",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 305,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_file_by_id",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 313,
+      "module_path": "crate"
+    },
+    {
+      "name": "list_references_in_file",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 332,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_dependents",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 359,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_dependencies",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 378,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_callers",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 441,
+      "module_path": "crate"
+    },
+    {
+      "name": "detect_cycles",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 511,
+      "module_path": "crate"
+    },
+    {
+      "name": "crates",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 704,
+      "module_path": "crate"
+    },
+    {
+      "name": "db_path",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 747,
+      "module_path": "crate"
+    },
+    {
+      "name": "vacuum",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 752,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_stats",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 757,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_test_symbols",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 769,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_panic_points",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 921,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_deprecated_symbols",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 948,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_deprecated_callers",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 970,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_visibility_candidates",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 1001,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_untested_code",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 1032,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_type_hierarchy",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 1052,
+      "module_path": "crate"
+    },
+    {
+      "name": "count_panic_points",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 1079,
+      "module_path": "crate"
+    },
+    {
+      "name": "get_coupling_metrics",
+      "kind": "method",
+      "file": "src/lib.rs",
+      "line": 1098,
+      "module_path": "crate"
+    },
+    {
+      "name": "server_error",
+      "kind": "method",
+      "file": "src/lsp/error.rs",
+      "line": 97,
+      "module_path": "crate::lsp::error"
+    },
+    {
+      "name": "command",
+      "kind": "method",
+      "file": "src/lsp/provider.rs",
+      "line": 90,
+      "module_path": "crate::lsp::provider"
+    },
+    {
+      "name": "install_hint",
+      "kind": "method",
+      "file": "src/lsp/provider.rs",
+      "line": 94,
+      "module_path": "crate::lsp::provider"
+    },
+    {
+      "name": "readiness_wait",
+      "kind": "method",
+      "file": "src/lsp/provider.rs",
+      "line": 98,
+      "module_path": "crate::lsp::provider"
+    },
+    {
+      "name": "command",
+      "kind": "method",
+      "file": "src/lsp/provider.rs",
+      "line": 121,
+      "module_path": "crate::lsp::provider"
+    },
+    {
+      "name": "install_hint",
+      "kind": "method",
+      "file": "src/lsp/provider.rs",
+      "line": 125,
+      "module_path": "crate::lsp::provider"
+    },
+    {
+      "name": "readiness_wait",
+      "kind": "method",
+      "file": "src/lsp/provider.rs",
+      "line": 129,
+      "module_path": "crate::lsp::provider"
+    },
+    {
+      "name": "command",
+      "kind": "method",
+      "file": "src/lsp/provider.rs",
+      "line": 147,
+      "module_path": "crate::lsp::provider"
+    },
+    {
+      "name": "args",
+      "kind": "method",
+      "file": "src/lsp/provider.rs",
+      "line": 154,
+      "module_path": "crate::lsp::provider"
+    },
+    {
+      "name": "install_hint",
+      "kind": "method",
+      "file": "src/lsp/provider.rs",
+      "line": 168,
+      "module_path": "crate::lsp::provider"
+    },
+    {
+      "name": "readiness_wait",
+      "kind": "method",
+      "file": "src/lsp/provider.rs",
+      "line": 175,
+      "module_path": "crate::lsp::provider"
+    },
+    {
+      "name": "send_request",
+      "kind": "method",
+      "file": "src/lsp/transport.rs",
+      "line": 223,
+      "module_path": "crate::lsp::transport"
+    },
+    {
+      "name": "read_response",
+      "kind": "method",
+      "file": "src/lsp/transport.rs",
+      "line": 299,
+      "module_path": "crate::lsp::transport"
+    },
+    {
+      "name": "main",
+      "kind": "function",
+      "file": "src/main.rs",
+      "line": 222,
+      "module_path": "tethys"
+    },
+    {
+      "name": "debug_assert_valid",
+      "kind": "method",
+      "file": "src/parallel.rs",
+      "line": 96,
+      "module_path": "crate::parallel"
+    },
+    {
+      "name": "debug_assert_valid",
+      "kind": "method",
+      "file": "src/parallel.rs",
+      "line": 107,
+      "module_path": "crate::parallel"
+    },
+    {
+      "name": "debug_assert_valid",
+      "kind": "method",
+      "file": "src/parallel.rs",
+      "line": 116,
+      "module_path": "crate::parallel"
+    },
+    {
+      "name": "debug_assert_valid",
+      "kind": "method",
+      "file": "src/parallel.rs",
+      "line": 129,
+      "module_path": "crate::parallel"
+    },
+    {
+      "name": "rebuild",
+      "kind": "method",
+      "file": "src/reindex.rs",
+      "line": 234,
+      "module_path": "crate::reindex"
+    },
+    {
+      "name": "fmt",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 42,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "fmt",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 70,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "as_i64",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 92,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "fmt",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 98,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "extensions",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 125,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "as_str",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 316,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "as_str",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 404,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "as_str",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 439,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "as_str",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 491,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "is_unknown",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 539,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "try_from",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 575,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "start_line",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 611,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "start_column",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 617,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "end_line",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 623,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "end_column",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 629,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "returns_result",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 657,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "returns_option",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 665,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "is_method",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 673,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "param_count",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 679,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "is_self",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 711,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "is_mut_self",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 720,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "is_reference",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 726,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "full_path",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 806,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "streaming",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1002,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "lsp_timeout",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1009,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "use_lsp",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1016,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "lsp_timeout_secs",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1022,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "use_streaming",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1028,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "streaming_batch_size",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1034,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "total_lsp_resolved",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1103,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "has_lsp_errors",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1112,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "has_errors",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1138,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "resolved_count",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1148,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "server_exited_cleanly",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1193,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "total",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1256,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "reachable_count",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1341,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "is_empty",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1347,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "as_str",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1373,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "parse",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1382,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "fmt",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 1392,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "arb_symbol_kind",
+      "kind": "function",
+      "file": "src/types.rs",
+      "line": 2177,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "arb_language",
+      "kind": "function",
+      "file": "src/types.rs",
+      "line": 2199,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "arb_visibility",
+      "kind": "function",
+      "file": "src/types.rs",
+      "line": 2203,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "arb_panic_kind",
+      "kind": "function",
+      "file": "src/types.rs",
+      "line": 2212,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "arb_known_reference_kind",
+      "kind": "function",
+      "file": "src/types.rs",
+      "line": 2216,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "as_i64",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 2571,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "fmt",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 2592,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "as_str",
+      "kind": "method",
+      "file": "src/types.rs",
+      "line": 2610,
+      "module_path": "crate::types"
+    },
+    {
+      "name": "workspace_with_files",
+      "kind": "function",
+      "file": "tests/common/mod.rs",
+      "line": 29,
+      "module_path": ""
+    }
+  ]
+}
