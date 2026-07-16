@@ -62,12 +62,15 @@ impl Index {
         //   a same-named in-crate fn. Suppression consumers (dead-code,
         //   untested-code) read them from `refs`; the precision graph
         //   excludes them by default.
+        // - `inherit` (type-hierarchy edges, tethys-j2r1): implementing a
+        //   trait is not a call; a resolved edge (subtype -> trait) in this
+        //   table would fabricate caller/impact blast radius.
         let inserted = conn.execute(
             "INSERT INTO call_edges (caller_symbol_id, callee_symbol_id, call_count)
              SELECT in_symbol_id, symbol_id, COUNT(*) as call_count
              FROM refs
              WHERE in_symbol_id IS NOT NULL AND symbol_id IS NOT NULL
-               AND kind NOT IN ('value', 'field_access', 'macro_call')
+               AND kind NOT IN ('value', 'field_access', 'macro_call', 'inherit')
              GROUP BY in_symbol_id, symbol_id
              ON CONFLICT(caller_symbol_id, callee_symbol_id) DO UPDATE SET
                  call_count = call_edges.call_count + excluded.call_count",
