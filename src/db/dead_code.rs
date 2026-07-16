@@ -113,6 +113,10 @@ fn unresolved_name_match(
 /// `src/domain/examples_helper.rs` does not. A directory literally named
 /// `examples` outside a crate root over-matches; over-suppression is the
 /// accepted conservative direction (design C9).
+///
+/// Input is a DB-stored `files.path` string: ALWAYS forward-slash on
+/// every platform (`db/files.rs::normalize_path` converts at indexing,
+/// property-test fenced) — no separator handling needed here.
 fn rust_binary_root(path: &str) -> bool {
     if path == "src/main.rs" || path == "build.rs" {
         return true;
