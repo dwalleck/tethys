@@ -1,6 +1,9 @@
 # tethys-dvsw — falsifiable design: `tethys dead-code`
 
-Status: DRAFT (pending approval). Probe basis: `.tethys-dvsw/findings.md`.
+Status: APPROVED (2026-07-15, all five open decisions resolved per
+recommendation: C# data members included; entry-point rule as specified
+incl. C# any-Main; self-recursion reported; default unlimited findings;
+Definite/Maybe tier names). Probe basis: `.tethys-dvsw/findings.md`.
 
 ## Purpose
 
