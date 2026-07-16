@@ -302,8 +302,14 @@ fn extract_references_recursive(
             return;
         }
 
-        // Struct/trait definitions: recurse but don't set containing symbol
+        // Struct/trait definitions: recurse but don't set containing symbol.
+        // A trait's supertrait bounds (`trait A: B + C`) additionally emit
+        // one Inherit edge per bound, anchored to the trait's own span so
+        // the declaring trait becomes `in_symbol_id` (tethys-j2r1).
         STRUCT_ITEM | TRAIT_ITEM => {
+            if node.kind() == TRAIT_ITEM {
+                push_supertrait_edges(node, content, refs);
+            }
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 extract_references_recursive(
@@ -325,6 +331,34 @@ fn extract_references_recursive(
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         extract_references_recursive(&child, content, refs, containing_span, local_bindings, ctx);
+    }
+}
+
+/// Supertrait bounds (`trait A: B + C`) emit one Inherit edge per type
+/// bound, anchored to the declaring trait's span so the trait becomes
+/// `in_symbol_id` (tethys-j2r1). Lifetimes in the bound list are skipped
+/// (`type_base_name` returns None for them).
+fn push_supertrait_edges(
+    node: &tree_sitter::Node,
+    content: &[u8],
+    refs: &mut Vec<ExtractedReference>,
+) {
+    let Some(bounds) = node.child_by_field_name("bounds") else {
+        return;
+    };
+    let trait_span = node_span(node);
+    let mut cursor = bounds.walk();
+    for bound in bounds.children(&mut cursor) {
+        if let Some(name) = type_base_name(&bound, content) {
+            refs.push(ExtractedReference {
+                name,
+                kind: ExtractedReferenceKind::Inherit,
+                line: bound.start_position().row as u32 + 1,
+                column: bound.start_position().column as u32 + 1,
+                path: None,
+                containing_symbol_span: Some(trait_span),
+            });
+        }
     }
 }
 
@@ -372,6 +406,27 @@ fn extract_impl_item_references(
 ) {
     use node_kinds::{DECLARATION_LIST, FUNCTION_ITEM};
 
+    // Type-hierarchy edges (tethys-j2r1): a TRAIT impl emits one type-level
+    // Inherit ref (name = the trait; `path` carries the implementing type so
+    // the insert step can anchor `in_symbol_id` to the same-file subtype —
+    // impl blocks are not symbols, so span containment cannot) plus one
+    // method-level marker per method ("this method implements a trait
+    // member" — the dead-code suppression channel, precise even when the
+    // type also has inherent impls). Inherent impls emit neither.
+    let trait_base = node
+        .child_by_field_name("trait")
+        .and_then(|t| type_base_name(&t, content));
+    if let Some(trait_name) = &trait_base {
+        refs.push(ExtractedReference {
+            name: trait_name.clone(),
+            kind: ExtractedReferenceKind::Inherit,
+            line: node.start_position().row as u32 + 1,
+            column: node.start_position().column as u32 + 1,
+            path: impl_type_base_name(node, content).map(|t| vec![t]),
+            containing_symbol_span: None,
+        });
+    }
+
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
         if child.kind() != DECLARATION_LIST {
@@ -402,6 +457,19 @@ fn extract_impl_item_references(
             // Methods inside impl get their own containing span, bindings,
             // and annotation map.
             let method_span = node_span(&item);
+            // Method-level marker (tethys-j2r1): anchored to THIS method via
+            // its span, so suppression consumers can tell trait-impl methods
+            // from inherent ones.
+            if let Some(trait_name) = &trait_base {
+                refs.push(ExtractedReference {
+                    name: trait_name.clone(),
+                    kind: ExtractedReferenceKind::Inherit,
+                    line: item.start_position().row as u32 + 1,
+                    column: item.start_position().column as u32 + 1,
+                    path: None,
+                    containing_symbol_span: Some(method_span),
+                });
+            }
             let method_bindings = collect_local_bindings(&item, content);
             let method_types = collect_local_types(&item, content);
             let method_ctx = ReceiverCtx {
@@ -3346,6 +3414,75 @@ pub enum E {
         assert!(
             macro_call_refs(code).is_empty(),
             "bare (non-call-shape) macro token must not be a macro_call ref"
+        );
+    }
+
+    // ========================================================================
+    // Type-hierarchy edge extraction (tethys-j2r1)
+    // ========================================================================
+
+    fn inherit_refs(code: &str) -> Vec<ExtractedReference> {
+        let tree = parse_rust(code);
+        extract_references(&tree, code.as_bytes())
+            .into_iter()
+            .filter(|r| r.kind == ExtractedReferenceKind::Inherit)
+            .collect()
+    }
+
+    /// The plan's slice-1 fixture, expectations pre-written: a trait impl
+    /// emits ONE type-level edge (path carries the implementing type, no
+    /// containing span) plus one method-level marker per method (containing
+    /// span = the method); an inherent impl emits NOTHING.
+    #[test]
+    fn trait_impl_emits_type_edge_and_method_markers() {
+        let code = r"
+trait Anchor { fn a(&self); fn b(&self); }
+struct Widget {}
+
+impl Anchor for Widget {
+    fn a(&self) {}
+    fn b(&self) {}
+}
+impl Widget {
+    fn inherent(&self) {}
+}
+";
+        let refs = inherit_refs(code);
+        let type_edges: Vec<_> = refs
+            .iter()
+            .filter(|r| r.containing_symbol_span.is_none())
+            .collect();
+        assert_eq!(type_edges.len(), 1, "one type-level edge: {refs:?}");
+        assert_eq!(type_edges[0].name, "Anchor");
+        assert_eq!(
+            type_edges[0].path.as_deref(),
+            Some(&["Widget".to_string()][..]),
+            "path carries the implementing type for insert-time anchoring"
+        );
+        let markers: Vec<_> = refs
+            .iter()
+            .filter(|r| r.containing_symbol_span.is_some())
+            .collect();
+        assert_eq!(markers.len(), 2, "one marker per trait-impl method");
+        assert!(markers.iter().all(|r| r.name == "Anchor"));
+        assert_eq!(refs.len(), 3, "inherent impl contributes nothing: {refs:?}");
+    }
+
+    /// Supertrait bounds emit one edge per bound, anchored to the declaring
+    /// trait's span; lifetimes in the bound list are skipped.
+    #[test]
+    fn supertrait_bounds_emit_anchored_edges() {
+        let code = "trait A: B + Send + 'static { fn x(&self); }";
+        let refs = inherit_refs(code);
+        let names: Vec<&str> = refs.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["B", "Send"],
+            "one edge per type bound: {refs:?}"
+        );
+        assert!(
+            refs.iter().all(|r| r.containing_symbol_span.is_some()),
+            "anchored to the declaring trait"
         );
     }
 

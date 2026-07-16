@@ -166,6 +166,13 @@ pub enum ExtractedReferenceKind {
     /// Call-shaped identifier inside a macro invocation's token tree
     /// (`assert_eq!(helper(), 1)` → `helper`) — tethys-8ym0.
     MacroCall,
+    /// Type-hierarchy edge (tethys-j2r1): `impl Trait for Type`, supertrait
+    /// bounds (`trait A: B`), C# base lists. Emitted at two granularities —
+    /// type-level (subtype anchored via `path` or declaration span) and
+    /// method-level markers ("this method implements a trait member").
+    /// Unresolved rows are RETAINED: external supertypes (`Display`) are
+    /// the majority and the dead-code suppression signal.
+    Inherit,
 }
 
 impl ExtractedReferenceKind {
@@ -183,6 +190,7 @@ impl ExtractedReferenceKind {
             Self::Value => crate::types::ReferenceKind::Value,
             Self::FieldAccess => crate::types::ReferenceKind::FieldAccess,
             Self::MacroCall => crate::types::ReferenceKind::MacroCall,
+            Self::Inherit => crate::types::ReferenceKind::Inherit,
         }
     }
 }
