@@ -1,0 +1,54 @@
+# Probe baseline capture — tethys-epmj
+# Provenance: captured from the post-slice-2 binary AFTER the byte-identical
+# verification against the pre-change runs (recorded in findings.md and the
+# slice gates). This file is the mechanical baseline for future re-runs:
+#   .tethys-epmj/probe.sh | grep -v '^== build\|^build exit\|^index exit' | diff - <(grep -v ... probe-baseline.txt)
+#
+== A: text mode, nonexistent package ==
+exit code: 1
+stdout: []
+stderr: [error: not found: package 'zzz-definitely-not-a-package']
+
+== A2: json mode, nonexistent package ==
+exit code: 1
+stdout: [null]
+stderr: [error: not found: package 'zzz-definitely-not-a-package']
+
+== A3: substring of real package (suggestion path) ==
+exit code: 1
+stdout: []
+stderr: [
+Did you mean: tethys?
+error: not found: package 'eth']
+
+== control: existing package succeeds ==
+exit code: 0
+stdout: [
+Package: tethys
+  Path:    
+  Source:  manifest
+
+  Coupling
+    Afferent (Ca):   0
+    Efferent (Ce):   0
+    Instability:     ░░░░░░░░░░  0.00]
+stderr: []
+
+== B-probe: tethys AST index — references to NotFound ==
+error: unexpected argument '--json' found
+
+  tip: to pass '--json' as a value, use '-- --json'
+
+Usage: tethys search <QUERY>
+
+For more information, try '--help'.
+
+== B-oracle: grep pipeline — construction sites by payload prefix ==
+      8 file: 
+      7 symbol: 
+      7 file id: 
+      3 symbol id: 
+      1 type: 
+      1 src/db/graph.rs:637:                    Error::NotFound(format!(
+-- raw sites (for eyeballing multiline cases):
+27
