@@ -98,7 +98,7 @@ fn run_detail_to<W: Write>(
         return Ok(());
     }
     print_not_found_suggestions(tethys, name);
-    Err(tethys::Error::NotFound(format!("package '{name}'")))
+    Err(tethys::Error::PackageNotFound(name.to_string()))
 }
 
 const MAX_SUGGESTIONS: usize = 5;
@@ -115,7 +115,7 @@ fn collect_suggestions(name: &str, all_names: &[String]) -> Vec<String> {
 
 /// Print package name suggestions to stderr. Best-effort: errors from the
 /// suggestion fetch are logged at debug and silently ignored so that we never
-/// swallow the caller's primary `NotFound` error.
+/// swallow the caller's primary `PackageNotFound` error.
 fn print_not_found_suggestions(tethys: &Tethys, name: &str) {
     match tethys.get_packages() {
         Ok(pkgs) => {
@@ -708,15 +708,16 @@ mod run_detail_tests {
     }
 
     #[test]
-    fn run_detail_text_mode_returns_not_found_err() {
+    fn run_detail_text_mode_returns_package_not_found_err() {
         let (_dir, tethys) = empty_workspace();
         let mut buf: Vec<u8> = Vec::new();
         let result = run_detail_to(&tethys, "no-such-pkg", false, &mut buf);
         let err = result.expect_err("should return Err for missing package");
-        let msg = err.to_string();
+        // The discriminated variant carries the bare name — programmatic
+        // consumers (tethys-o4re) must never have to parse the message.
         assert!(
-            msg.contains("not found") && msg.contains("no-such-pkg"),
-            "error message should describe the missing package, got: {msg}"
+            matches!(err, tethys::Error::PackageNotFound(ref n) if n == "no-such-pkg"),
+            "expected PackageNotFound with the bare requested name, got: {err:?}"
         );
         // Text-mode stdout should be empty (suggestions go to stderr).
         assert!(
@@ -726,14 +727,28 @@ mod run_detail_tests {
     }
 
     #[test]
-    fn run_detail_json_mode_writes_null_then_returns_not_found_err() {
+    fn run_detail_payload_is_bare_name_verbatim() {
+        // Adversarial name (embedded quote + unicode) proves the
+        // construction site applies no formatting or escaping.
+        let (_dir, tethys) = empty_workspace();
+        let mut buf: Vec<u8> = Vec::new();
+        let err = run_detail_to(&tethys, "it's-nöt-here", false, &mut buf)
+            .expect_err("should return Err for missing package");
+        assert!(
+            matches!(err, tethys::Error::PackageNotFound(ref n) if n == "it's-nöt-here"),
+            "payload must be the requested name verbatim, got: {err:?}"
+        );
+    }
+
+    #[test]
+    fn run_detail_json_mode_writes_null_then_returns_package_not_found_err() {
         let (_dir, tethys) = empty_workspace();
         let mut buf: Vec<u8> = Vec::new();
         let result = run_detail_to(&tethys, "no-such-pkg", true, &mut buf);
         let err = result.expect_err("should return Err for missing package");
         assert!(
-            err.to_string().contains("no-such-pkg"),
-            "error should mention the package name"
+            matches!(err, tethys::Error::PackageNotFound(ref n) if n == "no-such-pkg"),
+            "json mode must return the same discriminated variant as text mode, got: {err:?}"
         );
         let stdout = String::from_utf8(buf).expect("utf-8");
         assert_eq!(
@@ -801,14 +816,14 @@ mod run_detail_tests {
     }
 
     #[test]
-    fn run_detail_json_notfound_swallows_broken_pipe_and_still_returns_not_found() {
+    fn run_detail_json_package_not_found_swallows_broken_pipe_and_still_returns_err() {
         let (_dir, tethys) = empty_workspace();
         let mut out = BrokenPipeWriter;
         let err = run_detail_to(&tethys, "no-such-pkg", true, &mut out)
             .expect_err("not-found should still surface even if stdout is closed");
         assert!(
-            err.to_string().contains("no-such-pkg"),
-            "BrokenPipe on the `null` write must not mask the NotFound error: got {err}"
+            matches!(err, tethys::Error::PackageNotFound(ref n) if n == "no-such-pkg"),
+            "BrokenPipe on the `null` write must not mask the PackageNotFound error: got {err:?}"
         );
     }
 }
