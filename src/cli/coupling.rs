@@ -738,6 +738,15 @@ mod run_detail_tests {
             matches!(err, tethys::Error::PackageNotFound(ref n) if n == "it's-nöt-here"),
             "payload must be the requested name verbatim, got: {err:?}"
         );
+
+        // Empty string is a production-reachable name (`--package ""`);
+        // it must carry through verbatim like any other.
+        let err = run_detail_to(&tethys, "", false, &mut buf)
+            .expect_err("should return Err for empty package name");
+        assert!(
+            matches!(err, tethys::Error::PackageNotFound(ref n) if n.is_empty()),
+            "empty name must carry through verbatim, got: {err:?}"
+        );
     }
 
     #[test]
