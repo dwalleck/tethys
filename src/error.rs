@@ -50,6 +50,15 @@ pub enum Error {
     #[error("not found: {0}")]
     NotFound(String),
 
+    /// Requested package was not found in the index.
+    ///
+    /// The payload is the bare package name as requested (no formatting),
+    /// so programmatic consumers can match on it without parsing the
+    /// message. The rendering is deliberately byte-identical to the legacy
+    /// `NotFound("package '…'")` payload shape.
+    #[error("not found: package '{0}'")]
+    PackageNotFound(String),
+
     /// Internal error (mutex poisoning, unexpected state, etc.)
     #[error("internal error: {0}")]
     Internal(String),
@@ -144,7 +153,9 @@ impl IndexErrorKind {
 impl From<&Error> for IndexErrorKind {
     fn from(error: &Error) -> Self {
         match error {
-            Error::Io(_) | Error::Config(_) | Error::NotFound(_) => Self::IoError,
+            Error::Io(_) | Error::Config(_) | Error::NotFound(_) | Error::PackageNotFound(_) => {
+                Self::IoError
+            }
             Error::Database(_) | Error::Internal(_) => Self::DatabaseError,
             Error::Parser(_) => Self::ParseFailed,
         }
@@ -231,6 +242,12 @@ mod tests {
             IndexErrorKind::IoError
         );
 
+        let pkg_not_found_err = Error::PackageNotFound("missing-pkg".to_string());
+        assert_eq!(
+            IndexErrorKind::from(&pkg_not_found_err),
+            IndexErrorKind::IoError
+        );
+
         // Database-category errors
         let internal_err = Error::Internal("mutex poisoned".to_string());
         assert_eq!(
@@ -244,6 +261,30 @@ mod tests {
             IndexErrorKind::from(&parser_err),
             IndexErrorKind::ParseFailed
         );
+    }
+
+    #[test]
+    fn package_not_found_display_exact() {
+        // Byte-identical to the legacy `NotFound("package '…'")` rendering.
+        // Adversarial payloads prove the variant renders the name verbatim:
+        // no escaping, no de-duplication, no pre-formatting.
+        let cases = [
+            (
+                "zzz-definitely-not-a-package",
+                "not found: package 'zzz-definitely-not-a-package'",
+            ),
+            ("", "not found: package ''"),
+            ("päckage-ü", "not found: package 'päckage-ü'"),
+            ("it's", "not found: package 'it's'"),
+            ("package 'x'", "not found: package 'package 'x''"),
+        ];
+        for (payload, expected) in cases {
+            assert_eq!(
+                Error::PackageNotFound(payload.to_string()).to_string(),
+                expected,
+                "payload {payload:?} must render verbatim"
+            );
+        }
     }
 
     #[test]
