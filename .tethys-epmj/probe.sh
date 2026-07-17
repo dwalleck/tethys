@@ -19,10 +19,11 @@ run_case() {
     local label="$1"; shift
     echo ""
     echo "== $label =="
-    local out err code
-    out=$("$@" 2>/tmp/probe-err.$$)
+    local out err code err_file
+    err_file=$(mktemp)
+    out=$("$@" 2>"$err_file")
     code=$?
-    err=$(cat /tmp/probe-err.$$); rm -f /tmp/probe-err.$$
+    err=$(cat "$err_file"); rm -f "$err_file"
     echo "exit code: $code"
     echo "stdout: [${out}]"
     echo "stderr: [${err}]"
