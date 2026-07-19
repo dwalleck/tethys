@@ -83,6 +83,16 @@ rstest fn per cfg block (do not merge across cfg); oracle counts adjust to
 the visible-platform subset. STOP if the split changes suite counts.
 **Verification:** uniform.
 
+**OUTCOME (build-time, 2026-07-18): SLICE SKIPPED.** The group is
+cfg-split: `not(windows)` subset is 2 tests (< 3, class G by the approved
+design's core rule); `windows` subset is 4 tests that cannot execute on
+the build machine, so the claim-4 mutation fixture cannot run — the slice
+cannot meet its own verification contract, and each test carries a
+distinct load-bearing doc rationale a merge would flatten. Probe
+limitation discovered: clustering ignores `cfg` attributes. `format_uri`
+tests stay as-is; exclusion is settled rationale (same category as class
+B/E/F), not deferred work. Ledger unchanged (slice predicted delta 0).
+
 ## Slice 4: csharp_declines ×4 → 1 rstest fn
 
 **Claim:** design 1,2 (delta 0), 4, 6.
