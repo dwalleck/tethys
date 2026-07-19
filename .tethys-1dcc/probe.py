@@ -10,7 +10,7 @@ within a file. Output: per-file groups with fn names and sizes.
 import re, difflib
 from pathlib import Path
 
-ROOT = Path("/home/dwalleck/repos/tethys")
+ROOT = Path(__file__).resolve().parents[1]
 FILES = sorted((ROOT / "tests").glob("*.rs")) + sorted((ROOT / "src").rglob("*.rs"))
 
 def strip_strings(text):
