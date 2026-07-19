@@ -1312,6 +1312,8 @@ impl Tethys {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
     use crate::types::{FileId, Import, Language};
 
@@ -1473,97 +1475,37 @@ mod tests {
     // is_excluded_dir Tests
     // ========================================================================
 
-    #[test]
-    fn is_excluded_dir_excludes_target() {
-        assert!(Tethys::is_excluded_dir("target", None));
-    }
-
-    #[test]
-    fn is_excluded_dir_excludes_node_modules() {
-        assert!(Tethys::is_excluded_dir("node_modules", None));
-    }
-
-    #[test]
-    fn is_excluded_dir_does_not_match_dot_git() {
-        // .git is NOT in the exclusion list — it's handled separately by
-        // the hidden-directory filter (starts with '.'). Verify it is not
-        // matched here so the two filters stay orthogonal.
-        assert!(!Tethys::is_excluded_dir(".git", None));
-    }
-
-    #[test]
-    fn is_excluded_dir_excludes_bin_outside_src() {
-        // .NET build output: <project>/bin
-        assert!(Tethys::is_excluded_dir("bin", None));
-        assert!(Tethys::is_excluded_dir("bin", Some("MyProject")));
-    }
-
-    #[test]
-    fn is_excluded_dir_allows_bin_under_src() {
-        // Cargo binary targets live in src/bin/*.rs — real source, not
-        // build output. Excluding it makes every symbol reachable only
-        // from those binaries look dead.
-        assert!(!Tethys::is_excluded_dir("bin", Some("src")));
-    }
-
-    #[test]
-    fn is_excluded_dir_excludes_obj_even_under_src() {
-        // .NET obj dirs hold GENERATED .cs sources; never index them,
-        // regardless of where they appear.
-        assert!(Tethys::is_excluded_dir("obj", None));
-        assert!(Tethys::is_excluded_dir("obj", Some("src")));
-    }
-
-    #[test]
-    fn is_excluded_dir_excludes_build() {
-        assert!(Tethys::is_excluded_dir("build", None));
-    }
-
-    #[test]
-    fn is_excluded_dir_excludes_dist() {
-        assert!(Tethys::is_excluded_dir("dist", None));
-    }
-
-    #[test]
-    fn is_excluded_dir_excludes_vendor() {
-        assert!(Tethys::is_excluded_dir("vendor", None));
-    }
-
-    #[test]
-    fn is_excluded_dir_excludes_pycache() {
-        assert!(Tethys::is_excluded_dir("__pycache__", None));
-    }
-
-    #[test]
-    fn is_excluded_dir_allows_src() {
-        assert!(!Tethys::is_excluded_dir("src", None));
-    }
-
-    #[test]
-    fn is_excluded_dir_allows_lib() {
-        assert!(!Tethys::is_excluded_dir("lib", None));
-    }
-
-    #[test]
-    fn is_excluded_dir_allows_tests() {
-        assert!(!Tethys::is_excluded_dir("tests", None));
-    }
-
-    #[test]
-    fn is_excluded_dir_allows_my_module() {
-        assert!(!Tethys::is_excluded_dir("my_module", None));
-    }
-
-    #[test]
-    fn is_excluded_dir_is_case_sensitive() {
-        assert!(!Tethys::is_excluded_dir("Target", None));
-        assert!(!Tethys::is_excluded_dir("NODE_MODULES", None));
-        assert!(!Tethys::is_excluded_dir("Vendor", None));
-    }
-
-    #[test]
-    fn is_excluded_dir_rejects_empty_string() {
-        assert!(!Tethys::is_excluded_dir("", None));
+    /// Exclusion is exact, case-sensitive name matching with one
+    /// parent-aware carve-out. Notable cases: `.git` is NOT in the
+    /// exclusion list (the hidden-directory filter handles it; the two
+    /// filters stay orthogonal); `bin` is .NET build output EXCEPT under
+    /// `src` (Cargo binary targets live in `src/bin/*.rs` — excluding it
+    /// makes every symbol reachable only from those binaries look dead);
+    /// `obj` holds GENERATED .cs sources and is excluded regardless of
+    /// parent.
+    #[rstest]
+    #[case::excludes_target("target", None, true)]
+    #[case::excludes_node_modules("node_modules", None, true)]
+    #[case::does_not_match_dot_git(".git", None, false)]
+    #[case::excludes_bin_at_root("bin", None, true)]
+    #[case::excludes_bin_under_project("bin", Some("MyProject"), true)]
+    #[case::allows_bin_under_src("bin", Some("src"), false)]
+    #[case::excludes_obj_at_root("obj", None, true)]
+    #[case::excludes_obj_even_under_src("obj", Some("src"), true)]
+    #[case::excludes_build("build", None, true)]
+    #[case::excludes_dist("dist", None, true)]
+    #[case::excludes_vendor("vendor", None, true)]
+    #[case::excludes_pycache("__pycache__", None, true)]
+    #[case::allows_src("src", None, false)]
+    #[case::allows_lib("lib", None, false)]
+    #[case::allows_tests("tests", None, false)]
+    #[case::allows_my_module("my_module", None, false)]
+    #[case::case_sensitive_target("Target", None, false)]
+    #[case::case_sensitive_node_modules("NODE_MODULES", None, false)]
+    #[case::case_sensitive_vendor("Vendor", None, false)]
+    #[case::rejects_empty_string("", None, false)]
+    fn is_excluded_dir(#[case] name: &str, #[case] parent: Option<&str>, #[case] excluded: bool) {
+        assert_eq!(Tethys::is_excluded_dir(name, parent), excluded);
     }
 
     /// Re-indexing must not grow the refs table. The accumulating shape:
