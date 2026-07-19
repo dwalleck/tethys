@@ -68,9 +68,11 @@ against the core rule before converting):
 - remaining 29 loop hits: plan walks the list with the rule; expected
   verdicts are mostly E/F/G
 
-OPEN DECISION (user): `tests/test_topology.rs` `detects_*` ×7 — convertible
-only by templating the fixture source per case (`format!` with attr +
-fn-signature params). Doable but no longer a mechanical rewrite. In or out?
+RESOLVED (user, 2026-07-18): `tests/test_topology.rs` `detects_*` ×7 is
+OUT — templating fixture source per case would make the rewrite
+non-mechanical; the group stays as plain tests. Settled rationale, not
+deferred work. Design approved as written, including the manual
+diff-scoped fences for claims 1/2/5/6.
 
 ## Falsification
 
