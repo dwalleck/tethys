@@ -2279,6 +2279,8 @@ fn extract_parameter(param_node: &tree_sitter::Node, content: &[u8]) -> Option<P
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
 
     fn parse_rust(code: &str) -> tree_sitter::Tree {
@@ -2626,19 +2628,16 @@ impl User {
     /// tethys-lwsc: a single-segment glob path is a bare identifier (or
     /// crate/self/super) node, not a `scoped_identifier` — it used to
     /// collect as an EMPTY path, storing the glob with no source module.
-    #[test]
-    fn extracts_single_segment_glob_use() {
-        for (code, expected) in [
-            ("use g_lib::*;", vec!["g_lib"]),
-            ("use super::*;", vec!["super"]),
-            ("use crate::*;", vec!["crate"]),
-        ] {
-            let tree = parse_rust(code);
-            let uses = extract_use_statements(&tree, code.as_bytes());
-            assert_eq!(uses.len(), 1, "one use statement for {code}");
-            assert_eq!(uses[0].path, expected, "path for {code}");
-            assert!(uses[0].is_glob, "glob flag for {code}");
-        }
+    #[rstest]
+    #[case::bare_identifier("use g_lib::*;", "g_lib")]
+    #[case::super_anchor("use super::*;", "super")]
+    #[case::crate_anchor("use crate::*;", "crate")]
+    fn extracts_single_segment_glob_use(#[case] code: &str, #[case] expected: &str) {
+        let tree = parse_rust(code);
+        let uses = extract_use_statements(&tree, code.as_bytes());
+        assert_eq!(uses.len(), 1, "one use statement for {code}");
+        assert_eq!(uses[0].path, vec![expected], "path for {code}");
+        assert!(uses[0].is_glob, "glob flag for {code}");
     }
 
     #[test]
