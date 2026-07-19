@@ -412,6 +412,8 @@ impl ModuleResolver for CSharpModuleResolver {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
 
     fn ctx(root: &Path) -> ModuleContext<'_> {
@@ -626,37 +628,18 @@ mod tests {
         assert_eq!(CSharpModuleResolver.import_separator(), ".");
     }
 
-    #[test]
-    fn csharp_declines_simple_namespace() {
+    /// The C# resolver declines every namespace-shaped import — including
+    /// cross-separator input (the Rust `::` format), which must decline
+    /// rather than be misparsed into segments.
+    #[rstest]
+    #[case::simple_namespace("System")]
+    #[case::dotted_namespace("MyApp.Models")]
+    #[case::empty_source_module("")]
+    #[case::string_containing_rust_separator("A::B")]
+    fn csharp_declines(#[case] import: &str) {
         let root = Path::new("/ws");
         assert_eq!(
-            CSharpModuleResolver.resolve_import("System", &ctx(root)),
-            None
-        );
-    }
-
-    #[test]
-    fn csharp_declines_dotted_namespace() {
-        let root = Path::new("/ws");
-        assert_eq!(
-            CSharpModuleResolver.resolve_import("MyApp.Models", &ctx(root)),
-            None
-        );
-    }
-
-    #[test]
-    fn csharp_declines_empty_source_module() {
-        let root = Path::new("/ws");
-        assert_eq!(CSharpModuleResolver.resolve_import("", &ctx(root)), None);
-    }
-
-    #[test]
-    fn csharp_declines_string_containing_rust_separator() {
-        // Cross-separator input (the other language's format) must decline,
-        // not be misparsed into segments.
-        let root = Path::new("/ws");
-        assert_eq!(
-            CSharpModuleResolver.resolve_import("A::B", &ctx(root)),
+            CSharpModuleResolver.resolve_import(import, &ctx(root)),
             None
         );
     }

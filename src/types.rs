@@ -1483,6 +1483,8 @@ pub struct DatabaseStats {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
 
     /// tethys-9z7i B1: the wire spellings are ADR-0003's enum table,
@@ -1588,52 +1590,24 @@ mod tests {
         }
     }
 
-    #[test]
-    fn returns_result_true_for_result_type() {
-        let sig = make_signature(Some("Result<(), Error>"), vec![]);
-        assert!(sig.returns_result());
+    #[rstest]
+    #[case::true_for_result_type(Some("Result<(), Error>"), true)]
+    #[case::true_for_nested_result(Some("Result<Result<T, E1>, E2>"), true)]
+    #[case::false_for_none_return_type(None, false)]
+    #[case::false_for_other_type(Some("Option<i32>"), false)]
+    fn returns_result(#[case] return_type: Option<&str>, #[case] expected: bool) {
+        let sig = make_signature(return_type, vec![]);
+        assert_eq!(sig.returns_result(), expected);
     }
 
-    #[test]
-    fn returns_result_true_for_nested_result() {
-        let sig = make_signature(Some("Result<Result<T, E1>, E2>"), vec![]);
-        assert!(sig.returns_result());
-    }
-
-    #[test]
-    fn returns_result_false_for_none_return_type() {
-        let sig = make_signature(None, vec![]);
-        assert!(!sig.returns_result());
-    }
-
-    #[test]
-    fn returns_result_false_for_other_type() {
-        let sig = make_signature(Some("Option<i32>"), vec![]);
-        assert!(!sig.returns_result());
-    }
-
-    #[test]
-    fn returns_option_true_for_option_type() {
-        let sig = make_signature(Some("Option<User>"), vec![]);
-        assert!(sig.returns_option());
-    }
-
-    #[test]
-    fn returns_option_true_for_nested_option() {
-        let sig = make_signature(Some("Option<Option<T>>"), vec![]);
-        assert!(sig.returns_option());
-    }
-
-    #[test]
-    fn returns_option_false_for_none_return_type() {
-        let sig = make_signature(None, vec![]);
-        assert!(!sig.returns_option());
-    }
-
-    #[test]
-    fn returns_option_false_for_other_type() {
-        let sig = make_signature(Some("Result<(), Error>"), vec![]);
-        assert!(!sig.returns_option());
+    #[rstest]
+    #[case::true_for_option_type(Some("Option<User>"), true)]
+    #[case::true_for_nested_option(Some("Option<Option<T>>"), true)]
+    #[case::false_for_none_return_type(None, false)]
+    #[case::false_for_other_type(Some("Result<(), Error>"), false)]
+    fn returns_option(#[case] return_type: Option<&str>, #[case] expected: bool) {
+        let sig = make_signature(return_type, vec![]);
+        assert_eq!(sig.returns_option(), expected);
     }
 
     #[test]
@@ -1910,43 +1884,16 @@ mod tests {
 
     // === ReferenceKind::parse() tests ===
 
-    #[test]
-    fn reference_kind_parse_import() {
-        assert_eq!(ReferenceKind::parse("import"), Some(ReferenceKind::Import));
-    }
-
-    #[test]
-    fn reference_kind_parse_call() {
-        assert_eq!(ReferenceKind::parse("call"), Some(ReferenceKind::Call));
-    }
-
-    #[test]
-    fn reference_kind_parse_type() {
-        assert_eq!(ReferenceKind::parse("type"), Some(ReferenceKind::Type));
-    }
-
-    #[test]
-    fn reference_kind_parse_inherit() {
-        assert_eq!(
-            ReferenceKind::parse("inherit"),
-            Some(ReferenceKind::Inherit)
-        );
-    }
-
-    #[test]
-    fn reference_kind_parse_construct() {
-        assert_eq!(
-            ReferenceKind::parse("construct"),
-            Some(ReferenceKind::Construct)
-        );
-    }
-
-    #[test]
-    fn reference_kind_parse_field_access() {
-        assert_eq!(
-            ReferenceKind::parse("field_access"),
-            Some(ReferenceKind::FieldAccess)
-        );
+    #[rstest]
+    #[case::import("import", ReferenceKind::Import)]
+    #[case::call("call", ReferenceKind::Call)]
+    #[case::kind_type("type", ReferenceKind::Type)]
+    #[case::inherit("inherit", ReferenceKind::Inherit)]
+    #[case::construct("construct", ReferenceKind::Construct)]
+    #[case::field_access("field_access", ReferenceKind::FieldAccess)]
+    #[case::reexport("reexport", ReferenceKind::Reexport)]
+    fn reference_kind_parse(#[case] input: &str, #[case] expected: ReferenceKind) {
+        assert_eq!(ReferenceKind::parse(input), Some(expected));
     }
 
     #[test]
@@ -1960,14 +1907,6 @@ mod tests {
         assert_eq!(
             crate::languages::common::ExtractedReferenceKind::Value.to_db_kind(),
             ReferenceKind::Value
-        );
-    }
-
-    #[test]
-    fn reference_kind_parse_reexport() {
-        assert_eq!(
-            ReferenceKind::parse("reexport"),
-            Some(ReferenceKind::Reexport)
         );
     }
 

@@ -53,8 +53,10 @@ pub(crate) fn classify_server_status(params: &Value) -> ReadyState {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use rstest::rstest;
     use serde_json::json;
+
+    use super::*;
 
     /// Verbatim capture from `.tethys-2mjj/probe-cold.log` at t=0.06s — the
     /// first notification rust-analyzer sends, before any load completes.
@@ -107,20 +109,17 @@ mod tests {
     /// Malformed shapes keep the wait going: missing `quiescent`, a string
     /// `"true"` (no loose truthiness), and non-object params must all
     /// classify `NotReady` — never panic, never end the wait early.
-    #[test]
-    fn ready_classifier_malformed_params() {
-        for params in [
-            json!({"health": "ok"}),
-            json!({"health": "ok", "quiescent": "true"}),
-            json!({"health": "ok", "quiescent": 1}),
-            Value::Null,
-            json!([]),
-        ] {
-            assert_eq!(
-                classify_server_status(&params),
-                ReadyState::NotReady,
-                "malformed params {params} must classify NotReady"
-            );
-        }
+    #[rstest]
+    #[case::missing_quiescent(json!({"health": "ok"}))]
+    #[case::quiescent_string(json!({"health": "ok", "quiescent": "true"}))]
+    #[case::quiescent_int(json!({"health": "ok", "quiescent": 1}))]
+    #[case::null(Value::Null)]
+    #[case::array(json!([]))]
+    fn ready_classifier_malformed_params(#[case] params: Value) {
+        assert_eq!(
+            classify_server_status(&params),
+            ReadyState::NotReady,
+            "malformed params {params} must classify NotReady"
+        );
     }
 }

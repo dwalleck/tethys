@@ -24,6 +24,9 @@
 .beads/beads.left.meta.json
 .beads/metadata.json
 
+# Python bytecode (probe scripts in audit-trail dirs)
+__pycache__/
+
 # OS files
 Thumbs.db
 
