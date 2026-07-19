@@ -31,8 +31,23 @@ Uniform per-slice mechanics:
 - Docs: shared story hoisted to the consolidated fn's `///`; identifiers
   backticked (doc_markdown).
 
-Suite-count ledger (claim 2): baseline captured before slice 1; expected
-cumulative delta after S1..S6: 0, 0, 0, 0, +4, +6.
+Suite-count ledger (claim 2): baseline captured before slice 1
+(`nextest-baseline.txt`, 1026 tests); expected cumulative delta after
+S1..S6: 0, 0, 0, 0, +4, +6.
+
+**BUILD-OUTCOME RECONCILIATION (2026-07-18).** Probe clustering
+undercounted two families; deviations were pre-registered before each
+slice ran and oracles verified against the corrected predictions:
+
+- S1 actual: −16 fns / +20 cases (three multi-assert fns split
+  per-assert into cases), slice delta +4 — not the planned −13/+13/0.
+- S2 actual: −15 / +15, delta 0 (`returns_option_false_for_none` and
+  `reference_kind_parse_reexport`/`field_access` belong to their
+  families; probe's 0.90 threshold missed them).
+- S3: skipped (OUTCOME block below).
+- S4: −4 / +4 as planned. S5: −1 / +5 as planned. S6: −1 / +3 as planned.
+- Corrected cumulative ledger: +4, +4, +4 (skip), +4, +8, **+10**.
+  Final audit: 1026 → 1036 (`nextest-final.txt`), ID-set diff exact.
 
 No slice introduces a loop, a doc-comment precondition, or a write target;
 per-slice sections therefore mark those budgets N/A-with-reason once here:
