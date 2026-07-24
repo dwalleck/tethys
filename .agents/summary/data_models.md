@@ -191,8 +191,9 @@ Per-crate discovery result: name, path, lib/bin entry points, `src_root`,
 
 ## Graph DTOs (`src/graph/types.rs`)
 
-`CallerInfo` (caller symbol + reference count), `SymbolImpact`
-(direct/transitive caller groups), `FileDepInfo`, `FileImpact`, and `FilePath`.
+`SymbolImpactCaller` (caller symbol, indexed-file path, and minimum depth),
+`SymbolImpact` (target plus unique, depth-ordered callers with
+direct/transitive views), `FileDepInfo`, `FileImpact`, and `FilePath`.
 
 ## Extraction DTOs (`src/languages/common.rs`)
 

@@ -7,7 +7,7 @@ use rusqlite::OptionalExtension;
 use super::Index;
 use super::helpers::{row_to_indexed_file, row_to_symbol};
 use crate::error::{Error, Result};
-use crate::graph::{CallerInfo, FileDepInfo, FileImpact, FilePath, SymbolImpact};
+use crate::graph::{FileDepInfo, FileImpact, FilePath, SymbolImpactCaller};
 use crate::types::{CallEdgeSelection, Caller, Cycle, FileId, SymbolId};
 
 /// Default maximum depth for recursive graph traversals.
@@ -41,7 +41,7 @@ impl Index {
         &self,
         symbol_id: SymbolId,
         call_edges: CallEdgeSelection,
-    ) -> Result<Vec<CallerInfo>> {
+    ) -> Result<Vec<Caller>> {
         let conn = self.connection()?;
 
         // Use pre-computed call_edges table for efficient indexed lookup
@@ -50,7 +50,7 @@ impl Index {
                 s.id, s.file_id, s.name, s.module_path, s.qualified_name,
                 s.kind, s.line, s.column, s.end_line, s.end_column,
                 s.signature, s.visibility, s.parent_symbol_id, s.is_test,
-                ce.call_count, f.path
+                f.path
              FROM call_edges ce
              JOIN symbols s ON s.id = ce.caller_symbol_id
              JOIN files f ON f.id = s.file_id
@@ -62,20 +62,9 @@ impl Index {
         let callers = stmt
             .query_map([symbol_id.as_i64()], |row| {
                 let symbol = row_to_symbol(row)?;
-                // Safety: call_count is a non-negative aggregate count
-                #[expect(
-                    clippy::cast_possible_truncation,
-                    clippy::cast_sign_loss,
-                    reason = "call_count is a non-negative SQL COUNT aggregate"
-                )]
-                let ref_count: usize = row.get::<_, i64>(14)? as usize;
-
-                Ok(CallerInfo {
-                    caller: Caller {
-                        symbol,
-                        file: row.get::<_, String>(15)?.into(),
-                    },
-                    reference_count: ref_count,
+                Ok(Caller {
+                    symbol,
+                    file: row.get::<_, String>(14)?.into(),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -111,11 +100,9 @@ impl Index {
     pub fn get_transitive_callers(
         &self,
         symbol_id: SymbolId,
-        max_depth: Option<u32>,
-        exclude_speculative: bool,
-    ) -> Result<SymbolImpact> {
-        let max_depth = max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
-
+        max_depth: u32,
+        call_edges: CallEdgeSelection,
+    ) -> Result<Vec<SymbolImpactCaller>> {
         let conn = self.connection()?;
 
         // Use recursive CTE with call_edges table for efficient traversal
@@ -124,7 +111,7 @@ impl Index {
                 -- Base case: direct callers from call_edges
                 SELECT caller_symbol_id, 1
                 FROM call_edges ce
-                WHERE callee_symbol_id = ?1{exclusion}
+                WHERE callee_symbol_id = ?1 AND ?2 >= 1{exclusion}
 
                 UNION
 
@@ -134,7 +121,7 @@ impl Index {
                 JOIN caller_tree ct ON ce.callee_symbol_id = ct.symbol_id
                 WHERE ct.depth < ?2{exclusion}
             )
-            SELECT DISTINCT
+            SELECT
                 s.id, s.file_id, s.name, s.module_path, s.qualified_name,
                 s.kind, s.line, s.column, s.end_line, s.end_column,
                 s.signature, s.visibility, s.parent_symbol_id, s.is_test,
@@ -144,54 +131,23 @@ impl Index {
             JOIN files f ON f.id = s.file_id
             GROUP BY s.id
             ORDER BY min_depth, s.qualified_name"
-                .replace(
-                    "{exclusion}",
-                    &edge_support_filter(
-                        if exclude_speculative {
-                            CallEdgeSelection::ExcludeSpeculative
-                        } else {
-                            CallEdgeSelection::All
-                        },
-                        "ce",
-                    ),
-                ),
+                .replace("{exclusion}", &edge_support_filter(call_edges, "ce")),
         )?;
 
-        let mut direct_callers = Vec::new();
-        let mut transitive_callers = Vec::new();
+        let callers = stmt
+            .query_map(rusqlite::params![symbol_id.as_i64(), max_depth], |row| {
+                let symbol = row_to_symbol(row)?;
+                let file = row.get::<_, String>(14)?.into();
+                let depth = row.get::<_, usize>(15)?;
+                Ok(SymbolImpactCaller {
+                    symbol,
+                    file,
+                    depth,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        let rows = stmt.query_map(rusqlite::params![symbol_id.as_i64(), max_depth], |row| {
-            let symbol = row_to_symbol(row)?;
-            // Safety: CTE depth is bounded by max_depth (u32), so i64 value fits in u32
-            #[expect(
-                clippy::cast_possible_truncation,
-                clippy::cast_sign_loss,
-                reason = "CTE depth bounded by max_depth (u32)"
-            )]
-            let depth: u32 = row.get::<_, i64>(15)? as u32;
-            let file = row.get::<_, String>(14)?.into();
-            Ok((symbol, file, depth))
-        })?;
-
-        for row in rows {
-            let (symbol, file, depth) = row?;
-
-            let caller_info = CallerInfo {
-                caller: Caller { symbol, file },
-                reference_count: 1,
-            };
-
-            if depth == 1 {
-                direct_callers.push(caller_info);
-            } else {
-                transitive_callers.push(caller_info);
-            }
-        }
-
-        Ok(SymbolImpact {
-            direct_callers,
-            transitive_callers,
-        })
+        Ok(callers)
     }
 }
 

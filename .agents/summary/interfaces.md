@@ -16,8 +16,8 @@ Invoked as `tethys <command> [args]`. Global options apply to all commands:
 |---------|-------------------|---------|
 | `index` | `--rebuild`, `--lsp`, `--lsp-timeout <SECS>` | Index (or rebuild) the workspace. `--lsp` enables rust-analyzer refinement; timeout env `TETHYS_LSP_TIMEOUT`. |
 | `search <query>` | `-k/--kind <KIND>`, `-l/--limit <N>` (default 20) | Search symbols by name (partial match), optionally filtered by kind. |
-| `callers <symbol>` | `-t/--transitive`, `--lsp`, `--exclude-speculative` | Show callers of a qualified symbol. `--lsp` is direct-only and conflicts with both other flags. |
-| `impact <target>` | `-s/--symbol`, `-d/--depth <N>` (default 50), `--lsp` | Impact of changing a file (or symbol with `--symbol`). |
+| `callers <symbol>` | `-t/--transitive`, `-d/--depth <N>` (default 50), `--lsp`, `--exclude-speculative` | Show callers of a qualified symbol. `--depth` requires transitive mode; `--lsp` is direct-only and conflicts with both transitive mode and speculative exclusion. |
+| `impact <target>` | `-s/--symbol`, `-d/--depth <N>` (default 50), `--lsp` | Impact of changing a file (or symbol with `--symbol`). Symbol impact is Index-backed and rejects `--lsp`. |
 | `coupling` | `--sort <KEY>`, `--package <NAME>`, `--json` | Per-crate coupling (Ca, Ce, instability). `--package` drills into one (conflicts with `--sort`). |
 | `cycles` | — | Detect circular dependencies. |
 | `stats` | — | Show index statistics. |
@@ -58,7 +58,7 @@ classDiagram
         +get_references(symbol) Result~Vec~Reference~~
         +get_callers(symbol, CallerMode) Result~Vec~Caller~~
         +get_impact(file, depth) Result~Impact~
-        +get_symbol_impact(symbol, depth) Result~Impact~
+        +get_symbol_impact(symbol, depth, exclude_speculative) Result~SymbolImpact~
         +get_dependencies(file) Result
         +get_dependency_chain(from, to) Result
         +detect_cycles() Result~Vec~Cycle~~

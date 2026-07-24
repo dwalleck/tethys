@@ -12,7 +12,6 @@ use tracing::{debug, info, trace, warn};
 
 use crate::Tethys;
 use crate::error::{Error, Result};
-use crate::graph;
 use crate::languages::get_language_support;
 use crate::languages::module_resolver::{
     GlobPolicy, ModuleContext, ModuleResolver, NamespaceMap, get_module_resolver,
@@ -1191,7 +1190,7 @@ impl Tethys {
         &self,
         qualified_name: &str,
         symbol: &Symbol,
-    ) -> Result<Vec<graph::CallerInfo>> {
+    ) -> Result<Vec<Caller>> {
         // Step 1: Get callers from the index
         let indexed_callers = self.db.get_callers(symbol.id, CallEdgeSelection::All)?;
 
@@ -1264,15 +1263,15 @@ impl Tethys {
     /// index are skipped.
     pub(crate) fn merge_lsp_reference_callers(
         &self,
-        indexed_callers: Vec<graph::CallerInfo>,
+        indexed_callers: Vec<Caller>,
         lsp_refs: Vec<lsp_types::Location>,
-    ) -> Result<Vec<graph::CallerInfo>> {
+    ) -> Result<Vec<Caller>> {
         // Symbol IDs the index already reported.
         let mut known_symbol_ids: HashSet<SymbolId> = indexed_callers
             .iter()
-            .map(|caller| caller.caller.symbol.id)
+            .map(|caller| caller.symbol.id)
             .collect();
-        let mut additional_callers: Vec<graph::CallerInfo> = Vec::new();
+        let mut additional_callers: Vec<Caller> = Vec::new();
 
         for loc in lsp_refs {
             // Extract file path from LSP URI and convert to relative path
@@ -1323,12 +1322,9 @@ impl Tethys {
 
             // Add a caller found only through LSP refinement.
             known_symbol_ids.insert(containing_symbol.id);
-            additional_callers.push(graph::CallerInfo {
-                caller: Caller {
-                    symbol: containing_symbol,
-                    file: crate::db::normalize_path(relative_ref_path).into(),
-                },
-                reference_count: 1,
+            additional_callers.push(Caller {
+                symbol: containing_symbol,
+                file: crate::db::normalize_path(relative_ref_path).into(),
             });
         }
 
@@ -1669,7 +1665,7 @@ pub fn lsp_only_caller() -> bool {
             .expect("indexed callers");
         let indexed_names: Vec<_> = indexed
             .iter()
-            .map(|info| info.caller.symbol.name.clone())
+            .map(|caller| caller.symbol.name.clone())
             .collect();
         assert_eq!(
             indexed_names,
@@ -1686,7 +1682,7 @@ pub fn lsp_only_caller() -> bool {
 
         let mut merged_names: Vec<_> = merged
             .iter()
-            .map(|info| info.caller.symbol.name.clone())
+            .map(|caller| caller.symbol.name.clone())
             .collect();
         merged_names.sort_unstable();
         assert_eq!(
@@ -1697,10 +1693,9 @@ pub fn lsp_only_caller() -> bool {
 
         let lsp_only = merged
             .iter()
-            .find(|info| info.caller.symbol.name == "lsp_only_caller")
+            .find(|caller| caller.symbol.name == "lsp_only_caller")
             .expect("lsp-only caller present");
-        assert_eq!(lsp_only.reference_count, 1);
-        assert_eq!(lsp_only.caller.file, PathBuf::from("src/lib.rs"));
+        assert_eq!(lsp_only.file, PathBuf::from("src/lib.rs"));
     }
 
     /// References the merge cannot attribute — outside the workspace or on a

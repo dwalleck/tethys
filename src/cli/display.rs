@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use colored::Colorize;
-use tethys::{Caller, Dependent};
+use tethys::{Caller, Dependent, SymbolImpactCaller};
 
 const MAX_DISPLAY_ITEMS: usize = 10;
 
@@ -41,14 +41,13 @@ pub fn print_callers_by_file(callers: &[Caller]) {
     print_grouped_callers(grouped);
 }
 
-/// Group legacy symbol-impact dependents by file and display their symbol names.
-pub fn print_dependent_callers_by_file(callers: &[Dependent]) {
-    let grouped = group_callers(callers.iter().flat_map(|caller| {
-        caller
-            .symbols_used
+/// Group symbol-impact callers by indexed file and display their symbol names.
+pub fn print_symbol_impact_callers_by_file(callers: &[SymbolImpactCaller]) {
+    let grouped = group_callers(
+        callers
             .iter()
-            .map(move |symbol| (caller.file.as_path(), symbol.as_str()))
-    }));
+            .map(|entry| (entry.file.as_path(), entry.symbol.qualified_name.as_str())),
+    );
     print_grouped_callers(grouped);
 }
 

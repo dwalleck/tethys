@@ -39,8 +39,8 @@ The primary public API and facade. Owns the workspace root, the database
 (`db::Index`), the resolved DB path, and discovered crates. Exposes indexing
 (`index`, `index_with_options`), symbol/reference queries (`search_symbols`,
 `get_symbol`, `list_symbols`, `get_references`), graph queries (`get_callers`,
-`get_impact`, `get_dependencies`, `get_dependency_chain`, `detect_cycles`,
-forward/backward reachability), architecture queries (`get_packages`,
+`get_symbol_impact`, `get_impact`, `get_dependencies`, `get_dependency_chain`,
+`detect_cycles`, forward/backward reachability), architecture queries (`get_packages`,
 `get_coupling_metrics`, `get_package_coupling`), panic-point and affected-test
 queries, plus maintenance (`vacuum`, stats). Created with `Tethys::new`; LSP
 opt-in via `with_lsp`.
@@ -151,9 +151,11 @@ Shared extraction DTOs (`ExtractedSymbol`, `ExtractedReference`,
 
 ## Graph Subsystem (`src/graph/`)
 
-- `mod.rs` — re-exports internal graph query result types.
-- `types.rs` — DTOs returned by concrete `Index` queries: `CallerInfo`,
-  `SymbolImpact`, `FileDepInfo`, `FileImpact`, `FilePath`.
+- `mod.rs` — re-exports graph query result types; public symbol-impact results
+  also cross the `Tethys` facade.
+- `types.rs` — graph-specific records: public
+  `SymbolImpactCaller`/`SymbolImpact`, and internal `FileDepInfo`, `FileImpact`,
+  `FilePath`.
 
 ## LSP Subsystem (`src/lsp/`)
 

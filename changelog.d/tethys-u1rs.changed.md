@@ -1,0 +1,2 @@
+- `tethys callers --transitive` accepts `--depth` to bound caller traversal; omitted depth defaults to 50.
+- `tethys impact --symbol --lsp` now fails explicitly because transitive symbol impact remains index-backed.

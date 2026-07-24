@@ -56,6 +56,7 @@ pub use db::{
 };
 pub use dead_code::{DeadCodeFinding, DeadCodeReport, DeadCodeSummary};
 pub use error::{Error, IndexError, IndexErrorKind, Result};
+pub use graph::{SymbolImpact, SymbolImpactCaller};
 pub use types::{
     ArchPhaseResult, ArchStats, CallEdgeSelection, Caller, CallerMode, CouplingDetail,
     CouplingMetrics, CouplingSort, CrateInfo, Cycle, DatabaseStats, Dependent, FileAnalysis,
@@ -113,17 +114,6 @@ fn saturating_depth_to_u32(depth: usize) -> u32 {
         );
         u32::MAX
     })
-}
-
-fn callers_to_dependents(callers: Vec<graph::CallerInfo>) -> Vec<Dependent> {
-    callers
-        .into_iter()
-        .map(|caller| Dependent {
-            file: caller.caller.file,
-            symbols_used: vec![caller.caller.symbol.qualified_name],
-            line_count: caller.reference_count,
-        })
-        .collect()
 }
 
 #[expect(
@@ -456,12 +446,10 @@ impl Tethys {
             .get_symbol_by_qualified_name(qualified_name)?
             .ok_or_else(|| Error::NotFound(format!("symbol: {qualified_name}")))?;
 
-        let callers = match mode {
-            CallerMode::Indexed { call_edges } => self.db.get_callers(symbol.id, call_edges)?,
-            CallerMode::LspRefined => self.get_lsp_refined_callers(qualified_name, &symbol)?,
-        };
-
-        Ok(callers.into_iter().map(|caller| caller.caller).collect())
+        match mode {
+            CallerMode::Indexed { call_edges } => self.db.get_callers(symbol.id, call_edges),
+            CallerMode::LspRefined => self.get_lsp_refined_callers(qualified_name, &symbol),
+        }
     }
 
     /// Get symbols that the given symbol calls/uses.
@@ -474,43 +462,38 @@ impl Tethys {
         self.db.get_callees(symbol.id)
     }
 
-    /// Get impact analysis: direct and transitive callers of a symbol.
+    /// Get direct and transitive callers of a symbol at their minimum depth.
     ///
-    /// `max_depth` limits transitive traversal depth. `None` falls back to the
-    /// crate-wide default of 50. There is currently no way to request unbounded
-    /// traversal through this method. Values larger than `u32::MAX` are capped
-    /// (with a `warn!` log) since the underlying SQL CTE depth is a `u32`.
-    /// `exclude_speculative` drops call edges whose every supporting ref
-    /// bands speculative (see [`Tethys::get_callers`]).
+    /// `max_depth` limits transitive traversal depth. `None` uses the
+    /// crate-wide default of 50. Zero validates the symbol and returns no
+    /// callers; one returns direct callers only. Values larger than `u32::MAX`
+    /// are capped (with a `warn!` log) since the underlying SQL CTE depth is a
+    /// `u32`.
+    ///
+    /// `exclude_speculative` drops call edges whose every supporting reference
+    /// bands speculative at every traversal hop (see [`Tethys::get_callers`]).
     pub fn get_symbol_impact(
         &self,
         qualified_name: &str,
         max_depth: Option<usize>,
         exclude_speculative: bool,
-    ) -> Result<Impact> {
+    ) -> Result<SymbolImpact> {
         let symbol = self
             .db
             .get_symbol_by_qualified_name(qualified_name)?
             .ok_or_else(|| Error::NotFound(format!("symbol: {qualified_name}")))?;
 
         let depth = max_depth.map_or(db::DEFAULT_MAX_DEPTH, saturating_depth_to_u32);
-        let impact = self
+        let call_edges = if exclude_speculative {
+            CallEdgeSelection::ExcludeSpeculative
+        } else {
+            CallEdgeSelection::All
+        };
+        let callers = self
             .db
-            .get_transitive_callers(symbol.id, Some(depth), exclude_speculative)?;
+            .get_transitive_callers(symbol.id, depth, call_edges)?;
 
-        let direct_dependents = callers_to_dependents(impact.direct_callers);
-        let transitive_dependents = callers_to_dependents(impact.transitive_callers);
-
-        let target_file = self
-            .db
-            .get_file_by_id(symbol.file_id)?
-            .ok_or_else(|| Error::NotFound(format!("file id: {}", symbol.file_id)))?;
-
-        Ok(Impact {
-            target: target_file.path,
-            direct_dependents,
-            transitive_dependents,
-        })
+        Ok(SymbolImpact::new(symbol, callers))
     }
 
     // === Graph Analysis ===
@@ -691,7 +674,7 @@ impl Tethys {
                     .db
                     .get_callers(id, CallEdgeSelection::All)?
                     .into_iter()
-                    .map(|c| c.caller.symbol)
+                    .map(|c| c.symbol)
                     .collect())
             },
             types::ReachabilityDirection::Backward,

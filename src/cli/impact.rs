@@ -3,9 +3,9 @@
 use std::path::Path;
 
 use colored::Colorize;
-use tethys::{Impact, Tethys};
+use tethys::{Impact, SymbolImpact, Tethys};
 
-use super::display::print_dependents;
+use super::display::{print_dependents, print_symbol_impact_callers_by_file};
 use super::ensure_lsp_if_requested;
 
 /// Run the impact command.
@@ -23,7 +23,7 @@ pub fn run(
     if is_symbol {
         let impact = tethys.get_symbol_impact(target, depth, false)?;
         println!("Impact analysis for symbol \"{}\":", target.cyan().bold());
-        print_impact_analysis(&impact);
+        print_symbol_impact_analysis(&impact);
     } else {
         let target_path = Path::new(target);
         let impact = tethys.get_impact(target_path, depth)?;
@@ -55,4 +55,35 @@ fn print_impact_analysis(impact: &Impact) {
         impact.transitive_dependents.len().to_string().yellow()
     );
     print_dependents(&impact.transitive_dependents, "(none beyond direct)");
+}
+
+/// Display symbol impact using caller-specific, depth-accurate results.
+fn print_symbol_impact_analysis(impact: &SymbolImpact) {
+    println!();
+
+    let direct = impact.direct_callers();
+    println!(
+        "  {} ({} symbols):",
+        "Direct callers".white().bold(),
+        direct.len().to_string().green()
+    );
+    if direct.is_empty() {
+        println!("    {}", "(none)".dimmed());
+    } else {
+        print_symbol_impact_callers_by_file(direct);
+    }
+
+    println!();
+
+    let transitive = impact.transitive_callers();
+    println!(
+        "  {} ({} symbols beyond direct):",
+        "Transitive callers".white().bold(),
+        transitive.len().to_string().yellow()
+    );
+    if transitive.is_empty() {
+        println!("    {}", "(none beyond direct)".dimmed());
+    } else {
+        print_symbol_impact_callers_by_file(transitive);
+    }
 }

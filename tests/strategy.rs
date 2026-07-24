@@ -356,12 +356,13 @@ fn macro_bypass_stamps_without_contamination() {
 
 /// Slice-3 P2 (design C3/C4/C5): --exclude-speculative semantics on the
 /// callers surface. Chain: `a_fn` -[explicit import]-> `b_fn` -[bare
-/// cross-crate call, `unique_workspace`]-> `leaf`; `d_fn` has MIXED
-/// support to `ml` (bare imported call = `explicit_import`, plus
-/// relative-qualified `inner::ml()` = `qualified_module_fallback`).
-/// Expected: excluding drops ONLY the all-speculative edge
-/// (`b_fn`->`leaf`) — `d_fn`'s mixed edge survives — and the drop is
-/// transitive (`a_fn` must not surface through the severed edge).
+/// cross-crate call, `unique_workspace`]-> `leaf`; `e_fn` -[explicit
+/// import]-> `d_fn`, whose two calls to `ml` give the last edge MIXED
+/// support (bare imported call = `explicit_import`, plus relative-qualified
+/// `inner::ml()` = `qualified_module_fallback`). Expected: excluding drops
+/// ONLY the all-speculative edge (`b_fn`->`leaf`) — both hops from `e_fn` to
+/// `ml` survive — and the drop is transitive (`a_fn` must not surface through
+/// the severed edge).
 fn exclusion_fixture() -> (tempfile::TempDir, tethys::Tethys) {
     let (dir, mut tethys) = workspace_with_files(&[
         (
@@ -390,7 +391,9 @@ fn exclusion_fixture() -> (tempfile::TempDir, tethys::Tethys) {
         ),
         (
             "crates/top-a/src/lib.rs",
-            "use mid_b::b_fn;\npub fn a_fn() {\n    b_fn();\n}\n",
+            "use mid_b::b_fn;\nuse mid_b::d_fn;\n\
+             pub fn a_fn() {\n    b_fn();\n}\n\
+             pub fn e_fn() {\n    d_fn();\n}\n",
         ),
     ]);
     tethys.index().expect("index failed");
@@ -439,24 +442,41 @@ fn exclusion_is_transitive() {
     let full = tethys
         .get_symbol_impact("leaf", None, false)
         .expect("impact");
-    let mut all: Vec<String> = full
-        .direct_dependents
+    let all: Vec<_> = full
+        .callers()
         .iter()
-        .chain(full.transitive_dependents.iter())
-        .flat_map(|d| d.symbols_used.clone())
+        .map(|entry| entry.symbol.qualified_name.as_str())
         .collect();
-    all.sort_unstable();
-    assert_eq!(all, ["a_fn", "b_fn"], "unfiltered chain reaches a_fn");
+    assert_eq!(all, ["b_fn", "a_fn"], "unfiltered chain reaches a_fn");
 
     let filtered = tethys
         .get_symbol_impact("leaf", None, true)
         .expect("impact excl");
     assert!(
-        filtered.direct_dependents.is_empty() && filtered.transitive_dependents.is_empty(),
+        filtered.callers().is_empty(),
         "severing the speculative edge must also remove everything beyond \
-         it; got direct {:?} transitive {:?}",
-        filtered.direct_dependents,
-        filtered.transitive_dependents
+         it; got {:?}",
+        filtered.callers()
+    );
+}
+
+#[test]
+fn exclusion_preserves_mixed_support_across_transitive_hops() {
+    let (_dir, tethys) = exclusion_fixture();
+
+    let impact = tethys
+        .get_symbol_impact("ml", None, true)
+        .expect("filtered impact");
+    let callers: Vec<_> = impact
+        .callers()
+        .iter()
+        .map(|entry| (entry.symbol.qualified_name.as_str(), entry.depth))
+        .collect();
+
+    assert_eq!(
+        callers,
+        [("d_fn", 1), ("e_fn", 2)],
+        "the mixed-support edge and the trustworthy hop beyond it both survive"
     );
 }
 
@@ -490,6 +510,52 @@ fn cli_callers_exclude_speculative() {
 }
 
 #[test]
+fn cli_transitive_callers_propagates_depth() {
+    let (dir, _tethys) = exclusion_fixture();
+    let run = |depth: &str| -> String {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_tethys"))
+            .args(["callers", "leaf", "--transitive", "--depth", depth, "-w"])
+            .arg(dir.path())
+            .output()
+            .expect("run transitive callers");
+        assert!(
+            output.status.success(),
+            "transitive callers at depth {depth} should succeed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).expect("utf8 stdout")
+    };
+
+    let direct = run("1");
+    assert!(direct.contains("b_fn"), "depth one includes direct caller");
+    assert!(
+        !direct.contains("a_fn"),
+        "depth one excludes the transitive caller"
+    );
+
+    let transitive = run("2");
+    assert!(transitive.contains("b_fn"), "depth two keeps direct caller");
+    assert!(
+        transitive.contains("a_fn"),
+        "depth two includes the transitive caller"
+    );
+
+    let direct_mode = std::process::Command::new(env!("CARGO_BIN_EXE_tethys"))
+        .args(["callers", "leaf", "--depth", "1"])
+        .output()
+        .expect("run direct callers with depth");
+    assert!(
+        !direct_mode.status.success(),
+        "--depth without --transitive must fail"
+    );
+    let stderr = String::from_utf8(direct_mode.stderr).expect("utf8 stderr");
+    assert!(
+        stderr.contains("--transitive"),
+        "the error should name the required mode: {stderr}"
+    );
+}
+
+#[test]
 fn cli_callers_rejects_unsupported_lsp_combinations() {
     for conflicting_flag in ["--transitive", "--exclude-speculative"] {
         let output = std::process::Command::new(env!("CARGO_BIN_EXE_tethys"))
@@ -507,4 +573,22 @@ fn cli_callers_rejects_unsupported_lsp_combinations() {
             "explicit conflict error for {conflicting_flag}, got: {stderr}"
         );
     }
+}
+
+#[test]
+fn cli_symbol_impact_rejects_lsp() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_tethys"))
+        .args(["impact", "leaf", "--symbol", "--lsp"])
+        .output()
+        .expect("run symbol impact with LSP");
+
+    assert!(
+        !output.status.success(),
+        "symbol impact with --lsp must fail"
+    );
+    let stderr = String::from_utf8(output.stderr).expect("utf8 stderr");
+    assert!(
+        stderr.contains("cannot be used with") && stderr.contains("--symbol"),
+        "explicit conflict error for symbol impact with LSP, got: {stderr}"
+    );
 }

@@ -6,7 +6,7 @@ use std::path::Path;
 use colored::Colorize;
 use tethys::{CallEdgeSelection, CallerMode, Tethys};
 
-use super::display::{print_callers_by_file, print_dependent_callers_by_file};
+use super::display::{print_callers_by_file, print_symbol_impact_callers_by_file};
 use super::ensure_lsp_if_requested;
 
 /// Run the callers command.
@@ -14,6 +14,7 @@ pub fn run(
     workspace: &Path,
     symbol: &str,
     transitive: bool,
+    depth: Option<usize>,
     lsp: bool,
     exclude_speculative: bool,
 ) -> Result<(), tethys::Error> {
@@ -22,10 +23,9 @@ pub fn run(
     let tethys = Tethys::new(workspace)?;
 
     if transitive {
-        // `callers` does not expose --depth yet (rivets-3yxn).
-        let impact = tethys.get_symbol_impact(symbol, None, exclude_speculative)?;
+        let impact = tethys.get_symbol_impact(symbol, depth, exclude_speculative)?;
 
-        if impact.direct_dependents.is_empty() && impact.transitive_dependents.is_empty() {
+        if impact.callers().is_empty() {
             println!("No callers found for \"{}\"", symbol.cyan());
             return Ok(());
         }
@@ -36,23 +36,17 @@ pub fn run(
         );
         println!();
 
-        // Combine direct and transitive for display
-        let all_callers: Vec<_> = impact
-            .direct_dependents
-            .iter()
-            .chain(impact.transitive_dependents.iter())
-            .cloned()
-            .collect();
-        let unique_files: HashSet<_> = all_callers.iter().map(|c| &c.file).collect();
-        print_dependent_callers_by_file(&all_callers);
+        let callers = impact.callers();
+        let unique_files: HashSet<_> = callers.iter().map(|entry| &entry.file).collect();
+        print_symbol_impact_callers_by_file(callers);
 
-        let total = impact.direct_dependents.len() + impact.transitive_dependents.len();
+        let total = callers.len();
         println!();
         println!(
             "{}: {} direct, {} transitive",
             "Total".dimmed(),
-            impact.direct_dependents.len().to_string().green(),
-            impact.transitive_dependents.len().to_string().yellow()
+            impact.direct_callers().len().to_string().green(),
+            impact.transitive_callers().len().to_string().yellow()
         );
         println!(
             "{}: {} callers across {} files",

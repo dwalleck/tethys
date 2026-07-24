@@ -3,7 +3,7 @@
 //! Tethys indexes source files with tree-sitter and provides fast queries
 //! for symbols, references, and dependency analysis.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
@@ -11,6 +11,7 @@ use colored::Colorize;
 use tracing_subscriber::EnvFilter;
 
 mod cli;
+use cli::callers::run as run_callers;
 
 /// Tethys: Code intelligence cache and query interface.
 #[derive(Parser)]
@@ -70,6 +71,10 @@ enum Commands {
         #[arg(short, long)]
         transitive: bool,
 
+        /// Maximum depth for transitive callers (defaults to 50 if omitted)
+        #[arg(short, long, requires = "transitive")]
+        depth: Option<usize>,
+
         /// Use LSP (rust-analyzer) for enhanced reference resolution
         #[arg(long, conflicts_with_all = ["transitive", "exclude_speculative"])]
         lsp: bool,
@@ -95,7 +100,7 @@ enum Commands {
         depth: Option<usize>,
 
         /// Use LSP (rust-analyzer) for enhanced reference resolution
-        #[arg(long)]
+        #[arg(long, conflicts_with = "symbol")]
         lsp: bool,
     },
 
@@ -263,62 +268,7 @@ fn main() -> ExitCode {
         },
     };
 
-    // Run the appropriate command
-    let result = match cli.command {
-        Commands::Index {
-            rebuild,
-            lsp,
-            lsp_timeout,
-        } => cli::index::run(&workspace, rebuild, lsp, lsp_timeout),
-        Commands::Search { query, kind, limit } => {
-            cli::search::run(&workspace, &query, kind.as_deref(), limit)
-        }
-        Commands::Callers {
-            symbol,
-            transitive,
-            lsp,
-            exclude_speculative,
-        } => cli::callers::run(&workspace, &symbol, transitive, lsp, exclude_speculative),
-        Commands::Impact {
-            target,
-            symbol,
-            depth,
-            lsp,
-        } => cli::impact::run(&workspace, &target, symbol, depth, lsp),
-        Commands::Coupling {
-            sort,
-            package,
-            json,
-        } => cli::coupling::run(&workspace, sort, package, json),
-        Commands::Cycles => cli::cycles::run(&workspace),
-        Commands::Stats => cli::stats::run(&workspace),
-        Commands::Reachable {
-            symbol,
-            direction,
-            max_depth,
-        } => cli::reachable::run(&workspace, &symbol, &direction, Some(max_depth)),
-        Commands::AffectedTests { files, names_only } => {
-            cli::affected_tests::run(&workspace, &files, names_only)
-        }
-        Commands::PanicPoints {
-            include_tests,
-            json,
-            file,
-        } => cli::panic_points::run(&workspace, include_tests, json, file.as_deref()),
-        Commands::DeprecatedCallers { json } => cli::deprecated_callers::run(&workspace, json),
-        Commands::VisibilityTightening {
-            json,
-            workspace_closed,
-        } => cli::visibility_tightening::run(&workspace, json, workspace_closed),
-        Commands::UnusedImports { json, all } => cli::unused_imports::run(&workspace, json, all),
-        Commands::UntestedCode { json } => cli::untested_code::run(&workspace, json),
-        Commands::DeadCode { limit, json } => cli::dead_code::run(&workspace, limit, json),
-        Commands::Hierarchy {
-            symbol,
-            direction,
-            json,
-        } => cli::hierarchy::run(&workspace, &symbol, &direction, json),
-    };
+    let result = run_command(&workspace, cli.command);
 
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -332,5 +282,71 @@ fn main() -> ExitCode {
             }
             ExitCode::FAILURE
         }
+    }
+}
+
+fn run_command(workspace: &Path, command: Commands) -> Result<(), tethys::Error> {
+    match command {
+        Commands::Index {
+            rebuild,
+            lsp,
+            lsp_timeout,
+        } => cli::index::run(workspace, rebuild, lsp, lsp_timeout),
+        Commands::Search { query, kind, limit } => {
+            cli::search::run(workspace, &query, kind.as_deref(), limit)
+        }
+        Commands::Callers {
+            symbol,
+            transitive,
+            depth,
+            lsp,
+            exclude_speculative,
+        } => run_callers(
+            workspace,
+            &symbol,
+            transitive,
+            depth,
+            lsp,
+            exclude_speculative,
+        ),
+        Commands::Impact {
+            target,
+            symbol,
+            depth,
+            lsp,
+        } => cli::impact::run(workspace, &target, symbol, depth, lsp),
+        Commands::Coupling {
+            sort,
+            package,
+            json,
+        } => cli::coupling::run(workspace, sort, package, json),
+        Commands::Cycles => cli::cycles::run(workspace),
+        Commands::Stats => cli::stats::run(workspace),
+        Commands::Reachable {
+            symbol,
+            direction,
+            max_depth,
+        } => cli::reachable::run(workspace, &symbol, &direction, Some(max_depth)),
+        Commands::AffectedTests { files, names_only } => {
+            cli::affected_tests::run(workspace, &files, names_only)
+        }
+        Commands::PanicPoints {
+            include_tests,
+            json,
+            file,
+        } => cli::panic_points::run(workspace, include_tests, json, file.as_deref()),
+        Commands::DeprecatedCallers { json } => cli::deprecated_callers::run(workspace, json),
+        Commands::VisibilityTightening {
+            json,
+            workspace_closed,
+        } => cli::visibility_tightening::run(workspace, json, workspace_closed),
+        Commands::UnusedImports { json, all } => cli::unused_imports::run(workspace, json, all),
+        Commands::UntestedCode { json } => cli::untested_code::run(workspace, json),
+        Commands::DeadCode { limit, json } => cli::dead_code::run(workspace, limit, json),
+        Commands::Hierarchy {
+            symbol,
+            direction,
+            json,
+        } => cli::hierarchy::run(workspace, &symbol, &direction, json),
     }
 }

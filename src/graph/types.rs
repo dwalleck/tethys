@@ -1,23 +1,52 @@
-//! Internal result types for graph queries.
+//! Graph-specific query result types.
 
-use crate::types::{Caller, IndexedFile};
+use std::path::PathBuf;
 
-/// Information about a caller of a symbol.
+use crate::types::{IndexedFile, Symbol};
+
+/// A caller reached during symbol-impact traversal.
 #[derive(Debug, Clone)]
-pub struct CallerInfo {
-    /// Caller identity and indexed-file path.
-    pub caller: Caller,
-    /// How many times it references the target.
-    pub reference_count: usize,
+pub struct SymbolImpactCaller {
+    /// The calling symbol.
+    pub symbol: Symbol,
+    /// Workspace-relative path of the indexed file containing the caller.
+    pub file: PathBuf,
+    /// Minimum number of call edges from this caller to the target.
+    pub depth: usize,
 }
 
-/// Result of transitive caller analysis (symbol-level impact).
+/// Result of transitive caller analysis for a symbol.
 #[derive(Debug, Clone)]
 pub struct SymbolImpact {
-    /// Symbols that directly call/reference the target.
-    pub direct_callers: Vec<CallerInfo>,
-    /// Symbols that transitively call the target (excludes direct).
-    pub transitive_callers: Vec<CallerInfo>,
+    /// The target symbol being analyzed.
+    pub target: Symbol,
+    callers: Vec<SymbolImpactCaller>,
+}
+
+impl SymbolImpact {
+    pub(crate) fn new(target: Symbol, callers: Vec<SymbolImpactCaller>) -> Self {
+        Self { target, callers }
+    }
+
+    /// All callers, ordered by minimum depth and then qualified name.
+    #[must_use]
+    pub fn callers(&self) -> &[SymbolImpactCaller] {
+        &self.callers
+    }
+
+    /// Callers whose minimum depth is one.
+    #[must_use]
+    pub fn direct_callers(&self) -> &[SymbolImpactCaller] {
+        let direct_end = self.callers.partition_point(|caller| caller.depth == 1);
+        &self.callers[..direct_end]
+    }
+
+    /// Callers whose minimum depth is greater than one.
+    #[must_use]
+    pub fn transitive_callers(&self) -> &[SymbolImpactCaller] {
+        let direct_end = self.callers.partition_point(|caller| caller.depth == 1);
+        &self.callers[direct_end..]
+    }
 }
 
 /// Information about a file dependency.

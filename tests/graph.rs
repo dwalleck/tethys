@@ -216,14 +216,14 @@ fn get_symbol_impact_max_depth_limits_transitive_traversal() {
         .expect("get_symbol_impact default depth failed");
 
     assert!(
-        depth_1.transitive_dependents.is_empty(),
+        depth_1.transitive_callers().is_empty(),
         "depth=1 should not traverse past direct callers, got {:?}",
-        depth_1.transitive_dependents
+        depth_1.transitive_callers()
     );
     assert_eq!(
-        depth_1.direct_dependents.len(),
-        unbounded.direct_dependents.len(),
-        "direct_dependents must be invariant under max_depth"
+        depth_1.direct_callers().len(),
+        unbounded.direct_callers().len(),
+        "direct callers must be invariant under max_depth"
     );
 }
 
@@ -884,6 +884,145 @@ fn get_symbol_impact_returns_error_for_nonexistent_symbol() {
 }
 
 #[test]
+fn get_symbol_impact_reports_callers_at_their_minimum_depth() {
+    let (_dir, mut tethys) = workspace_with_intra_file_calls();
+    tethys.index().expect("index failed");
+
+    let impact = tethys
+        .get_symbol_impact("Helper::check", None, false)
+        .expect("get_symbol_impact for Helper::check should succeed");
+
+    assert_eq!(impact.target.qualified_name, "Helper::check");
+    let callers: Vec<_> = impact
+        .callers()
+        .iter()
+        .map(|entry| {
+            (
+                entry.symbol.qualified_name.as_str(),
+                entry.file.to_string_lossy(),
+                entry.depth,
+            )
+        })
+        .collect();
+    assert_eq!(
+        callers,
+        [
+            ("validate", "src/lib.rs".into(), 1),
+            ("process", "src/lib.rs".into(), 2),
+        ]
+    );
+    assert_eq!(impact.direct_callers().len(), 1);
+    assert_eq!(impact.transitive_callers().len(), 1);
+}
+
+#[test]
+fn get_symbol_impact_returns_each_caller_once_at_shortest_depth() {
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"impact_depths\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+    )
+    .expect("write Cargo.toml");
+    fs::create_dir_all(dir.path().join("src")).expect("create src dir");
+    fs::write(
+        dir.path().join("src/lib.rs"),
+        "pub fn leaf() {}\n\
+         pub fn middle() { leaf(); }\n\
+         pub fn direct() { leaf(); middle(); }\n\
+         pub fn top() { direct(); }\n",
+    )
+    .expect("write lib.rs");
+    let mut tethys = Tethys::new(dir.path()).expect("create Tethys");
+    tethys.index().expect("index failed");
+
+    let impact = tethys
+        .get_symbol_impact("leaf", None, false)
+        .expect("get_symbol_impact for leaf should succeed");
+    let callers: Vec<_> = impact
+        .callers()
+        .iter()
+        .map(|entry| (entry.symbol.qualified_name.as_str(), entry.depth))
+        .collect();
+
+    assert_eq!(
+        callers,
+        [("direct", 1), ("middle", 1), ("top", 2)],
+        "the direct caller reached again through middle stays unique at depth one"
+    );
+    assert_eq!(
+        impact
+            .direct_callers()
+            .iter()
+            .map(|entry| entry.symbol.qualified_name.as_str())
+            .collect::<Vec<_>>(),
+        ["direct", "middle"]
+    );
+    assert_eq!(
+        impact
+            .transitive_callers()
+            .iter()
+            .map(|entry| entry.symbol.qualified_name.as_str())
+            .collect::<Vec<_>>(),
+        ["top"]
+    );
+}
+
+#[test]
+fn get_symbol_impact_obeys_the_shared_depth_contract() {
+    fn caller_depths(impact: &tethys::SymbolImpact) -> Vec<(&str, usize)> {
+        impact
+            .callers()
+            .iter()
+            .map(|entry| (entry.symbol.qualified_name.as_str(), entry.depth))
+            .collect()
+    }
+
+    let (_dir, mut tethys) = workspace_with_intra_file_calls();
+    tethys.index().expect("index failed");
+
+    let zero = tethys
+        .get_symbol_impact("Helper::check", Some(0), false)
+        .expect("depth zero should validate the target");
+    assert_eq!(zero.target.qualified_name, "Helper::check");
+    assert!(zero.callers().is_empty(), "depth zero traverses no edges");
+    assert!(
+        tethys
+            .get_symbol_impact("NoSuchSymbol", Some(0), false)
+            .is_err(),
+        "depth zero still validates the requested target"
+    );
+
+    let one = tethys
+        .get_symbol_impact("Helper::check", Some(1), false)
+        .expect("depth one impact");
+    assert_eq!(caller_depths(&one), [("validate", 1)]);
+
+    let two = tethys
+        .get_symbol_impact("Helper::check", Some(2), false)
+        .expect("depth two impact");
+    assert_eq!(caller_depths(&two), [("validate", 1), ("process", 2)]);
+
+    let default = tethys
+        .get_symbol_impact("Helper::check", None, false)
+        .expect("default depth impact");
+    assert_eq!(
+        caller_depths(&default),
+        caller_depths(&two),
+        "the default depth of 50 saturates this finite graph"
+    );
+
+    let oversized = usize::try_from(u64::from(u32::MAX) + 1).unwrap_or(usize::MAX);
+    let saturated = tethys
+        .get_symbol_impact("Helper::check", Some(oversized), false)
+        .expect("oversized depth impact");
+    assert_eq!(
+        caller_depths(&saturated),
+        caller_depths(&two),
+        "increasing depth past the storage width cannot reduce results"
+    );
+}
+
+#[test]
 fn get_symbol_impact_returns_empty_for_uncalled_symbol() {
     let (_dir, mut tethys) = workspace_with_intra_file_calls();
     tethys.index().expect("index failed");
@@ -894,19 +1033,19 @@ fn get_symbol_impact_returns_empty_for_uncalled_symbol() {
         .expect("get_symbol_impact for process should succeed");
 
     assert!(
-        impact.direct_dependents.is_empty(),
-        "process should have no direct dependents, got: {:?}",
-        impact.direct_dependents
+        impact.direct_callers().is_empty(),
+        "process should have no direct callers, got: {:?}",
+        impact.direct_callers()
     );
     assert!(
-        impact.transitive_dependents.is_empty(),
-        "process should have no transitive dependents, got: {:?}",
-        impact.transitive_dependents
+        impact.transitive_callers().is_empty(),
+        "process should have no transitive callers, got: {:?}",
+        impact.transitive_callers()
     );
 }
 
 #[test]
-fn get_symbol_impact_finds_direct_dependents() {
+fn get_symbol_impact_finds_direct_callers() {
     let (_dir, mut tethys) = workspace_with_intra_file_calls();
     tethys.index().expect("index failed");
 
@@ -916,13 +1055,13 @@ fn get_symbol_impact_finds_direct_dependents() {
         .expect("get_symbol_impact for validate should succeed");
 
     assert!(
-        !impact.direct_dependents.is_empty(),
-        "validate should have direct dependents (process)"
+        !impact.direct_callers().is_empty(),
+        "validate should have direct callers (process)"
     );
 }
 
 #[test]
-fn get_symbol_impact_target_points_to_correct_file() {
+fn get_symbol_impact_targets_correct_symbol() {
     let (_dir, mut tethys) = workspace_with_intra_file_calls();
     tethys.index().expect("index failed");
 
@@ -930,10 +1069,9 @@ fn get_symbol_impact_target_points_to_correct_file() {
         .get_symbol_impact("validate", None, false)
         .expect("get_symbol_impact for validate should succeed");
 
-    assert!(
-        impact.target.to_string_lossy().contains("lib.rs"),
-        "validate impact target should be lib.rs, got: {:?}",
-        impact.target
+    assert_eq!(
+        impact.target.qualified_name, "validate",
+        "impact should identify the requested target symbol"
     );
 }
 
@@ -948,8 +1086,8 @@ fn get_symbol_impact_cross_file_resolved() {
         .expect("get_symbol_impact for Connection should succeed");
 
     assert!(
-        !impact.direct_dependents.is_empty(),
-        "cross-file dependents should be resolved, got empty"
+        !impact.direct_callers().is_empty(),
+        "cross-file callers should be resolved, got empty"
     );
 }
 
@@ -1117,7 +1255,7 @@ fn transitive_callers_via_call_edges() {
         .get_symbol_impact("Helper::check", None, false)
         .expect("get_symbol_impact for Helper::check should succeed");
 
-    let total = impact.direct_dependents.len() + impact.transitive_dependents.len();
+    let total = impact.callers().len();
     assert!(
         total >= 1,
         "Helper::check should have at least 1 caller, got: {total}"

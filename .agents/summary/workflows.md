@@ -114,8 +114,12 @@ sequenceDiagram
     CLI-->>User: grouped, formatted output
 ```
 
-Transitive callers remain index-backed through symbol impact. The CLI rejects
-`--lsp` with either `--transitive` or `--exclude-speculative`; unsupported
+Transitive callers remain Index-backed through symbol impact.
+`callers --transitive --depth N` bounds the traversal; omitted depth uses 50,
+zero returns no callers after validating the symbol, and each caller appears
+once at its minimum depth. Speculative exclusion applies at every traversal
+hop. The CLI rejects `--lsp` with either callers `--transitive` or
+`--exclude-speculative`, and rejects `impact --symbol --lsp`; unsupported
 combinations are never silently ignored.
 
 `impact` works the same way at file granularity over `file_deps`, or at symbol
