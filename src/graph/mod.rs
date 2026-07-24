@@ -5,4 +5,4 @@
 
 mod types;
 
-pub use types::{FileDepInfo, FileImpact, FilePath, SymbolImpact, SymbolImpactCaller};
+pub use types::{FileImpact, FileImpactDependent, FilePath, SymbolImpact, SymbolImpactCaller};

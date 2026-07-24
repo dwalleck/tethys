@@ -3,7 +3,7 @@
 //! These types represent the core domain model:
 //! - **Entities**: `IndexedFile`, `Symbol`, `Reference` (stored in database)
 //! - **Transient**: `FileAnalysis` (parsing result, not stored directly)
-//! - **Results**: `IndexStats`, `IndexUpdate`, `Impact`, `Cycle` (query results)
+//! - **Results**: `IndexStats`, `IndexUpdate`, `Caller`, `Cycle` (query results)
 //!
 //! ## Design Decisions
 //!
@@ -1286,30 +1286,6 @@ pub struct Caller {
     pub symbol: Symbol,
     /// Workspace-relative path of the indexed file containing the caller.
     pub file: PathBuf,
-}
-
-/// Result of impact analysis.
-///
-/// Shows which files/symbols would be affected by changes to a target.
-#[derive(Debug, Clone)]
-pub struct Impact {
-    /// The file or symbol being analyzed
-    pub target: PathBuf,
-    /// Files/symbols that directly depend on the target
-    pub direct_dependents: Vec<Dependent>,
-    /// Files/symbols that transitively depend on the target
-    pub transitive_dependents: Vec<Dependent>,
-}
-
-/// A file that depends on an analyzed target.
-#[derive(Debug, Clone)]
-pub struct Dependent {
-    /// Path to the dependent file
-    pub file: PathBuf,
-    /// Which symbols from the target are used
-    pub symbols_used: Vec<String>,
-    /// Number of reference sites in this file
-    pub line_count: usize,
 }
 
 /// A circular dependency detected in the codebase.

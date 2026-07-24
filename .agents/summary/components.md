@@ -52,8 +52,8 @@ The domain model and the largest single source file. Defines the core records
 `Visibility`, `ReferenceKind`, `PanicKind`, `ReachabilityDirection`,
 `CallEdgeSelection`, `CallerMode`, `CouplingSort`), signatures
 (`FunctionSignature`, `Parameter`, `ParameterKind`), result/stat structures
-(`Caller`, `IndexStats`, `DatabaseStats`, `Impact`, `ReachabilityResult`,
-`Cycle`, `StalenessReport`, `IndexUpdate`), architecture types (`Package`,
+(`Caller`, `IndexStats`, `DatabaseStats`, `ReachabilityResult`, `Cycle`,
+`StalenessReport`, `IndexUpdate`), architecture types (`Package`,
 `CouplingMetrics`, `CouplingDetail`, `PackageDependency`, `ArchStats`), LSP
 outcome types, and `IndexOptions`/`CrateInfo`. See `data_models.md`.
 
@@ -151,11 +151,10 @@ Shared extraction DTOs (`ExtractedSymbol`, `ExtractedReference`,
 
 ## Graph Subsystem (`src/graph/`)
 
-- `mod.rs` — re-exports graph query result types; public symbol-impact results
-  also cross the `Tethys` facade.
+- `mod.rs` — re-exports graph query result types that cross the `Tethys` facade.
 - `types.rs` — graph-specific records: public
-  `SymbolImpactCaller`/`SymbolImpact`, and internal `FileDepInfo`, `FileImpact`,
-  `FilePath`.
+  `FileImpactDependent`/`FileImpact` and
+  `SymbolImpactCaller`/`SymbolImpact`, plus internal `FilePath`.
 
 ## LSP Subsystem (`src/lsp/`)
 

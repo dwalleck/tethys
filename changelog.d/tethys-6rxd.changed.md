@@ -1,0 +1,2 @@
+- `tethys impact` now reports each dependent file once at its minimum dependency depth, with direct and transitive sections derived from that depth.
+- `tethys impact --depth 0` now validates the target and reports no dependent files.

@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use colored::Colorize;
-use tethys::{Caller, Dependent, SymbolImpactCaller};
+use tethys::{Caller, FileImpactDependent, SymbolImpactCaller};
 
 const MAX_DISPLAY_ITEMS: usize = 10;
 
@@ -12,7 +12,7 @@ const MAX_DISPLAY_ITEMS: usize = 10;
 ///
 /// Shows up to `MAX_DISPLAY_ITEMS` files with bullet points. If there are more,
 /// shows "... and N more". If empty, shows the provided `empty_message`.
-pub fn print_dependents(dependents: &[Dependent], empty_message: &str) {
+pub fn print_dependents(dependents: &[FileImpactDependent], empty_message: &str) {
     if dependents.is_empty() {
         println!("    {}", empty_message.dimmed());
         return;
@@ -81,7 +81,7 @@ fn print_grouped_callers(grouped: Vec<(&Path, Vec<&str>)>) {
 }
 
 #[cfg(test)]
-fn format_dependents(dependents: &[Dependent], empty_message: &str) -> Vec<String> {
+fn format_dependents(dependents: &[FileImpactDependent], empty_message: &str) -> Vec<String> {
     if dependents.is_empty() {
         return vec![format!("    {empty_message}")];
     }
@@ -102,34 +102,14 @@ fn format_dependents(dependents: &[Dependent], empty_message: &str) -> Vec<Strin
 }
 
 #[cfg(test)]
-fn format_callers_by_file(callers: &[Dependent]) -> Vec<String> {
-    let grouped = group_callers(callers.iter().flat_map(|caller| {
-        caller
-            .symbols_used
-            .iter()
-            .map(move |symbol| (caller.file.as_path(), symbol.as_str()))
-    }));
-
-    let mut lines = Vec::new();
-    for (file, symbols) in grouped {
-        lines.push(format!("  {}:", file.display()));
-        for symbol in symbols {
-            lines.push(format!("    • {symbol}"));
-        }
-    }
-    lines
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
     use std::path::PathBuf;
 
-    fn make_dependent(path: &str, symbols: &[&str]) -> Dependent {
-        Dependent {
+    fn make_dependent(path: &str) -> FileImpactDependent {
+        FileImpactDependent {
             file: PathBuf::from(path),
-            symbols_used: symbols.iter().copied().map(str::to_string).collect(),
-            line_count: 1,
+            depth: 1,
         }
     }
 
@@ -145,7 +125,7 @@ mod tests {
 
     #[test]
     fn format_dependents_single_item() {
-        let deps = vec![make_dependent("src/main.rs", &["foo"])];
+        let deps = vec![make_dependent("src/main.rs")];
         let lines = format_dependents(&deps, "none");
         assert_eq!(lines.len(), 1, "single dependent should produce one line");
         assert!(
@@ -157,7 +137,7 @@ mod tests {
     #[test]
     fn format_dependents_at_max_shows_no_overflow() {
         let deps: Vec<_> = (0..MAX_DISPLAY_ITEMS)
-            .map(|i| make_dependent(&format!("src/file_{i}.rs"), &[]))
+            .map(|i| make_dependent(&format!("src/file_{i}.rs")))
             .collect();
         let lines = format_dependents(&deps, "none");
         assert_eq!(
@@ -175,7 +155,7 @@ mod tests {
     fn format_dependents_over_max_shows_overflow() {
         let count = MAX_DISPLAY_ITEMS + 5;
         let deps: Vec<_> = (0..count)
-            .map(|i| make_dependent(&format!("src/file_{i}.rs"), &[]))
+            .map(|i| make_dependent(&format!("src/file_{i}.rs")))
             .collect();
         let lines = format_dependents(&deps, "none");
         assert_eq!(
@@ -187,69 +167,6 @@ mod tests {
         assert!(
             last.contains("5 more"),
             "overflow line should show correct remaining count, got: {last}"
-        );
-    }
-
-    #[test]
-    fn format_callers_by_file_empty() {
-        let lines = format_callers_by_file(&[]);
-        assert!(lines.is_empty(), "no callers should produce no lines");
-    }
-
-    #[test]
-    fn format_callers_by_file_groups_and_sorts() {
-        let callers = vec![
-            make_dependent("src/b.rs", &["zeta", "alpha"]),
-            make_dependent("src/a.rs", &["gamma"]),
-            make_dependent("src/b.rs", &["alpha", "beta"]),
-        ];
-        let lines = format_callers_by_file(&callers);
-
-        // src/a.rs should come first (sorted)
-        assert!(
-            lines[0].contains("src/a.rs"),
-            "first file should be src/a.rs, got: {}",
-            lines[0]
-        );
-        assert!(
-            lines[1].contains("gamma"),
-            "src/a.rs should have gamma symbol"
-        );
-
-        // src/b.rs should come second with deduplicated, sorted symbols
-        assert!(
-            lines[2].contains("src/b.rs"),
-            "second file should be src/b.rs, got: {}",
-            lines[2]
-        );
-        // Symbols should be alpha, beta, zeta (sorted, deduplicated)
-        assert!(
-            lines[3].contains("alpha"),
-            "first symbol of src/b.rs should be alpha"
-        );
-        assert!(
-            lines[4].contains("beta"),
-            "second symbol of src/b.rs should be beta"
-        );
-        assert!(
-            lines[5].contains("zeta"),
-            "third symbol of src/b.rs should be zeta"
-        );
-        assert_eq!(lines.len(), 6, "should have 2 file headers + 4 symbols");
-    }
-
-    #[test]
-    fn format_callers_deduplicates_symbols() {
-        let callers = vec![
-            make_dependent("src/a.rs", &["foo", "foo", "bar"]),
-            make_dependent("src/a.rs", &["foo"]),
-        ];
-        let lines = format_callers_by_file(&callers);
-        // Header + 2 unique symbols (bar, foo)
-        assert_eq!(
-            lines.len(),
-            3,
-            "should have 1 file header + 2 unique symbols, got: {lines:?}"
         );
     }
 }
