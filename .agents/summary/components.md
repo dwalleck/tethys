@@ -50,12 +50,12 @@ The domain model and the largest single source file. Defines the core records
 (`Symbol`, `Reference`, `Import`, `IndexedFile`, `Span`), strongly-typed IDs
 (`SymbolId`, `FileId`, `RefId`, `PackageId`), enums (`Language`, `SymbolKind`,
 `Visibility`, `ReferenceKind`, `PanicKind`, `ReachabilityDirection`,
-`CouplingSort`), signatures (`FunctionSignature`, `Parameter`, `ParameterKind`),
-result/stat structures (`IndexStats`, `DatabaseStats`, `Impact`,
-`ReachabilityResult`, `Cycle`, `StalenessReport`, `IndexUpdate`), architecture
-types (`Package`, `CouplingMetrics`, `CouplingDetail`, `PackageDependency`,
-`ArchStats`), LSP outcome types, and `IndexOptions`/`CrateInfo`. See
-`data_models.md`.
+`CallEdgeSelection`, `CallerMode`, `CouplingSort`), signatures
+(`FunctionSignature`, `Parameter`, `ParameterKind`), result/stat structures
+(`Caller`, `IndexStats`, `DatabaseStats`, `Impact`, `ReachabilityResult`,
+`Cycle`, `StalenessReport`, `IndexUpdate`), architecture types (`Package`,
+`CouplingMetrics`, `CouplingDetail`, `PackageDependency`, `ArchStats`), LSP
+outcome types, and `IndexOptions`/`CrateInfo`. See `data_models.md`.
 
 ### `error` (`src/error.rs`)
 `Error` (top-level, re-exported), `IndexError`, and `IndexErrorKind`. Distinguishes
@@ -94,8 +94,9 @@ The **language-neutral** cross-file reference resolution driver. Builds import
 maps per file (`build_import_maps`), resolves references via explicit imports,
 glob imports, and qualified-module fallback (`try_resolve_reference`,
 `resolve_symbol_in_module`, `resolve_module_to_file_id`), and optionally refines
-via LSP (`resolve_via_lsp`, `get_callers_with_lsp`). Holds `ResolveContext`. Must
-not contain language-specific module semantics (enforced by `seam_lint`).
+references and direct callers via LSP (`resolve_via_lsp`,
+`get_lsp_refined_callers`). Holds `ResolveContext`. Must not contain
+language-specific module semantics (enforced by `seam_lint`).
 
 ### `resolver.rs`
 Rust-specific module-path resolution: maps `crate::`, `self::`, `super::`, and

@@ -4,9 +4,9 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use colored::Colorize;
-use tethys::Tethys;
+use tethys::{CallEdgeSelection, CallerMode, Tethys};
 
-use super::display::print_callers_by_file;
+use super::display::{print_callers_by_file, print_dependent_callers_by_file};
 use super::ensure_lsp_if_requested;
 
 /// Run the callers command.
@@ -44,7 +44,7 @@ pub fn run(
             .cloned()
             .collect();
         let unique_files: HashSet<_> = all_callers.iter().map(|c| &c.file).collect();
-        print_callers_by_file(&all_callers);
+        print_dependent_callers_by_file(&all_callers);
 
         let total = impact.direct_dependents.len() + impact.transitive_dependents.len();
         println!();
@@ -61,12 +61,18 @@ pub fn run(
             unique_files.len()
         );
     } else {
-        // Direct callers only - use LSP if requested
-        let callers = if lsp {
-            tethys.get_callers_with_lsp(symbol)?
+        let mode = if lsp {
+            CallerMode::LspRefined
         } else {
-            tethys.get_callers(symbol, exclude_speculative)?
+            CallerMode::Indexed {
+                call_edges: if exclude_speculative {
+                    CallEdgeSelection::ExcludeSpeculative
+                } else {
+                    CallEdgeSelection::All
+                },
+            }
         };
+        let callers = tethys.get_callers(symbol, mode)?;
 
         if callers.is_empty() {
             println!("No callers found for \"{}\"", symbol.cyan());

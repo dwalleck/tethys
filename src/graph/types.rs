@@ -1,12 +1,12 @@
 //! Internal result types for graph queries.
 
-use crate::types::{IndexedFile, Symbol};
+use crate::types::{Caller, IndexedFile};
 
 /// Information about a caller of a symbol.
 #[derive(Debug, Clone)]
 pub struct CallerInfo {
-    /// The symbol that calls the target.
-    pub symbol: Symbol,
+    /// Caller identity and indexed-file path.
+    pub caller: Caller,
     /// How many times it references the target.
     pub reference_count: usize,
 }

@@ -105,7 +105,7 @@ pub fn use_data_processor() -> i32 {
     // Verify we can query callers for the trait method
     // This tests that LSP helped resolve the trait method call
     let callers = tethys
-        .get_callers_with_lsp("run_processor")
+        .get_callers("run_processor", tethys::CallerMode::LspRefined)
         .expect("get_callers failed");
 
     assert!(
@@ -181,7 +181,7 @@ pub fn chain_inference() -> Option<i32> {
 
     // Check that create_data has callers (process_data and chain_inference)
     let callers = tethys
-        .get_callers_with_lsp("create_data")
+        .get_callers("create_data", tethys::CallerMode::LspRefined)
         .expect("get_callers failed");
 
     assert!(
@@ -606,7 +606,7 @@ pub fn use_string_container() -> String {
 
     // Verify Container methods are found
     let new_callers = tethys
-        .get_callers_with_lsp("Container::new")
+        .get_callers("Container::new", tethys::CallerMode::LspRefined)
         .expect("get_callers for Container::new failed");
 
     assert!(
@@ -617,7 +617,7 @@ pub fn use_string_container() -> String {
     );
 
     let get_callers = tethys
-        .get_callers_with_lsp("Container::get")
+        .get_callers("Container::get", tethys::CallerMode::LspRefined)
         .expect("get_callers for Container::get failed");
 
     assert!(

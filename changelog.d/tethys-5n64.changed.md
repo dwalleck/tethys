@@ -1,0 +1,2 @@
+- `tethys callers` now rejects `--lsp` with `--transitive` or `--exclude-speculative` instead of silently ignoring unsupported options.
+- LSP-refined caller queries now wait for workspace analysis and recover inferred callers from their containing symbols.

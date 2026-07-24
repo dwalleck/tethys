@@ -27,6 +27,26 @@ pub fn node_text(node: &tree_sitter::Node, content: &[u8]) -> Option<String> {
     }
 }
 
+/// Find the declared name position for the node matching an indexed span.
+///
+/// Both coordinates are 1-indexed. Matching the syntax node before reading
+/// its `name` field avoids confusing an identifier in visibility modifiers or
+/// return types with the declaration's own identifier.
+pub fn name_position_for_span(node: tree_sitter::Node<'_>, target: Span) -> Option<(u32, u32)> {
+    if node_span(&node) == target
+        && let Some(name) = node.child_by_field_name("name")
+    {
+        return Some((
+            name.start_position().row as u32 + 1,
+            name.start_position().column as u32 + 1,
+        ));
+    }
+
+    let mut cursor = node.walk();
+    node.named_children(&mut cursor)
+        .find_map(|child| name_position_for_span(child, target))
+}
+
 /// Convert tree-sitter positions to our Span type.
 ///
 /// Tree-sitter uses 0-indexed positions; Span uses 1-indexed.

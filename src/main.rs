@@ -71,7 +71,7 @@ enum Commands {
         transitive: bool,
 
         /// Use LSP (rust-analyzer) for enhanced reference resolution
-        #[arg(long)]
+        #[arg(long, conflicts_with_all = ["transitive", "exclude_speculative"])]
         lsp: bool,
 
         /// Drop call edges whose every supporting reference was bound by

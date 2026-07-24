@@ -194,7 +194,12 @@ fn bench_get_callers(c: &mut Criterion) {
                 b.iter(|| {
                     let callers = workspace
                         .tethys
-                        .get_callers("target_func", false)
+                        .get_callers(
+                            "target_func",
+                            tethys::CallerMode::Indexed {
+                                call_edges: tethys::CallEdgeSelection::All,
+                            },
+                        )
                         .expect("get_callers failed");
                     black_box(callers)
                 });
@@ -370,7 +375,12 @@ fn analyze_query_plans(c: &mut Criterion) {
         b.iter(|| {
             let callers = workspace
                 .tethys
-                .get_callers("target_func", false)
+                .get_callers(
+                    "target_func",
+                    tethys::CallerMode::Indexed {
+                        call_edges: tethys::CallEdgeSelection::All,
+                    },
+                )
                 .expect("get_callers failed");
             black_box(callers)
         });

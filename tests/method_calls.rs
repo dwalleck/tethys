@@ -277,13 +277,18 @@ fn ticket_repro_all_three_acceptance_criteria() {
         "expected a name-arm bind, got {strategy:?}"
     );
     let callers = tethys
-        .get_callers("Thing::unwrap", false)
+        .get_callers(
+            "Thing::unwrap",
+            tethys::CallerMode::Indexed {
+                call_edges: tethys::CallEdgeSelection::All,
+            },
+        )
         .expect("callers query");
     let caller_files: Vec<&str> = callers.iter().map(|c| c.file.to_str().unwrap()).collect();
     assert_eq!(caller_files, ["src/lib.rs"], "one caller file");
     let all_symbols: Vec<&str> = callers
         .iter()
-        .flat_map(|c| c.symbols_used.iter().map(String::as_str))
+        .map(|caller| caller.symbol.qualified_name.as_str())
         .collect();
     assert!(
         all_symbols.iter().any(|s| s.contains("use_internal")),

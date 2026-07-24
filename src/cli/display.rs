@@ -1,10 +1,10 @@
 //! Common display utilities for CLI commands.
 
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::Path;
 
 use colored::Colorize;
-use tethys::Dependent;
+use tethys::{Caller, Dependent};
 
 const MAX_DISPLAY_ITEMS: usize = 10;
 
@@ -31,30 +31,52 @@ pub fn print_dependents(dependents: &[Dependent], empty_message: &str) {
     }
 }
 
-/// Group callers by file and display symbols used from each file.
-///
-/// Groups the given dependents by their source file, deduplicates symbols,
-/// and prints them in sorted order for deterministic output.
-pub fn print_callers_by_file(callers: &[Dependent]) {
-    // Group by file, deduplicating symbols
-    let mut by_file: HashMap<PathBuf, HashSet<String>> = HashMap::new();
-    for caller in callers {
-        by_file
-            .entry(caller.file.clone())
-            .or_default()
-            .extend(caller.symbols_used.iter().cloned());
+/// Group direct callers by indexed file and display their symbol names.
+pub fn print_callers_by_file(callers: &[Caller]) {
+    let grouped = group_callers(
+        callers
+            .iter()
+            .map(|caller| (caller.file.as_path(), caller.symbol.qualified_name.as_str())),
+    );
+    print_grouped_callers(grouped);
+}
+
+/// Group legacy symbol-impact dependents by file and display their symbol names.
+pub fn print_dependent_callers_by_file(callers: &[Dependent]) {
+    let grouped = group_callers(callers.iter().flat_map(|caller| {
+        caller
+            .symbols_used
+            .iter()
+            .map(move |symbol| (caller.file.as_path(), symbol.as_str()))
+    }));
+    print_grouped_callers(grouped);
+}
+
+fn group_callers<'a>(
+    callers: impl IntoIterator<Item = (&'a Path, &'a str)>,
+) -> Vec<(&'a Path, Vec<&'a str>)> {
+    let mut by_file = HashMap::<_, HashSet<_>>::new();
+    for (file, symbol) in callers {
+        by_file.entry(file).or_default().insert(symbol);
     }
 
-    // Sort files for deterministic output
-    let mut sorted_files: Vec<_> = by_file.iter().collect();
-    sorted_files.sort_by_key(|(path, _)| *path);
+    let mut grouped: Vec<_> = by_file
+        .into_iter()
+        .map(|(file, symbols)| {
+            let mut symbols: Vec<_> = symbols.into_iter().collect();
+            symbols.sort_unstable();
+            (file, symbols)
+        })
+        .collect();
+    grouped.sort_by(|(left, _), (right, _)| left.cmp(right));
+    grouped
+}
 
-    for (file, symbols) in sorted_files {
+fn print_grouped_callers(grouped: Vec<(&Path, Vec<&str>)>) {
+    for (file, symbols) in grouped {
         println!("  {}:", file.display().to_string().white().bold());
-        let mut sorted_symbols: Vec<_> = symbols.iter().collect();
-        sorted_symbols.sort();
-        for sym in sorted_symbols {
-            println!("    {} {}", "•".dimmed(), sym);
+        for symbol in symbols {
+            println!("    {} {}", "•".dimmed(), symbol);
         }
     }
 }
@@ -82,27 +104,20 @@ fn format_dependents(dependents: &[Dependent], empty_message: &str) -> Vec<Strin
 
 #[cfg(test)]
 fn format_callers_by_file(callers: &[Dependent]) -> Vec<String> {
-    let mut by_file: HashMap<PathBuf, HashSet<String>> = HashMap::new();
-    for caller in callers {
-        by_file
-            .entry(caller.file.clone())
-            .or_default()
-            .extend(caller.symbols_used.iter().cloned());
-    }
-
-    let mut sorted_files: Vec<_> = by_file.iter().collect();
-    sorted_files.sort_by_key(|(path, _)| *path);
+    let grouped = group_callers(callers.iter().flat_map(|caller| {
+        caller
+            .symbols_used
+            .iter()
+            .map(move |symbol| (caller.file.as_path(), symbol.as_str()))
+    }));
 
     let mut lines = Vec::new();
-    for (file, symbols) in sorted_files {
+    for (file, symbols) in grouped {
         lines.push(format!("  {}:", file.display()));
-        let mut sorted_symbols: Vec<_> = symbols.iter().collect();
-        sorted_symbols.sort();
-        for sym in sorted_symbols {
-            lines.push(format!("    • {sym}"));
+        for symbol in symbols {
+            lines.push(format!("    • {symbol}"));
         }
     }
-
     lines
 }
 

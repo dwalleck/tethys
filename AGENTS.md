@@ -81,6 +81,11 @@ For "what is X / how do I call X / how does process Y work", route via
   lives in `src/db/graph.rs` behind the public `Tethys` facade. There is no
   graph adapter trait or in-memory graph library; reach for SQL-backed methods,
   and introduce a narrow seam only when a second implementation exists.
+- **Direct caller modes are explicit at the `Tethys` seam.**
+  `CallerMode::Indexed` selects all retained call edges or excludes edges
+  supported only by speculative references; `CallerMode::LspRefined` augments
+  all indexed callers and is direct-only. The CLI rejects `--lsp` with
+  `--exclude-speculative` or `--transitive` rather than ignoring either flag.
 - **Coupling instability is computed in Rust, not SQL.** The `arch_coupling`
   view yields only Ca/Ce; `CouplingMetrics::instability` owns the formula.
   Keep it in one place.

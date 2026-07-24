@@ -28,7 +28,7 @@ mod tree_sitter_utils;
 
 use common::{ExtractedReference, ExtractedSymbol, ImportStatement};
 
-use crate::types::Language;
+use crate::types::{Language, Span};
 
 /// Get the language support implementation for a language.
 #[must_use]
@@ -47,6 +47,17 @@ pub trait LanguageSupport: Send + Sync {
     /// Get the tree-sitter language for parsing.
     fn tree_sitter_language(&self) -> tree_sitter::Language;
 
+    /// Locate the declared identifier for an indexed syntax-node span.
+    ///
+    /// Returns 1-indexed `(line, byte column)` coordinates. The default
+    /// implementation reparses the source and reads the declaration node's
+    /// tree-sitter `name` field.
+    fn definition_name_position(&self, content: &[u8], span: Span) -> Option<(u32, u32)> {
+        let mut parser = tree_sitter::Parser::new();
+        parser.set_language(&self.tree_sitter_language()).ok()?;
+        let tree = parser.parse(content, None)?;
+        tree_sitter_utils::name_position_for_span(tree.root_node(), span)
+    }
     /// Extract symbols from a parsed syntax tree.
     fn extract_symbols(&self, tree: &tree_sitter::Tree, content: &[u8]) -> Vec<ExtractedSymbol>;
 
@@ -59,4 +70,35 @@ pub trait LanguageSupport: Send + Sync {
 
     /// Extract import statements from a parsed syntax tree.
     fn extract_imports(&self, tree: &tree_sitter::Tree, content: &[u8]) -> Vec<ImportStatement>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::SymbolKind;
+
+    #[test]
+    fn definition_name_position_ignores_name_in_visibility_path() {
+        let source = "pub(in crate::worker) fn worker() {}";
+        let support = get_language_support(Language::Rust);
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&support.tree_sitter_language())
+            .expect("Rust grammar");
+        let tree = parser.parse(source, None).expect("parse source");
+        let symbol = support
+            .extract_symbols(&tree, source.as_bytes())
+            .into_iter()
+            .find(|symbol| symbol.kind == SymbolKind::Function && symbol.name == "worker")
+            .expect("worker function");
+        let span = symbol.span.expect("function span");
+
+        let position = support
+            .definition_name_position(source.as_bytes(), span)
+            .expect("declaration name position");
+        let expected_column =
+            u32::try_from(source.rfind("worker").expect("function name")).expect("column") + 1;
+
+        assert_eq!(position, (1, expected_column));
+    }
 }

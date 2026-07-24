@@ -174,13 +174,18 @@ fn callers_includes_qualified_only_call_site() {
     tethys.index().expect("index failed");
 
     let callers = tethys
-        .get_callers("helper", false)
+        .get_callers(
+            "helper",
+            tethys::CallerMode::Indexed {
+                call_edges: tethys::CallEdgeSelection::All,
+            },
+        )
         .expect("get_callers failed");
-    // One Dependent per caller symbol (not per file): aggregate b.rs rows.
+    // One Caller per calling symbol, even when callers share an indexed file.
     let b_rs_symbols: Vec<&str> = callers
         .iter()
-        .filter(|d| d.file.to_string_lossy().replace('\\', "/") == "src/b.rs")
-        .flat_map(|d| d.symbols_used.iter().map(String::as_str))
+        .filter(|caller| caller.file.to_string_lossy().replace('\\', "/") == "src/b.rs")
+        .map(|caller| caller.symbol.qualified_name.as_str())
         .collect();
     assert!(
         b_rs_symbols.contains(&"use_it_qualified"),

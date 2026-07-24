@@ -1,8 +1,7 @@
-//! Integration tests for `get_callers_with_lsp` functionality.
+//! Integration tests for LSP-refined direct caller queries.
 //!
-//! These tests verify that LSP-augmented caller detection works correctly:
-//! - Graceful fallback when LSP is not available
-//! - Proper merging of DB and LSP results (when LSP is available)
+//! These tests verify graceful fallback, indexed/LSP merging, and
+//! deduplication through [`tethys::CallerMode::LspRefined`].
 //!
 //! Tests marked with `#[ignore]` require rust-analyzer to be installed.
 //! Run with: `cargo test --test lsp_callers -- --ignored`
@@ -82,15 +81,15 @@ edition = "2021"
 // ============================================================================
 
 #[test]
-fn get_callers_with_lsp_returns_db_callers_when_lsp_unavailable() {
+fn lsp_refined_mode_includes_indexed_callers() {
     let (_dir, mut tethys) = workspace_with_intra_file_calls();
     tethys.index().expect("index failed");
 
     // Even if LSP fails, should return DB callers gracefully
     // validate is called by process
     let callers = tethys
-        .get_callers_with_lsp("validate")
-        .expect("get_callers_with_lsp should succeed even without LSP");
+        .get_callers("validate", tethys::CallerMode::LspRefined)
+        .expect("LSP-refined caller query should succeed");
 
     // Should have at least the DB callers
     assert!(
@@ -100,11 +99,11 @@ fn get_callers_with_lsp_returns_db_callers_when_lsp_unavailable() {
 }
 
 #[test]
-fn get_callers_with_lsp_returns_error_for_nonexistent_symbol() {
+fn lsp_refined_mode_returns_error_for_nonexistent_symbol() {
     let (_dir, mut tethys) = workspace_with_intra_file_calls();
     tethys.index().expect("index failed");
 
-    let result = tethys.get_callers_with_lsp("NonExistent");
+    let result = tethys.get_callers("NonExistent", tethys::CallerMode::LspRefined);
 
     assert!(
         result.is_err(),
@@ -118,14 +117,14 @@ fn get_callers_with_lsp_returns_error_for_nonexistent_symbol() {
 }
 
 #[test]
-fn get_callers_with_lsp_returns_empty_for_uncalled_symbol() {
+fn lsp_refined_mode_returns_empty_for_uncalled_symbol() {
     let (_dir, mut tethys) = workspace_with_intra_file_calls();
     tethys.index().expect("index failed");
 
     // process is never called
     let callers = tethys
-        .get_callers_with_lsp("process")
-        .expect("get_callers_with_lsp should succeed");
+        .get_callers("process", tethys::CallerMode::LspRefined)
+        .expect("LSP-refined caller query should succeed");
 
     assert!(
         callers.is_empty(),
@@ -134,17 +133,22 @@ fn get_callers_with_lsp_returns_empty_for_uncalled_symbol() {
 }
 
 #[test]
-fn get_callers_with_lsp_matches_get_callers_baseline() {
+fn lsp_refined_mode_includes_indexed_baseline() {
     let (_dir, mut tethys) = workspace_with_intra_file_calls();
     tethys.index().expect("index failed");
 
-    // get_callers_with_lsp should return at least what get_callers returns
+    // LSP refinement must retain every indexed caller.
     let db_callers = tethys
-        .get_callers("validate", false)
+        .get_callers(
+            "validate",
+            tethys::CallerMode::Indexed {
+                call_edges: tethys::CallEdgeSelection::All,
+            },
+        )
         .expect("get_callers failed");
     let lsp_callers = tethys
-        .get_callers_with_lsp("validate")
-        .expect("get_callers_with_lsp failed");
+        .get_callers("validate", tethys::CallerMode::LspRefined)
+        .expect("LSP-refined caller query failed");
 
     // LSP version should have >= DB version (may have additional from LSP)
     assert!(
@@ -161,34 +165,7 @@ fn get_callers_with_lsp_matches_get_callers_baseline() {
 
 #[test]
 #[ignore = "requires rust-analyzer installed"]
-fn get_callers_with_lsp_merges_lsp_results() {
-    if !rust_analyzer_available() {
-        eprintln!("Skipping test: rust-analyzer not available");
-        return;
-    }
-
-    let (_dir, mut tethys) = workspace_with_intra_file_calls();
-    tethys.index().expect("index failed");
-
-    // With LSP, we may find additional callers
-    let callers = tethys
-        .get_callers_with_lsp("validate")
-        .expect("get_callers_with_lsp should succeed");
-
-    // Should have at least one caller (process)
-    assert!(
-        !callers.is_empty(),
-        "validate should have callers: {callers:?}"
-    );
-}
-
-/// Test that cross-file references can be found via LSP that tree-sitter might miss.
-///
-/// This test creates a workspace where a function uses a type from another file,
-/// which tree-sitter might not fully resolve but LSP can.
-#[test]
-#[ignore = "requires rust-analyzer installed"]
-fn get_callers_with_lsp_finds_cross_file_callers() {
+fn lsp_refined_mode_adds_semantic_caller_and_deduplicates_overlap() {
     if !rust_analyzer_available() {
         eprintln!("Skipping test: rust-analyzer not available");
         return;
@@ -196,62 +173,76 @@ fn get_callers_with_lsp_finds_cross_file_callers() {
 
     let dir = tempfile::tempdir().expect("failed to create temp dir");
     fs::create_dir_all(dir.path().join("src")).expect("failed to create src dir");
-
-    // Create a multi-file workspace
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"lsp_caller_merge\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .expect("write Cargo.toml");
     fs::write(
         dir.path().join("src/lib.rs"),
         r"
-mod helper;
-mod caller;
-",
-    )
-    .expect("failed to write lib.rs");
+pub struct Worker;
 
-    fs::write(
-        dir.path().join("src/helper.rs"),
-        r"
-pub fn do_work() -> i32 {
-    42
+impl Worker {
+    pub fn run(&self) {}
+
+    pub fn indexed_caller(&self) {
+        self.run();
+    }
+}
+
+pub struct Decoy;
+
+impl Decoy {
+    pub fn run(&self) {}
+}
+
+pub fn make_worker() -> Worker {
+    Worker
+}
+
+
+pub fn inferred_caller() {
+    make_worker().run();
 }
 ",
     )
-    .expect("failed to write helper.rs");
+    .expect("write lib.rs");
 
-    fs::write(
-        dir.path().join("src/caller.rs"),
-        r"
-use crate::helper::do_work;
-
-pub fn call_helper() -> i32 {
-    do_work()
-}
-",
-    )
-    .expect("failed to write caller.rs");
-
-    fs::write(
-        dir.path().join("Cargo.toml"),
-        r#"
-[package]
-name = "test_workspace"
-version = "0.1.0"
-edition = "2021"
-"#,
-    )
-    .expect("failed to write Cargo.toml");
-
-    let mut tethys = Tethys::new(dir.path()).expect("failed to create Tethys");
+    let mut tethys = Tethys::new(dir.path()).expect("create Tethys");
     tethys.index().expect("index failed");
 
-    // With LSP, should find that call_helper calls do_work
-    let callers = tethys
-        .get_callers_with_lsp("do_work")
-        .expect("get_callers_with_lsp should succeed");
+    let indexed = tethys
+        .get_callers(
+            "Worker::run",
+            tethys::CallerMode::Indexed {
+                call_edges: tethys::CallEdgeSelection::All,
+            },
+        )
+        .expect("indexed caller query");
+    let mut indexed_names: Vec<_> = indexed
+        .iter()
+        .map(|caller| caller.symbol.qualified_name.as_str())
+        .collect();
+    indexed_names.sort_unstable();
+    assert_eq!(
+        indexed_names,
+        ["Worker::indexed_caller"],
+        "the ambiguous inferred receiver must be absent before LSP refinement"
+    );
 
-    // LSP should help find the cross-file caller
-    assert!(
-        !callers.is_empty(),
-        "do_work should have callers (call_helper), got: {callers:?}"
+    let refined = tethys
+        .get_callers("Worker::run", tethys::CallerMode::LspRefined)
+        .expect("LSP-refined caller query");
+    let mut refined_names: Vec<_> = refined
+        .iter()
+        .map(|caller| caller.symbol.qualified_name.as_str())
+        .collect();
+    refined_names.sort_unstable();
+    assert_eq!(
+        refined_names,
+        ["Worker::indexed_caller", "inferred_caller"],
+        "LSP must add the inferred caller while retaining the indexed overlap exactly once"
     );
 }
 
@@ -260,21 +251,20 @@ edition = "2021"
 // ============================================================================
 
 #[test]
-fn get_callers_with_lsp_does_not_duplicate_callers() {
+fn lsp_refined_mode_deduplicates_caller_symbols() {
     let (_dir, mut tethys) = workspace_with_intra_file_calls();
     tethys.index().expect("index failed");
 
     let callers = tethys
-        .get_callers_with_lsp("validate")
-        .expect("get_callers_with_lsp should succeed");
+        .get_callers("validate", tethys::CallerMode::LspRefined)
+        .expect("LSP-refined caller query should succeed");
 
-    // Check for duplicates by qualified name
-    let caller_names: Vec<_> = callers.iter().map(|c| &c.symbols_used).collect();
-    let unique_names: std::collections::HashSet<_> = caller_names.iter().collect();
+    let caller_ids: Vec<_> = callers.iter().map(|caller| caller.symbol.id).collect();
+    let unique_ids: std::collections::HashSet<_> = caller_ids.iter().collect();
 
     assert_eq!(
-        caller_names.len(),
-        unique_names.len(),
-        "should not have duplicate callers: {caller_names:?}"
+        caller_ids.len(),
+        unique_ids.len(),
+        "should not have duplicate caller symbols: {caller_ids:?}"
     );
 }

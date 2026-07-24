@@ -474,6 +474,39 @@ impl Index {
         .optional()
         .map_err(Into::into)
     }
+
+    /// Find the innermost indexed symbol whose source span contains a line.
+    ///
+    /// This maps an LSP reference location back to its caller. Symbols that
+    /// start later take precedence over enclosing type declarations; for equal
+    /// starts, the symbol ending first is the narrower span.
+    pub fn find_symbol_containing_line(
+        &self,
+        file_id: FileId,
+        line: u32,
+    ) -> Result<Option<Symbol>> {
+        trace!(
+            file_id = %file_id,
+            line,
+            "Finding symbol containing line"
+        );
+
+        let conn = self.connection()?;
+        conn.query_row(
+            &format!(
+                "SELECT {SYMBOLS_COLUMNS} FROM symbols \
+                 WHERE file_id = ?1 \
+                   AND line <= ?2 \
+                   AND COALESCE(end_line, line) >= ?2 \
+                 ORDER BY line DESC, COALESCE(end_line, line) ASC, column DESC \
+                 LIMIT 1"
+            ),
+            params![file_id.as_i64(), line],
+            row_to_symbol,
+        )
+        .optional()
+        .map_err(Into::into)
+    }
 }
 
 #[cfg(test)]
