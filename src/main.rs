@@ -11,7 +11,6 @@ use colored::Colorize;
 use tracing_subscriber::EnvFilter;
 
 mod cli;
-use cli::callers::run as run_callers;
 
 /// Tethys: Code intelligence cache and query interface.
 #[derive(Parser)]
@@ -301,7 +300,7 @@ fn run_command(workspace: &Path, command: Commands) -> Result<(), tethys::Error>
             depth,
             lsp,
             exclude_speculative,
-        } => run_callers(
+        } => cli::callers::run(
             workspace,
             &symbol,
             transitive,
