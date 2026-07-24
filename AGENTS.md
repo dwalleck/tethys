@@ -56,7 +56,7 @@ For "what is X / how do I call X / how does process Y work", route via
 | `src/cargo.rs` | Cargo workspace/crate discovery (public) |
 | `src/languages/` | Per-language extraction: `LanguageSupport` + `ModuleResolver` (rust.rs, csharp.rs, module_resolver.rs, common.rs) |
 | `src/db/` | SQLite layer: `Index` + submodules (symbols, references, imports, call_edges, file_deps, graph, architecture, panic_points, files, schema, helpers) |
-| `src/graph/` | Internal graph query DTOs; concrete traversal queries live on `db::Index` |
+| `src/graph/` | Graph query result DTOs (public ones, e.g. `SymbolImpact`, re-export via `lib.rs`); concrete traversal queries live on `db::Index` |
 | `src/lsp/` | LSP client transport + providers (optional refinement) |
 | `src/cli/` | One module per CLI command + display/helpers |
 | `tests/` | Integration tests, incl. `seam_lint.rs` (architectural invariant) |
