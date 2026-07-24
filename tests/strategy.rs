@@ -592,3 +592,52 @@ fn cli_symbol_impact_rejects_lsp() {
         "explicit conflict error for symbol impact with LSP, got: {stderr}"
     );
 }
+
+/// The `impact --symbol` happy path renders callers partitioned by depth:
+/// `b_fn` is direct, `a_fn` transitive, and `--depth 1` trims the
+/// transitive tier to its empty label.
+#[test]
+fn cli_symbol_impact_renders_depth_partitioned_callers() {
+    let (dir, _tethys) = exclusion_fixture();
+    let run = |extra: &[&str]| -> String {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_tethys"))
+            .args(["impact", "leaf", "--symbol", "-w"])
+            .arg(dir.path())
+            .args(extra)
+            .output()
+            .expect("run symbol impact");
+        assert!(
+            output.status.success(),
+            "symbol impact should succeed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).expect("utf8 stdout")
+    };
+
+    let full = run(&[]);
+    let direct_at = full.find("Direct callers").expect("direct section");
+    let transitive_at = full.find("Transitive callers").expect("transitive section");
+    assert!(direct_at < transitive_at, "direct section renders first");
+    assert!(
+        full[direct_at..transitive_at].contains("b_fn"),
+        "direct caller lands in the direct section: {full}"
+    );
+    assert!(
+        full[transitive_at..].contains("a_fn"),
+        "transitive caller lands in the transitive section: {full}"
+    );
+
+    let trimmed = run(&["--depth", "1"]);
+    assert!(
+        trimmed.contains("b_fn"),
+        "depth one keeps the direct caller: {trimmed}"
+    );
+    assert!(
+        !trimmed.contains("a_fn"),
+        "depth one drops the transitive caller: {trimmed}"
+    );
+    assert!(
+        trimmed.contains("(none beyond direct)"),
+        "empty transitive tier is labeled: {trimmed}"
+    );
+}
