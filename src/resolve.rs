@@ -1194,11 +1194,6 @@ impl Tethys {
     ) -> Result<Vec<graph::CallerInfo>> {
         // Step 1: Get callers from the index
         let indexed_callers = self.db.get_callers(symbol.id, CallEdgeSelection::All)?;
-        // Build a set of symbol IDs we already know about
-        let mut known_symbol_ids: HashSet<SymbolId> = indexed_callers
-            .iter()
-            .map(|caller| caller.caller.symbol.id)
-            .collect();
 
         // Step 2: Get the symbol's definition file path
         let symbol_file = self
@@ -1241,14 +1236,42 @@ impl Tethys {
             warn!(error = %e, "LSP shutdown failed");
         }
 
+        let indexed_len = indexed_callers.len();
         debug!(
             symbol = %qualified_name,
-            indexed_callers = indexed_callers.len(),
+            indexed_callers = indexed_len,
             lsp_refs = lsp_refs.len(),
             "Merging indexed and LSP caller results"
         );
 
-        // Step 4: For each LSP reference, find its containing symbol
+        // Steps 4-5: resolve references to containing symbols and merge
+        let merged = self.merge_lsp_reference_callers(indexed_callers, lsp_refs)?;
+
+        info!(
+            symbol = %qualified_name,
+            indexed_callers = indexed_len,
+            lsp_additional = merged.len() - indexed_len,
+            "Caller merge complete"
+        );
+        Ok(merged)
+    }
+
+    /// Merge LSP reference locations into indexed caller findings.
+    ///
+    /// Resolves each location to its innermost containing indexed symbol and
+    /// appends callers the index did not already report, deduplicating by
+    /// caller symbol id. Locations outside the workspace or absent from the
+    /// index are skipped.
+    pub(crate) fn merge_lsp_reference_callers(
+        &self,
+        indexed_callers: Vec<graph::CallerInfo>,
+        lsp_refs: Vec<lsp_types::Location>,
+    ) -> Result<Vec<graph::CallerInfo>> {
+        // Symbol IDs the index already reported.
+        let mut known_symbol_ids: HashSet<SymbolId> = indexed_callers
+            .iter()
+            .map(|caller| caller.caller.symbol.id)
+            .collect();
         let mut additional_callers: Vec<graph::CallerInfo> = Vec::new();
 
         for loc in lsp_refs {
@@ -1309,14 +1332,6 @@ impl Tethys {
             });
         }
 
-        info!(
-            symbol = %qualified_name,
-            indexed_callers = indexed_callers.len(),
-            lsp_additional = additional_callers.len(),
-            "Caller merge complete"
-        );
-
-        // Step 5: Combine indexed and LSP callers
         Ok(indexed_callers
             .into_iter()
             .chain(additional_callers)
@@ -1552,5 +1567,144 @@ mod memo_tests {
                 "unknown name at line {line} must remain unresolved"
             );
         }
+    }
+}
+
+/// CI-safe fences for [`Tethys::merge_lsp_reference_callers`]: the merge and
+/// dedup behavior is exercised with fabricated LSP locations, so no language
+/// server is required (the real-server path stays in the ignored
+/// `lsp_callers` integration tests).
+#[cfg(test)]
+mod lsp_caller_merge_tests {
+    use std::path::{Path, PathBuf};
+
+    use crate::types::CallEdgeSelection;
+
+    /// Fixture crate for the merge seam: `indexed_caller` produces a call
+    /// edge to `target`; `lsp_only_caller` never calls it, so only a
+    /// fabricated LSP reference can surface it as a caller.
+    const MERGE_FIXTURE: &str = "\
+pub fn target() -> bool {
+    true
+}
+
+pub fn indexed_caller() -> bool {
+    target() // indexed call site
+}
+
+pub fn lsp_only_caller() -> bool {
+    true // lsp-only reference site
+}
+";
+
+    fn caller_merge_fixture() -> (tempfile::TempDir, crate::Tethys) {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        std::fs::create_dir_all(dir.path().join("src")).expect("create src dir");
+        std::fs::write(dir.path().join("src/lib.rs"), MERGE_FIXTURE).expect("write lib.rs");
+        std::fs::write(
+            dir.path().join("Cargo.toml"),
+            "[package]\nname = \"merge_fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        )
+        .expect("write Cargo.toml");
+        let mut tethys = crate::Tethys::new(dir.path()).expect("create Tethys");
+        tethys.index().expect("index fixture");
+        (dir, tethys)
+    }
+
+    /// Zero-indexed (LSP convention) line of the first fixture line
+    /// containing `marker`.
+    fn fixture_lsp_line(marker: &str) -> u32 {
+        let line = MERGE_FIXTURE
+            .lines()
+            .position(|line| line.contains(marker))
+            .expect("marker present in fixture");
+        u32::try_from(line).expect("fixture line fits u32")
+    }
+
+    fn lsp_location_at(file: &Path, lsp_line: u32) -> lsp_types::Location {
+        let uri: lsp_types::Uri = format!("file://{}", file.display())
+            .parse()
+            .expect("valid file URI");
+        let position = lsp_types::Position::new(lsp_line, 4);
+        lsp_types::Location {
+            uri,
+            range: lsp_types::Range::new(position, position),
+        }
+    }
+
+    /// CI-safe fence for the LSP caller merge: no language server involved.
+    /// A reference overlapping an indexed caller must not duplicate it, and
+    /// a reference inside a symbol the index reported no edge for must be
+    /// added as a caller with the indexed file attached.
+    #[test]
+    fn merge_lsp_reference_callers_dedups_overlap_and_adds_novel_caller() {
+        let (dir, tethys) = caller_merge_fixture();
+        let workspace = dir.path().canonicalize().expect("canonical workspace");
+        let lib_rs = workspace.join("src/lib.rs");
+
+        let symbol = tethys
+            .db
+            .get_symbol_by_qualified_name("target")
+            .expect("symbol query")
+            .expect("target symbol indexed");
+        let indexed = tethys
+            .db
+            .get_callers(symbol.id, CallEdgeSelection::All)
+            .expect("indexed callers");
+        let indexed_names: Vec<_> = indexed
+            .iter()
+            .map(|info| info.caller.symbol.name.clone())
+            .collect();
+        assert_eq!(
+            indexed_names,
+            ["indexed_caller"],
+            "fixture precondition: the index reports exactly the direct caller"
+        );
+
+        let overlap = lsp_location_at(&lib_rs, fixture_lsp_line("indexed call site"));
+        let novel = lsp_location_at(&lib_rs, fixture_lsp_line("lsp-only reference site"));
+
+        let merged = tethys
+            .merge_lsp_reference_callers(indexed, vec![overlap, novel])
+            .expect("merge succeeds");
+
+        let mut merged_names: Vec<_> = merged
+            .iter()
+            .map(|info| info.caller.symbol.name.clone())
+            .collect();
+        merged_names.sort_unstable();
+        assert_eq!(
+            merged_names,
+            ["indexed_caller", "lsp_only_caller"],
+            "overlapping reference deduplicated, novel caller added exactly once"
+        );
+
+        let lsp_only = merged
+            .iter()
+            .find(|info| info.caller.symbol.name == "lsp_only_caller")
+            .expect("lsp-only caller present");
+        assert_eq!(lsp_only.reference_count, 1);
+        assert_eq!(lsp_only.caller.file, PathBuf::from("src/lib.rs"));
+    }
+
+    /// References the merge cannot attribute — outside the workspace or on a
+    /// line no indexed symbol contains — are skipped, not errors.
+    #[test]
+    fn merge_lsp_reference_callers_skips_unattributable_references() {
+        let (dir, tethys) = caller_merge_fixture();
+        let workspace = dir.path().canonicalize().expect("canonical workspace");
+
+        let outside = lsp_location_at(Path::new("/definitely/not/indexed.rs"), 0);
+        // Blank separator line between fixture functions: in-workspace but
+        // contained by no symbol span.
+        let uncontained = lsp_location_at(&workspace.join("src/lib.rs"), 3);
+
+        let merged = tethys
+            .merge_lsp_reference_callers(Vec::new(), vec![outside, uncontained])
+            .expect("merge succeeds");
+        assert!(
+            merged.is_empty(),
+            "unattributable references must be skipped: {merged:?}"
+        );
     }
 }
