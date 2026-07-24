@@ -17,7 +17,7 @@
 //! - `panic_points` - Panic point CRUD operations
 //! - `deprecated` - Deprecated-callers analysis queries
 //! - `visibility` - Visibility-tightening analysis queries
-//! - `graph` - Graph traversal operations (`SymbolGraphOps`, `FileGraphOps`)
+//! - `graph` - Concrete `Index` graph traversal queries
 //! - `architecture` - Architecture analysis (packages, coupling metrics)
 
 mod architecture;

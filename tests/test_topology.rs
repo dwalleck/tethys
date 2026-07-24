@@ -370,6 +370,33 @@ fn test_add() {
     }
 
     #[test]
+    fn skips_unindexed_root_without_losing_indexed_results() {
+        let (_dir, mut tethys) = workspace_with_files(&[(
+            "src/lib.rs",
+            r#"
+pub fn add(a: i32, b: i32) -> i32 { a + b }
+
+#[test]
+fn test_add() {
+    assert_eq!(add(2, 3), 5);
+}
+"#,
+        )]);
+
+        tethys.index().expect("index failed");
+        let affected = tethys
+            .get_affected_tests(&[PathBuf::from("not-indexed.rs"), PathBuf::from("src/lib.rs")])
+            .expect("get_affected_tests failed");
+
+        assert_eq!(
+            affected.len(),
+            1,
+            "indexed root must still contribute tests"
+        );
+        assert_eq!(affected[0].name, "test_add");
+    }
+
+    #[test]
     fn finds_tests_in_changed_file() {
         let (_dir, mut tethys) = workspace_with_files(&[(
             "src/lib.rs",

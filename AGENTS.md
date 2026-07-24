@@ -56,7 +56,7 @@ For "what is X / how do I call X / how does process Y work", route via
 | `src/cargo.rs` | Cargo workspace/crate discovery (public) |
 | `src/languages/` | Per-language extraction: `LanguageSupport` + `ModuleResolver` (rust.rs, csharp.rs, module_resolver.rs, common.rs) |
 | `src/db/` | SQLite layer: `Index` + submodules (symbols, references, imports, call_edges, file_deps, graph, architecture, panic_points, files, schema, helpers) |
-| `src/graph/` | Graph-op traits (`SymbolGraphOps`, `FileGraphOps`) + DTOs |
+| `src/graph/` | Internal graph query DTOs; concrete traversal queries live on `db::Index` |
 | `src/lsp/` | LSP client transport + providers (optional refinement) |
 | `src/cli/` | One module per CLI command + display/helpers |
 | `tests/` | Integration tests, incl. `seam_lint.rs` (architectural invariant) |
@@ -77,9 +77,10 @@ For "what is X / how do I call X / how does process Y work", route via
   `src/languages/mod.rs`: add a `Language` variant, create the module, implement
   `LanguageSupport`, register in `get_language_support`, then implement +
   register a `ModuleResolver`. Do not edit the drivers.
-- **Graph queries are SQL recursive CTEs.** Traits in `src/graph/mod.rs` are
-  implemented on `db::Index` in `src/db/graph.rs`. There is no in-memory graph
-  library; reach for SQL, not petgraph (a future swap is noted but not present).
+- **Graph queries are concrete `Index` operations.** Recursive-CTE traversal
+  lives in `src/db/graph.rs` behind the public `Tethys` facade. There is no
+  graph adapter trait or in-memory graph library; reach for SQL-backed methods,
+  and introduce a narrow seam only when a second implementation exists.
 - **Coupling instability is computed in Rust, not SQL.** The `arch_coupling`
   view yields only Ca/Ce; `CouplingMetrics::instability` owns the formula.
   Keep it in one place.

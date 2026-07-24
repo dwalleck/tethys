@@ -5,9 +5,9 @@ status: accepted
 # Graph queries use SQL recursive CTEs, not petgraph
 
 Symbol- and file-level graph queries — transitive callers/dependents, shortest
-path, and cycle detection — are implemented as SQLite recursive CTEs on
-`db::Index` (`src/db/graph.rs`), behind the `SymbolGraphOps` / `FileGraphOps`
-traits. The 2026-01-22 storage spike (`docs/spikes/2026-01-22-tethys-sqlite-petgraph.md`)
+path, and cycle detection — are implemented as concrete methods on `db::Index`
+(`src/db/graph.rs`) using SQLite recursive CTEs. The 2026-01-22 storage spike
+(`docs/spikes/2026-01-22-tethys-sqlite-petgraph.md`)
 had designed a SQLite **+ petgraph hybrid** — load a subgraph into an in-memory
 `DiGraph`, run petgraph algorithms, map results back — and we did **not** adopt
 it. petgraph is not a dependency.
@@ -25,6 +25,6 @@ graph library — did not hold: recursive CTEs express all of them.
 This is recorded chiefly as a **deliberate deviation from the spike**, so the spike
 doc is not mistaken for the shipped design and nobody "adds the missing petgraph."
 Algorithms that don't express cleanly as CTEs (e.g. Tarjan SCC for rich cycle
-grouping, weighted shortest path) could justify swapping petgraph in for those
-*specific* operations; the trait boundary (`*GraphOps` on `Index`) is where such a
-swap would land.
+grouping, weighted shortest path) could justify petgraph for those *specific*
+operations. A narrow internal seam should be introduced only when a second real
+implementation exists.

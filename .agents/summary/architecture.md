@@ -114,10 +114,9 @@ implementations touch the database directly.
 ### Graph operations via SQL recursive CTEs
 
 Graph traversal (callers, callees, transitive impact, cycle detection, path
-finding) is defined by the `SymbolGraphOps` and `FileGraphOps` traits in
-`graph/mod.rs` and implemented on `db::Index` in `db/graph.rs` using SQLite
-recursive common table expressions. The `#[allow(dead_code)]` comment notes the
-design anticipates swapping in petgraph for specific algorithms later.
+finding) is implemented as concrete `db::Index` operations in `db/graph.rs`
+using SQLite recursive common table expressions. `Tethys` is the external
+graph-analysis seam; there is no speculative adapter trait or in-memory graph.
 
 ### Two-pass deferred dependency resolution
 

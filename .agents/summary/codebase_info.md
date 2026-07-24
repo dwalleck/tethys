@@ -85,7 +85,7 @@ tethys/
 | `cargo` | `pub` | Discover Cargo crates/workspaces, compute module paths |
 | `db` | private | SQLite schema + all persistence (`Index`) |
 | `error` | private (re-exported) | Error types |
-| `graph` | private | `SymbolGraphOps` / `FileGraphOps` traits + DTOs |
+| `graph` | private | Internal graph query result DTOs |
 | `indexing` | private | Indexing pipeline methods on `Tethys` |
 | `languages` | private | `LanguageSupport` + `ModuleResolver` per language |
 | `lsp` | `pub` | LSP client + provider abstraction |

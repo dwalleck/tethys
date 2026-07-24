@@ -1,0 +1,1 @@
+- `tethys affected-tests` now traverses dependent file IDs directly, reducing graph-query work while preserving mixed indexed/unindexed input behavior.

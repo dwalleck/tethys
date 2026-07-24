@@ -77,10 +77,10 @@ classDiagram
 `discover_crates` is also re-exported at the crate root for standalone Cargo
 discovery.
 
-## Extension Traits (internal)
+## Internal Extension and Query Interfaces
 
-These traits define the seams for extension and are not part of the public API,
-but are central to understanding the codebase.
+These internal interfaces are not part of the public API, but are central to
+understanding the codebase.
 
 ### `LanguageSupport` (`languages/mod.rs`)
 ```rust
@@ -99,9 +99,9 @@ stored-import separator. Dispatched by `get_module_resolver(Language)`. The
 resolution drivers in `resolve.rs` / `indexing.rs` consume this trait without
 knowing language specifics.
 
-### `SymbolGraphOps` / `FileGraphOps` (`graph/mod.rs`)
-Define graph queries (callers/callees, transitive impact, path finding, cycle
-detection). Implemented on `db::Index` via recursive CTEs in `db/graph.rs`.
+### Concrete graph queries (`db/graph.rs`)
+Callers/callees, transitive impact, path finding, and cycle detection are
+concrete `db::Index` operations implemented with recursive CTEs.
 
 ### `LspProvider` (`lsp/provider.rs`)
 Abstracts a language server: `command`, `args`, `initialize_options`,

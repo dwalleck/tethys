@@ -12,7 +12,7 @@ use tracing::{debug, info, trace, warn};
 
 use crate::Tethys;
 use crate::error::{Error, Result};
-use crate::graph::{self, SymbolGraphOps};
+use crate::graph;
 use crate::languages::module_resolver::{
     GlobPolicy, ModuleContext, ModuleResolver, NamespaceMap, get_module_resolver,
 };
@@ -1250,7 +1250,6 @@ impl Tethys {
             additional_callers.push(graph::CallerInfo {
                 symbol: containing_symbol,
                 reference_count: 1,
-                reference_kinds: vec![ReferenceKind::Call],
             });
         }
 

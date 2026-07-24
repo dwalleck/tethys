@@ -71,7 +71,6 @@ use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 use db::Index;
-use graph::{FileGraphOps, SymbolGraphOps};
 use tracing::{debug, trace, warn};
 
 /// Code intelligence cache and query interface.
@@ -462,9 +461,7 @@ impl Tethys {
             .get_symbol_by_qualified_name(qualified_name)?
             .ok_or_else(|| Error::NotFound(format!("symbol: {qualified_name}")))?;
 
-        let callees = self.db.get_callees(symbol.id)?;
-
-        Ok(callees.into_iter().map(|c| c.symbol).collect())
+        self.db.get_callees(symbol.id)
     }
 
     /// Get impact analysis: direct and transitive callers of a symbol.
@@ -632,14 +629,7 @@ impl Tethys {
         self.bfs_reachable(
             source.id,
             max_depth.unwrap_or(50),
-            |id| {
-                Ok(self
-                    .db
-                    .get_callees(id)?
-                    .into_iter()
-                    .map(|c| c.symbol)
-                    .collect())
-            },
+            |id| self.db.get_callees(id),
             types::ReachabilityDirection::Forward,
             source,
         )
@@ -840,22 +830,16 @@ impl Tethys {
         // Changed files themselves are affected
         affected_file_ids.extend(changed_file_ids.iter().copied());
 
-        // For each changed file, get all transitive dependents using the graph infrastructure
+        // Traverse each changed root independently so one failure does not
+        // discard useful dependents from the other roots.
         for &file_id in &changed_file_ids {
-            match self.db.get_transitive_dependents(file_id, None) {
-                Ok(impact) => {
-                    // Add direct dependents
-                    for dep in &impact.direct_dependents {
-                        affected_file_ids.insert(dep.file.id);
-                    }
-                    // Add transitive dependents
-                    for dep in &impact.transitive_dependents {
-                        affected_file_ids.insert(dep.file.id);
-                    }
+            match self.db.get_transitive_dependent_file_ids(file_id) {
+                Ok(dependent_file_ids) => {
+                    let dependent_count = dependent_file_ids.len();
+                    affected_file_ids.extend(dependent_file_ids);
                     debug!(
                         file_id = %file_id,
-                        direct = impact.direct_dependents.len(),
-                        transitive = impact.transitive_dependents.len(),
+                        dependent_count,
                         "Found dependents for changed file"
                     );
                 }

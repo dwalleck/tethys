@@ -1,8 +1,4 @@
-//! Graph operations implemented directly on Index.
-//!
-//! This module provides implementations of `SymbolGraphOps` and `FileGraphOps`
-//! traits directly on `Index`, eliminating the need for separate graph wrapper
-//! structs and their additional database connections.
+//! SQLite-backed graph queries implemented as concrete `Index` operations.
 
 use std::collections::{HashMap, HashSet};
 
@@ -11,11 +7,8 @@ use rusqlite::OptionalExtension;
 use super::Index;
 use super::helpers::{row_to_indexed_file, row_to_symbol};
 use crate::error::{Error, Result};
-use crate::graph::{
-    CallPath, CalleeInfo, CallerInfo, FileDepInfo, FileGraphOps, FileImpact, FilePath,
-    SymbolGraphOps, SymbolImpact,
-};
-use crate::types::{Cycle, FileId, ReferenceKind, SymbolId};
+use crate::graph::{CallerInfo, FileDepInfo, FileImpact, FilePath, SymbolImpact};
+use crate::types::{Cycle, FileId, SymbolId};
 
 /// Default maximum depth for recursive graph traversals.
 ///
@@ -40,8 +33,12 @@ fn edge_support_filter(exclude_speculative: bool, edge: &str) -> String {
     }
 }
 
-impl SymbolGraphOps for Index {
-    fn get_callers(
+impl Index {
+    /// Get symbols that directly call/reference the given symbol.
+    ///
+    /// `exclude_speculative` drops call edges whose every supporting ref
+    /// bands speculative in `refs_banded`.
+    pub fn get_callers(
         &self,
         symbol_id: SymbolId,
         exclude_speculative: bool,
@@ -79,8 +76,6 @@ impl SymbolGraphOps for Index {
                 Ok(CallerInfo {
                     symbol,
                     reference_count: ref_count,
-                    // call_edges doesn't track reference kinds; default to Call
-                    reference_kinds: vec![ReferenceKind::Call],
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -88,7 +83,8 @@ impl SymbolGraphOps for Index {
         Ok(callers)
     }
 
-    fn get_callees(&self, symbol_id: SymbolId) -> Result<Vec<CalleeInfo>> {
+    /// Get symbols that the given symbol directly calls/references.
+    pub fn get_callees(&self, symbol_id: SymbolId) -> Result<Vec<crate::types::Symbol>> {
         let conn = self.connection()?;
 
         // Use pre-computed call_edges table for efficient indexed lookup
@@ -105,38 +101,20 @@ impl SymbolGraphOps for Index {
         )?;
 
         let callees = stmt
-            .query_map([symbol_id.as_i64()], |row| {
-                let symbol = row_to_symbol(row)?;
-                // Safety: call_count is a non-negative aggregate count
-                #[expect(
-                    clippy::cast_possible_truncation,
-                    clippy::cast_sign_loss,
-                    reason = "call_count is a non-negative SQL COUNT aggregate"
-                )]
-                let ref_count: usize = row.get::<_, i64>(13)? as usize;
-
-                Ok(CalleeInfo {
-                    symbol,
-                    reference_count: ref_count,
-                    // call_edges doesn't track reference kinds; default to Call
-                    reference_kinds: vec![ReferenceKind::Call],
-                })
-            })?
+            .query_map([symbol_id.as_i64()], row_to_symbol)?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(callees)
     }
 
-    fn get_transitive_callers(
+    /// Get transitive callers for impact analysis.
+    pub fn get_transitive_callers(
         &self,
         symbol_id: SymbolId,
         max_depth: Option<u32>,
         exclude_speculative: bool,
     ) -> Result<SymbolImpact> {
         let max_depth = max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
-        let target = self
-            .get_symbol_by_id(symbol_id)?
-            .ok_or_else(|| Error::NotFound(format!("symbol id: {}", symbol_id.as_i64())))?;
 
         let conn = self.connection()?;
 
@@ -173,7 +151,6 @@ impl SymbolGraphOps for Index {
 
         let mut direct_callers = Vec::new();
         let mut transitive_callers = Vec::new();
-        let mut max_depth_reached: u32 = 0;
 
         let rows = stmt.query_map(rusqlite::params![symbol_id.as_i64(), max_depth], |row| {
             let symbol = row_to_symbol(row)?;
@@ -189,12 +166,10 @@ impl SymbolGraphOps for Index {
 
         for row in rows {
             let (symbol, depth) = row?;
-            max_depth_reached = max_depth_reached.max(depth);
 
             let caller_info = CallerInfo {
                 symbol,
                 reference_count: 1,
-                reference_kinds: vec![ReferenceKind::Call],
             };
 
             if depth == 1 {
@@ -205,160 +180,15 @@ impl SymbolGraphOps for Index {
         }
 
         Ok(SymbolImpact {
-            target,
             direct_callers,
             transitive_callers,
-            max_depth_reached,
         })
-    }
-
-    fn find_call_path(
-        &self,
-        from_symbol_id: SymbolId,
-        to_symbol_id: SymbolId,
-    ) -> Result<Option<CallPath>> {
-        // Same symbol - trivial path
-        if from_symbol_id == to_symbol_id {
-            let symbol = self.get_symbol_by_id(from_symbol_id)?.ok_or_else(|| {
-                Error::NotFound(format!("symbol id: {}", from_symbol_id.as_i64()))
-            })?;
-            return Ok(Some(CallPath::single(symbol)));
-        }
-
-        // BFS to find shortest path using recursive CTE with call_edges table
-        // We search forward from `from` through callees (what does `from` call?)
-        let max_depth = DEFAULT_MAX_DEPTH;
-
-        // Scope the connection lock to just the query execution
-        let symbol_ids: Option<Vec<i64>> = {
-            let conn = self.connection()?;
-
-            let mut stmt = conn.prepare(
-                "WITH RECURSIVE path_search(symbol_id, path, depth) AS (
-                    -- Start from the source symbol
-                    SELECT ?1, CAST(?1 AS TEXT), 0
-
-                    UNION
-
-                    -- Follow callees via call_edges
-                    SELECT ce.callee_symbol_id,
-                           ps.path || ',' || ce.callee_symbol_id,
-                           ps.depth + 1
-                    FROM call_edges ce
-                    JOIN path_search ps ON ce.caller_symbol_id = ps.symbol_id
-                    WHERE ps.depth < ?3
-                )
-                SELECT path
-                FROM path_search
-                WHERE symbol_id = ?2
-                ORDER BY depth
-                LIMIT 1",
-            )?;
-
-            let path_str: Option<String> = stmt
-                .query_row(
-                    rusqlite::params![from_symbol_id.as_i64(), to_symbol_id.as_i64(), max_depth],
-                    |row| row.get(0),
-                )
-                .optional()?;
-
-            match path_str {
-                Some(s) => Some(parse_path_ids(&s)?),
-                None => None,
-            }
-        };
-
-        let Some(symbol_ids) = symbol_ids else {
-            return Ok(None);
-        };
-
-        // Fetch symbols for each ID in the path
-        let mut symbols = Vec::with_capacity(symbol_ids.len());
-        for id in symbol_ids {
-            let symbol = self
-                .get_symbol_by_id(SymbolId::from(id))?
-                .ok_or_else(|| Error::NotFound(format!("symbol id: {id}")))?;
-            symbols.push(symbol);
-        }
-
-        // Create edges (all Call for simplicity)
-        let edges = vec![ReferenceKind::Call; symbols.len().saturating_sub(1)];
-
-        // Use validated constructor - invariants guaranteed by construction
-        Ok(CallPath::new(symbols, edges))
     }
 }
 
-impl FileGraphOps for Index {
-    fn get_dependents(&self, file_id: FileId) -> Result<Vec<FileDepInfo>> {
-        let conn = self.connection()?;
-
-        // Find all files that depend on the target file
-        // file_deps has (from_file_id, to_file_id) where from depends on to
-        // So we need files where to_file_id = file_id (files that depend ON it)
-        let mut stmt = conn.prepare(
-            "SELECT
-                f.id, f.path, f.language, f.mtime_ns, f.size_bytes, f.content_hash, f.indexed_at,
-                fd.ref_count
-             FROM file_deps fd
-             JOIN files f ON f.id = fd.from_file_id
-             WHERE fd.to_file_id = ?1
-             ORDER BY f.path",
-        )?;
-
-        let dependents = stmt
-            .query_map([file_id.as_i64()], |row| {
-                let file = row_to_indexed_file(row)?;
-                // Safety: ref_count is a non-negative aggregate count
-                #[expect(
-                    clippy::cast_possible_truncation,
-                    clippy::cast_sign_loss,
-                    reason = "ref_count is a non-negative SQL aggregate"
-                )]
-                let ref_count: usize = row.get::<_, i64>(7)? as usize;
-
-                Ok(FileDepInfo { file, ref_count })
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-
-        Ok(dependents)
-    }
-
-    fn get_dependencies(&self, file_id: FileId) -> Result<Vec<FileDepInfo>> {
-        let conn = self.connection()?;
-
-        // Find all files that the given file depends on
-        // file_deps has (from_file_id, to_file_id) where from depends on to
-        // So we need files where from_file_id = file_id (files it depends ON)
-        let mut stmt = conn.prepare(
-            "SELECT
-                f.id, f.path, f.language, f.mtime_ns, f.size_bytes, f.content_hash, f.indexed_at,
-                fd.ref_count
-             FROM file_deps fd
-             JOIN files f ON f.id = fd.to_file_id
-             WHERE fd.from_file_id = ?1
-             ORDER BY f.path",
-        )?;
-
-        let dependencies = stmt
-            .query_map([file_id.as_i64()], |row| {
-                let file = row_to_indexed_file(row)?;
-                // Safety: ref_count is a non-negative aggregate count
-                #[expect(
-                    clippy::cast_possible_truncation,
-                    clippy::cast_sign_loss,
-                    reason = "ref_count is a non-negative SQL aggregate"
-                )]
-                let ref_count: usize = row.get::<_, i64>(7)? as usize;
-
-                Ok(FileDepInfo { file, ref_count })
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
-
-        Ok(dependencies)
-    }
-
-    fn get_transitive_dependents(
+impl Index {
+    /// Get direct and transitive dependents for file impact analysis.
+    pub fn get_transitive_dependents(
         &self,
         file_id: FileId,
         max_depth: Option<u32>,
@@ -429,7 +259,47 @@ impl FileGraphOps for Index {
         })
     }
 
-    fn find_dependency_path(
+    /// Get transitive dependent file IDs without hydrating graph DTOs.
+    ///
+    /// The root file is validated but excluded from the result unless a cycle
+    /// reaches it again. Traversal uses the same default depth as file impact.
+    pub fn get_transitive_dependent_file_ids(&self, file_id: FileId) -> Result<Vec<FileId>> {
+        self.get_file_by_id(file_id)?
+            .ok_or_else(|| Error::NotFound(format!("file id: {}", file_id.as_i64())))?;
+
+        let conn = self.connection()?;
+        let mut stmt = conn.prepare(
+            "WITH RECURSIVE dependent_tree(file_id, depth) AS (
+                SELECT DISTINCT fd.from_file_id, 1
+                FROM file_deps fd
+                WHERE fd.to_file_id = ?1
+
+                UNION
+
+                SELECT DISTINCT fd.from_file_id, dt.depth + 1
+                FROM file_deps fd
+                JOIN dependent_tree dt ON fd.to_file_id = dt.file_id
+                WHERE dt.depth < ?2
+            )
+            SELECT f.id
+            FROM dependent_tree dt
+            JOIN files f ON f.id = dt.file_id
+            GROUP BY f.id
+            ORDER BY MIN(dt.depth), f.path",
+        )?;
+
+        let file_ids = stmt
+            .query_map(
+                rusqlite::params![file_id.as_i64(), DEFAULT_MAX_DEPTH],
+                |row| row.get::<_, i64>(0).map(FileId::from),
+            )?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+
+        Ok(file_ids)
+    }
+
+    /// Find the shortest dependency path between two files.
+    pub fn find_dependency_path(
         &self,
         from_file_id: FileId,
         to_file_id: FileId,
@@ -502,24 +372,10 @@ impl FileGraphOps for Index {
         Ok(FilePath::new(files))
     }
 
-    fn detect_cycles(&self) -> Result<Vec<Cycle>> {
+    /// Detect circular dependencies in the indexed workspace.
+    pub fn detect_cycles(&self) -> Result<Vec<Cycle>> {
         let adj = self.build_adjacency_list()?;
         self.find_cycles_dfs(&adj)
-    }
-
-    fn detect_cycles_involving(&self, file_id: FileId) -> Result<Vec<Cycle>> {
-        let all_cycles = self.detect_cycles()?;
-
-        // Get the target file path once, propagating errors instead of swallowing them
-        let target_file = self
-            .get_file_by_id(file_id)?
-            .ok_or_else(|| Error::NotFound(format!("file id: {}", file_id.as_i64())))?;
-
-        // Filter to cycles that contain the target file
-        Ok(all_cycles
-            .into_iter()
-            .filter(|cycle| cycle.files.contains(&target_file.path))
-            .collect())
     }
 }
 

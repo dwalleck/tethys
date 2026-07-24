@@ -20,7 +20,7 @@ Each document is self-contained and uses Mermaid diagrams (not ASCII art).
 | [codebase_info.md](codebase_info.md) | The high-level overview: what tethys is, tech stack, repo layout, module map, tooling/CI. Best first read. |
 | [architecture.md](architecture.md) | System layers, design patterns (trait-based language extension, the resolution "seam", recursive-CTE graph ops, two-pass resolution, coupling metrics), data flow, concurrency. |
 | [components.md](components.md) | Responsibilities of each module/file: `Tethys`, indexing subsystem, resolution, languages, `db/`, `graph/`, `lsp/`, CLI. The "where does X live?" map. |
-| [interfaces.md](interfaces.md) | The CLI commands/flags, the `Tethys` library API, internal extension traits (`LanguageSupport`, `ModuleResolver`, graph ops, `LspProvider`), and the LSP integration. |
+| [interfaces.md](interfaces.md) | The CLI commands/flags, the `Tethys` library API, internal extension traits (`LanguageSupport`, `ModuleResolver`, `LspProvider`), concrete `Index` graph queries, and the LSP integration. |
 | [data_models.md](data_models.md) | The SQLite schema (ER diagram + table notes) and the domain model in `types.rs` (records, IDs, enums, stats, graph DTOs, extraction DTOs). |
 | [workflows.md](workflows.md) | Step-by-step processes: indexing pipeline, cross-file resolution, incremental reindex, and each query workflow (callers, impact, reachability, cycles, coupling, affected-tests, panic-points). |
 | [dependencies.md](dependencies.md) | External crates and why each is used, dev/test deps, license/advisory policy, MSRV, CI tooling, optional language servers. |

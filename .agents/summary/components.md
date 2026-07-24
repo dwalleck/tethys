@@ -150,9 +150,9 @@ Shared extraction DTOs (`ExtractedSymbol`, `ExtractedReference`,
 
 ## Graph Subsystem (`src/graph/`)
 
-- `mod.rs` — `SymbolGraphOps` and `FileGraphOps` traits (operation contracts).
-- `types.rs` — DTOs returned by graph queries: `CallerInfo`, `CalleeInfo`,
-  `SymbolImpact`, `CallPath`, `FileDepInfo`, `FileImpact`, `FilePath`.
+- `mod.rs` — re-exports internal graph query result types.
+- `types.rs` — DTOs returned by concrete `Index` queries: `CallerInfo`,
+  `SymbolImpact`, `FileDepInfo`, `FileImpact`, `FilePath`.
 
 ## LSP Subsystem (`src/lsp/`)
 
