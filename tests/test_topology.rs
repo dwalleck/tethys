@@ -396,6 +396,69 @@ fn test_add() {
         assert_eq!(affected[0].name, "test_add");
     }
 
+    /// Fences the Err arm of the per-root traversal loop: when a root's
+    /// dependent traversal fails (here: file_deps dropped out from under a
+    /// live index, so every traversal errors while file-id lookup still
+    /// succeeds), the error is logged and skipped rather than propagated,
+    /// and tests in the changed files themselves are still returned.
+    #[test]
+    fn continues_after_failing_root_traversal() {
+        let (dir, mut tethys) = workspace_with_files(&[
+            (
+                "src/lib.rs",
+                r#"
+pub mod alpha;
+pub mod beta;
+"#,
+            ),
+            (
+                "src/alpha.rs",
+                r#"
+pub fn alpha_add(a: i32, b: i32) -> i32 { a + b }
+
+#[test]
+fn test_alpha() {
+    assert!(alpha_add(1, 2) == 3);
+}
+"#,
+            ),
+            (
+                "src/beta.rs",
+                r#"
+pub fn beta_add(a: i32, b: i32) -> i32 { a + b }
+
+#[test]
+fn test_beta() {
+    assert!(beta_add(2, 2) == 4);
+}
+"#,
+            ),
+        ]);
+
+        tethys.index().expect("index failed");
+
+        // Break traversal but not file-id lookup: file-id lookup reads the
+        // files table, while the per-root dependent traversal reads
+        // file_deps, which now no longer exists.
+        let db_path = dir.path().join(".rivets").join("index").join("tethys.db");
+        let conn = rusqlite::Connection::open(&db_path).expect("open index db");
+        conn.execute("DROP TABLE file_deps", [])
+            .expect("drop file_deps");
+        drop(conn);
+
+        let affected = tethys
+            .get_affected_tests(&[PathBuf::from("src/alpha.rs"), PathBuf::from("src/beta.rs")])
+            .expect("per-root traversal failure must not propagate");
+
+        let mut names: Vec<&str> = affected.iter().map(|t| t.name.as_str()).collect();
+        names.sort_unstable();
+        assert_eq!(
+            names,
+            ["test_alpha", "test_beta"],
+            "both changed files' tests must survive failing traversals"
+        );
+    }
+
     #[test]
     fn finds_tests_in_changed_file() {
         let (_dir, mut tethys) = workspace_with_files(&[(

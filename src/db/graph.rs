@@ -186,6 +186,24 @@ impl Index {
     }
 }
 
+/// Recursive-CTE prefix shared by the dependent traversals below: walks
+/// `file_deps` edges upward from target file `?1`, bounding depth at `?2`.
+/// Callers append their own projection over `dependent_tree(file_id, depth)`.
+const DEPENDENT_TREE_CTE: &str = "WITH RECURSIVE dependent_tree(file_id, depth) AS (
+                -- Base case: direct dependents
+                SELECT DISTINCT fd.from_file_id, 1
+                FROM file_deps fd
+                WHERE fd.to_file_id = ?1
+
+                UNION
+
+                -- Recursive case: dependents of dependents
+                SELECT DISTINCT fd.from_file_id, dt.depth + 1
+                FROM file_deps fd
+                JOIN dependent_tree dt ON fd.to_file_id = dt.file_id
+                WHERE dt.depth < ?2
+            )";
+
 impl Index {
     /// Get direct and transitive dependents for file impact analysis.
     pub fn get_transitive_dependents(
@@ -200,30 +218,16 @@ impl Index {
 
         let conn = self.connection()?;
 
-        // Use recursive CTE to find all dependents with their depth
-        let mut stmt = conn.prepare(
-            "WITH RECURSIVE dependent_tree(file_id, depth) AS (
-                -- Base case: direct dependents
-                SELECT DISTINCT fd.from_file_id, 1
-                FROM file_deps fd
-                WHERE fd.to_file_id = ?1
-
-                UNION
-
-                -- Recursive case: dependents of dependents
-                SELECT DISTINCT fd.from_file_id, dt.depth + 1
-                FROM file_deps fd
-                JOIN dependent_tree dt ON fd.to_file_id = dt.file_id
-                WHERE dt.depth < ?2
-            )
+        let mut stmt = conn.prepare(&format!(
+            "{DEPENDENT_TREE_CTE}
             SELECT DISTINCT
                 f.id, f.path, f.language, f.mtime_ns, f.size_bytes, f.content_hash, f.indexed_at,
                 MIN(dt.depth) as min_depth
             FROM dependent_tree dt
             JOIN files f ON f.id = dt.file_id
             GROUP BY f.id
-            ORDER BY min_depth, f.path",
-        )?;
+            ORDER BY min_depth, f.path"
+        ))?;
 
         let mut direct_dependents = Vec::new();
         let mut transitive_dependents = Vec::new();
@@ -268,25 +272,14 @@ impl Index {
             .ok_or_else(|| Error::NotFound(format!("file id: {}", file_id.as_i64())))?;
 
         let conn = self.connection()?;
-        let mut stmt = conn.prepare(
-            "WITH RECURSIVE dependent_tree(file_id, depth) AS (
-                SELECT DISTINCT fd.from_file_id, 1
-                FROM file_deps fd
-                WHERE fd.to_file_id = ?1
-
-                UNION
-
-                SELECT DISTINCT fd.from_file_id, dt.depth + 1
-                FROM file_deps fd
-                JOIN dependent_tree dt ON fd.to_file_id = dt.file_id
-                WHERE dt.depth < ?2
-            )
+        let mut stmt = conn.prepare(&format!(
+            "{DEPENDENT_TREE_CTE}
             SELECT f.id
             FROM dependent_tree dt
             JOIN files f ON f.id = dt.file_id
             GROUP BY f.id
-            ORDER BY MIN(dt.depth), f.path",
-        )?;
+            ORDER BY MIN(dt.depth), f.path"
+        ))?;
 
         let file_ids = stmt
             .query_map(
