@@ -24,8 +24,15 @@ pub struct SymbolImpact {
 }
 
 impl SymbolImpact {
+    /// `callers` must be sorted by minimum depth ascending (the SQL traversal
+    /// orders by `min_depth`); the direct/transitive split relies on it.
     pub(crate) fn new(target: Symbol, callers: Vec<SymbolImpactCaller>) -> Self {
         Self { target, callers }
+    }
+
+    /// Index of the first caller past the depth-one prefix.
+    fn direct_end(&self) -> usize {
+        self.callers.partition_point(|caller| caller.depth == 1)
     }
 
     /// All callers, ordered by minimum depth and then qualified name.
@@ -37,15 +44,13 @@ impl SymbolImpact {
     /// Callers whose minimum depth is one.
     #[must_use]
     pub fn direct_callers(&self) -> &[SymbolImpactCaller] {
-        let direct_end = self.callers.partition_point(|caller| caller.depth == 1);
-        &self.callers[..direct_end]
+        &self.callers[..self.direct_end()]
     }
 
     /// Callers whose minimum depth is greater than one.
     #[must_use]
     pub fn transitive_callers(&self) -> &[SymbolImpactCaller] {
-        let direct_end = self.callers.partition_point(|caller| caller.depth == 1);
-        &self.callers[direct_end..]
+        &self.callers[self.direct_end()..]
     }
 }
 

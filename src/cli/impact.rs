@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use colored::Colorize;
-use tethys::{Impact, SymbolImpact, Tethys};
+use tethys::{CallEdgeSelection, Impact, SymbolImpact, Tethys};
 
 use super::display::{print_dependents, print_symbol_impact_callers_by_file};
 use super::ensure_lsp_if_requested;
@@ -21,7 +21,7 @@ pub fn run(
     let tethys = Tethys::new(workspace)?;
 
     if is_symbol {
-        let impact = tethys.get_symbol_impact(target, depth, false)?;
+        let impact = tethys.get_symbol_impact(target, depth, CallEdgeSelection::All)?;
         println!("Impact analysis for symbol \"{}\":", target.cyan().bold());
         print_symbol_impact_analysis(&impact);
     } else {

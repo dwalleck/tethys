@@ -470,13 +470,13 @@ impl Tethys {
     /// are capped (with a `warn!` log) since the underlying SQL CTE depth is a
     /// `u32`.
     ///
-    /// `exclude_speculative` drops call edges whose every supporting reference
-    /// bands speculative at every traversal hop (see [`Tethys::get_callers`]).
+    /// `call_edges` selects which retained call edges the traversal follows
+    /// at every hop (see [`CallEdgeSelection`]).
     pub fn get_symbol_impact(
         &self,
         qualified_name: &str,
         max_depth: Option<usize>,
-        exclude_speculative: bool,
+        call_edges: CallEdgeSelection,
     ) -> Result<SymbolImpact> {
         let symbol = self
             .db
@@ -484,11 +484,6 @@ impl Tethys {
             .ok_or_else(|| Error::NotFound(format!("symbol: {qualified_name}")))?;
 
         let depth = max_depth.map_or(db::DEFAULT_MAX_DEPTH, saturating_depth_to_u32);
-        let call_edges = if exclude_speculative {
-            CallEdgeSelection::ExcludeSpeculative
-        } else {
-            CallEdgeSelection::All
-        };
         let callers = self
             .db
             .get_transitive_callers(symbol.id, depth, call_edges)?;

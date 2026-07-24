@@ -211,7 +211,9 @@ database — enforced by the seam lint.
 
 **Impact**:
 Given a target file or symbol, the files and symbols that depend on it — direct and
-transitive dependents. Answers "what could break if I change this."
+transitive dependents. Answers "what could break if I change this." Symbol impact
+reports **callers** at their minimum call depth (no reference counts); file impact
+reports dependent files.
 _Avoid_: blast radius
 
 **Reachability**:
