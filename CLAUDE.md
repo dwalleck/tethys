@@ -17,8 +17,10 @@ vocabulary; docs/agents/issue-tracker.md is the rivets tracker workflow.
   (`refs_named`, `same_file`) in every doc comment.
 - `RUST_LOG=tethys=trace` overrides the -v flags (EnvFilter); per-arm
   resolver events are trace-level.
-- Every push to origin/main flips open PRs to BEHIND (full CI re-cycle):
-  batch tracker/doc commits locally while a merge queue is draining.
+- Every push to origin/main flips open PRs to BEHIND (full CI re-cycle).
+  Close a PR's rivets issue in a commit on the PR branch itself, before CI
+  starts, so the closure merges with the PR — don't hold tracker changes
+  uncommitted for a later batch commit to main.
 - Changelog: every PR adds a fragment `changelog.d/<id>.<category>.md`
   (added/changed/deprecated/removed/fixed/security; 1-5 bullets for CLI
   users). `skip-changelog` label is the only exemption. Never edit
