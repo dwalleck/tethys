@@ -22,8 +22,14 @@ pub fn run(
 
     let tethys = Tethys::new(workspace)?;
 
+    let call_edges = if exclude_speculative {
+        CallEdgeSelection::ExcludeSpeculative
+    } else {
+        CallEdgeSelection::All
+    };
+
     if transitive {
-        let impact = tethys.get_symbol_impact(symbol, depth, exclude_speculative)?;
+        let impact = tethys.get_symbol_impact(symbol, depth, call_edges)?;
 
         if impact.callers().is_empty() {
             println!("No callers found for \"{}\"", symbol.cyan());
@@ -58,13 +64,7 @@ pub fn run(
         let mode = if lsp {
             CallerMode::LspRefined
         } else {
-            CallerMode::Indexed {
-                call_edges: if exclude_speculative {
-                    CallEdgeSelection::ExcludeSpeculative
-                } else {
-                    CallEdgeSelection::All
-                },
-            }
+            CallerMode::Indexed { call_edges }
         };
         let callers = tethys.get_callers(symbol, mode)?;
 

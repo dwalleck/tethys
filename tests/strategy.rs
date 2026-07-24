@@ -440,7 +440,7 @@ fn exclusion_is_transitive() {
     let (_dir, tethys) = exclusion_fixture();
 
     let full = tethys
-        .get_symbol_impact("leaf", None, false)
+        .get_symbol_impact("leaf", None, tethys::CallEdgeSelection::All)
         .expect("impact");
     let all: Vec<_> = full
         .callers()
@@ -450,7 +450,7 @@ fn exclusion_is_transitive() {
     assert_eq!(all, ["b_fn", "a_fn"], "unfiltered chain reaches a_fn");
 
     let filtered = tethys
-        .get_symbol_impact("leaf", None, true)
+        .get_symbol_impact("leaf", None, tethys::CallEdgeSelection::ExcludeSpeculative)
         .expect("impact excl");
     assert!(
         filtered.callers().is_empty(),
@@ -465,7 +465,7 @@ fn exclusion_preserves_mixed_support_across_transitive_hops() {
     let (_dir, tethys) = exclusion_fixture();
 
     let impact = tethys
-        .get_symbol_impact("ml", None, true)
+        .get_symbol_impact("ml", None, tethys::CallEdgeSelection::ExcludeSpeculative)
         .expect("filtered impact");
     let callers: Vec<_> = impact
         .callers()

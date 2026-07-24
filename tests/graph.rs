@@ -209,10 +209,10 @@ fn get_symbol_impact_max_depth_limits_transitive_traversal() {
     // direct callers (no transitive hops), and direct callers must be
     // invariant under max_depth.
     let depth_1 = tethys
-        .get_symbol_impact("Connection", Some(1), false)
+        .get_symbol_impact("Connection", Some(1), CallEdgeSelection::All)
         .expect("get_symbol_impact depth=1 failed");
     let unbounded = tethys
-        .get_symbol_impact("Connection", None, false)
+        .get_symbol_impact("Connection", None, CallEdgeSelection::All)
         .expect("get_symbol_impact default depth failed");
 
     assert!(
@@ -870,7 +870,7 @@ fn get_symbol_impact_returns_error_for_nonexistent_symbol() {
     let (_dir, mut tethys) = workspace_with_call_graph();
     tethys.index().expect("index failed");
 
-    let result = tethys.get_symbol_impact("NoSuchSymbol", None, false);
+    let result = tethys.get_symbol_impact("NoSuchSymbol", None, CallEdgeSelection::All);
 
     assert!(
         result.is_err(),
@@ -889,7 +889,7 @@ fn get_symbol_impact_reports_callers_at_their_minimum_depth() {
     tethys.index().expect("index failed");
 
     let impact = tethys
-        .get_symbol_impact("Helper::check", None, false)
+        .get_symbol_impact("Helper::check", None, CallEdgeSelection::All)
         .expect("get_symbol_impact for Helper::check should succeed");
 
     assert_eq!(impact.target.qualified_name, "Helper::check");
@@ -936,7 +936,7 @@ fn get_symbol_impact_returns_each_caller_once_at_shortest_depth() {
     tethys.index().expect("index failed");
 
     let impact = tethys
-        .get_symbol_impact("leaf", None, false)
+        .get_symbol_impact("leaf", None, CallEdgeSelection::All)
         .expect("get_symbol_impact for leaf should succeed");
     let callers: Vec<_> = impact
         .callers()
@@ -981,29 +981,29 @@ fn get_symbol_impact_obeys_the_shared_depth_contract() {
     tethys.index().expect("index failed");
 
     let zero = tethys
-        .get_symbol_impact("Helper::check", Some(0), false)
+        .get_symbol_impact("Helper::check", Some(0), CallEdgeSelection::All)
         .expect("depth zero should validate the target");
     assert_eq!(zero.target.qualified_name, "Helper::check");
     assert!(zero.callers().is_empty(), "depth zero traverses no edges");
     assert!(
         tethys
-            .get_symbol_impact("NoSuchSymbol", Some(0), false)
+            .get_symbol_impact("NoSuchSymbol", Some(0), CallEdgeSelection::All)
             .is_err(),
         "depth zero still validates the requested target"
     );
 
     let one = tethys
-        .get_symbol_impact("Helper::check", Some(1), false)
+        .get_symbol_impact("Helper::check", Some(1), CallEdgeSelection::All)
         .expect("depth one impact");
     assert_eq!(caller_depths(&one), [("validate", 1)]);
 
     let two = tethys
-        .get_symbol_impact("Helper::check", Some(2), false)
+        .get_symbol_impact("Helper::check", Some(2), CallEdgeSelection::All)
         .expect("depth two impact");
     assert_eq!(caller_depths(&two), [("validate", 1), ("process", 2)]);
 
     let default = tethys
-        .get_symbol_impact("Helper::check", None, false)
+        .get_symbol_impact("Helper::check", None, CallEdgeSelection::All)
         .expect("default depth impact");
     assert_eq!(
         caller_depths(&default),
@@ -1013,7 +1013,7 @@ fn get_symbol_impact_obeys_the_shared_depth_contract() {
 
     let oversized = usize::try_from(u64::from(u32::MAX) + 1).unwrap_or(usize::MAX);
     let saturated = tethys
-        .get_symbol_impact("Helper::check", Some(oversized), false)
+        .get_symbol_impact("Helper::check", Some(oversized), CallEdgeSelection::All)
         .expect("oversized depth impact");
     assert_eq!(
         caller_depths(&saturated),
@@ -1029,7 +1029,7 @@ fn get_symbol_impact_returns_empty_for_uncalled_symbol() {
 
     // process is never called by other symbols
     let impact = tethys
-        .get_symbol_impact("process", None, false)
+        .get_symbol_impact("process", None, CallEdgeSelection::All)
         .expect("get_symbol_impact for process should succeed");
 
     assert!(
@@ -1051,7 +1051,7 @@ fn get_symbol_impact_finds_direct_callers() {
 
     // validate is called by process directly
     let impact = tethys
-        .get_symbol_impact("validate", None, false)
+        .get_symbol_impact("validate", None, CallEdgeSelection::All)
         .expect("get_symbol_impact for validate should succeed");
 
     assert!(
@@ -1066,7 +1066,7 @@ fn get_symbol_impact_targets_correct_symbol() {
     tethys.index().expect("index failed");
 
     let impact = tethys
-        .get_symbol_impact("validate", None, false)
+        .get_symbol_impact("validate", None, CallEdgeSelection::All)
         .expect("get_symbol_impact for validate should succeed");
 
     assert_eq!(
@@ -1082,7 +1082,7 @@ fn get_symbol_impact_cross_file_resolved() {
 
     // Connection's callers are cross-file - now resolved in Pass 2
     let impact = tethys
-        .get_symbol_impact("Connection", None, false)
+        .get_symbol_impact("Connection", None, CallEdgeSelection::All)
         .expect("get_symbol_impact for Connection should succeed");
 
     assert!(
@@ -1252,7 +1252,7 @@ fn transitive_callers_via_call_edges() {
     // Helper::check is called by validate, which is called by process
     // So Helper::check should have process as a transitive caller
     let impact = tethys
-        .get_symbol_impact("Helper::check", None, false)
+        .get_symbol_impact("Helper::check", None, CallEdgeSelection::All)
         .expect("get_symbol_impact for Helper::check should succeed");
 
     let total = impact.callers().len();

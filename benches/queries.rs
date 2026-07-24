@@ -227,7 +227,7 @@ fn bench_get_symbol_impact_depth(c: &mut Criterion) {
             b.iter(|| {
                 let impact = workspace
                     .tethys
-                    .get_symbol_impact("depth0_func", None, false)
+                    .get_symbol_impact("depth0_func", None, tethys::CallEdgeSelection::All)
                     .expect("get_symbol_impact failed");
                 black_box(impact)
             });
@@ -255,7 +255,7 @@ fn bench_get_symbol_impact_mixed(c: &mut Criterion) {
             b.iter(|| {
                 let impact = workspace
                     .tethys
-                    .get_symbol_impact("core_compute", None, false)
+                    .get_symbol_impact("core_compute", None, tethys::CallEdgeSelection::All)
                     .expect("get_symbol_impact failed");
                 black_box(impact)
             });
