@@ -8,7 +8,7 @@ use super::Index;
 use super::helpers::{row_to_indexed_file, row_to_symbol};
 use crate::error::{Error, Result};
 use crate::graph::{CallerInfo, FileDepInfo, FileImpact, FilePath, SymbolImpact};
-use crate::types::{CallEdgeSelection, Cycle, FileId, SymbolId};
+use crate::types::{CallEdgeSelection, Caller, Cycle, FileId, SymbolId};
 
 /// Default maximum depth for recursive graph traversals.
 ///
@@ -71,7 +71,7 @@ impl Index {
                 let ref_count: usize = row.get::<_, i64>(14)? as usize;
 
                 Ok(CallerInfo {
-                    caller: crate::types::Caller {
+                    caller: Caller {
                         symbol,
                         file: row.get::<_, String>(15)?.into(),
                     },
@@ -177,7 +177,7 @@ impl Index {
             let (symbol, file, depth) = row?;
 
             let caller_info = CallerInfo {
-                caller: crate::types::Caller { symbol, file },
+                caller: Caller { symbol, file },
                 reference_count: 1,
             };
 

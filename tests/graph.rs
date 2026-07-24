@@ -713,8 +713,8 @@ fn get_callers_returns_error_for_nonexistent_symbol() {
 
     let result = tethys.get_callers(
         "NonExistent",
-        tethys::CallerMode::Indexed {
-            call_edges: tethys::CallEdgeSelection::All,
+        CallerMode::Indexed {
+            call_edges: CallEdgeSelection::All,
         },
     );
 
@@ -738,8 +738,8 @@ fn get_callers_returns_empty_for_uncalled_symbol() {
     let callers = tethys
         .get_callers(
             "process",
-            tethys::CallerMode::Indexed {
-                call_edges: tethys::CallEdgeSelection::All,
+            CallerMode::Indexed {
+                call_edges: CallEdgeSelection::All,
             },
         )
         .expect("get_callers for process should succeed");
@@ -783,8 +783,8 @@ fn get_callers_cross_file_refs_resolved() {
     let callers = tethys
         .get_callers(
             "Connection",
-            tethys::CallerMode::Indexed {
-                call_edges: tethys::CallEdgeSelection::All,
+            CallerMode::Indexed {
+                call_edges: CallEdgeSelection::All,
             },
         )
         .expect("get_callers for Connection should succeed");
@@ -970,8 +970,8 @@ fn call_edges_populated_after_indexing() {
     let callers = tethys
         .get_callers(
             "validate",
-            tethys::CallerMode::Indexed {
-                call_edges: tethys::CallEdgeSelection::All,
+            CallerMode::Indexed {
+                call_edges: CallEdgeSelection::All,
             },
         )
         .expect("get_callers for validate should succeed");
@@ -1032,8 +1032,8 @@ namespace App
     let helper_callers = tethys
         .get_callers(
             "Widget::Helper",
-            tethys::CallerMode::Indexed {
-                call_edges: tethys::CallEdgeSelection::All,
+            CallerMode::Indexed {
+                call_edges: CallEdgeSelection::All,
             },
         )
         .expect("get_callers for Widget::Helper should succeed");
@@ -1045,8 +1045,8 @@ namespace App
     let data_callers = tethys
         .get_callers(
             "Widget::Data",
-            tethys::CallerMode::Indexed {
-                call_edges: tethys::CallEdgeSelection::All,
+            CallerMode::Indexed {
+                call_edges: CallEdgeSelection::All,
             },
         )
         .expect("get_callers for Widget::Data should succeed");
@@ -1094,8 +1094,8 @@ namespace App
     let property_callers = tethys
         .get_callers(
             "StepFailed::Exception",
-            tethys::CallerMode::Indexed {
-                call_edges: tethys::CallEdgeSelection::All,
+            CallerMode::Indexed {
+                call_edges: CallEdgeSelection::All,
             },
         )
         .expect("get_callers for the Exception property should succeed");
