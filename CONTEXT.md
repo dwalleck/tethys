@@ -220,7 +220,12 @@ can reach); backward follows callers (what can reach this).
 
 **Callers**:
 The symbols that call a given symbol, directly or transitively — a backward
-call-graph query at symbol granularity.
+call-graph query at symbol granularity. Direct queries select an explicit
+**caller mode**: `Indexed` reads retained call edges under an all-edges or
+exclude-speculative-only policy; `LspRefined` augments all indexed callers with
+language-server findings and deduplicates by caller symbol. LSP refinement is
+direct-only and does not compose with speculative exclusion.
+_Avoid_: treating LSP refinement as a filter over indexed call edges
 
 **Affected tests**:
 The test symbols whose reachable set touches a set of changed files — the tests

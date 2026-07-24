@@ -16,7 +16,7 @@ Invoked as `tethys <command> [args]`. Global options apply to all commands:
 |---------|-------------------|---------|
 | `index` | `--rebuild`, `--lsp`, `--lsp-timeout <SECS>` | Index (or rebuild) the workspace. `--lsp` enables rust-analyzer refinement; timeout env `TETHYS_LSP_TIMEOUT`. |
 | `search <query>` | `-k/--kind <KIND>`, `-l/--limit <N>` (default 20) | Search symbols by name (partial match), optionally filtered by kind. |
-| `callers <symbol>` | `-t/--transitive`, `--lsp` | Show callers of a qualified symbol; transitive walks the call chain. |
+| `callers <symbol>` | `-t/--transitive`, `--lsp`, `--exclude-speculative` | Show callers of a qualified symbol. `--lsp` is direct-only and conflicts with both other flags. |
 | `impact <target>` | `-s/--symbol`, `-d/--depth <N>` (default 50), `--lsp` | Impact of changing a file (or symbol with `--symbol`). |
 | `coupling` | `--sort <KEY>`, `--package <NAME>`, `--json` | Per-crate coupling (Ca, Ce, instability). `--package` drills into one (conflicts with `--sort`). |
 | `cycles` | — | Detect circular dependencies. |
@@ -56,7 +56,7 @@ classDiagram
         +get_symbol(qualified_name) Result
         +list_symbols(file) Result
         +get_references(symbol) Result~Vec~Reference~~
-        +get_callers(symbol) Result
+        +get_callers(symbol, CallerMode) Result~Vec~Caller~~
         +get_impact(file, depth) Result~Impact~
         +get_symbol_impact(symbol, depth) Result~Impact~
         +get_dependencies(file) Result
@@ -73,6 +73,12 @@ classDiagram
         +vacuum() Result
     }
 ```
+
+Direct caller queries require `CallerMode::Indexed { call_edges }` or
+`CallerMode::LspRefined`. `CallEdgeSelection::ExcludeSpeculative` drops only
+edges whose every supporting reference is speculative; mixed-support edges
+survive. Each `Caller` identifies the caller `Symbol` and its workspace-relative
+indexed-file path.
 
 `discover_crates` is also re-exported at the crate root for standalone Cargo
 discovery.

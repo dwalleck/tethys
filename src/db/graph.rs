@@ -8,7 +8,7 @@ use super::Index;
 use super::helpers::{row_to_indexed_file, row_to_symbol};
 use crate::error::{Error, Result};
 use crate::graph::{CallerInfo, FileDepInfo, FileImpact, FilePath, SymbolImpact};
-use crate::types::{Cycle, FileId, SymbolId};
+use crate::types::{CallEdgeSelection, Cycle, FileId, SymbolId};
 
 /// Default maximum depth for recursive graph traversals.
 ///
@@ -20,28 +20,27 @@ pub(crate) const DEFAULT_MAX_DEPTH: u32 = 50;
 /// whose band (per the `refs_banded` view — the single home of the ADR-0003
 /// mapping) is not speculative. Empty when the filter is off. `edge` is the
 /// `call_edges` alias in the enclosing query.
-fn edge_support_filter(exclude_speculative: bool, edge: &str) -> String {
-    if exclude_speculative {
-        format!(
+fn edge_support_filter(call_edges: CallEdgeSelection, edge: &str) -> String {
+    match call_edges {
+        CallEdgeSelection::ExcludeSpeculative => format!(
             " AND EXISTS (SELECT 1 FROM refs_banded rb
                           WHERE rb.in_symbol_id = {edge}.caller_symbol_id
                             AND rb.symbol_id = {edge}.callee_symbol_id
                             AND rb.band != 'speculative')"
-        )
-    } else {
-        String::new()
+        ),
+        CallEdgeSelection::All => String::new(),
     }
 }
 
 impl Index {
     /// Get symbols that directly call/reference the given symbol.
     ///
-    /// `exclude_speculative` drops call edges whose every supporting ref
-    /// bands speculative in `refs_banded`.
+    /// [`CallEdgeSelection::ExcludeSpeculative`] drops call edges whose every
+    /// supporting reference bands speculative in `refs_banded`.
     pub fn get_callers(
         &self,
         symbol_id: SymbolId,
-        exclude_speculative: bool,
+        call_edges: CallEdgeSelection,
     ) -> Result<Vec<CallerInfo>> {
         let conn = self.connection()?;
 
@@ -50,16 +49,14 @@ impl Index {
             &"SELECT
                 s.id, s.file_id, s.name, s.module_path, s.qualified_name,
                 s.kind, s.line, s.column, s.end_line, s.end_column,
-                s.signature, s.visibility, s.parent_symbol_id,
-                ce.call_count
+                s.signature, s.visibility, s.parent_symbol_id, s.is_test,
+                ce.call_count, f.path
              FROM call_edges ce
              JOIN symbols s ON s.id = ce.caller_symbol_id
+             JOIN files f ON f.id = s.file_id
              WHERE ce.callee_symbol_id = ?1{exclusion}
              ORDER BY s.qualified_name"
-                .replace(
-                    "{exclusion}",
-                    &edge_support_filter(exclude_speculative, "ce"),
-                ),
+                .replace("{exclusion}", &edge_support_filter(call_edges, "ce")),
         )?;
 
         let callers = stmt
@@ -71,10 +68,13 @@ impl Index {
                     clippy::cast_sign_loss,
                     reason = "call_count is a non-negative SQL COUNT aggregate"
                 )]
-                let ref_count: usize = row.get::<_, i64>(13)? as usize;
+                let ref_count: usize = row.get::<_, i64>(14)? as usize;
 
                 Ok(CallerInfo {
-                    symbol,
+                    caller: crate::types::Caller {
+                        symbol,
+                        file: row.get::<_, String>(15)?.into(),
+                    },
                     reference_count: ref_count,
                 })
             })?
@@ -137,15 +137,23 @@ impl Index {
             SELECT DISTINCT
                 s.id, s.file_id, s.name, s.module_path, s.qualified_name,
                 s.kind, s.line, s.column, s.end_line, s.end_column,
-                s.signature, s.visibility, s.parent_symbol_id,
-                MIN(ct.depth) as min_depth
+                s.signature, s.visibility, s.parent_symbol_id, s.is_test,
+                f.path, MIN(ct.depth) as min_depth
             FROM caller_tree ct
             JOIN symbols s ON s.id = ct.symbol_id
+            JOIN files f ON f.id = s.file_id
             GROUP BY s.id
             ORDER BY min_depth, s.qualified_name"
                 .replace(
                     "{exclusion}",
-                    &edge_support_filter(exclude_speculative, "ce"),
+                    &edge_support_filter(
+                        if exclude_speculative {
+                            CallEdgeSelection::ExcludeSpeculative
+                        } else {
+                            CallEdgeSelection::All
+                        },
+                        "ce",
+                    ),
                 ),
         )?;
 
@@ -160,15 +168,16 @@ impl Index {
                 clippy::cast_sign_loss,
                 reason = "CTE depth bounded by max_depth (u32)"
             )]
-            let depth: u32 = row.get::<_, i64>(13)? as u32;
-            Ok((symbol, depth))
+            let depth: u32 = row.get::<_, i64>(15)? as u32;
+            let file = row.get::<_, String>(14)?.into();
+            Ok((symbol, file, depth))
         })?;
 
         for row in rows {
-            let (symbol, depth) = row?;
+            let (symbol, file, depth) = row?;
 
             let caller_info = CallerInfo {
-                symbol,
+                caller: crate::types::Caller { symbol, file },
                 reference_count: 1,
             };
 

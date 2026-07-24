@@ -7,7 +7,7 @@
 
 use std::fs;
 use tempfile::TempDir;
-use tethys::Tethys;
+use tethys::{CallEdgeSelection, CallerMode, Tethys};
 
 /// Create a workspace with a known dependency structure for testing.
 ///
@@ -711,7 +711,12 @@ fn get_callers_returns_error_for_nonexistent_symbol() {
     let (_dir, mut tethys) = workspace_with_call_graph();
     tethys.index().expect("index failed");
 
-    let result = tethys.get_callers("NonExistent", false);
+    let result = tethys.get_callers(
+        "NonExistent",
+        tethys::CallerMode::Indexed {
+            call_edges: tethys::CallEdgeSelection::All,
+        },
+    );
 
     assert!(
         result.is_err(),
@@ -731,7 +736,12 @@ fn get_callers_returns_empty_for_uncalled_symbol() {
 
     // process is the top-level function - nothing calls it
     let callers = tethys
-        .get_callers("process", false)
+        .get_callers(
+            "process",
+            tethys::CallerMode::Indexed {
+                call_edges: tethys::CallEdgeSelection::All,
+            },
+        )
         .expect("get_callers for process should succeed");
 
     assert!(
@@ -741,18 +751,25 @@ fn get_callers_returns_empty_for_uncalled_symbol() {
 }
 
 #[test]
-fn get_callers_finds_intra_file_callers() {
+fn get_callers_returns_caller_symbol_and_indexed_file() {
     let (_dir, mut tethys) = workspace_with_intra_file_calls();
     tethys.index().expect("index failed");
 
-    // validate is called by process
     let callers = tethys
-        .get_callers("validate", false)
+        .get_callers(
+            "validate",
+            CallerMode::Indexed {
+                call_edges: CallEdgeSelection::All,
+            },
+        )
         .expect("get_callers for validate should succeed");
 
+    assert_eq!(callers.len(), 1, "validate has one direct caller");
+    assert_eq!(callers[0].symbol.qualified_name, "process");
+    assert_eq!(callers[0].file.to_string_lossy(), "src/lib.rs");
     assert!(
-        !callers.is_empty(),
-        "validate should have at least one caller (process)"
+        !callers[0].symbol.is_test,
+        "a non-test caller must not inherit call-count evidence as is_test"
     );
 }
 
@@ -764,7 +781,12 @@ fn get_callers_cross_file_refs_resolved() {
     // Connection is referenced from other files via `use crate::db::Connection`,
     // Cross-file references are now resolved in Pass 2.
     let callers = tethys
-        .get_callers("Connection", false)
+        .get_callers(
+            "Connection",
+            tethys::CallerMode::Indexed {
+                call_edges: tethys::CallEdgeSelection::All,
+            },
+        )
         .expect("get_callers for Connection should succeed");
 
     assert!(
@@ -946,7 +968,12 @@ fn call_edges_populated_after_indexing() {
 
     // validate is called by process
     let callers = tethys
-        .get_callers("validate", false)
+        .get_callers(
+            "validate",
+            tethys::CallerMode::Indexed {
+                call_edges: tethys::CallEdgeSelection::All,
+            },
+        )
         .expect("get_callers for validate should succeed");
 
     assert!(
@@ -954,10 +981,9 @@ fn call_edges_populated_after_indexing() {
         "validate should have callers via call_edges"
     );
 
-    // Verify the caller contains "process" in symbols_used
     let all_symbols: Vec<&str> = callers
         .iter()
-        .flat_map(|c| c.symbols_used.iter().map(String::as_str))
+        .map(|caller| caller.symbol.qualified_name.as_str())
         .collect();
     assert!(
         all_symbols.iter().any(|n| n.contains("process")),
@@ -1004,7 +1030,12 @@ namespace App
     tethys.index().expect("index failed");
 
     let helper_callers = tethys
-        .get_callers("Widget::Helper", false)
+        .get_callers(
+            "Widget::Helper",
+            tethys::CallerMode::Indexed {
+                call_edges: tethys::CallEdgeSelection::All,
+            },
+        )
         .expect("get_callers for Widget::Helper should succeed");
     assert!(
         !helper_callers.is_empty(),
@@ -1012,7 +1043,12 @@ namespace App
     );
 
     let data_callers = tethys
-        .get_callers("Widget::Data", false)
+        .get_callers(
+            "Widget::Data",
+            tethys::CallerMode::Indexed {
+                call_edges: tethys::CallEdgeSelection::All,
+            },
+        )
         .expect("get_callers for Widget::Data should succeed");
     assert!(
         data_callers.is_empty(),
@@ -1056,7 +1092,12 @@ namespace App
     tethys.index().expect("index failed");
 
     let property_callers = tethys
-        .get_callers("StepFailed::Exception", false)
+        .get_callers(
+            "StepFailed::Exception",
+            tethys::CallerMode::Indexed {
+                call_edges: tethys::CallEdgeSelection::All,
+            },
+        )
         .expect("get_callers for the Exception property should succeed");
     assert!(
         property_callers.is_empty(),

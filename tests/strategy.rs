@@ -402,11 +402,16 @@ fn exclude_speculative_drops_only_unsupported() {
     let (_dir, tethys) = exclusion_fixture();
 
     let callers_of = |name: &str, exclude: bool| -> Vec<String> {
+        let call_edges = if exclude {
+            tethys::CallEdgeSelection::ExcludeSpeculative
+        } else {
+            tethys::CallEdgeSelection::All
+        };
         let mut v: Vec<String> = tethys
-            .get_callers(name, exclude)
+            .get_callers(name, tethys::CallerMode::Indexed { call_edges })
             .expect("callers")
             .into_iter()
-            .flat_map(|d| d.symbols_used)
+            .map(|caller| caller.symbol.qualified_name)
             .collect();
         v.sort_unstable();
         v
@@ -482,4 +487,24 @@ fn cli_callers_exclude_speculative() {
         run(&["--transitive", "--exclude-speculative"]).contains("No callers found"),
         "flag composes with --transitive through get_symbol_impact"
     );
+}
+
+#[test]
+fn cli_callers_rejects_unsupported_lsp_combinations() {
+    for conflicting_flag in ["--transitive", "--exclude-speculative"] {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_tethys"))
+            .args(["callers", "leaf", "--lsp", conflicting_flag])
+            .output()
+            .expect("run callers");
+
+        assert!(
+            !output.status.success(),
+            "--lsp with {conflicting_flag} must fail"
+        );
+        let stderr = String::from_utf8(output.stderr).expect("utf8 stderr");
+        assert!(
+            stderr.contains("cannot be used with") && stderr.contains(conflicting_flag),
+            "explicit conflict error for {conflicting_flag}, got: {stderr}"
+        );
+    }
 }

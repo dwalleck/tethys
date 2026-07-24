@@ -1258,6 +1258,36 @@ impl StalenessReport {
     }
 }
 
+/// Which retained call edges an indexed caller query should include.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallEdgeSelection {
+    /// Include every retained call edge.
+    All,
+    /// Exclude edges whose every supporting reference is speculative.
+    ExcludeSpeculative,
+}
+
+/// How a direct caller query should discover callers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallerMode {
+    /// Query retained call edges from the index.
+    Indexed {
+        /// Which retained call edges to include.
+        call_edges: CallEdgeSelection,
+    },
+    /// Augment indexed call edges with callers reported by the language server.
+    LspRefined,
+}
+
+/// A symbol that directly calls another symbol.
+#[derive(Debug, Clone)]
+pub struct Caller {
+    /// The calling symbol.
+    pub symbol: Symbol,
+    /// Workspace-relative path of the indexed file containing the caller.
+    pub file: PathBuf,
+}
+
 /// Result of impact analysis.
 ///
 /// Shows which files/symbols would be affected by changes to a target.

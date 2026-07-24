@@ -100,13 +100,23 @@ sequenceDiagram
     participant CLI
     participant Tethys
     participant DB as SQLite
-    User->>CLI: tethys callers "Foo::bar" --transitive
-    CLI->>Tethys: get_callers / transitive
-    Tethys->>DB: recursive CTE over call_edges
-    DB-->>Tethys: caller rows
-    Tethys-->>CLI: CallerInfo / SymbolImpact
+    participant LSP
+    User->>CLI: tethys callers "Foo::bar" [--lsp | --exclude-speculative]
+    CLI->>Tethys: get_callers("Foo::bar", CallerMode)
+    Tethys->>DB: query retained call_edges and hydrate caller files
+    DB-->>Tethys: indexed caller records
+    opt LspRefined
+        Tethys->>LSP: find_references at target definition
+        LSP-->>Tethys: reference locations
+        Tethys->>Tethys: merge and deduplicate by caller symbol
+    end
+    Tethys-->>CLI: Caller rows
     CLI-->>User: grouped, formatted output
 ```
+
+Transitive callers remain index-backed through symbol impact. The CLI rejects
+`--lsp` with either `--transitive` or `--exclude-speculative`; unsupported
+combinations are never silently ignored.
 
 `impact` works the same way at file granularity over `file_deps`, or at symbol
 granularity with `--symbol`. `--depth` bounds transitive traversal.

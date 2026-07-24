@@ -57,13 +57,14 @@ pub use db::{
 pub use dead_code::{DeadCodeFinding, DeadCodeReport, DeadCodeSummary};
 pub use error::{Error, IndexError, IndexErrorKind, Result};
 pub use types::{
-    ArchPhaseResult, ArchStats, CouplingDetail, CouplingMetrics, CouplingSort, CrateInfo, Cycle,
-    DatabaseStats, Dependent, FileAnalysis, FileId, FunctionSignature, Impact, Import,
-    IndexOptions, IndexStats, IndexUpdate, IndexedFile, Language, LspCompletedSession, LspOutcome,
-    LspSessionResult, Package, PackageDependency, PackageId, PackageSource, PanicKind, PanicPoint,
-    Parameter, ParameterKind, ReachabilityDirection, ReachabilityResult, ReachablePath, Reference,
-    ReferenceKind, ResolutionStrategy, Span, StalenessReport, Symbol, SymbolId, SymbolKind,
-    UnresolvedRefForLsp, Visibility,
+    ArchPhaseResult, ArchStats, CallEdgeSelection, Caller, CallerMode, CouplingDetail,
+    CouplingMetrics, CouplingSort, CrateInfo, Cycle, DatabaseStats, Dependent, FileAnalysis,
+    FileId, FunctionSignature, Impact, Import, IndexOptions, IndexStats, IndexUpdate, IndexedFile,
+    Language, LspCompletedSession, LspOutcome, LspSessionResult, Package, PackageDependency,
+    PackageId, PackageSource, PanicKind, PanicPoint, Parameter, ParameterKind,
+    ReachabilityDirection, ReachabilityResult, ReachablePath, Reference, ReferenceKind,
+    ResolutionStrategy, Span, StalenessReport, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp,
+    Visibility,
 };
 pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 
@@ -112,6 +113,17 @@ fn saturating_depth_to_u32(depth: usize) -> u32 {
         );
         u32::MAX
     })
+}
+
+fn callers_to_dependents(callers: Vec<graph::CallerInfo>) -> Vec<Dependent> {
+    callers
+        .into_iter()
+        .map(|caller| Dependent {
+            file: caller.caller.file,
+            symbols_used: vec![caller.caller.symbol.qualified_name],
+            line_count: caller.reference_count,
+        })
+        .collect()
 }
 
 #[expect(
@@ -433,25 +445,23 @@ impl Tethys {
         })
     }
 
-    /// Get symbols that call/use the given symbol.
+    /// Get symbols that directly call/use the given symbol.
     ///
-    /// `exclude_speculative` drops call edges whose every supporting ref
-    /// bands speculative (ADR-0003 via the `refs_banded` view) — the
-    /// name-shape fallback binds that fabricate the tethys-53iv phantom
-    /// class. An edge with ANY trustworthy support survives.
-    pub fn get_callers(
-        &self,
-        qualified_name: &str,
-        exclude_speculative: bool,
-    ) -> Result<Vec<Dependent>> {
+    /// Indexed mode reads retained call edges with the requested
+    /// [`CallEdgeSelection`]. LSP-refined mode augments all indexed call edges
+    /// with language-server findings and deduplicates callers by symbol.
+    pub fn get_callers(&self, qualified_name: &str, mode: CallerMode) -> Result<Vec<Caller>> {
         let symbol = self
             .db
             .get_symbol_by_qualified_name(qualified_name)?
             .ok_or_else(|| Error::NotFound(format!("symbol: {qualified_name}")))?;
 
-        let callers = self.db.get_callers(symbol.id, exclude_speculative)?;
+        let callers = match mode {
+            CallerMode::Indexed { call_edges } => self.db.get_callers(symbol.id, call_edges)?,
+            CallerMode::LspRefined => self.get_lsp_refined_callers(qualified_name, &symbol)?,
+        };
 
-        self.convert_callers_to_dependents(callers)
+        Ok(callers.into_iter().map(|caller| caller.caller).collect())
     }
 
     /// Get symbols that the given symbol calls/uses.
@@ -488,9 +498,8 @@ impl Tethys {
             .db
             .get_transitive_callers(symbol.id, Some(depth), exclude_speculative)?;
 
-        let direct_dependents = self.convert_callers_to_dependents(impact.direct_callers)?;
-        let transitive_dependents =
-            self.convert_callers_to_dependents(impact.transitive_callers)?;
+        let direct_dependents = callers_to_dependents(impact.direct_callers);
+        let transitive_dependents = callers_to_dependents(impact.transitive_callers);
 
         let target_file = self
             .db
@@ -680,9 +689,9 @@ impl Tethys {
             |id| {
                 Ok(self
                     .db
-                    .get_callers(id, false)?
+                    .get_callers(id, CallEdgeSelection::All)?
                     .into_iter()
-                    .map(|c| c.symbol)
+                    .map(|c| c.caller.symbol)
                     .collect())
             },
             types::ReachabilityDirection::Backward,
@@ -1205,7 +1214,43 @@ mod arch_api_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
     use tempfile::TempDir;
+
+    static TRACED_CALLER_SQL: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+    fn collect_caller_sql(sql: &str) {
+        TRACED_CALLER_SQL
+            .lock()
+            .expect("caller SQL trace lock")
+            .push(sql.to_string());
+    }
+
+    fn traced_direct_callers(tethys: &Tethys, qualified_name: &str) -> (Vec<Caller>, Vec<String>) {
+        TRACED_CALLER_SQL
+            .lock()
+            .expect("caller SQL trace lock")
+            .clear();
+        {
+            let mut connection = tethys.db.connection().expect("index connection");
+            connection.trace(Some(collect_caller_sql));
+        }
+
+        let callers = tethys.get_callers(
+            qualified_name,
+            CallerMode::Indexed {
+                call_edges: CallEdgeSelection::All,
+            },
+        );
+
+        {
+            let mut connection = tethys.db.connection().expect("index connection");
+            connection.trace(None);
+        }
+        let statements =
+            std::mem::take(&mut *TRACED_CALLER_SQL.lock().expect("caller SQL trace lock"));
+        (callers.expect("direct caller query"), statements)
+    }
 
     fn temp_workspace() -> TempDir {
         tempfile::tempdir().expect("failed to create temp dir")
@@ -1342,6 +1387,54 @@ mod tests {
         assert!(
             stats.lsp_sessions.is_empty(),
             "LSP sessions should be empty when use_lsp is false"
+        );
+    }
+    #[test]
+    fn caller_hydration_statement_count_is_independent_of_result_count() {
+        let workspace = temp_workspace();
+        let src_dir = workspace.path().join("src");
+        std::fs::create_dir_all(&src_dir).expect("create src dir");
+        std::fs::write(
+            workspace.path().join("Cargo.toml"),
+            "[package]\nname = \"caller_trace\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        )
+        .expect("write Cargo.toml");
+        std::fs::write(
+            src_dir.join("lib.rs"),
+            "pub fn one_target() {}\n\
+             pub fn many_target() {}\n\
+             pub fn one_caller() { one_target(); }\n\
+             pub fn many_a() { many_target(); }\n\
+             pub fn many_b() { many_target(); }\n\
+             pub fn many_c() { many_target(); }\n\
+             pub fn many_d() { many_target(); }\n",
+        )
+        .expect("write lib.rs");
+
+        let mut tethys = Tethys::new(workspace.path()).expect("create tethys");
+        tethys.index().expect("index");
+
+        let (one_caller, one_caller_sql) = traced_direct_callers(&tethys, "one_target");
+        let (many_callers, many_caller_sql) = traced_direct_callers(&tethys, "many_target");
+
+        assert_eq!(one_caller.len(), 1);
+        assert_eq!(many_callers.len(), 4);
+        assert_eq!(
+            one_caller_sql.len(),
+            2,
+            "target lookup plus one hydrated caller query"
+        );
+        assert_eq!(
+            many_caller_sql.len(),
+            one_caller_sql.len(),
+            "caller hydration must not add one statement per result"
+        );
+        assert!(
+            one_caller
+                .iter()
+                .chain(&many_callers)
+                .all(|caller| caller.file == Path::new("src/lib.rs")),
+            "hydrated callers must expose their workspace-relative indexed file"
         );
     }
 }

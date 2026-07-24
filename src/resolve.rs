@@ -13,14 +13,15 @@ use tracing::{debug, info, trace, warn};
 use crate::Tethys;
 use crate::error::{Error, Result};
 use crate::graph;
+use crate::languages::get_language_support;
 use crate::languages::module_resolver::{
     GlobPolicy, ModuleContext, ModuleResolver, NamespaceMap, get_module_resolver,
 };
 use crate::lsp::{self, LspProvider};
 use crate::types::{
-    Dependent, FileId, Import, Language, LspCompletedSession, LspOutcome, LspSessionResult,
-    Reference, ReferenceKind, ResolutionStrategy, Symbol, SymbolId, SymbolKind,
-    UnresolvedRefForLsp,
+    CallEdgeSelection, Caller, DEFAULT_LSP_TIMEOUT_SECS, FileId, Import, Language,
+    LspCompletedSession, LspOutcome, LspSessionResult, Reference, ReferenceKind,
+    ResolutionStrategy, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp,
 };
 
 /// Whether a reference of `ref_kind` is allowed to bind to a symbol of
@@ -74,10 +75,6 @@ pub(crate) struct ResolveContext<'a> {
     pub(crate) module_ctx: &'a ModuleContext<'a>,
 }
 
-#[expect(
-    clippy::missing_errors_doc,
-    reason = "error docs deferred to avoid churn during active development"
-)]
 impl Tethys {
     /// Resolve cross-file references against the symbol database (Pass 2).
     ///
@@ -1099,42 +1096,109 @@ impl Tethys {
         }
     }
 
+    /// Locate the declared identifier for an LSP position.
+    ///
+    /// Indexed symbol coordinates point at the declaration node, while
+    /// `textDocument/references` must target its `name` field. Falls back to
+    /// the indexed coordinates when no syntax span or source is available.
+    fn lsp_symbol_name_position(file: &Path, symbol: &Symbol, language: Language) -> (u32, u32) {
+        let fallback = (
+            symbol.line.saturating_sub(1),
+            symbol.column.saturating_sub(1),
+        );
+        let Some(span) = symbol.span else {
+            return fallback;
+        };
+        let Ok(source) = std::fs::read(file) else {
+            return fallback;
+        };
+        get_language_support(language)
+            .definition_name_position(&source, span)
+            .map_or(fallback, |(line, column)| {
+                (line.saturating_sub(1), column.saturating_sub(1))
+            })
+    }
+
+    /// Start an LSP client and wait for its provider-specific readiness signal.
+    fn start_ready_caller_lsp(
+        &self,
+        provider: lsp::AnyProvider,
+        symbol_name: &str,
+        language: Language,
+    ) -> Option<lsp::LspClient> {
+        let mut client = match lsp::LspClient::start(&provider, &self.workspace_root) {
+            Ok(client) => client,
+            Err(error) => {
+                warn!(
+                    error = %error,
+                    symbol = %symbol_name,
+                    ?language,
+                    install_hint = %provider.install_hint(),
+                    "LSP server failed to start — returning indexed callers only \
+                     (results may be incomplete). {} Or remove --lsp.",
+                    provider.install_hint()
+                );
+                return None;
+            }
+        };
+
+        let timeout = std::time::Duration::from_secs(DEFAULT_LSP_TIMEOUT_SECS);
+        let ready = match client.wait_until_ready(provider.readiness_wait(), timeout) {
+            Ok(ready) => ready,
+            Err(error) => {
+                warn!(
+                    error = %error,
+                    symbol = %symbol_name,
+                    "LSP readiness check failed"
+                );
+                false
+            }
+        };
+        if ready {
+            return Some(client);
+        }
+
+        warn!(
+            symbol = %symbol_name,
+            timeout_secs = DEFAULT_LSP_TIMEOUT_SECS,
+            "LSP server was not ready — returning indexed callers only"
+        );
+        if let Err(error) = client.shutdown() {
+            warn!(error = %error, "LSP shutdown failed");
+        }
+        None
+    }
+
     /// Get symbols that call/use the given symbol, with LSP refinement.
     ///
     /// Combines results from the tree-sitter index with references found by the
-    /// language server. This catches callers that tree-sitter couldn't resolve
+    /// language server. This catches callers that tree-sitter could not resolve
     /// during indexing (e.g., through complex type inference).
     ///
     /// # Design
     ///
-    /// 1. Get callers from the database (tree-sitter indexed)
+    /// 1. Get callers from the index
     /// 2. Find the symbol's definition location
     /// 3. Call LSP `find_references` at that location
     /// 4. For each LSP reference, find its containing symbol
-    /// 5. Merge with DB callers, deduplicating by symbol ID
+    /// 5. Merge with indexed callers, deduplicating by symbol ID
     ///
     /// # Fallback Behavior
     ///
-    /// If LSP fails to start or returns errors, falls back to DB-only results
+    /// If LSP fails to start or returns errors, falls back to indexed results
     /// and logs a warning.
-    #[expect(
-        clippy::too_many_lines,
-        reason = "combines DB lookup with LSP refinement in a single user-facing method"
-    )]
-    pub fn get_callers_with_lsp(&self, qualified_name: &str) -> Result<Vec<Dependent>> {
-        use std::collections::HashSet;
-
-        // Step 1: Get callers from the database
-        let symbol = self
-            .db
-            .get_symbol_by_qualified_name(qualified_name)?
-            .ok_or_else(|| Error::NotFound(format!("symbol: {qualified_name}")))?;
-
-        let db_callers = self.db.get_callers(symbol.id, false)?;
-
+    pub(crate) fn get_lsp_refined_callers(
+        &self,
+        qualified_name: &str,
+        symbol: &Symbol,
+    ) -> Result<Vec<graph::CallerInfo>> {
+        // Step 1: Get callers from the index
+        let indexed_callers = self.db.get_callers(symbol.id, CallEdgeSelection::All)?;
         // Build a set of symbol IDs we already know about
-        let mut known_symbol_ids: HashSet<SymbolId> =
-            db_callers.iter().map(|c| c.symbol.id).collect();
+        let mut known_symbol_ids: HashSet<SymbolId> = indexed_callers
+            .iter()
+            .map(|caller| caller.caller.symbol.id)
+            .collect();
 
         // Step 2: Get the symbol's definition file path
         let symbol_file = self
@@ -1146,27 +1210,15 @@ impl Tethys {
         // Step 3: Spawn LSP and call find_references
         // Select the appropriate LSP provider based on the symbol's file language
         let provider = lsp::AnyProvider::for_language(symbol_file.language);
-        let mut lsp_client = match lsp::LspClient::start(&provider, &self.workspace_root) {
-            Ok(client) => client,
-            Err(e) => {
-                // User explicitly requested --lsp, so log at warn level.
-                // Results will be incomplete: only tree-sitter-indexed callers are returned.
-                warn!(
-                    error = %e,
-                    symbol = %qualified_name,
-                    language = ?symbol_file.language,
-                    install_hint = %provider.install_hint(),
-                    "LSP server failed to start — returning DB-only callers \
-                     (results may be incomplete). {} Or remove --lsp flag.",
-                    provider.install_hint()
-                );
-                return self.convert_callers_to_dependents(db_callers);
-            }
+        let Some(mut lsp_client) =
+            self.start_ready_caller_lsp(provider, qualified_name, symbol_file.language)
+        else {
+            return Ok(indexed_callers);
         };
 
         // LSP uses 0-indexed positions, our DB uses 1-indexed
-        let lsp_line = symbol.line.saturating_sub(1);
-        let lsp_col = symbol.column.saturating_sub(1);
+        let (lsp_line, lsp_col) =
+            Self::lsp_symbol_name_position(&symbol_file_path, symbol, symbol_file.language);
 
         let lsp_refs = match lsp_client.find_references(&symbol_file_path, lsp_line, lsp_col) {
             Ok(refs) => refs,
@@ -1175,12 +1227,12 @@ impl Tethys {
                 tracing::error!(
                     error = %e,
                     symbol = %qualified_name,
-                    "LSP find_references failed - returning DB-only callers"
+                    "LSP find_references failed - returning indexed callers only"
                 );
                 if let Err(shutdown_err) = lsp_client.shutdown() {
                     warn!(error = %shutdown_err, "LSP shutdown failed");
                 }
-                return self.convert_callers_to_dependents(db_callers);
+                return Ok(indexed_callers);
             }
         };
 
@@ -1191,9 +1243,9 @@ impl Tethys {
 
         debug!(
             symbol = %qualified_name,
-            db_callers = db_callers.len(),
+            indexed_callers = indexed_callers.len(),
             lsp_refs = lsp_refs.len(),
-            "Merging DB and LSP caller results"
+            "Merging indexed and LSP caller results"
         );
 
         // Step 4: For each LSP reference, find its containing symbol
@@ -1230,7 +1282,8 @@ impl Tethys {
             let ref_line = loc.range.start.line + 1;
 
             // Find the symbol that contains this reference location
-            let Some(containing_symbol) = self.db.find_symbol_at_line(ref_file_id, ref_line)?
+            let Some(containing_symbol) =
+                self.db.find_symbol_containing_line(ref_file_id, ref_line)?
             else {
                 trace!(
                     ref_path = %relative_ref_path.display(),
@@ -1240,52 +1293,34 @@ impl Tethys {
                 continue;
             };
 
-            // Skip if we already have this caller from the DB
+            // Skip if the index already reported this caller.
             if known_symbol_ids.contains(&containing_symbol.id) {
                 continue;
             }
 
-            // Add this as a new caller
+            // Add a caller found only through LSP refinement.
             known_symbol_ids.insert(containing_symbol.id);
             additional_callers.push(graph::CallerInfo {
-                symbol: containing_symbol,
+                caller: Caller {
+                    symbol: containing_symbol,
+                    file: crate::db::normalize_path(relative_ref_path).into(),
+                },
                 reference_count: 1,
             });
         }
 
         info!(
             symbol = %qualified_name,
-            db_callers = db_callers.len(),
+            indexed_callers = indexed_callers.len(),
             lsp_additional = additional_callers.len(),
             "Caller merge complete"
         );
 
-        // Step 5: Combine DB and LSP callers and convert to Dependent
-        let all_callers: Vec<graph::CallerInfo> =
-            db_callers.into_iter().chain(additional_callers).collect();
-
-        self.convert_callers_to_dependents(all_callers)
-    }
-
-    /// Convert a list of `CallerInfo` to `Dependent` for the crate-internal API.
-    pub(crate) fn convert_callers_to_dependents(
-        &self,
-        callers: Vec<graph::CallerInfo>,
-    ) -> Result<Vec<Dependent>> {
-        callers
+        // Step 5: Combine indexed and LSP callers
+        Ok(indexed_callers
             .into_iter()
-            .map(|c| {
-                let file = self
-                    .db
-                    .get_file_by_id(c.symbol.file_id)?
-                    .ok_or_else(|| Error::NotFound(format!("file id: {}", c.symbol.file_id)))?;
-                Ok(Dependent {
-                    file: file.path,
-                    symbols_used: vec![c.symbol.qualified_name],
-                    line_count: c.reference_count,
-                })
-            })
-            .collect()
+            .chain(additional_callers)
+            .collect())
     }
 }
 

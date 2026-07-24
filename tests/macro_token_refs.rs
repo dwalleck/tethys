@@ -298,7 +298,12 @@ fn macro_call_excluded_from_call_edges_and_callers() {
         )
         .expect("helper symbol");
     let callers = tethys
-        .get_callers(&qualified, false)
+        .get_callers(
+            &qualified,
+            tethys::CallerMode::Indexed {
+                call_edges: tethys::CallEdgeSelection::All,
+            },
+        )
         .expect("get_callers succeeds");
     assert!(
         callers.is_empty(),
