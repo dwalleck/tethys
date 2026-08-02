@@ -5,9 +5,9 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::OptionalExtension;
 
 use super::Index;
-use super::helpers::{row_to_indexed_file, row_to_symbol};
+use super::helpers::row_to_symbol;
 use crate::error::{Error, Result};
-use crate::graph::{FileDepInfo, FileImpact, FilePath, SymbolImpactCaller};
+use crate::graph::{FileImpact, FileImpactDependent, FilePath, SymbolImpactCaller};
 use crate::types::{CallEdgeSelection, Caller, Cycle, FileId, SymbolId};
 
 /// Default maximum depth for recursive graph traversals.
@@ -153,12 +153,15 @@ impl Index {
 
 /// Recursive-CTE prefix shared by the dependent traversals below: walks
 /// `file_deps` edges upward from target file `?1`, bounding depth at `?2`.
+/// The base case's `?2 >= 1` guard makes a zero bound yield no rows (depth
+/// zero validates the target and traverses nothing), mirroring the symbol
+/// `caller_tree` CTE; consumers passing `DEFAULT_MAX_DEPTH` never engage it.
 /// Callers append their own projection over `dependent_tree(file_id, depth)`.
 const DEPENDENT_TREE_CTE: &str = "WITH RECURSIVE dependent_tree(file_id, depth) AS (
                 -- Base case: direct dependents
                 SELECT DISTINCT fd.from_file_id, 1
                 FROM file_deps fd
-                WHERE fd.to_file_id = ?1
+                WHERE fd.to_file_id = ?1 AND ?2 >= 1
 
                 UNION
 
@@ -171,12 +174,7 @@ const DEPENDENT_TREE_CTE: &str = "WITH RECURSIVE dependent_tree(file_id, depth) 
 
 impl Index {
     /// Get direct and transitive dependents for file impact analysis.
-    pub fn get_transitive_dependents(
-        &self,
-        file_id: FileId,
-        max_depth: Option<u32>,
-    ) -> Result<FileImpact> {
-        let max_depth = max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
+    pub fn get_transitive_dependents(&self, file_id: FileId, max_depth: u32) -> Result<FileImpact> {
         let target = self
             .get_file_by_id(file_id)?
             .ok_or_else(|| Error::NotFound(format!("file id: {}", file_id.as_i64())))?;
@@ -185,47 +183,24 @@ impl Index {
 
         let mut stmt = conn.prepare(&format!(
             "{DEPENDENT_TREE_CTE}
-            SELECT DISTINCT
-                f.id, f.path, f.language, f.mtime_ns, f.size_bytes, f.content_hash, f.indexed_at,
-                MIN(dt.depth) as min_depth
+            SELECT
+                f.path, MIN(dt.depth) as min_depth
             FROM dependent_tree dt
             JOIN files f ON f.id = dt.file_id
             GROUP BY f.id
             ORDER BY min_depth, f.path"
         ))?;
 
-        let mut direct_dependents = Vec::new();
-        let mut transitive_dependents = Vec::new();
+        let dependents = stmt
+            .query_map(rusqlite::params![file_id.as_i64(), max_depth], |row| {
+                Ok(FileImpactDependent {
+                    file: row.get::<_, String>(0)?.into(),
+                    depth: row.get(1)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
 
-        let rows = stmt.query_map(rusqlite::params![file_id.as_i64(), max_depth], |row| {
-            let file = row_to_indexed_file(row)?;
-            // Safety: CTE depth is bounded by max_depth (u32), so i64 value fits in u32
-            #[expect(
-                clippy::cast_possible_truncation,
-                clippy::cast_sign_loss,
-                reason = "CTE depth bounded by max_depth (u32)"
-            )]
-            let depth: u32 = row.get::<_, i64>(7)? as u32;
-            Ok((file, depth))
-        })?;
-
-        for row in rows {
-            let (file, depth) = row?;
-
-            let dep_info = FileDepInfo { file, ref_count: 1 };
-
-            if depth == 1 {
-                direct_dependents.push(dep_info);
-            } else {
-                transitive_dependents.push(dep_info);
-            }
-        }
-
-        Ok(FileImpact {
-            target,
-            direct_dependents,
-            transitive_dependents,
-        })
+        Ok(FileImpact::new(target.path, dependents))
     }
 
     /// Get transitive dependent file IDs without hydrating graph DTOs.

@@ -29,7 +29,7 @@
 //!
 //! // Get impact analysis
 //! let impact = tethys.get_impact(Path::new("src/auth.rs"), None)?;
-//! println!("{} direct dependents", impact.direct_dependents.len());
+//! println!("{} direct dependents", impact.direct_dependents().len());
 //! # Ok::<(), tethys::Error>(())
 //! ```
 
@@ -56,16 +56,15 @@ pub use db::{
 };
 pub use dead_code::{DeadCodeFinding, DeadCodeReport, DeadCodeSummary};
 pub use error::{Error, IndexError, IndexErrorKind, Result};
-pub use graph::{SymbolImpact, SymbolImpactCaller};
+pub use graph::{FileImpact, FileImpactDependent, SymbolImpact, SymbolImpactCaller};
 pub use types::{
     ArchPhaseResult, ArchStats, CallEdgeSelection, Caller, CallerMode, CouplingDetail,
-    CouplingMetrics, CouplingSort, CrateInfo, Cycle, DatabaseStats, Dependent, FileAnalysis,
-    FileId, FunctionSignature, Impact, Import, IndexOptions, IndexStats, IndexUpdate, IndexedFile,
-    Language, LspCompletedSession, LspOutcome, LspSessionResult, Package, PackageDependency,
-    PackageId, PackageSource, PanicKind, PanicPoint, Parameter, ParameterKind,
-    ReachabilityDirection, ReachabilityResult, ReachablePath, Reference, ReferenceKind,
-    ResolutionStrategy, Span, StalenessReport, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp,
-    Visibility,
+    CouplingMetrics, CouplingSort, CrateInfo, Cycle, DatabaseStats, FileAnalysis, FileId,
+    FunctionSignature, Import, IndexOptions, IndexStats, IndexUpdate, IndexedFile, Language,
+    LspCompletedSession, LspOutcome, LspSessionResult, Package, PackageDependency, PackageId,
+    PackageSource, PanicKind, PanicPoint, Parameter, ParameterKind, ReachabilityDirection,
+    ReachabilityResult, ReachablePath, Reference, ReferenceKind, ResolutionStrategy, Span,
+    StalenessReport, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp, Visibility,
 };
 pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 
@@ -396,43 +395,21 @@ impl Tethys {
         Ok(paths)
     }
 
-    /// Get impact analysis: direct and transitive dependents of a file.
+    /// Get direct and transitive dependent files at their minimum depth.
     ///
-    /// `max_depth` limits transitive traversal depth. `None` falls back to the
-    /// crate-wide default of 50. There is currently no way to request unbounded
-    /// traversal through this method. Values larger than `u32::MAX` are capped
-    /// (with a `warn!` log) since the underlying SQL CTE depth is a `u32`.
-    pub fn get_impact(&self, path: &Path, max_depth: Option<usize>) -> Result<Impact> {
+    /// `max_depth` limits transitive traversal depth. `None` uses the
+    /// crate-wide default of 50. Zero validates the file and returns no
+    /// dependents; one returns direct dependents only. Values larger than
+    /// `u32::MAX` are capped (with a `warn!` log) since the underlying SQL CTE
+    /// depth is a `u32`.
+    pub fn get_impact(&self, path: &Path, max_depth: Option<usize>) -> Result<FileImpact> {
         let file_id = self
             .db
             .get_file_id(&self.relative_path(path))?
             .ok_or_else(|| Error::NotFound(format!("file: {}", path.display())))?;
 
         let depth = max_depth.map_or(db::DEFAULT_MAX_DEPTH, saturating_depth_to_u32);
-        let file_impact = self.db.get_transitive_dependents(file_id, Some(depth))?;
-
-        // Convert FileImpact to public Impact type
-        Ok(Impact {
-            target: file_impact.target.path,
-            direct_dependents: file_impact
-                .direct_dependents
-                .into_iter()
-                .map(|d| Dependent {
-                    file: d.file.path,
-                    symbols_used: vec![],
-                    line_count: d.ref_count,
-                })
-                .collect(),
-            transitive_dependents: file_impact
-                .transitive_dependents
-                .into_iter()
-                .map(|d| Dependent {
-                    file: d.file.path,
-                    symbols_used: vec![],
-                    line_count: d.ref_count,
-                })
-                .collect(),
-        })
+        self.db.get_transitive_dependents(file_id, depth)
     }
 
     /// Get symbols that directly call/use the given symbol.

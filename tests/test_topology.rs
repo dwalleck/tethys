@@ -597,6 +597,104 @@ fn test_helper_sum_empty() {
         );
     }
 
+    /// Affected-tests must keep flowing through chains deeper than one hop —
+    /// its traversal always runs at the default depth, so the dependent-tree
+    /// depth guard never trims it — and result order must keep following
+    /// `get_test_symbols` (`file_id`, then line): traversal decides
+    /// membership only.
+    #[test]
+    fn deep_transitive_chain_preserves_membership_and_line_order() {
+        let (_dir, mut tethys) = workspace_with_files(&[
+            (
+                "src/lib.rs",
+                r"
+pub mod core;
+pub mod layer_one;
+pub mod layer_two;
+pub mod layer_three;
+",
+            ),
+            (
+                "src/core.rs",
+                r"
+pub fn core_value() -> i32 { 7 }
+
+#[test]
+fn test_core_value() {
+    let value = core_value();
+    assert!(value == 7);
+}
+",
+            ),
+            (
+                "src/layer_one.rs",
+                r"
+use crate::core::core_value;
+
+pub fn one() -> i32 { core_value() }
+",
+            ),
+            (
+                "src/layer_two.rs",
+                r"
+use crate::layer_one::one;
+
+pub fn two() -> i32 { one() }
+",
+            ),
+            // Tests are named so line order and alphabetical order disagree:
+            // a regression that re-sorts results by name would flip them.
+            (
+                "src/layer_three.rs",
+                r"
+use crate::layer_two::two;
+
+#[test]
+fn test_zeta_uses_chain() {
+    let value = two();
+    assert!(value == 7);
+}
+
+#[test]
+fn test_alpha_uses_chain() {
+    let value = two();
+    assert!(value == 7);
+}
+",
+            ),
+        ]);
+
+        tethys.index().expect("index failed");
+
+        let affected = tethys
+            .get_affected_tests(&[PathBuf::from("src/core.rs")])
+            .expect("get_affected_tests failed");
+        let names: Vec<&str> = affected.iter().map(|t| t.name.as_str()).collect();
+
+        let mut membership = names.clone();
+        membership.sort_unstable();
+        assert_eq!(
+            membership,
+            [
+                "test_alpha_uses_chain",
+                "test_core_value",
+                "test_zeta_uses_chain"
+            ],
+            "changed file and depth-three dependent must contribute; middle layers have no tests"
+        );
+
+        let position_of = |target: &str| {
+            names
+                .iter()
+                .position(|name| *name == target)
+                .expect("membership was asserted above")
+        };
+        assert!(
+            position_of("test_zeta_uses_chain") < position_of("test_alpha_uses_chain"),
+            "tests within a file must stay in line order, got: {names:?}"
+        );
+    }
+
     /// Test that only relevant tests are affected (not all tests).
     #[test]
     fn does_not_affect_unrelated_tests() {

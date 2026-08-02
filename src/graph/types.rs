@@ -15,6 +15,10 @@ pub struct SymbolImpactCaller {
     pub depth: usize,
 }
 
+fn depth_one_prefix_len<T>(entries: &[T], depth_of: impl Fn(&T) -> usize) -> usize {
+    entries.partition_point(|entry| depth_of(entry) == 1)
+}
+
 /// Result of transitive caller analysis for a symbol.
 #[derive(Debug, Clone)]
 pub struct SymbolImpact {
@@ -32,7 +36,7 @@ impl SymbolImpact {
 
     /// Index of the first caller past the depth-one prefix.
     fn direct_end(&self) -> usize {
-        self.callers.partition_point(|caller| caller.depth == 1)
+        depth_one_prefix_len(&self.callers, |caller| caller.depth)
     }
 
     /// All callers, ordered by minimum depth and then qualified name.
@@ -54,24 +58,53 @@ impl SymbolImpact {
     }
 }
 
-/// Information about a file dependency.
+/// A dependent reached during file-impact traversal.
 #[derive(Debug, Clone)]
-pub struct FileDepInfo {
-    /// The dependent/dependency file.
-    pub file: IndexedFile,
-    /// Number of references between the files.
-    pub ref_count: usize,
+pub struct FileImpactDependent {
+    /// Workspace-relative path of the indexed dependent file.
+    pub file: PathBuf,
+    /// Minimum number of file-dependency edges from the dependent to the target.
+    pub depth: usize,
 }
 
-/// Result of file-level impact analysis.
+/// Result of transitive dependent analysis for a file.
 #[derive(Debug, Clone)]
 pub struct FileImpact {
-    /// The target file being analyzed.
-    pub target: IndexedFile,
-    /// Files that directly depend on the target.
-    pub direct_dependents: Vec<FileDepInfo>,
-    /// Files that transitively depend on the target.
-    pub transitive_dependents: Vec<FileDepInfo>,
+    /// Workspace-relative path of the indexed target file.
+    pub target: PathBuf,
+    dependents: Vec<FileImpactDependent>,
+}
+
+impl FileImpact {
+    /// `dependents` must be sorted by minimum depth ascending (the SQL
+    /// traversal orders by `min_depth`); the direct/transitive split relies on
+    /// it.
+    pub(crate) fn new(target: PathBuf, dependents: Vec<FileImpactDependent>) -> Self {
+        Self { target, dependents }
+    }
+
+    /// Index of the first dependent past the depth-one prefix.
+    fn direct_end(&self) -> usize {
+        depth_one_prefix_len(&self.dependents, |dependent| dependent.depth)
+    }
+
+    /// All dependents, ordered by minimum depth and then file path.
+    #[must_use]
+    pub fn dependents(&self) -> &[FileImpactDependent] {
+        &self.dependents
+    }
+
+    /// Dependents whose minimum depth is one.
+    #[must_use]
+    pub fn direct_dependents(&self) -> &[FileImpactDependent] {
+        &self.dependents[..self.direct_end()]
+    }
+
+    /// Dependents whose minimum depth is greater than one.
+    #[must_use]
+    pub fn transitive_dependents(&self) -> &[FileImpactDependent] {
+        &self.dependents[self.direct_end()..]
+    }
 }
 
 /// A path through the file dependency graph.

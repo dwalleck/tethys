@@ -166,7 +166,6 @@ erDiagram
 |------|-------------|
 | `IndexStats` | Per-run counts: files indexed/skipped, symbols, references, errors, LSP session results, arch phase result. `total_lsp_resolved` sums sessions. |
 | `DatabaseStats` | Aggregate index state (counts by language/kind). |
-| `Impact` / `Dependent` | Impact analysis: direct + transitive dependents at depth. |
 | `ReachabilityResult` / `ReachablePath` | Reachable symbols and paths, with depth filtering. |
 | `Cycle` | A detected circular dependency (normalized rotation). |
 | `StalenessReport` / `IndexUpdate` | Reindex inputs/outputs. |
@@ -191,9 +190,11 @@ Per-crate discovery result: name, path, lib/bin entry points, `src_root`,
 
 ## Graph DTOs (`src/graph/types.rs`)
 
-`SymbolImpactCaller` (caller symbol, indexed-file path, and minimum depth),
-`SymbolImpact` (target plus unique, depth-ordered callers with
-direct/transitive views), `FileDepInfo`, `FileImpact`, and `FilePath`.
+`FileImpactDependent` (indexed-file path and minimum dependency depth),
+`FileImpact` (target path plus unique, depth-ordered dependents with
+direct/transitive views), `SymbolImpactCaller` (caller symbol, indexed-file
+path, and minimum call depth), `SymbolImpact` (target plus unique,
+depth-ordered callers with direct/transitive views), and `FilePath`.
 
 ## Extraction DTOs (`src/languages/common.rs`)
 

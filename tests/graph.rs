@@ -113,6 +113,15 @@ mod db;
 // Impact Analysis Tests
 // ============================================================================
 
+/// Dependents of a file impact as `(path, depth)` pairs, in returned order.
+fn dependent_depths(impact: &tethys::FileImpact) -> Vec<(&std::path::Path, usize)> {
+    impact
+        .dependents()
+        .iter()
+        .map(|dependent| (dependent.file.as_path(), dependent.depth))
+        .collect()
+}
+
 #[test]
 fn get_impact_returns_file_dependents() {
     let (_dir, mut tethys) = workspace_with_call_graph();
@@ -124,9 +133,63 @@ fn get_impact_returns_file_dependents() {
 
     // db.rs should have auth.rs and cache.rs as direct dependents
     assert!(
-        !impact.direct_dependents.is_empty(),
+        !impact.direct_dependents().is_empty(),
         "db.rs should have dependents"
     );
+}
+
+#[test]
+fn get_impact_orders_dependents_by_depth_and_partitions_views() {
+    let (_dir, mut tethys) = workspace_with_call_graph();
+    tethys.index().expect("index failed");
+
+    let impact = tethys
+        .get_impact(std::path::Path::new("src/db.rs"), None)
+        .expect("get_impact failed");
+
+    assert_eq!(
+        dependent_depths(&impact),
+        [
+            (std::path::Path::new("src/auth.rs"), 1),
+            (std::path::Path::new("src/cache.rs"), 1),
+            (std::path::Path::new("src/main.rs"), 2),
+        ]
+    );
+    assert_eq!(impact.direct_dependents().len(), 2);
+    assert_eq!(impact.transitive_dependents().len(), 1);
+}
+
+#[test]
+fn get_impact_returns_duplicate_routes_once_at_the_minimum_depth() {
+    let (dir, mut tethys) = workspace_with_call_graph();
+    fs::write(
+        dir.path().join("src/main.rs"),
+        r"
+use crate::auth::User;
+use crate::cache::Cache;
+use crate::db::Connection;
+
+fn main() {
+    let _user = User;
+    let _cache = Cache;
+    let _connection = Connection;
+}
+",
+    )
+    .expect("write main.rs");
+    tethys.index().expect("index failed");
+
+    let impact = tethys
+        .get_impact(std::path::Path::new("src/db.rs"), None)
+        .expect("get_impact failed");
+    let main_dependents: Vec<_> = impact
+        .dependents()
+        .iter()
+        .filter(|dependent| dependent.file == std::path::Path::new("src/main.rs"))
+        .collect();
+
+    assert_eq!(main_dependents.len(), 1);
+    assert_eq!(main_dependents[0].depth, 1);
 }
 
 #[test]
@@ -140,7 +203,7 @@ fn get_impact_returns_transitive_dependents() {
 
     // db.rs's transitive dependents should include files that depend on auth.rs and cache.rs
     // (i.e., main.rs depends on auth.rs and cache.rs which depend on db.rs)
-    let total_dependents = impact.direct_dependents.len() + impact.transitive_dependents.len();
+    let total_dependents = impact.direct_dependents().len() + impact.transitive_dependents().len();
     assert!(
         total_dependents >= 2,
         "db.rs should have at least 2 total dependents (auth, cache, possibly main), got: {total_dependents}"
@@ -158,46 +221,103 @@ fn get_impact_returns_empty_for_leaf_with_no_dependents() {
         .expect("get_impact failed");
 
     assert!(
-        impact.direct_dependents.is_empty(),
+        impact.direct_dependents().is_empty(),
         "main.rs should have no direct dependents, got: {:?}",
-        impact.direct_dependents
+        impact.direct_dependents()
     );
 }
 
 #[test]
-fn get_impact_max_depth_limits_transitive_traversal() {
+fn get_impact_obeys_the_shared_depth_contract() {
     let (_dir, mut tethys) = workspace_with_call_graph();
     tethys.index().expect("index failed");
 
-    // Call graph: main.rs -> {auth.rs, cache.rs} -> db.rs
-    // db.rs's direct dependents are auth and cache (2). main is a 2-hop
-    // transitive dependent reached only when depth allows it.
-    let depth_1 = tethys
-        .get_impact(std::path::Path::new("src/db.rs"), Some(1))
-        .expect("get_impact depth=1 failed");
-    let unbounded = tethys
-        .get_impact(std::path::Path::new("src/db.rs"), None)
-        .expect("get_impact default depth failed");
-
-    assert_eq!(
-        depth_1.direct_dependents.len(),
-        2,
-        "db.rs has two direct dependents (auth, cache)"
+    let zero = tethys
+        .get_impact(std::path::Path::new("src/db.rs"), Some(0))
+        .expect("depth zero should validate the target");
+    assert_eq!(zero.target, std::path::Path::new("src/db.rs"));
+    assert!(
+        zero.dependents().is_empty(),
+        "depth zero traverses no edges"
     );
     assert!(
-        depth_1.transitive_dependents.is_empty(),
-        "depth=1 should not traverse past direct dependents, got {:?}",
-        depth_1.transitive_dependents
-    );
-    assert_eq!(
-        unbounded.direct_dependents.len(),
-        2,
-        "unbounded has the same direct dependents"
+        tethys
+            .get_impact(std::path::Path::new("src/missing.rs"), Some(0))
+            .is_err(),
+        "depth zero still validates the requested target"
     );
 
-    // Full transitive traversal correctness is covered by
-    // `get_impact_returns_transitive_dependents`. This test's responsibility
-    // is only verifying the depth-1 cutoff.
+    let one = tethys
+        .get_impact(std::path::Path::new("src/db.rs"), Some(1))
+        .expect("depth one impact");
+    assert_eq!(
+        dependent_depths(&one),
+        [
+            (std::path::Path::new("src/auth.rs"), 1),
+            (std::path::Path::new("src/cache.rs"), 1),
+        ]
+    );
+
+    let two = tethys
+        .get_impact(std::path::Path::new("src/db.rs"), Some(2))
+        .expect("depth two impact");
+    assert_eq!(
+        dependent_depths(&two),
+        [
+            (std::path::Path::new("src/auth.rs"), 1),
+            (std::path::Path::new("src/cache.rs"), 1),
+            (std::path::Path::new("src/main.rs"), 2),
+        ]
+    );
+
+    let default = tethys
+        .get_impact(std::path::Path::new("src/db.rs"), None)
+        .expect("default depth impact");
+    assert_eq!(dependent_depths(&default), dependent_depths(&two));
+
+    let oversized = tethys
+        .get_impact(std::path::Path::new("src/db.rs"), Some(usize::MAX))
+        .expect("oversized depth impact");
+    assert_eq!(dependent_depths(&oversized), dependent_depths(&default));
+}
+
+#[test]
+fn cli_file_impact_renders_depth_partitioned_dependents() {
+    let (dir, mut tethys) = workspace_with_call_graph();
+    tethys.index().expect("index failed");
+
+    let run = |depth: &str| -> String {
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_tethys"))
+            .args(["impact", "src/db.rs", "-w"])
+            .arg(dir.path())
+            .args(["--depth", depth])
+            .output()
+            .expect("run file impact");
+        assert!(
+            output.status.success(),
+            "file impact failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).expect("stdout must be UTF-8")
+    };
+
+    let validate_only = run("0");
+    assert!(validate_only.contains("Impact analysis for src/db.rs:"));
+    assert!(validate_only.contains("Direct dependents (0 files):"));
+    assert!(validate_only.contains("Transitive dependents (0 files beyond direct):"));
+    assert!(!validate_only.contains("src/auth.rs"));
+
+    let direct_only = run("1");
+    assert!(direct_only.contains("Impact analysis for src/db.rs:"));
+    assert!(direct_only.contains("Direct dependents (2 files):"));
+    assert!(direct_only.contains("Transitive dependents (0 files beyond direct):"));
+    assert!(direct_only.contains("src/auth.rs"));
+    assert!(direct_only.contains("src/cache.rs"));
+    assert!(!direct_only.contains("src/main.rs"));
+
+    let transitive = run("2");
+    assert!(transitive.contains("Transitive dependents (1 files beyond direct):"));
+    assert!(transitive.contains("src/main.rs"));
 }
 
 #[test]
@@ -602,7 +722,7 @@ fn graph_operations_work_after_reindex() {
         .expect("get_impact failed after reindex");
 
     assert!(
-        !impact.direct_dependents.is_empty(),
+        !impact.direct_dependents().is_empty(),
         "impact analysis should work after reindex"
     );
 

@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use colored::Colorize;
-use tethys::{CallEdgeSelection, Impact, SymbolImpact, Tethys};
+use tethys::{CallEdgeSelection, FileImpact, SymbolImpact, Tethys};
 
 use super::display::{print_dependents, print_symbol_impact_callers_by_file};
 use super::ensure_lsp_if_requested;
@@ -35,26 +35,26 @@ pub fn run(
 }
 
 /// Display impact analysis results.
-fn print_impact_analysis(impact: &Impact) {
+fn print_impact_analysis(impact: &FileImpact) {
     println!();
 
-    // Direct dependents
+    let direct = impact.direct_dependents();
     println!(
         "  {} ({} files):",
         "Direct dependents".white().bold(),
-        impact.direct_dependents.len().to_string().green()
+        direct.len().to_string().green()
     );
-    print_dependents(&impact.direct_dependents, "(none)");
+    print_dependents(direct, "(none)");
 
     println!();
 
-    // Transitive dependents
+    let transitive = impact.transitive_dependents();
     println!(
-        "  {} ({} files total):",
+        "  {} ({} files beyond direct):",
         "Transitive dependents".white().bold(),
-        impact.transitive_dependents.len().to_string().yellow()
+        transitive.len().to_string().yellow()
     );
-    print_dependents(&impact.transitive_dependents, "(none beyond direct)");
+    print_dependents(transitive, "(none beyond direct)");
 }
 
 /// Display symbol impact using caller-specific, depth-accurate results.
