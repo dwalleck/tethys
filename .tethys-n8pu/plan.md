@@ -8,7 +8,8 @@ C1-C5 count assertions that make the fence complete.
 
 **Claim:** C6 (exactly 2 statements, 0 per-ID lookups, any N) plus C1-C5
 assertions completed in the probe fence; C9 (API unchanged: Tethys
-signatures + Index ID getters untouched).
+signatures untouched; crate-internal ID getters deleted — approved drift,
+see design.md Architecture).
 
 **Oracle:** the probe test's rusqlite `trace` hook counts statements on the
 live connection (independent runtime measurement); the direct-SQL JOIN
@@ -30,7 +31,8 @@ O(N) worst case in corrupt DBs, bounded by result count. No wall-clock
 phase introduced.
 
 **Files:** `src/db/file_deps.rs` (add `get_file_dependency_paths` /
-`get_file_dependent_paths`, return `(Vec<PathBuf>, usize missing)`),
+`get_file_dependent_paths`, return `(Vec<PathBuf>, usize missing)`;
+DELETE dead `get_file_dependencies`/`get_file_dependents`),
 `src/lib.rs` (rewire `get_dependencies`/`get_dependents`, delete
 `file_ids_to_paths`), probe test in `src/db/file_deps.rs` gains count
 assertions.

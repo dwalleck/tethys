@@ -249,32 +249,6 @@ impl Tethys {
         Cow::Borrowed(path)
     }
 
-    /// Convert a list of file IDs to their paths, tracking missing files.
-    ///
-    /// Returns `(found_paths, missing_count)` where `missing_count` is the number of
-    /// file IDs that could not be resolved (logged as warnings).
-    fn file_ids_to_paths(
-        &self,
-        file_ids: Vec<FileId>,
-        source_file_id: FileId,
-    ) -> Result<(Vec<PathBuf>, usize)> {
-        let mut paths = Vec::new();
-        let mut missing_count = 0;
-        for dep_id in file_ids {
-            if let Some(file) = self.db.get_file_by_id(dep_id)? {
-                paths.push(file.path);
-            } else {
-                warn!(
-                    source_file_id = %source_file_id,
-                    missing_file_id = %dep_id,
-                    "file_deps references non-existent file, possible database corruption"
-                );
-                missing_count += 1;
-            }
-        }
-        Ok((paths, missing_count))
-    }
-
     // === File Queries ===
 
     /// Get metadata for an indexed file.
@@ -364,8 +338,7 @@ impl Tethys {
             .get_file_id(&self.relative_path(path))?
             .ok_or_else(|| Error::NotFound(format!("file: {}", path.display())))?;
 
-        let dependent_ids = self.db.get_file_dependents(file_id)?;
-        let (paths, missing_count) = self.file_ids_to_paths(dependent_ids, file_id)?;
+        let (paths, missing_count) = self.db.get_file_dependent_paths(file_id)?;
         if missing_count > 0 {
             debug!(
                 file = %path.display(),
@@ -383,8 +356,7 @@ impl Tethys {
             .get_file_id(&self.relative_path(path))?
             .ok_or_else(|| Error::NotFound(format!("file: {}", path.display())))?;
 
-        let dep_ids = self.db.get_file_dependencies(file_id)?;
-        let (paths, missing_count) = self.file_ids_to_paths(dep_ids, file_id)?;
+        let (paths, missing_count) = self.db.get_file_dependency_paths(file_id)?;
         if missing_count > 0 {
             debug!(
                 file = %path.display(),

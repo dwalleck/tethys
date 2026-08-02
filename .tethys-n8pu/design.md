@@ -31,8 +31,12 @@ NotFound behavior, O(1) queries per call instead of O(N).
   identical (`source_file_id`, `missing_file_id`).
 
   The existing ID-returning `get_file_dependencies` / `get_file_dependents`
-  stay byte-for-byte untouched — they are public `Index` surface whose
-  contraction belongs to tethys-71if, not this slice.
+  are DELETED: the design originally deferred their contraction to
+  tethys-71if on the premise they were public surface, but `mod db;` is
+  private (src/lib.rs:38) — they are crate-internal, unreachable from
+  outside the crate, and dead after this rewiring. Keeping them would
+  require a dead-code allowance, the exact class tethys-6k6b removes
+  (user-approved deviation, slice 1 drift stop).
 
 - `src/lib.rs`: `get_dependencies` / `get_dependents` call the new path
   methods; the per-direction missing-count summary `debug!` is preserved.
@@ -84,8 +88,8 @@ NotFound behavior, O(1) queries per call instead of O(N).
    `csharp_cross_dir_deps.rs`, `file_deps_idempotency.rs`, `graph.rs`,
    `orphan_files.rs`, `reexport_refs.rs`).
 9. Public API unchanged: `Tethys::get_dependencies` /
-   `get_dependents` signatures and the `Index` ID-returning getters are
-   untouched.
+   `get_dependents` signatures untouched; the crate-internal ID-returning
+   `Index` getters are deleted (approved deviation — see Architecture).
 
 ## Falsification
 
@@ -99,7 +103,7 @@ NotFound behavior, O(1) queries per call instead of O(N).
 | 6 | exactly 2 stmts, 0 per-ID, any N | probe trace hook; pre-fix measured 2+N (5 total, 3 per-ID for N=3) | rusqlite `trace` hook on live connection (independent runtime measurement); code inspection of removed loop | 5m | pending (fails pre-fix by construction — that IS the ticket) | probe test asserts per-ID == 0, total == 2 per direction |
 | 7 | dangling rows skipped + warn + valid rows returned | unit test: open db with FK OFF, insert dangling `file_deps` row, call through Tethys | tracing-test capture of `warn!`/`debug!`; direct SQL | 15m | pending | `n8pu_probe` unit test |
 | 8 | existing Rust/C# suites pass | `cargo nextest run` | unchanged test expectations | 10m | pending | the existing tests themselves |
-| 9 | public API unchanged | `cargo check` + full suite compile | — | 5m | pending | compile |
+| 9 | public API unchanged (Tethys signatures); internal ID getters deleted per approved drift decision | `cargo check` + full suite compile | — | 5m | passed (slice 1) | compile |
 
 **Non-vacuity (buggy implementations that fail the fence):**
 - C1/C2: wrong JOIN direction (join on `to_file_id` for deps) returns
@@ -128,8 +132,9 @@ the C7 FK-off test.
    `get_impact`, affected-tests all untouched (ticket scope).
 2. **No result ordering contract** — no ORDER BY added; order remains
    index-scan order as today; nothing in the repo asserts order.
-3. **No removal of `Index::get_file_dependencies`/`get_file_dependents`
-   (ID-returning)** — public surface; contraction is tethys-71if's slice.
+3. **No removal of `Tethys` public methods** — the internal `Index`
+   ID-returning getters were deleted (crate-private dead code, approved);
+   tethys-71if's contraction scope is unaffected.
 4. **No C#-specific handling** — hydration is table-level and
    language-neutral; C# edges flow through the same `file_deps` rows.
 5. **No schema or index changes** — both directions already indexed.
@@ -137,8 +142,10 @@ the C7 FK-off test.
 
 ## Tracker references
 
-- tethys-71if (open, verified) — owns removal of the legacy ID-returning
-  getters and other graph-surface contraction.
+- tethys-71if (open, verified) — owns remaining graph-surface contraction;
+  the ID-returning getters it might once have removed were deleted here
+  (they were crate-internal, not public surface — design premise error
+  caught by the clippy dead-code gate).
 - tethys-zoi3 (open, verified) — may later extend file_deps coverage
   (target deletion); C7's defensive branch is where such tests would bite.
 - tethys-8ya3 (open, verified) — write-path batching, unrelated direction.

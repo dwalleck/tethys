@@ -18,9 +18,12 @@ Issues bearing on direct file dependency/dependent hydration:
   dependency cycles. Sibling epic slice; consumes `file_deps`, not the
   direct query hydration here.
 - **tethys-71if** (open, P2) — graph: contract the legacy interface. Owns
-  removal of legacy projections/DTOs; the `Index::get_file_dependencies` /
-  `get_file_dependents` (ID-returning) methods may become its removal
-  targets once n8pu's path-resolving variants land. n8pu keeps them (they
-  are public surface) and does not pre-empt 71if.
+  removal of legacy projections/DTOs. NOTE (post-drift, 2026-08-01): the
+  `Index::get_file_dependencies` / `get_file_dependents` (ID-returning)
+  methods n8pu was going to leave for 71if were deleted in n8pu instead —
+  `mod db;` is private, so they were crate-internal dead code, not public
+  surface as the initial design assumed. The clippy dead-code gate caught
+  the premise error; user approved the deletion. 71if's remaining scope is
+  unaffected.
 
 No existing ticket for the direct-query N+1 itself — that is this ticket.

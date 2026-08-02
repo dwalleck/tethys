@@ -1,7 +1,9 @@
 //! File dependency CRUD operations for the Tethys index.
 
+use std::path::PathBuf;
+
 use rusqlite::params;
-use tracing::trace;
+use tracing::{trace, warn};
 
 use super::Index;
 use crate::error::Result;
@@ -44,34 +46,83 @@ impl Index {
         Ok(())
     }
 
-    /// Get files that the given file depends on.
-    pub fn get_file_dependencies(&self, file_id: FileId) -> Result<Vec<FileId>> {
+    /// Get workspace-relative paths of the files `file_id` directly depends
+    /// on.
+    ///
+    /// One set-oriented LEFT JOIN over `file_deps` × `files` (tethys-n8pu):
+    /// hydration no longer performs one indexed-file lookup per returned
+    /// dependency. Returns `(paths, missing_count)` where `missing_count`
+    /// counts `file_deps` rows whose target file row is absent — possible
+    /// only in a hand-edited database, since `Index::open` enforces foreign
+    /// keys and `files` deletes cascade `file_deps` rows.
+    pub fn get_file_dependency_paths(&self, file_id: FileId) -> Result<(Vec<PathBuf>, usize)> {
         let conn = self.connection()?;
 
-        let mut stmt = conn.prepare("SELECT to_file_id FROM file_deps WHERE from_file_id = ?1")?;
+        let mut stmt = conn.prepare(
+            "SELECT fd.to_file_id, f.path
+             FROM file_deps fd
+             LEFT JOIN files f ON f.id = fd.to_file_id
+             WHERE fd.from_file_id = ?1",
+        )?;
 
-        let deps = stmt
-            .query_map([file_id.as_i64()], |row| {
-                row.get::<_, i64>(0).map(FileId::from)
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let rows = stmt.query_map([file_id.as_i64()], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?))
+        })?;
 
-        Ok(deps)
+        let mut paths = Vec::new();
+        let mut missing_count = 0;
+        for row in rows {
+            let (dep_id, path) = row?;
+            if let Some(path) = path {
+                paths.push(PathBuf::from(path));
+            } else {
+                warn!(
+                    source_file_id = %file_id,
+                    missing_file_id = dep_id,
+                    "file_deps references non-existent file, possible database corruption"
+                );
+                missing_count += 1;
+            }
+        }
+        Ok((paths, missing_count))
     }
 
-    /// Get files that depend on the given file.
-    pub fn get_file_dependents(&self, file_id: FileId) -> Result<Vec<FileId>> {
+    /// Get workspace-relative paths of the files directly depending on
+    /// `file_id`.
+    ///
+    /// Mirror of [`Self::get_file_dependency_paths`] over the reverse edge
+    /// direction; same set-oriented hydration and same `missing_count`
+    /// semantics for dangling `file_deps` rows.
+    pub fn get_file_dependent_paths(&self, file_id: FileId) -> Result<(Vec<PathBuf>, usize)> {
         let conn = self.connection()?;
 
-        let mut stmt = conn.prepare("SELECT from_file_id FROM file_deps WHERE to_file_id = ?1")?;
+        let mut stmt = conn.prepare(
+            "SELECT fd.from_file_id, f.path
+             FROM file_deps fd
+             LEFT JOIN files f ON f.id = fd.from_file_id
+             WHERE fd.to_file_id = ?1",
+        )?;
 
-        let deps = stmt
-            .query_map([file_id.as_i64()], |row| {
-                row.get::<_, i64>(0).map(FileId::from)
-            })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let rows = stmt.query_map([file_id.as_i64()], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?))
+        })?;
 
-        Ok(deps)
+        let mut paths = Vec::new();
+        let mut missing_count = 0;
+        for row in rows {
+            let (dep_id, path) = row?;
+            if let Some(path) = path {
+                paths.push(PathBuf::from(path));
+            } else {
+                warn!(
+                    source_file_id = %file_id,
+                    missing_file_id = dep_id,
+                    "file_deps references non-existent file, possible database corruption"
+                );
+                missing_count += 1;
+            }
+        }
+        Ok((paths, missing_count))
     }
 }
 
@@ -118,7 +169,7 @@ mod n8pu_probe {
     }
 
     /// Real temp workspace: lib.rs depends on a.rs and b.rs; a.rs depends on
-    /// c.rs. Both `mod` declarations and `use` paths contribute file_deps
+    /// c.rs. Both `mod` declarations and `use` paths contribute `file_deps`
     /// edges, so lib.rs -> a.rs is a double-contribution pair (PK-deduped).
     fn build_fixture(dir: &std::path::Path) {
         write(
@@ -170,6 +221,31 @@ mod n8pu_probe {
             .unwrap()
     }
 
+    /// Diagnostic dump of the raw `files` and `file_deps` tables — the
+    /// probe's ground truth for set comparison.
+    fn raw_tables(db: &rusqlite::Connection) {
+        let files: Vec<(i64, String)> = {
+            let mut stmt = db
+                .prepare("SELECT id, path FROM files ORDER BY id")
+                .unwrap();
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap()
+                .collect::<std::result::Result<_, _>>()
+                .unwrap()
+        };
+        println!("RAW files = {files:?}");
+        let edges: Vec<(i64, i64)> = {
+            let mut stmt = db
+                .prepare("SELECT from_file_id, to_file_id FROM file_deps ORDER BY 1, 2")
+                .unwrap();
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap()
+                .collect::<std::result::Result<_, _>>()
+                .unwrap()
+        };
+        println!("RAW file_deps = {edges:?}");
+    }
+
     #[test]
     fn probe_direct_dep_hydration() {
         let dir = tempfile::tempdir().unwrap();
@@ -214,8 +290,7 @@ mod n8pu_probe {
             "PROBE missing(root)  = {:?}",
             missing
                 .as_ref()
-                .map(|_| "ok".to_string())
-                .unwrap_or_else(|e| format!("{e:?}"))
+                .map_or_else(|e| format!("{e:?}"), |_| "ok".to_string())
         );
         println!("PROBE stmts deps     = total {total_deps}, per-id-lookup {per_id_deps}");
         println!(
@@ -233,27 +308,7 @@ mod n8pu_probe {
             oracle_dependent_paths(&db, "src/c.rs")
         );
 
-        // Raw tables for diagnosis.
-        let files: Vec<(i64, String)> = {
-            let mut stmt = db
-                .prepare("SELECT id, path FROM files ORDER BY id")
-                .unwrap();
-            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
-                .unwrap()
-                .collect::<std::result::Result<_, _>>()
-                .unwrap()
-        };
-        println!("RAW files = {files:?}");
-        let edges: Vec<(i64, i64)> = {
-            let mut stmt = db
-                .prepare("SELECT from_file_id, to_file_id FROM file_deps ORDER BY 1, 2")
-                .unwrap();
-            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
-                .unwrap()
-                .collect::<std::result::Result<_, _>>()
-                .unwrap()
-        };
-        println!("RAW file_deps = {edges:?}");
+        raw_tables(&db);
 
         // Behavior: workspace-relative, deduped, correct, NotFound root.
         assert_eq!(
@@ -273,6 +328,25 @@ mod n8pu_probe {
             (total_missing, per_id_missing),
             (1, 0),
             "missing root: root lookup only, no hydration"
+        );
+        // C6 (tethys-n8pu): set-oriented hydration — exactly 2 statements
+        // (root lookup + one JOIN), zero per-ID lookups, any result count.
+        // Pre-fix this was 2 + N statements with N per-ID lookups (measured
+        // 5 total / 3 per-ID at N=3 in probe1-output.txt).
+        assert_eq!(
+            (total_deps, per_id_deps),
+            (2, 0),
+            "deps hydration must be set-oriented (root lookup + one JOIN)"
+        );
+        assert_eq!(
+            (total_deps_rev, per_id_deps_rev),
+            (2, 0),
+            "dependents hydration must be set-oriented (root lookup + one JOIN)"
+        );
+        assert_eq!(
+            (total_empty, per_id_empty),
+            (2, 0),
+            "empty result: root lookup + edge query, no per-ID lookups"
         );
     }
 }
