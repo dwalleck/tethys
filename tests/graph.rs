@@ -113,6 +113,15 @@ mod db;
 // Impact Analysis Tests
 // ============================================================================
 
+/// Dependents of a file impact as `(path, depth)` pairs, in returned order.
+fn dependent_depths(impact: &tethys::FileImpact) -> Vec<(&std::path::Path, usize)> {
+    impact
+        .dependents()
+        .iter()
+        .map(|dependent| (dependent.file.as_path(), dependent.depth))
+        .collect()
+}
+
 #[test]
 fn get_impact_returns_file_dependents() {
     let (_dir, mut tethys) = workspace_with_call_graph();
@@ -137,14 +146,9 @@ fn get_impact_orders_dependents_by_depth_and_partitions_views() {
     let impact = tethys
         .get_impact(std::path::Path::new("src/db.rs"), None)
         .expect("get_impact failed");
-    let dependents: Vec<_> = impact
-        .dependents()
-        .iter()
-        .map(|dependent| (dependent.file.as_path(), dependent.depth))
-        .collect();
 
     assert_eq!(
-        dependents,
+        dependent_depths(&impact),
         [
             (std::path::Path::new("src/auth.rs"), 1),
             (std::path::Path::new("src/cache.rs"), 1),
@@ -225,14 +229,6 @@ fn get_impact_returns_empty_for_leaf_with_no_dependents() {
 
 #[test]
 fn get_impact_obeys_the_shared_depth_contract() {
-    fn dependent_depths(impact: &tethys::FileImpact) -> Vec<(&std::path::Path, usize)> {
-        impact
-            .dependents()
-            .iter()
-            .map(|dependent| (dependent.file.as_path(), dependent.depth))
-            .collect()
-    }
-
     let (_dir, mut tethys) = workspace_with_call_graph();
     tethys.index().expect("index failed");
 
@@ -304,6 +300,12 @@ fn cli_file_impact_renders_depth_partitioned_dependents() {
         );
         String::from_utf8(output.stdout).expect("stdout must be UTF-8")
     };
+
+    let validate_only = run("0");
+    assert!(validate_only.contains("Impact analysis for src/db.rs:"));
+    assert!(validate_only.contains("Direct dependents (0 files):"));
+    assert!(validate_only.contains("Transitive dependents (0 files beyond direct):"));
+    assert!(!validate_only.contains("src/auth.rs"));
 
     let direct_only = run("1");
     assert!(direct_only.contains("Impact analysis for src/db.rs:"));
