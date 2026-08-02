@@ -101,7 +101,7 @@ NotFound behavior, O(1) queries per call instead of O(N).
 | 4 | unindexed root → NotFound, 1 stmt | probe: deps(src/nope.rs); trace count == 1 | code path inspection | 5m | passed (NotFound + stmt count 1 measured) | same probe test |
 | 5 | no duplicate paths | probe: assert len == set len | PK schema | 5m | passed | same probe test |
 | 6 | exactly 2 stmts, 0 per-ID, any N | probe trace hook; pre-fix measured 2+N (5 total, 3 per-ID for N=3) | rusqlite `trace` hook on live connection (independent runtime measurement); code inspection of removed loop | 5m | pending (fails pre-fix by construction — that IS the ticket) | probe test asserts per-ID == 0, total == 2 per direction |
-| 7 | dangling rows skipped + warn + valid rows returned | unit test: open db with FK OFF, insert dangling `file_deps` row, call through Tethys | tracing-test capture of `warn!`/`debug!`; direct SQL | 15m | pending | `n8pu_probe` unit test |
+| 7 | dangling rows skipped + warn + valid rows returned | unit test: open db with FK OFF, insert dangling `file_deps` row, call through Tethys | tracing-test capture of `warn!`/`debug!`; direct SQL | 15m | passed (slice 2; INNER-JOIN mutation fails the fence — non-vacuous) | `n8pu_probe::dangling_dep_row_is_warned_and_skipped` |
 | 8 | existing Rust/C# suites pass | `cargo nextest run` | unchanged test expectations | 10m | pending | the existing tests themselves |
 | 9 | public API unchanged (Tethys signatures); internal ID getters deleted per approved drift decision | `cargo check` + full suite compile | — | 5m | passed (slice 1) | compile |
 

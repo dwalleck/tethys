@@ -138,6 +138,8 @@ mod n8pu_probe {
     use std::path::Path;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    use tracing_test::traced_test;
+
     use crate::Tethys;
 
     static TRACE_TOTAL: AtomicUsize = AtomicUsize::new(0);
@@ -219,6 +221,64 @@ mod n8pu_probe {
             .unwrap()
             .collect::<std::result::Result<Vec<_>, _>>()
             .unwrap()
+    }
+
+    /// C7 (tethys-n8pu): a dangling `file_deps` row (target file absent —
+    /// possible only in a hand-edited DB, since `Index::open` enforces
+    /// foreign keys and file deletes cascade the edges) is skipped with the
+    /// established per-row `warn!`; valid rows are still returned and the
+    /// call does not error.
+    #[traced_test]
+    #[test]
+    fn dangling_dep_row_is_warned_and_skipped() {
+        let dir = tempfile::tempdir().unwrap();
+        build_fixture(dir.path());
+        let mut tethys = Tethys::new(dir.path()).unwrap();
+        tethys.index().unwrap();
+
+        // Inject a dangling edge from lib.rs, bypassing FK enforcement via
+        // a second connection (the Index connection enforces FKs).
+        {
+            let conn = rusqlite::Connection::open(tethys.db_path()).unwrap();
+            conn.pragma_update(None, "foreign_keys", "OFF").unwrap();
+            let lib_id: i64 = conn
+                .query_row("SELECT id FROM files WHERE path = 'src/lib.rs'", [], |r| {
+                    r.get(0)
+                })
+                .unwrap();
+            conn.execute(
+                "INSERT INTO file_deps (from_file_id, to_file_id, ref_count)
+                 VALUES (?1, 99999, 1)",
+                rusqlite::params![lib_id],
+            )
+            .unwrap();
+        }
+
+        let deps = tethys
+            .get_dependencies(Path::new("src/lib.rs"))
+            .expect("dangling row must not error the call");
+        let mut paths: Vec<String> = deps
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        paths.sort();
+        assert_eq!(
+            paths,
+            vec!["src/a.rs", "src/b.rs", "src/c.rs"],
+            "valid rows must still be returned; dangling row skipped"
+        );
+        assert!(
+            logs_contain("99999"),
+            "per-row warn must name the dangling id"
+        );
+        assert!(
+            logs_contain("corruption"),
+            "warn must keep the established message shape"
+        );
+        assert!(
+            logs_contain("could not be resolved"),
+            "Tethys summary debug must report the missing count"
+        );
     }
 
     /// Diagnostic dump of the raw `files` and `file_deps` tables — the
