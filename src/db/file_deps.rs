@@ -193,6 +193,9 @@ mod n8pu_probe {
         reset_counts();
         let missing = tethys.get_dependencies(Path::new("src/nope.rs"));
         let (total_missing, per_id_missing) = counts();
+        reset_counts();
+        let empty = tethys.get_dependencies(Path::new("src/b.rs")).unwrap();
+        let (total_empty, per_id_empty) = counts();
 
         let mut dep_paths: Vec<String> = deps
             .iter()
@@ -218,6 +221,8 @@ mod n8pu_probe {
         println!(
             "PROBE stmts dependents = total {total_deps_rev}, per-id-lookup {per_id_deps_rev}"
         );
+        println!("PROBE deps(b.rs)     = {empty:?}");
+        println!("PROBE stmts empty    = total {total_empty}, per-id-lookup {per_id_empty}");
         println!("PROBE stmts missing  = total {total_missing}, per-id-lookup {per_id_missing}");
         println!(
             "ORACLE deps(lib.rs)   = {:?}",
@@ -262,6 +267,12 @@ mod n8pu_probe {
             "dependents of c.rs"
         );
         assert!(deps.iter().all(|p| p.is_relative()), "workspace-relative");
+        assert!(empty.is_empty(), "zero-dep root must return empty vec");
         assert!(missing.is_err(), "missing root must be NotFound");
+        assert_eq!(
+            (total_missing, per_id_missing),
+            (1, 0),
+            "missing root: root lookup only, no hydration"
+        );
     }
 }
