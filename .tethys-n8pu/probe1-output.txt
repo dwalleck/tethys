@@ -1,0 +1,11 @@
+PROBE deps(lib.rs)   = ["src/a.rs", "src/b.rs", "src/c.rs"]
+PROBE dependents(c.rs) = ["src/a.rs", "src/lib.rs"]
+PROBE missing(root)  = "NotFound(\"file: src/nope.rs\")"
+PROBE stmts deps     = total 5, per-id-lookup 3
+PROBE stmts dependents = total 4, per-id-lookup 2
+PROBE deps(b.rs)     = []
+PROBE stmts empty    = total 2, per-id-lookup 0
+PROBE stmts missing  = total 1, per-id-lookup 0
+ORACLE deps(lib.rs)   = ["src/a.rs", "src/b.rs", "src/c.rs"]
+ORACLE dependents(c.rs) = ["src/a.rs", "src/lib.rs"]
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 561 filtered out; finished in 0.03s
