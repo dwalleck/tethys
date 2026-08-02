@@ -116,6 +116,37 @@ impl Index {
         .map_err(Into::into)
     }
 
+    /// Hydrate a set of file ids in ONE statement (tethys-4m9o C7).
+    ///
+    /// Absent ids are simply absent from the returned map; the caller
+    /// decides whether a hole is an error (dependency chains: yes,
+    /// `Error::NotFound`). Duplicate input ids are harmless — the map
+    /// carries one entry per distinct id. An empty slice issues zero
+    /// statements (`IN ()` is not valid SQL).
+    pub fn get_files_by_ids(&self, ids: &[FileId]) -> Result<HashMap<FileId, IndexedFile>> {
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+
+        let conn = self.connection()?;
+        let placeholders = vec!["?"; ids.len()].join(",");
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {FILES_COLUMNS} FROM files WHERE id IN ({placeholders})"
+        ))?;
+
+        let rows = stmt.query_map(
+            rusqlite::params_from_iter(ids.iter().map(|id| id.as_i64())),
+            row_to_indexed_file,
+        )?;
+
+        let mut files = HashMap::with_capacity(ids.len());
+        for row in rows {
+            let file = row?;
+            files.insert(file.id, file);
+        }
+        Ok(files)
+    }
+
     /// Atomically write a file's COMPLETE parse output — file row, symbols,
     /// attributes, references, and imports — in ONE transaction with cached
     /// statements (idxperf design claims C4/C5).
@@ -984,6 +1015,70 @@ mod list_all_files_tests {
         let (_dir, index) = temp_index();
         let files = index.list_all_files().expect("list_all_files");
         assert!(files.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod get_files_by_ids_tests {
+    use std::path::Path;
+
+    use tempfile::TempDir;
+
+    use crate::db::Index;
+    use crate::types::{FileId, Language};
+
+    fn temp_index() -> (TempDir, Index) {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let index = Index::open(&dir.path().join("idx.db")).expect("open index");
+        (dir, index)
+    }
+
+    fn upsert(index: &mut Index, p: &str) -> FileId {
+        index
+            .upsert_file(Path::new(p), Language::Rust, 0, 0, None)
+            .expect("upsert file")
+    }
+
+    #[test]
+    fn empty_id_slice_returns_empty_map() {
+        let (_dir, index) = temp_index();
+        let map = index.get_files_by_ids(&[]).expect("empty query");
+        assert!(map.is_empty(), "empty input must yield empty map");
+    }
+
+    #[test]
+    fn duplicate_ids_yield_one_entry_per_distinct_id() {
+        let (_dir, mut index) = temp_index();
+        let a = upsert(&mut index, "src/a.rs");
+        let map = index.get_files_by_ids(&[a, a, a]).expect("dup query");
+        assert_eq!(map.len(), 1, "duplicates collapse to one entry");
+        assert_eq!(map[&a].path, Path::new("src/a.rs"));
+    }
+
+    #[test]
+    fn missing_id_is_absent_not_error() {
+        let (_dir, mut index) = temp_index();
+        let a = upsert(&mut index, "src/a.rs");
+        let ghost = FileId::from(a.as_i64() + 999);
+        let map = index
+            .get_files_by_ids(&[a, ghost])
+            .expect("query with hole");
+        assert_eq!(map.len(), 1, "only the real id hydrates");
+        assert!(map.contains_key(&a));
+        assert!(!map.contains_key(&ghost), "absent id must not appear");
+    }
+
+    #[test]
+    fn cap_sized_id_list_hydrates_fully() {
+        let (_dir, mut index) = temp_index();
+        let ids: Vec<FileId> = (0..51)
+            .map(|i| upsert(&mut index, &format!("src/f{i}.rs")))
+            .collect();
+        let map = index.get_files_by_ids(&ids).expect("51-wide query");
+        assert_eq!(map.len(), 51, "cap-sized IN-list hydrates every id");
+        for id in &ids {
+            assert!(map.contains_key(id));
+        }
     }
 }
 

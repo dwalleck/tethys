@@ -385,11 +385,12 @@ fn get_dependency_chain_returns_none_for_unconnected() {
 }
 
 #[test]
-fn get_dependency_chain_returns_none_for_same_file() {
+fn get_dependency_chain_returns_single_file_for_same_file() {
     let (_dir, mut tethys) = workspace_with_call_graph();
     tethys.index().expect("index failed");
 
-    // A file to itself might return None or a single-element path
+    // Equal indexed endpoints are a defined one-file path (tethys-4m9o C4);
+    // this replaces the pre-4m9o "either None or trivial" hedge.
     let chain = tethys
         .get_dependency_chain(
             std::path::Path::new("src/db.rs"),
@@ -397,13 +398,11 @@ fn get_dependency_chain_returns_none_for_same_file() {
         )
         .expect("get_dependency_chain failed");
 
-    // Either None or a trivial path is acceptable
-    if let Some(path) = chain {
-        assert!(
-            path.len() <= 1,
-            "same-file path should be trivial, got: {path:?}"
-        );
-    }
+    assert_eq!(
+        chain,
+        Some(vec![std::path::PathBuf::from("src/db.rs")]),
+        "same-file chain must be exactly the one-file path"
+    );
 }
 
 #[test]
@@ -411,21 +410,134 @@ fn get_dependency_chain_finds_shortest_path() {
     let (_dir, mut tethys) = workspace_with_call_graph();
     tethys.index().expect("index failed");
 
-    // auth.rs -> db.rs should be direct (2 nodes)
+    // auth.rs -> db.rs is a direct edge: exactly 2 nodes, no hedge
+    // (tethys-4m9o C2; the pre-4m9o form was `if let Some` and could
+    // vacuously pass on None).
     let chain = tethys
         .get_dependency_chain(
             std::path::Path::new("src/auth.rs"),
             std::path::Path::new("src/db.rs"),
         )
+        .expect("get_dependency_chain failed")
+        .expect("direct dependency must produce a chain");
+
+    assert_eq!(
+        chain,
+        vec![
+            std::path::PathBuf::from("src/auth.rs"),
+            std::path::PathBuf::from("src/db.rs")
+        ],
+        "direct dependency is a 2-node chain"
+    );
+}
+
+/// Workspace whose import graph contains a genuine cycle (a ⇄ b), a target
+/// reachable only through the cycle region, and an island file connected to
+/// nothing. Imports are USED (bare `use` alone creates no `file_deps` edge).
+fn workspace_with_dependency_cycle() -> (TempDir, Tethys) {
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"test_cycle_graph\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+    )
+    .expect("write Cargo.toml");
+    fs::create_dir_all(dir.path().join("src")).expect("create src dir");
+
+    let files = [
+        (
+            "src/main.rs",
+            "use crate::a::A;\n\nfn main() {\n    let _a = A;\n}\n",
+        ),
+        (
+            "src/a.rs",
+            "use crate::b::B;\n\npub struct A;\n\npub fn from_a() {\n    let _b = B;\n}\n",
+        ),
+        (
+            "src/b.rs",
+            "use crate::a::A;\nuse crate::target::T;\n\npub struct B;\n\npub fn from_b() {\n    let _a = A;\n    let _t = T;\n}\n",
+        ),
+        ("src/target.rs", "pub struct T;\n"),
+        ("src/island.rs", "pub struct Island;\n"),
+    ];
+    for (path, content) in files {
+        fs::write(dir.path().join(path), content).expect("write source file");
+    }
+
+    let tethys = Tethys::new(dir.path()).expect("failed to create tethys");
+    (dir, tethys)
+}
+
+#[test]
+fn get_dependency_chain_traverses_cycle_region_and_terminates() {
+    let (_dir, mut tethys) = workspace_with_dependency_cycle();
+    tethys.index().expect("index failed");
+
+    // Pre-4m9o, the walk-enumerating CTE hung on ANY query whose source
+    // reaches a cycle (tethys-vwrn); this fixture is the regression fence
+    // for termination (C1) and for shortest-through-cycle correctness (C2).
+    let chain = tethys
+        .get_dependency_chain(
+            std::path::Path::new("src/a.rs"),
+            std::path::Path::new("src/target.rs"),
+        )
+        .expect("get_dependency_chain failed")
+        .expect("target is reachable through the cycle region");
+
+    assert_eq!(
+        chain,
+        vec![
+            std::path::PathBuf::from("src/a.rs"),
+            std::path::PathBuf::from("src/b.rs"),
+            std::path::PathBuf::from("src/target.rs")
+        ],
+        "shortest route through the cycle region"
+    );
+}
+
+#[test]
+fn get_dependency_chain_returns_none_for_island_despite_cycle() {
+    let (_dir, mut tethys) = workspace_with_dependency_cycle();
+    tethys.index().expect("index failed");
+
+    // Disconnected must be a fast None even when the source's reachable
+    // region contains a cycle (C5) — the pre-4m9o hang applied to every
+    // disconnected query on cyclic indexes.
+    let chain = tethys
+        .get_dependency_chain(
+            std::path::Path::new("src/a.rs"),
+            std::path::Path::new("src/island.rs"),
+        )
         .expect("get_dependency_chain failed");
 
-    if let Some(path) = chain {
-        assert_eq!(
-            path.len(),
-            2,
-            "direct dependency should have 2 files in path, got: {path:?}"
-        );
-    }
+    assert_eq!(
+        chain, None,
+        "island is unreachable: None, not error or hang"
+    );
+}
+
+#[test]
+fn get_dependency_chain_reports_from_first_when_both_endpoints_missing() {
+    let (_dir, mut tethys) = workspace_with_call_graph();
+    tethys.index().expect("index failed");
+
+    // Endpoint validation order is part of the established contract (C6):
+    // `from` is checked before `to`, so the error names the from-path.
+    let err = tethys
+        .get_dependency_chain(
+            std::path::Path::new("src/nope_from.rs"),
+            std::path::Path::new("src/nope_to.rs"),
+        )
+        .expect_err("both endpoints missing must error");
+
+    assert!(
+        matches!(err, tethys::Error::NotFound(_)),
+        "both-missing must be the established NotFound, got: {err:?}"
+    );
+    let msg = err.to_string();
+    assert!(
+        msg.contains("nope_from.rs") && !msg.contains("nope_to.rs"),
+        "error must name the from-endpoint (checked first), got: {msg}"
+    );
 }
 
 // ============================================================================
@@ -677,14 +789,16 @@ fn get_dependency_chain_returns_error_for_nonexistent_from() {
     let (_dir, mut tethys) = workspace_with_call_graph();
     tethys.index().expect("index failed");
 
-    let result = tethys.get_dependency_chain(
-        std::path::Path::new("src/nonexistent.rs"),
-        std::path::Path::new("src/db.rs"),
-    );
+    let err = tethys
+        .get_dependency_chain(
+            std::path::Path::new("src/nonexistent.rs"),
+            std::path::Path::new("src/db.rs"),
+        )
+        .expect_err("missing 'from' file must error");
 
     assert!(
-        result.is_err(),
-        "should return error when 'from' file doesn't exist"
+        matches!(err, tethys::Error::NotFound(_)),
+        "missing 'from' must be the established NotFound, got: {err:?}"
     );
 }
 
@@ -693,14 +807,16 @@ fn get_dependency_chain_returns_error_for_nonexistent_to() {
     let (_dir, mut tethys) = workspace_with_call_graph();
     tethys.index().expect("index failed");
 
-    let result = tethys.get_dependency_chain(
-        std::path::Path::new("src/db.rs"),
-        std::path::Path::new("src/nonexistent.rs"),
-    );
+    let err = tethys
+        .get_dependency_chain(
+            std::path::Path::new("src/db.rs"),
+            std::path::Path::new("src/nonexistent.rs"),
+        )
+        .expect_err("missing 'to' file must error");
 
     assert!(
-        result.is_err(),
-        "should return error when 'to' file doesn't exist"
+        matches!(err, tethys::Error::NotFound(_)),
+        "missing 'to' must be the established NotFound, got: {err:?}"
     );
 }
 

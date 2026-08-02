@@ -1,0 +1,36 @@
+probe_4m9o runs against tethys's own index (114 files, 396 edges, 37 cycles)
+binary: target/debug/examples/probe_4m9o, timeout 60s per run
+
+=== src/lsp/provider.rs -> src/cli/mod.rs
+TIMEOUT-OR-FAIL rc=124
+=== src/db/graph.rs -> src/types.rs        (direct file_deps edge!)
+TIMEOUT-OR-FAIL rc=124
+=== src/main.rs -> src/db/schema.rs        (oracle: disconnected)
+TIMEOUT-OR-FAIL rc=124
+=== src/main.rs -> src/main.rs
+CHAIN len=1 time_ms=0.1
+  src/main.rs
+=== src/nope.rs -> src/main.rs
+ERR not found: file: src/nope.rs time_ms=0.0
+=== src/main.rs -> src/nope.rs
+ERR not found: file: src/nope.rs time_ms=0.1
+
+oracle_bfs.py on the same six pairs:
+src/lsp/provider.rs -> src/cli/mod.rs   CHAIN len=8
+src/db/graph.rs -> src/types.rs         CHAIN len=2
+src/main.rs -> src/db/schema.rs         NONE
+src/main.rs -> src/main.rs              CHAIN len=1
+src/nope.rs -> *                        MISSING from
+* -> src/nope.rs                        MISSING to
+
+production CTE SQL rerun via sqlite3 CLI, depth bound 50 -> 8:
+from=57 (src/lsp/provider.rs) to=17 (src/cli/mod.rs)
+57,65,94,46,5,59,9,17|7        real 0m0.021s
+ids map to: provider.rs, types.rs, tests/orphan_files.rs, indexing.rs,
+batch_writer.rs, lsp/transport.rs, cli/coupling.rs, cli/mod.rs
+(valid depth-7 path; oracle path also len=8 via lib.rs/db/mod.rs —
+shortest path not unique, lengths agree)
+
+walk-count model (python DP over real edge set), source src/db/graph.rs:
+depth<=10: 1.311e+06   depth<=20: 2.066e+12   depth<=30: 3.252e+18
+depth<=40: 5.119e+24   depth<=50: 8.060e+30

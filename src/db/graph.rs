@@ -1,8 +1,6 @@
 //! SQLite-backed graph queries implemented as concrete `Index` operations.
 
-use std::collections::{HashMap, HashSet};
-
-use rusqlite::OptionalExtension;
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use super::Index;
 use super::helpers::row_to_symbol;
@@ -232,72 +230,43 @@ impl Index {
     }
 
     /// Find the shortest dependency path between two files.
+    ///
+    /// Directed, forward through `file_deps` edges (what `from` depends
+    /// on), shortest by edge count, both endpoints included. Equal
+    /// endpoints yield a one-file path; disconnected endpoints yield
+    /// `None`. Traversal is capped at [`DEFAULT_MAX_DEPTH`] edges — longer
+    /// chains report `None`, matching the depth bound of the recursive CTE
+    /// this replaces.
+    ///
+    /// Storage-owned visited-set BFS over one adjacency load, with the
+    /// selected path hydrated in ONE batched statement (tethys-4m9o). The
+    /// previous walk-enumerating CTE was non-terminating on cyclic indexes
+    /// (tethys-vwrn).
+    ///
+    /// Unknown ids yield `None` (the [`crate::Tethys`] facade validates
+    /// endpoints first); a path member whose `files` row is gone is
+    /// `Error::NotFound` — a chain with a hole is not a chain.
     pub fn find_dependency_path(
         &self,
         from_file_id: FileId,
         to_file_id: FileId,
     ) -> Result<Option<FilePath>> {
-        // Same file - trivial path
-        if from_file_id == to_file_id {
-            let file = self
-                .get_file_by_id(from_file_id)?
-                .ok_or_else(|| Error::NotFound(format!("file id: {}", from_file_id.as_i64())))?;
-            return Ok(Some(FilePath::single(file)));
-        }
-
-        // BFS to find shortest path using recursive CTE
-        // We search forward from `from` through dependencies (what does `from` depend on?)
-        let max_depth = DEFAULT_MAX_DEPTH;
-
-        // Scope the connection lock to just the query execution
-        let file_ids: Option<Vec<i64>> = {
-            let conn = self.connection()?;
-
-            let mut stmt = conn.prepare(
-                "WITH RECURSIVE path_search(file_id, path, depth) AS (
-                    -- Start from the source file
-                    SELECT ?1, CAST(?1 AS TEXT), 0
-
-                    UNION
-
-                    -- Follow dependencies (files that the current file depends on)
-                    SELECT fd.to_file_id,
-                           ps.path || ',' || fd.to_file_id,
-                           ps.depth + 1
-                    FROM file_deps fd
-                    JOIN path_search ps ON fd.from_file_id = ps.file_id
-                    WHERE ps.depth < ?3
-                )
-                SELECT path
-                FROM path_search
-                WHERE file_id = ?2
-                ORDER BY depth
-                LIMIT 1",
-            )?;
-
-            let path_str: Option<String> = stmt
-                .query_row(
-                    rusqlite::params![from_file_id.as_i64(), to_file_id.as_i64(), max_depth],
-                    |row| row.get(0),
-                )
-                .optional()?;
-
-            match path_str {
-                Some(s) => Some(parse_path_ids(&s)?),
-                None => None,
+        let path_ids = if from_file_id == to_file_id {
+            vec![from_file_id]
+        } else {
+            let adj = self.build_adjacency_list()?;
+            match bfs_shortest_ids(&adj, from_file_id, to_file_id, DEFAULT_MAX_DEPTH) {
+                Some(ids) => ids,
+                None => return Ok(None),
             }
         };
 
-        let Some(file_ids) = file_ids else {
-            return Ok(None);
-        };
-
-        // Fetch files for each ID in the path
-        let mut files = Vec::with_capacity(file_ids.len());
-        for id in file_ids {
-            let file = self
-                .get_file_by_id(FileId::from(id))?
-                .ok_or_else(|| Error::NotFound(format!("file id: {id}")))?;
+        let mut files_by_id = self.get_files_by_ids(&path_ids)?;
+        let mut files = Vec::with_capacity(path_ids.len());
+        for id in path_ids {
+            let file = files_by_id
+                .remove(&id)
+                .ok_or_else(|| Error::NotFound(format!("file id: {}", id.as_i64())))?;
             files.push(file);
         }
 
@@ -524,23 +493,53 @@ fn normalize_cycle(cycle: &[FileId]) -> Vec<FileId> {
     normalized
 }
 
-/// Parse a comma-separated path string into a vector of i64 IDs.
+/// Visited-set BFS over the adjacency map: shortest id path `from → to`
+/// by edge count, expansion capped at `max_depth` edges.
 ///
-/// Used by path-finding queries that store traversal paths as comma-separated strings
-/// in SQL.
-fn parse_path_ids(path_str: &str) -> Result<Vec<i64>> {
-    path_str
-        .split(',')
-        .filter(|id| !id.trim().is_empty())
-        .map(|id| {
-            let trimmed = id.trim();
-            trimmed.parse().map_err(|e| {
-                Error::Internal(format!(
-                    "failed to parse ID '{trimmed}' in path '{path_str}': {e} (possible database corruption)"
-                ))
-            })
-        })
-        .collect()
+/// Returns the full id sequence including both endpoints, or `None` when
+/// `to` is unreachable within the cap. `from == to` never traverses — the
+/// caller short-circuits the equal-endpoint path before calling (enforced
+/// there; this function would return `None` for it, which is wrong for
+/// that case, hence the debug assert).
+fn bfs_shortest_ids(
+    adj: &HashMap<FileId, Vec<FileId>>,
+    from: FileId,
+    to: FileId,
+    max_depth: u32,
+) -> Option<Vec<FileId>> {
+    debug_assert!(from != to, "equal endpoints are the caller's short-circuit");
+
+    // parent map doubles as the visited set; `from` is guarded explicitly
+    // so a cycle back to the source can never give it a parent.
+    let mut parents: HashMap<FileId, FileId> = HashMap::new();
+    let mut queue: VecDeque<(FileId, u32)> = VecDeque::new();
+    queue.push_back((from, 0));
+
+    while let Some((current, depth)) = queue.pop_front() {
+        if depth >= max_depth {
+            continue;
+        }
+        for &next in adj.get(&current).into_iter().flatten() {
+            if next == from || parents.contains_key(&next) {
+                continue;
+            }
+            parents.insert(next, current);
+            if next == to {
+                // BFS discovery order guarantees minimal depth at first
+                // insertion; walk the parent chain back to `from`.
+                let mut ids = vec![to];
+                let mut cursor = to;
+                while let Some(&parent) = parents.get(&cursor) {
+                    ids.push(parent);
+                    cursor = parent;
+                }
+                ids.reverse();
+                return Some(ids);
+            }
+            queue.push_back((next, depth + 1));
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -572,5 +571,365 @@ mod tests {
         let normalized = normalize_cycle(&cycle);
         assert_eq!(normalized.len(), 1);
         assert_eq!(normalized[0].as_i64(), 42);
+    }
+}
+
+#[cfg(test)]
+mod dependency_path_tests {
+    //! db-unit fences for the visited-set BFS chain query (tethys-4m9o
+    //! C1–C5). Hand-inserted rows; expected outcomes hand-computed in
+    //! .tethys-4m9o/plan.md before implementation.
+
+    use std::path::{Path, PathBuf};
+
+    use tempfile::TempDir;
+
+    use crate::db::Index;
+    use crate::error::Error;
+    use crate::types::{FileId, Language};
+
+    fn temp_index() -> (TempDir, Index) {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let index = Index::open(&dir.path().join("idx.db")).expect("open index");
+        (dir, index)
+    }
+
+    fn upsert(index: &mut Index, p: &str) -> FileId {
+        index
+            .upsert_file(Path::new(p), Language::Rust, 0, 0, None)
+            .expect("upsert file")
+    }
+
+    fn edge(index: &mut Index, from: FileId, to: FileId) {
+        index.insert_file_dependency(from, to).expect("edge");
+    }
+
+    fn chain_paths(index: &Index, from: FileId, to: FileId) -> Option<Vec<PathBuf>> {
+        index
+            .find_dependency_path(from, to)
+            .expect("find_dependency_path")
+            .map(|p| p.into_files().into_iter().map(|f| f.path).collect())
+    }
+
+    /// Tie-break bug class: the 2-edge route must win over the 3-edge one.
+    #[test]
+    fn shortest_route_wins_over_longer_route() {
+        let (_dir, mut index) = temp_index();
+        let fa = upsert(&mut index, "src/a.rs");
+        let fb = upsert(&mut index, "src/b.rs");
+        let fc = upsert(&mut index, "src/c.rs");
+        let fd = upsert(&mut index, "src/d.rs");
+        let ft = upsert(&mut index, "src/t.rs");
+        edge(&mut index, fa, fb);
+        edge(&mut index, fb, ft);
+        edge(&mut index, fa, fc);
+        edge(&mut index, fc, fd);
+        edge(&mut index, fd, ft);
+
+        let got = chain_paths(&index, fa, ft).expect("route exists");
+        assert_eq!(
+            got,
+            vec![
+                PathBuf::from("src/a.rs"),
+                PathBuf::from("src/b.rs"),
+                PathBuf::from("src/t.rs")
+            ],
+            "must take the 2-edge route"
+        );
+    }
+
+    /// Non-termination bug class (tethys-vwrn): a cycle reachable from the
+    /// source with the target elsewhere must return None, quickly.
+    #[test]
+    fn cycle_reachable_unreachable_target_returns_none() {
+        let (_dir, mut index) = temp_index();
+        let a = upsert(&mut index, "src/a.rs");
+        let b = upsert(&mut index, "src/b.rs");
+        let island = upsert(&mut index, "src/island.rs");
+        edge(&mut index, a, b);
+        edge(&mut index, b, a);
+
+        assert_eq!(
+            chain_paths(&index, a, island),
+            None,
+            "cycle must not hang; unreachable target is None"
+        );
+    }
+
+    /// The target must still be found THROUGH the cycle region.
+    #[test]
+    fn target_reachable_through_cycle_is_found() {
+        let (_dir, mut index) = temp_index();
+        let a = upsert(&mut index, "src/a.rs");
+        let b = upsert(&mut index, "src/b.rs");
+        let t = upsert(&mut index, "src/t.rs");
+        edge(&mut index, a, b);
+        edge(&mut index, b, a);
+        edge(&mut index, b, t);
+
+        let got = chain_paths(&index, a, t).expect("route through cycle");
+        assert_eq!(
+            got,
+            vec![
+                PathBuf::from("src/a.rs"),
+                PathBuf::from("src/b.rs"),
+                PathBuf::from("src/t.rs")
+            ]
+        );
+    }
+
+    /// Equal indexed endpoints are a one-file path (design C4).
+    #[test]
+    fn equal_endpoints_yield_single_file_path() {
+        let (_dir, mut index) = temp_index();
+        let a = upsert(&mut index, "src/a.rs");
+
+        let got = chain_paths(&index, a, a).expect("self-path");
+        assert_eq!(got, vec![PathBuf::from("src/a.rs")]);
+    }
+
+    /// Empty-collection bug class: a zero-edge graph is just disconnected.
+    #[test]
+    fn zero_edge_graph_returns_none() {
+        let (_dir, mut index) = temp_index();
+        let a = upsert(&mut index, "src/a.rs");
+        let b = upsert(&mut index, "src/b.rs");
+
+        assert_eq!(chain_paths(&index, a, b), None);
+    }
+
+    /// Equal endpoints with an unknown id keep today's `NotFound` contract.
+    #[test]
+    fn equal_missing_id_is_notfound() {
+        let (_dir, index) = temp_index();
+        let ghost = FileId::from(4242);
+
+        let err = index
+            .find_dependency_path(ghost, ghost)
+            .expect_err("missing id must error");
+        assert!(
+            matches!(err, Error::NotFound(ref m) if m.contains("4242")),
+            "expected NotFound naming the id, got: {err:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod chain_4m9o_fences {
+    //! Statement-count and boundary fences for the dependency-chain query
+    //! (tethys-4m9o C7–C10). Pairs with `dependency_path_tests` above the
+    //! way `file_deps::hydration_fence_tests` pairs with its integration
+    //! file: these fences need the live connection's `rusqlite` trace hook,
+    //! which only crate code can reach.
+    //!
+    //! Pre-rewrite, hydration issued one `get_file_by_id` lookup per path
+    //! member (3 + L statements for an L-file chain); the BFS + batch form
+    //! is exactly 2 statements connected, 1 disconnected, 1 equal —
+    //! independent of path length. The per-id counter keys on the
+    //! `get_file_by_id` SQL shape so a regression to per-id lookups fails
+    //! loudly.
+
+    use std::path::Path;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use tempfile::TempDir;
+
+    use crate::db::Index;
+    use crate::error::Error;
+    use crate::types::{FileId, Language};
+
+    static TRACE_TOTAL: AtomicUsize = AtomicUsize::new(0);
+    static TRACE_PER_ID: AtomicUsize = AtomicUsize::new(0);
+
+    fn trace_cb(sql: &str) {
+        TRACE_TOTAL.fetch_add(1, Ordering::Relaxed);
+        if sql.contains("FROM files WHERE id = ") {
+            TRACE_PER_ID.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    fn reset_counts() {
+        TRACE_TOTAL.store(0, Ordering::Relaxed);
+        TRACE_PER_ID.store(0, Ordering::Relaxed);
+    }
+
+    fn counts() -> (usize, usize) {
+        (
+            TRACE_TOTAL.load(Ordering::Relaxed),
+            TRACE_PER_ID.load(Ordering::Relaxed),
+        )
+    }
+
+    fn temp_index() -> (TempDir, Index) {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let index = Index::open(&dir.path().join("idx.db")).expect("open index");
+        (dir, index)
+    }
+
+    fn upsert(index: &mut Index, p: &str) -> FileId {
+        index
+            .upsert_file(Path::new(p), Language::Rust, 0, 0, None)
+            .expect("upsert file")
+    }
+
+    fn edge(index: &mut Index, from: FileId, to: FileId) {
+        index.insert_file_dependency(from, to).expect("edge");
+    }
+
+    /// C7: statement counts do not grow with path length, and no per-id
+    /// `files` lookup ever fires. All counting lives in this single test
+    /// because the trace counters are process-global statics.
+    #[test]
+    fn chain_query_statement_counts_are_flat() {
+        let (_dir, mut index) = temp_index();
+        let fa = upsert(&mut index, "src/a.rs");
+        let fb = upsert(&mut index, "src/b.rs");
+        let fc = upsert(&mut index, "src/c.rs");
+        let ft = upsert(&mut index, "src/t.rs");
+        let island = upsert(&mut index, "src/island.rs");
+        edge(&mut index, fa, fb);
+        edge(&mut index, fb, fc);
+        edge(&mut index, fc, ft);
+
+        {
+            let mut conn = index.connection().expect("connection");
+            conn.trace(Some(trace_cb));
+        }
+
+        // canary: prove the per-id predicate is alive before relying on its
+        // zeros below — if get_file_by_id's SQL shape drifts away from the
+        // counted string, this fails instead of the fence going vacuous
+        reset_counts();
+        index.get_file_by_id(fa).expect("canary lookup");
+        assert_eq!(
+            counts(),
+            (1, 1),
+            "per-id trace predicate must fire on get_file_by_id"
+        );
+
+        // len-4 chain: adjacency load + one batched hydration, nothing per-id
+        reset_counts();
+        let path = index
+            .find_dependency_path(fa, ft)
+            .expect("connected")
+            .expect("path exists");
+        assert_eq!(path.into_files().len(), 4);
+        assert_eq!(
+            counts(),
+            (2, 0),
+            "connected multi-hop must be adjacency + batch hydrate only"
+        );
+
+        // len-2 direct edge: same shape — counts must NOT grow with length
+        reset_counts();
+        let path = index
+            .find_dependency_path(fa, fb)
+            .expect("direct")
+            .expect("path exists");
+        assert_eq!(path.into_files().len(), 2);
+        assert_eq!(counts(), (2, 0), "direct edge must match multi-hop counts");
+
+        // disconnected: adjacency load only, no hydration
+        reset_counts();
+        assert!(
+            index
+                .find_dependency_path(fa, island)
+                .expect("disconnected")
+                .is_none()
+        );
+        assert_eq!(counts(), (1, 0), "disconnected must not hydrate");
+
+        // equal endpoints: batch hydration only, no adjacency load
+        reset_counts();
+        let path = index
+            .find_dependency_path(fa, fa)
+            .expect("equal")
+            .expect("self-path");
+        assert_eq!(path.into_files().len(), 1);
+        assert_eq!(counts(), (1, 0), "equal endpoints must skip traversal");
+    }
+
+    /// C8: the 50-edge depth cap is preserved exactly — off-by-one in
+    /// either direction fails this fence.
+    #[test]
+    fn chain_respects_depth_cap_boundary() {
+        let (_dir, mut index) = temp_index();
+        let ids: Vec<FileId> = (0..=51)
+            .map(|i| upsert(&mut index, &format!("src/f{i}.rs")))
+            .collect();
+        for w in ids.windows(2) {
+            edge(&mut index, w[0], w[1]);
+        }
+
+        let at_cap = index
+            .find_dependency_path(ids[0], ids[50])
+            .expect("cap query")
+            .expect("50-edge chain is within the cap");
+        assert_eq!(at_cap.into_files().len(), 51);
+
+        assert!(
+            index
+                .find_dependency_path(ids[0], ids[51])
+                .expect("beyond-cap query")
+                .is_none(),
+            "51-edge chain must be beyond the cap"
+        );
+    }
+
+    /// C9: a self-loop `file_deps` row neither hangs the BFS nor perturbs
+    /// shortest-path results.
+    #[test]
+    fn self_loop_edge_is_inert() {
+        let (_dir, mut index) = temp_index();
+        let fa = upsert(&mut index, "src/a.rs");
+        let fb = upsert(&mut index, "src/b.rs");
+        edge(&mut index, fa, fa);
+        edge(&mut index, fa, fb);
+        edge(&mut index, fb, fa);
+
+        let path = index
+            .find_dependency_path(fa, fb)
+            .expect("query")
+            .expect("route exists");
+        assert_eq!(path.into_files().len(), 2, "self-loop must not perturb");
+
+        let this = index
+            .find_dependency_path(fa, fa)
+            .expect("equal")
+            .expect("self-path");
+        assert_eq!(this.into_files().len(), 1, "equal endpoints stay trivial");
+    }
+
+    /// C10: a dangling path member (files row gone, edge row surviving)
+    /// is a `NotFound` error, never a silently shortened chain. Dangling
+    /// rows are impossible under the FK pragma; fabricated here with FKs
+    /// off, mirroring the n8pu dangling fence.
+    #[test]
+    fn dangling_path_member_is_notfound() {
+        let (_dir, mut index) = temp_index();
+        let fa = upsert(&mut index, "src/a.rs");
+        let fb = upsert(&mut index, "src/b.rs");
+        let ft = upsert(&mut index, "src/t.rs");
+        edge(&mut index, fa, fb);
+        edge(&mut index, fb, ft);
+
+        {
+            let conn = index.connection().expect("connection");
+            conn.execute_batch(&format!(
+                "PRAGMA foreign_keys=OFF;
+                 DELETE FROM files WHERE id = {};
+                 PRAGMA foreign_keys=ON;",
+                fb.as_i64()
+            ))
+            .expect("fabricate dangling row");
+        }
+
+        let err = index
+            .find_dependency_path(fa, ft)
+            .expect_err("hole in the chain must error");
+        assert!(
+            matches!(err, Error::NotFound(ref m) if m.contains(&fb.as_i64().to_string())),
+            "expected NotFound naming the dangling id, got: {err:?}"
+        );
     }
 }
