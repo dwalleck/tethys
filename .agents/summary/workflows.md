@@ -124,7 +124,7 @@ combinations are never silently ignored.
 
 `impact` works the same way at file granularity over `file_deps`, or at symbol
 granularity with `--symbol`. `--depth` bounds transitive traversal; results are
-unique at minimum depth, and neither projection invents reference counts.
+unique at minimum depth, and neither result fabricates reference counts.
 
 ### Reachability
 

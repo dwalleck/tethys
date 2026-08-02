@@ -153,6 +153,9 @@ impl Index {
 
 /// Recursive-CTE prefix shared by the dependent traversals below: walks
 /// `file_deps` edges upward from target file `?1`, bounding depth at `?2`.
+/// The base case's `?2 >= 1` guard makes a zero bound yield no rows (depth
+/// zero validates the target and traverses nothing), mirroring the symbol
+/// `caller_tree` CTE; consumers passing `DEFAULT_MAX_DEPTH` never engage it.
 /// Callers append their own projection over `dependent_tree(file_id, depth)`.
 const DEPENDENT_TREE_CTE: &str = "WITH RECURSIVE dependent_tree(file_id, depth) AS (
                 -- Base case: direct dependents

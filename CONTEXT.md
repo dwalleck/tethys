@@ -213,7 +213,8 @@ database — enforced by the seam lint.
 Given a target file or symbol, the files and symbols that depend on it — direct and
 transitive dependents. Answers "what could break if I change this." Symbol impact
 reports **callers** at their minimum call depth; file impact reports dependent
-indexed files at their minimum dependency depth. Neither result fabricates reference counts.
+indexed files at their minimum dependency depth. Neither result fabricates
+reference counts.
 _Avoid_: blast radius
 
 **Reachability**:
