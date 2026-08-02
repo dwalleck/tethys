@@ -126,12 +126,6 @@ impl FilePath {
         Some(Self { files })
     }
 
-    /// Create a trivial path with a single file.
-    #[must_use]
-    pub fn single(file: IndexedFile) -> Self {
-        Self { files: vec![file] }
-    }
-
     /// Consume the path and return the files.
     #[must_use]
     pub fn into_files(self) -> Vec<IndexedFile> {
