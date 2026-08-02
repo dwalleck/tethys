@@ -74,3 +74,194 @@ impl Index {
         Ok(deps)
     }
 }
+
+#[cfg(test)]
+mod n8pu_probe {
+    //! tethys-n8pu prove-it-prototype: direct dependency/dependent hydration.
+    //!
+    //! Probe: Tethys API output on a real temporary index + SQL statement
+    //! counts from a rusqlite trace hook on the live connection.
+    //! Oracle: direct JOIN SQL against the same db (independent mechanism)
+    //! + code inspection of `file_ids_to_paths` (one `get_file_by_id` per id).
+
+    use std::path::Path;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use crate::Tethys;
+
+    static TRACE_TOTAL: AtomicUsize = AtomicUsize::new(0);
+    static TRACE_PER_ID: AtomicUsize = AtomicUsize::new(0);
+
+    fn trace_cb(sql: &str) {
+        TRACE_TOTAL.fetch_add(1, Ordering::Relaxed);
+        if sql.contains("FROM files WHERE id = ") {
+            TRACE_PER_ID.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    fn reset_counts() {
+        TRACE_TOTAL.store(0, Ordering::Relaxed);
+        TRACE_PER_ID.store(0, Ordering::Relaxed);
+    }
+
+    fn counts() -> (usize, usize) {
+        (
+            TRACE_TOTAL.load(Ordering::Relaxed),
+            TRACE_PER_ID.load(Ordering::Relaxed),
+        )
+    }
+
+    fn write(dir: &std::path::Path, rel: &str, content: &str) {
+        let p = dir.join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, content).unwrap();
+    }
+
+    /// Real temp workspace: lib.rs depends on a.rs and b.rs; a.rs depends on
+    /// c.rs. Both `mod` declarations and `use` paths contribute file_deps
+    /// edges, so lib.rs -> a.rs is a double-contribution pair (PK-deduped).
+    fn build_fixture(dir: &std::path::Path) {
+        write(
+            dir,
+            "Cargo.toml",
+            "[package]\nname = \"probe\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+        );
+        write(
+            dir,
+            "src/lib.rs",
+            "mod a;\nmod b;\nmod c;\npub use crate::a::A;\npub use crate::b::B;\npub use crate::c::C;\n",
+        );
+        write(
+            dir,
+            "src/a.rs",
+            "use crate::c::C;\npub struct A {\n    pub c: C,\n}\n",
+        );
+        write(dir, "src/b.rs", "pub struct B;\n");
+        write(dir, "src/c.rs", "pub struct C;\n");
+    }
+
+    fn oracle_dep_paths(db: &rusqlite::Connection, from: &str) -> Vec<String> {
+        let mut stmt = db
+            .prepare(
+                "SELECT f2.path FROM file_deps fd\n\
+                 JOIN files f2 ON f2.id = fd.to_file_id\n\
+                 WHERE fd.from_file_id = (SELECT id FROM files WHERE path = ?1)\n\
+                 ORDER BY f2.path",
+            )
+            .unwrap();
+        stmt.query_map([from], |r| r.get::<_, String>(0))
+            .unwrap()
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .unwrap()
+    }
+
+    fn oracle_dependent_paths(db: &rusqlite::Connection, to: &str) -> Vec<String> {
+        let mut stmt = db
+            .prepare(
+                "SELECT f1.path FROM file_deps fd\n\
+                 JOIN files f1 ON f1.id = fd.from_file_id\n\
+                 WHERE fd.to_file_id = (SELECT id FROM files WHERE path = ?1)\n\
+                 ORDER BY f1.path",
+            )
+            .unwrap();
+        stmt.query_map([to], |r| r.get::<_, String>(0))
+            .unwrap()
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .unwrap()
+    }
+
+    #[test]
+    fn probe_direct_dep_hydration() {
+        let dir = tempfile::tempdir().unwrap();
+        build_fixture(dir.path());
+        let mut tethys = Tethys::new(dir.path()).unwrap();
+        tethys.index().unwrap();
+        let db = rusqlite::Connection::open(tethys.db_path()).unwrap();
+
+        // Install the statement trace on the LIVE index connection.
+        {
+            let mut conn = tethys.db.connection().unwrap();
+            conn.trace(Some(trace_cb));
+        }
+
+        reset_counts();
+        let deps = tethys.get_dependencies(Path::new("src/lib.rs")).unwrap();
+        let (total_deps, per_id_deps) = counts();
+        reset_counts();
+        let dependents = tethys.get_dependents(Path::new("src/c.rs")).unwrap();
+        let (total_deps_rev, per_id_deps_rev) = counts();
+        reset_counts();
+        let missing = tethys.get_dependencies(Path::new("src/nope.rs"));
+        let (total_missing, per_id_missing) = counts();
+
+        let mut dep_paths: Vec<String> = deps
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        dep_paths.sort();
+        let mut dependent_paths: Vec<String> = dependents
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect();
+        dependent_paths.sort();
+
+        println!("PROBE deps(lib.rs)   = {dep_paths:?}");
+        println!("PROBE dependents(c.rs) = {dependent_paths:?}");
+        println!(
+            "PROBE missing(root)  = {:?}",
+            missing
+                .as_ref()
+                .map(|_| "ok".to_string())
+                .unwrap_or_else(|e| format!("{e:?}"))
+        );
+        println!("PROBE stmts deps     = total {total_deps}, per-id-lookup {per_id_deps}");
+        println!(
+            "PROBE stmts dependents = total {total_deps_rev}, per-id-lookup {per_id_deps_rev}"
+        );
+        println!("PROBE stmts missing  = total {total_missing}, per-id-lookup {per_id_missing}");
+        println!(
+            "ORACLE deps(lib.rs)   = {:?}",
+            oracle_dep_paths(&db, "src/lib.rs")
+        );
+        println!(
+            "ORACLE dependents(c.rs) = {:?}",
+            oracle_dependent_paths(&db, "src/c.rs")
+        );
+
+        // Raw tables for diagnosis.
+        let files: Vec<(i64, String)> = {
+            let mut stmt = db
+                .prepare("SELECT id, path FROM files ORDER BY id")
+                .unwrap();
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap()
+                .collect::<std::result::Result<_, _>>()
+                .unwrap()
+        };
+        println!("RAW files = {files:?}");
+        let edges: Vec<(i64, i64)> = {
+            let mut stmt = db
+                .prepare("SELECT from_file_id, to_file_id FROM file_deps ORDER BY 1, 2")
+                .unwrap();
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+                .unwrap()
+                .collect::<std::result::Result<_, _>>()
+                .unwrap()
+        };
+        println!("RAW file_deps = {edges:?}");
+
+        // Behavior: workspace-relative, deduped, correct, NotFound root.
+        assert_eq!(
+            dep_paths,
+            vec!["src/a.rs", "src/b.rs", "src/c.rs"],
+            "deps of lib.rs"
+        );
+        assert_eq!(
+            dependent_paths,
+            vec!["src/a.rs", "src/lib.rs"],
+            "dependents of c.rs"
+        );
+        assert!(deps.iter().all(|p| p.is_relative()), "workspace-relative");
+        assert!(missing.is_err(), "missing root must be NotFound");
+    }
+}
