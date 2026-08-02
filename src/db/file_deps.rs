@@ -56,35 +56,13 @@ impl Index {
     /// only in a hand-edited database, since `Index::open` enforces foreign
     /// keys and `files` deletes cascade `file_deps` rows.
     pub fn get_file_dependency_paths(&self, file_id: FileId) -> Result<(Vec<PathBuf>, usize)> {
-        let conn = self.connection()?;
-
-        let mut stmt = conn.prepare(
+        self.hydrate_paths(
             "SELECT fd.to_file_id, f.path
              FROM file_deps fd
              LEFT JOIN files f ON f.id = fd.to_file_id
              WHERE fd.from_file_id = ?1",
-        )?;
-
-        let rows = stmt.query_map([file_id.as_i64()], |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?))
-        })?;
-
-        let mut paths = Vec::new();
-        let mut missing_count = 0;
-        for row in rows {
-            let (dep_id, path) = row?;
-            if let Some(path) = path {
-                paths.push(PathBuf::from(path));
-            } else {
-                warn!(
-                    source_file_id = %file_id,
-                    missing_file_id = dep_id,
-                    "file_deps references non-existent file, possible database corruption"
-                );
-                missing_count += 1;
-            }
-        }
-        Ok((paths, missing_count))
+            file_id,
+        )
     }
 
     /// Get workspace-relative paths of the files directly depending on
@@ -94,14 +72,24 @@ impl Index {
     /// direction; same set-oriented hydration and same `missing_count`
     /// semantics for dangling `file_deps` rows.
     pub fn get_file_dependent_paths(&self, file_id: FileId) -> Result<(Vec<PathBuf>, usize)> {
-        let conn = self.connection()?;
-
-        let mut stmt = conn.prepare(
+        self.hydrate_paths(
             "SELECT fd.from_file_id, f.path
              FROM file_deps fd
              LEFT JOIN files f ON f.id = fd.from_file_id
              WHERE fd.to_file_id = ?1",
-        )?;
+            file_id,
+        )
+    }
+
+    /// Run a set-oriented `file_deps` × `files` LEFT JOIN and turn its rows
+    /// into `(paths, missing_count)`, warning per dangling row.
+    ///
+    /// `sql` must select the neighbor file id in column 0 and the joined
+    /// `files.path` in column 1, and bind `file_id` as parameter `?1`.
+    fn hydrate_paths(&self, sql: &str, file_id: FileId) -> Result<(Vec<PathBuf>, usize)> {
+        let conn = self.connection()?;
+
+        let mut stmt = conn.prepare(sql)?;
 
         let rows = stmt.query_map([file_id.as_i64()], |row| {
             Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?))
@@ -170,9 +158,10 @@ mod n8pu_probe {
         std::fs::write(p, content).unwrap();
     }
 
-    /// Real temp workspace: lib.rs depends on a.rs and b.rs; a.rs depends on
-    /// c.rs. Both `mod` declarations and `use` paths contribute `file_deps`
-    /// edges, so lib.rs -> a.rs is a double-contribution pair (PK-deduped).
+    /// Real temp workspace. Edges are L2 (used imports only — bare `mod`
+    /// declarations contribute nothing, per probe finding #1): lib.rs
+    /// re-exports a/b/c, a.rs uses C, b.rs is a leaf. So lib.rs has 3 deps,
+    /// a.rs has 1, b.rs 0; c.rs has 2 dependents.
     fn build_fixture(dir: &std::path::Path) {
         write(
             dir,
@@ -281,6 +270,25 @@ mod n8pu_probe {
         );
     }
 
+    /// Probe output must agree with the independent SQL oracle, not just
+    /// the hardcoded expectations.
+    fn assert_oracle_agreement(
+        db: &rusqlite::Connection,
+        dep_paths: &[String],
+        dependent_paths: &[String],
+    ) {
+        assert_eq!(
+            dep_paths,
+            oracle_dep_paths(db, "src/lib.rs"),
+            "probe deps must equal direct-SQL oracle"
+        );
+        assert_eq!(
+            dependent_paths,
+            oracle_dependent_paths(db, "src/c.rs"),
+            "probe dependents must equal direct-SQL oracle"
+        );
+    }
+
     /// Diagnostic dump of the raw `files` and `file_deps` tables — the
     /// probe's ground truth for set comparison.
     fn raw_tables(db: &rusqlite::Connection) {
@@ -383,7 +391,11 @@ mod n8pu_probe {
         );
         assert!(deps.iter().all(|p| p.is_relative()), "workspace-relative");
         assert!(empty.is_empty(), "zero-dep root must return empty vec");
-        assert!(missing.is_err(), "missing root must be NotFound");
+        assert!(
+            matches!(&missing, Err(crate::error::Error::NotFound(_))),
+            "missing root must be NotFound, got {missing:?}"
+        );
+        assert_oracle_agreement(&db, &dep_paths, &dependent_paths);
         assert_eq!(
             (total_missing, per_id_missing),
             (1, 0),
