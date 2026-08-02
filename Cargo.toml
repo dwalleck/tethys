@@ -51,7 +51,7 @@ rusqlite = { version = "0.32", features = ["trace"] }
 rstest = "0.26"
 proptest = "1.6"
 criterion = { version = "0.5", features = ["html_reports"] }
-tracing-test = "0.2"
+tracing-test = { version = "0.2", features = ["no-env-filter"] }
 # Installs .cargo-husky/hooks/* into .git/hooks on build (commit-msg linting).
 cargo-husky = { version = "1", default-features = false, features = ["user-hooks"] }
 

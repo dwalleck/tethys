@@ -115,22 +115,32 @@ impl Index {
 }
 
 #[cfg(test)]
-mod n8pu_probe {
-    //! tethys-n8pu prove-it-prototype: direct dependency/dependent hydration.
+mod hydration_fence_tests {
+    //! Statement-count fences for the set-oriented hydration (tethys-n8pu).
     //!
-    //! Probe: Tethys API output on a real temporary index + SQL statement
-    //! counts from a rusqlite trace hook on the live connection.
-    //! Oracle: direct JOIN SQL against the same db (independent mechanism).
-    //! The statement-count fences guard against regressing to per-id
-    //! hydration (one `get_file_by_id` lookup per returned id; the helper
-    //! that did that no longer exists).
+    //! Pairs with `tests/file_deps_hydration.rs` the way
+    //! `call_edges::k_hybrid_filter_tests` pairs with
+    //! `tests/file_deps_corroboration.rs`: this module exercises the
+    //! hydration queries against an `Index` with hand-inserted rows, while
+    //! the integration file drives the full pipeline through `Tethys` on a
+    //! real temp workspace. The statement counter needs the live
+    //! connection's `rusqlite` trace hook, which only crate code can reach
+    //! — that is why this fence lives here and not in `tests/`.
+    //!
+    //! Pre-rewrite, hydration issued one `get_file_by_id` lookup per
+    //! returned id (N statements for N results); the `LEFT JOIN` does it in
+    //! exactly one statement regardless of N. The per-id counter keys on
+    //! the `get_file_by_id` SQL shape so a regression to per-id lookups
+    //! fails loudly.
 
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use tracing_test::traced_test;
+    use rusqlite::params;
+    use tempfile::TempDir;
 
-    use crate::Tethys;
+    use crate::db::Index;
+    use crate::types::{FileId, Language};
 
     static TRACE_TOTAL: AtomicUsize = AtomicUsize::new(0);
     static TRACE_PER_ID: AtomicUsize = AtomicUsize::new(0);
@@ -154,273 +164,113 @@ mod n8pu_probe {
         )
     }
 
-    fn write(dir: &std::path::Path, rel: &str, content: &str) {
-        let p = dir.join(rel);
-        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
-        std::fs::write(p, content).unwrap();
+    fn fresh_index() -> (TempDir, Index) {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let index = Index::open(&dir.path().join("idx.db")).expect("open index");
+        (dir, index)
     }
 
-    /// Real temp workspace. Edges are L2 (used imports only — bare `mod`
-    /// declarations contribute nothing, per probe finding #1): lib.rs
-    /// re-exports a/b/c, a.rs uses C, b.rs is a leaf. So lib.rs has 3 deps,
-    /// a.rs has 1, b.rs 0; c.rs has 2 dependents.
-    fn build_fixture(dir: &std::path::Path) {
-        write(
-            dir,
-            "Cargo.toml",
-            "[package]\nname = \"probe\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
-        );
-        write(
-            dir,
-            "src/lib.rs",
-            "mod a;\nmod b;\nmod c;\npub use crate::a::A;\npub use crate::b::B;\npub use crate::c::C;\n",
-        );
-        write(
-            dir,
-            "src/a.rs",
-            "use crate::c::C;\npub struct A {\n    pub c: C,\n}\n",
-        );
-        write(dir, "src/b.rs", "pub struct B;\n");
-        write(dir, "src/c.rs", "pub struct C;\n");
+    fn upsert(index: &mut Index, p: &str) -> FileId {
+        index
+            .upsert_file(Path::new(p), Language::Rust, 0, 0, None)
+            .expect("upsert file")
     }
 
-    fn oracle_dep_paths(db: &rusqlite::Connection, from: &str) -> Vec<String> {
-        let mut stmt = db
-            .prepare(
-                "SELECT f2.path FROM file_deps fd\n\
-                 JOIN files f2 ON f2.id = fd.to_file_id\n\
-                 WHERE fd.from_file_id = (SELECT id FROM files WHERE path = ?1)\n\
-                 ORDER BY f2.path",
-            )
-            .unwrap();
-        stmt.query_map([from], |r| r.get::<_, String>(0))
-            .unwrap()
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .unwrap()
-    }
-
-    fn oracle_dependent_paths(db: &rusqlite::Connection, to: &str) -> Vec<String> {
-        let mut stmt = db
-            .prepare(
-                "SELECT f1.path FROM file_deps fd\n\
-                 JOIN files f1 ON f1.id = fd.from_file_id\n\
-                 WHERE fd.to_file_id = (SELECT id FROM files WHERE path = ?1)\n\
-                 ORDER BY f1.path",
-            )
-            .unwrap();
-        stmt.query_map([to], |r| r.get::<_, String>(0))
-            .unwrap()
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .unwrap()
-    }
-
-    /// C7 (tethys-n8pu): a dangling `file_deps` row (target file absent —
-    /// possible only in a hand-edited DB, since `Index::open` enforces
-    /// foreign keys and file deletes cascade the edges) is skipped with the
-    /// established per-row `warn!`; valid rows are still returned and the
-    /// call does not error.
-    #[traced_test]
-    #[test]
-    fn dangling_dep_row_is_warned_and_skipped() {
-        let dir = tempfile::tempdir().unwrap();
-        build_fixture(dir.path());
-        let mut tethys = Tethys::new(dir.path()).unwrap();
-        tethys.index().unwrap();
-
-        // Inject a dangling edge from lib.rs, bypassing FK enforcement via
-        // a second connection (the Index connection enforces FKs).
-        {
-            let conn = rusqlite::Connection::open(tethys.db_path()).unwrap();
-            conn.pragma_update(None, "foreign_keys", "OFF").unwrap();
-            let lib_id: i64 = conn
-                .query_row("SELECT id FROM files WHERE path = 'src/lib.rs'", [], |r| {
-                    r.get(0)
-                })
-                .unwrap();
-            conn.execute(
-                "INSERT INTO file_deps (from_file_id, to_file_id, ref_count)
-                 VALUES (?1, 99999, 1)",
-                rusqlite::params![lib_id],
-            )
-            .unwrap();
-        }
-
-        let deps = tethys
-            .get_dependencies(Path::new("src/lib.rs"))
-            .expect("dangling row must not error the call");
-        let mut paths: Vec<String> = deps
+    fn sorted(paths: &[PathBuf]) -> Vec<String> {
+        let mut out: Vec<String> = paths
             .iter()
             .map(|p| p.to_string_lossy().into_owned())
             .collect();
-        paths.sort();
-        assert_eq!(
-            paths,
-            vec!["src/a.rs", "src/b.rs", "src/c.rs"],
-            "valid rows must still be returned; dangling row skipped"
-        );
-        assert!(
-            logs_contain("99999"),
-            "per-row warn must name the dangling id"
-        );
-        assert!(
-            logs_contain("corruption"),
-            "warn must keep the established message shape"
-        );
-        assert!(
-            logs_contain("could not be resolved"),
-            "Tethys summary debug must report the missing count"
-        );
+        out.sort();
+        out
     }
 
-    /// Probe output must agree with the independent SQL oracle, not just
-    /// the hardcoded expectations.
-    fn assert_oracle_agreement(
-        db: &rusqlite::Connection,
-        dep_paths: &[String],
-        dependent_paths: &[String],
-    ) {
-        assert_eq!(
-            dep_paths,
-            oracle_dep_paths(db, "src/lib.rs"),
-            "probe deps must equal direct-SQL oracle"
-        );
-        assert_eq!(
-            dependent_paths,
-            oracle_dependent_paths(db, "src/c.rs"),
-            "probe dependents must equal direct-SQL oracle"
-        );
-    }
-
-    /// Diagnostic dump of the raw `files` and `file_deps` tables — the
-    /// probe's ground truth for set comparison.
-    fn raw_tables(db: &rusqlite::Connection) {
-        let files: Vec<(i64, String)> = {
-            let mut stmt = db
-                .prepare("SELECT id, path FROM files ORDER BY id")
-                .unwrap();
-            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
-                .unwrap()
-                .collect::<std::result::Result<_, _>>()
-                .unwrap()
-        };
-        println!("RAW files = {files:?}");
-        let edges: Vec<(i64, i64)> = {
-            let mut stmt = db
-                .prepare("SELECT from_file_id, to_file_id FROM file_deps ORDER BY 1, 2")
-                .unwrap();
-            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
-                .unwrap()
-                .collect::<std::result::Result<_, _>>()
-                .unwrap()
-        };
-        println!("RAW file_deps = {edges:?}");
-    }
-
+    /// Both hydration directions run exactly one SQL statement and zero
+    /// per-id `files` lookups, at any result count — including zero.
+    ///
+    /// All statement counting lives in this single test because the trace
+    /// counters are process-global statics.
     #[test]
-    fn probe_direct_dep_hydration() {
-        let dir = tempfile::tempdir().unwrap();
-        build_fixture(dir.path());
-        let mut tethys = Tethys::new(dir.path()).unwrap();
-        tethys.index().unwrap();
-        let db = rusqlite::Connection::open(tethys.db_path()).unwrap();
+    fn hydration_is_one_statement_with_zero_per_id_lookups() {
+        let (_dir, mut index) = fresh_index();
+        let lib = upsert(&mut index, "src/lib.rs");
+        let a = upsert(&mut index, "src/a.rs");
+        let b = upsert(&mut index, "src/b.rs");
+        let c = upsert(&mut index, "src/c.rs");
+        for to in [a, b, c] {
+            index.insert_file_dependency(lib, to).expect("edge");
+        }
+        index.insert_file_dependency(a, c).expect("edge");
 
-        // Install the statement trace on the LIVE index connection.
         {
-            let mut conn = tethys.db.connection().unwrap();
+            let mut conn = index.connection().expect("connection");
             conn.trace(Some(trace_cb));
         }
 
         reset_counts();
-        let deps = tethys.get_dependencies(Path::new("src/lib.rs")).unwrap();
-        let (total_deps, per_id_deps) = counts();
-        reset_counts();
-        let dependents = tethys.get_dependents(Path::new("src/c.rs")).unwrap();
-        let (total_deps_rev, per_id_deps_rev) = counts();
-        reset_counts();
-        let missing = tethys.get_dependencies(Path::new("src/nope.rs"));
-        let (total_missing, per_id_missing) = counts();
-        reset_counts();
-        let empty = tethys.get_dependencies(Path::new("src/b.rs")).unwrap();
-        let (total_empty, per_id_empty) = counts();
-
-        let mut dep_paths: Vec<String> = deps
-            .iter()
-            .map(|p| p.to_string_lossy().into_owned())
-            .collect();
-        dep_paths.sort();
-        let mut dependent_paths: Vec<String> = dependents
-            .iter()
-            .map(|p| p.to_string_lossy().into_owned())
-            .collect();
-        dependent_paths.sort();
-
-        println!("PROBE deps(lib.rs)   = {dep_paths:?}");
-        println!("PROBE dependents(c.rs) = {dependent_paths:?}");
-        println!(
-            "PROBE missing(root)  = {:?}",
-            missing
-                .as_ref()
-                .map_or_else(|e| format!("{e:?}"), |_| "ok".to_string())
-        );
-        println!("PROBE stmts deps     = total {total_deps}, per-id-lookup {per_id_deps}");
-        println!(
-            "PROBE stmts dependents = total {total_deps_rev}, per-id-lookup {per_id_deps_rev}"
-        );
-        println!("PROBE deps(b.rs)     = {empty:?}");
-        println!("PROBE stmts empty    = total {total_empty}, per-id-lookup {per_id_empty}");
-        println!("PROBE stmts missing  = total {total_missing}, per-id-lookup {per_id_missing}");
-        println!(
-            "ORACLE deps(lib.rs)   = {:?}",
-            oracle_dep_paths(&db, "src/lib.rs")
-        );
-        println!(
-            "ORACLE dependents(c.rs) = {:?}",
-            oracle_dependent_paths(&db, "src/c.rs")
-        );
-
-        raw_tables(&db);
-
-        // Behavior: workspace-relative, deduped, correct, NotFound root.
+        let (deps, missing) = index.get_file_dependency_paths(lib).expect("deps");
         assert_eq!(
-            dep_paths,
-            vec!["src/a.rs", "src/b.rs", "src/c.rs"],
-            "deps of lib.rs"
-        );
-        assert_eq!(
-            dependent_paths,
-            vec!["src/a.rs", "src/lib.rs"],
-            "dependents of c.rs"
-        );
-        assert!(deps.iter().all(|p| p.is_relative()), "workspace-relative");
-        assert!(empty.is_empty(), "zero-dep root must return empty vec");
-        assert!(
-            matches!(&missing, Err(crate::error::Error::NotFound(_))),
-            "missing root must be NotFound, got {missing:?}"
-        );
-        assert_oracle_agreement(&db, &dep_paths, &dependent_paths);
-        assert_eq!(
-            (total_missing, per_id_missing),
+            counts(),
             (1, 0),
-            "missing root: root lookup only, no hydration"
+            "deps hydration must be one JOIN, no per-id lookups"
         );
-        // C6 (tethys-n8pu): set-oriented hydration — exactly 2 statements
-        // (root lookup + one JOIN), zero per-ID lookups, any result count.
-        // Pre-fix this was 2 + N statements with N per-ID lookups (measured
-        // 5 total / 3 per-ID at N=3 in probe1-output.txt).
+        assert_eq!(missing, 0, "no dangling rows in this fixture");
+        assert_eq!(sorted(&deps), vec!["src/a.rs", "src/b.rs", "src/c.rs"]);
+
+        reset_counts();
+        let (dependents, missing) = index.get_file_dependent_paths(c).expect("dependents");
         assert_eq!(
-            (total_deps, per_id_deps),
-            (2, 0),
-            "deps hydration must be set-oriented (root lookup + one JOIN)"
+            counts(),
+            (1, 0),
+            "dependents hydration must be one JOIN, no per-id lookups"
         );
+        assert_eq!(missing, 0, "no dangling rows in this fixture");
+        assert_eq!(sorted(&dependents), vec!["src/a.rs", "src/lib.rs"]);
+
+        reset_counts();
+        let (empty, missing) = index.get_file_dependency_paths(b).expect("leaf deps");
         assert_eq!(
-            (total_deps_rev, per_id_deps_rev),
-            (2, 0),
-            "dependents hydration must be set-oriented (root lookup + one JOIN)"
+            counts(),
+            (1, 0),
+            "empty result must still be exactly one statement"
         );
+        assert_eq!(missing, 0, "no dangling rows in this fixture");
+        assert!(empty.is_empty(), "leaf file has no dependencies");
+    }
+
+    /// A dangling `file_deps` row (target `files` row absent — possible
+    /// only in a hand-edited database, since `Index::open` enforces foreign
+    /// keys and `files` deletes cascade) is skipped and counted; valid rows
+    /// are still returned and the call does not error.
+    #[test]
+    fn dangling_edge_is_skipped_and_counted() {
+        let (_dir, mut index) = fresh_index();
+        let lib = upsert(&mut index, "src/lib.rs");
+        let a = upsert(&mut index, "src/a.rs");
+        index.insert_file_dependency(lib, a).expect("edge");
+
+        {
+            let conn = index.connection().expect("connection");
+            conn.pragma_update(None, "foreign_keys", "OFF")
+                .expect("fk off");
+            conn.execute(
+                "INSERT INTO file_deps (from_file_id, to_file_id, ref_count)
+                 VALUES (?1, 99999, 1)",
+                params![lib.as_i64()],
+            )
+            .expect("inject dangling edge");
+            conn.pragma_update(None, "foreign_keys", "ON")
+                .expect("fk on");
+        }
+
+        let (paths, missing) = index
+            .get_file_dependency_paths(lib)
+            .expect("dangling row must not error the call");
+        assert_eq!(missing, 1, "dangling row must be counted, not returned");
         assert_eq!(
-            (total_empty, per_id_empty),
-            (2, 0),
-            "empty result: root lookup + edge query, no per-ID lookups"
+            sorted(&paths),
+            vec!["src/a.rs"],
+            "valid rows must still be returned"
         );
     }
 }
