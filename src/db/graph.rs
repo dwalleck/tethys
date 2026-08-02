@@ -713,3 +713,212 @@ mod dependency_path_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod chain_4m9o_fences {
+    //! Statement-count and boundary fences for the dependency-chain query
+    //! (tethys-4m9o C7–C10). Pairs with `dependency_path_tests` above the
+    //! way `file_deps::n8pu_probe` pairs with its integration file: these
+    //! fences need the live connection's `rusqlite` trace hook, which only
+    //! crate code can reach.
+    //!
+    //! Pre-rewrite, hydration issued one `get_file_by_id` lookup per path
+    //! member (3 + L statements for an L-file chain); the BFS + batch form
+    //! is exactly 2 statements connected, 1 disconnected, 1 equal —
+    //! independent of path length. The per-id counter keys on the
+    //! `get_file_by_id` SQL shape so a regression to per-id lookups fails
+    //! loudly.
+
+    use std::path::Path;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use tempfile::TempDir;
+
+    use crate::db::Index;
+    use crate::error::Error;
+    use crate::types::{FileId, Language};
+
+    static TRACE_TOTAL: AtomicUsize = AtomicUsize::new(0);
+    static TRACE_PER_ID: AtomicUsize = AtomicUsize::new(0);
+
+    fn trace_cb(sql: &str) {
+        TRACE_TOTAL.fetch_add(1, Ordering::Relaxed);
+        if sql.contains("FROM files WHERE id = ") {
+            TRACE_PER_ID.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    fn reset_counts() {
+        TRACE_TOTAL.store(0, Ordering::Relaxed);
+        TRACE_PER_ID.store(0, Ordering::Relaxed);
+    }
+
+    fn counts() -> (usize, usize) {
+        (
+            TRACE_TOTAL.load(Ordering::Relaxed),
+            TRACE_PER_ID.load(Ordering::Relaxed),
+        )
+    }
+
+    fn temp_index() -> (TempDir, Index) {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let index = Index::open(&dir.path().join("idx.db")).expect("open index");
+        (dir, index)
+    }
+
+    fn upsert(index: &mut Index, p: &str) -> FileId {
+        index
+            .upsert_file(Path::new(p), Language::Rust, 0, 0, None)
+            .expect("upsert file")
+    }
+
+    fn edge(index: &mut Index, from: FileId, to: FileId) {
+        index.insert_file_dependency(from, to).expect("edge");
+    }
+
+    /// C7: statement counts do not grow with path length, and no per-id
+    /// `files` lookup ever fires. All counting lives in this single test
+    /// because the trace counters are process-global statics.
+    #[test]
+    fn chain_query_statement_counts_are_flat() {
+        let (_dir, mut index) = temp_index();
+        let fa = upsert(&mut index, "src/a.rs");
+        let fb = upsert(&mut index, "src/b.rs");
+        let fc = upsert(&mut index, "src/c.rs");
+        let ft = upsert(&mut index, "src/t.rs");
+        let island = upsert(&mut index, "src/island.rs");
+        edge(&mut index, fa, fb);
+        edge(&mut index, fb, fc);
+        edge(&mut index, fc, ft);
+
+        {
+            let mut conn = index.connection().expect("connection");
+            conn.trace(Some(trace_cb));
+        }
+
+        // len-4 chain: adjacency load + one batched hydration, nothing per-id
+        reset_counts();
+        let path = index
+            .find_dependency_path(fa, ft)
+            .expect("connected")
+            .expect("path exists");
+        assert_eq!(path.into_files().len(), 4);
+        assert_eq!(
+            counts(),
+            (2, 0),
+            "connected multi-hop must be adjacency + batch hydrate only"
+        );
+
+        // len-2 direct edge: same shape — counts must NOT grow with length
+        reset_counts();
+        let path = index
+            .find_dependency_path(fa, fb)
+            .expect("direct")
+            .expect("path exists");
+        assert_eq!(path.into_files().len(), 2);
+        assert_eq!(counts(), (2, 0), "direct edge must match multi-hop counts");
+
+        // disconnected: adjacency load only, no hydration
+        reset_counts();
+        assert!(
+            index
+                .find_dependency_path(fa, island)
+                .expect("disconnected")
+                .is_none()
+        );
+        assert_eq!(counts(), (1, 0), "disconnected must not hydrate");
+
+        // equal endpoints: batch hydration only, no adjacency load
+        reset_counts();
+        let path = index
+            .find_dependency_path(fa, fa)
+            .expect("equal")
+            .expect("self-path");
+        assert_eq!(path.into_files().len(), 1);
+        assert_eq!(counts(), (1, 0), "equal endpoints must skip traversal");
+    }
+
+    /// C8: the 50-edge depth cap is preserved exactly — off-by-one in
+    /// either direction fails this fence.
+    #[test]
+    fn chain_respects_depth_cap_boundary() {
+        let (_dir, mut index) = temp_index();
+        let ids: Vec<FileId> = (0..=51)
+            .map(|i| upsert(&mut index, &format!("src/f{i}.rs")))
+            .collect();
+        for w in ids.windows(2) {
+            edge(&mut index, w[0], w[1]);
+        }
+
+        let at_cap = index
+            .find_dependency_path(ids[0], ids[50])
+            .expect("cap query")
+            .expect("50-edge chain is within the cap");
+        assert_eq!(at_cap.into_files().len(), 51);
+
+        assert!(
+            index
+                .find_dependency_path(ids[0], ids[51])
+                .expect("beyond-cap query")
+                .is_none(),
+            "51-edge chain must be beyond the cap"
+        );
+    }
+
+    /// C9: a self-loop `file_deps` row neither hangs the BFS nor perturbs
+    /// shortest-path results.
+    #[test]
+    fn self_loop_edge_is_inert() {
+        let (_dir, mut index) = temp_index();
+        let fa = upsert(&mut index, "src/a.rs");
+        let fb = upsert(&mut index, "src/b.rs");
+        edge(&mut index, fa, fa);
+        edge(&mut index, fa, fb);
+        edge(&mut index, fb, fa);
+
+        let path = index
+            .find_dependency_path(fa, fb)
+            .expect("query")
+            .expect("route exists");
+        assert_eq!(path.into_files().len(), 2, "self-loop must not perturb");
+
+        let this = index
+            .find_dependency_path(fa, fa)
+            .expect("equal")
+            .expect("self-path");
+        assert_eq!(this.into_files().len(), 1, "equal endpoints stay trivial");
+    }
+
+    /// C10: a dangling path member (files row gone, edge row surviving)
+    /// is a `NotFound` error, never a silently shortened chain. Dangling
+    /// rows are impossible under the FK pragma; fabricated here with FKs
+    /// off, mirroring the n8pu dangling fence.
+    #[test]
+    fn dangling_path_member_is_notfound() {
+        let (_dir, mut index) = temp_index();
+        let fa = upsert(&mut index, "src/a.rs");
+        let fb = upsert(&mut index, "src/b.rs");
+        let ft = upsert(&mut index, "src/t.rs");
+        edge(&mut index, fa, fb);
+        edge(&mut index, fb, ft);
+
+        {
+            let conn = index.connection().expect("connection");
+            conn.execute_batch(&format!(
+                "PRAGMA foreign_keys=OFF;
+                 DELETE FROM files WHERE id = {};
+                 PRAGMA foreign_keys=ON;",
+                fb.as_i64()
+            ))
+            .expect("fabricate dangling row");
+        }
+
+        let err = index
+            .find_dependency_path(fa, ft)
+            .expect_err("hole in the chain must error");
+        assert!(
+            matches!(err, Error::NotFound(ref m) if m.contains(&fb.as_i64().to_string())),
+            "expected NotFound naming the dangling id, got: {err:?}"
+        );
+    }
+}
