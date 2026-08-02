@@ -1,0 +1,46 @@
+=== src/lsp/provider.rs -> src/cli/mod.rs
+CHAIN len=8 time_ms=0.1
+  src/lsp/provider.rs
+  src/types.rs
+  tests/orphan_files.rs
+  src/lib.rs
+  src/db/mod.rs
+  src/lsp/transport.rs
+  src/cli/coupling.rs
+  src/cli/mod.rs
+--- oracle:
+CHAIN len=8
+  src/lsp/provider.rs
+  src/types.rs
+  tests/orphan_files.rs
+  src/lib.rs
+  src/db/mod.rs
+  src/lsp/transport.rs
+  src/cli/coupling.rs
+  src/cli/mod.rs
+=== src/db/graph.rs -> src/types.rs
+CHAIN len=2 time_ms=0.1
+  src/db/graph.rs
+  src/types.rs
+--- oracle:
+CHAIN len=2
+  src/db/graph.rs
+  src/types.rs
+=== src/main.rs -> src/db/schema.rs
+NONE time_ms=0.1
+--- oracle:
+NONE
+=== src/main.rs -> src/main.rs
+CHAIN len=1 time_ms=0.0
+  src/main.rs
+--- oracle:
+CHAIN len=1
+  src/main.rs
+=== src/nope.rs -> src/main.rs
+ERR not found: file: src/nope.rs time_ms=0.0
+--- oracle:
+MISSING from
+=== src/main.rs -> src/nope.rs
+ERR not found: file: src/nope.rs time_ms=0.0
+--- oracle:
+MISSING to
