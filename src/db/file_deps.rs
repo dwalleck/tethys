@@ -120,8 +120,10 @@ mod n8pu_probe {
     //!
     //! Probe: Tethys API output on a real temporary index + SQL statement
     //! counts from a rusqlite trace hook on the live connection.
-    //! Oracle: direct JOIN SQL against the same db (independent mechanism)
-    //! + code inspection of `file_ids_to_paths` (one `get_file_by_id` per id).
+    //! Oracle: direct JOIN SQL against the same db (independent mechanism).
+    //! The statement-count fences guard against regressing to per-id
+    //! hydration (one `get_file_by_id` lookup per returned id; the helper
+    //! that did that no longer exists).
 
     use std::path::Path;
     use std::sync::atomic::{AtomicUsize, Ordering};
