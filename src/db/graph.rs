@@ -718,9 +718,9 @@ mod dependency_path_tests {
 mod chain_4m9o_fences {
     //! Statement-count and boundary fences for the dependency-chain query
     //! (tethys-4m9o C7–C10). Pairs with `dependency_path_tests` above the
-    //! way `file_deps::n8pu_probe` pairs with its integration file: these
-    //! fences need the live connection's `rusqlite` trace hook, which only
-    //! crate code can reach.
+    //! way `file_deps::hydration_fence_tests` pairs with its integration
+    //! file: these fences need the live connection's `rusqlite` trace hook,
+    //! which only crate code can reach.
     //!
     //! Pre-rewrite, hydration issued one `get_file_by_id` lookup per path
     //! member (3 + L statements for an L-file chain); the BFS + batch form
@@ -795,6 +795,17 @@ mod chain_4m9o_fences {
             let mut conn = index.connection().expect("connection");
             conn.trace(Some(trace_cb));
         }
+
+        // canary: prove the per-id predicate is alive before relying on its
+        // zeros below — if get_file_by_id's SQL shape drifts away from the
+        // counted string, this fails instead of the fence going vacuous
+        reset_counts();
+        index.get_file_by_id(fa).expect("canary lookup");
+        assert_eq!(
+            counts(),
+            (1, 1),
+            "per-id trace predicate must fire on get_file_by_id"
+        );
 
         // len-4 chain: adjacency load + one batched hydration, nothing per-id
         reset_counts();

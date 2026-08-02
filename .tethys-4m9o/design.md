@@ -16,7 +16,10 @@ preserving every observable semantic the probe recorded.
 `Index::find_dependency_path(from, to)` (src/db/graph.rs) becomes:
 
 1. Equal endpoints → hydrate the single id via the batch helper; return
-   `Some(FilePath::single(..))`.
+   the one-file path. (As built: both arms funnel through
+   `FilePath::new`, and the now-uncalled crate-internal
+   `FilePath::single` was deleted rather than kept as dead code —
+   surfaced by the pre-PR standards review.)
 2. Load the full adjacency via the existing `build_adjacency_list()`
    (one statement — the `detect_cycles` precedent).
 3. Visited-set BFS with parent map, expansion capped at

@@ -529,6 +529,10 @@ fn get_dependency_chain_reports_from_first_when_both_endpoints_missing() {
         )
         .expect_err("both endpoints missing must error");
 
+    assert!(
+        matches!(err, tethys::Error::NotFound(_)),
+        "both-missing must be the established NotFound, got: {err:?}"
+    );
     let msg = err.to_string();
     assert!(
         msg.contains("nope_from.rs") && !msg.contains("nope_to.rs"),
@@ -785,14 +789,16 @@ fn get_dependency_chain_returns_error_for_nonexistent_from() {
     let (_dir, mut tethys) = workspace_with_call_graph();
     tethys.index().expect("index failed");
 
-    let result = tethys.get_dependency_chain(
-        std::path::Path::new("src/nonexistent.rs"),
-        std::path::Path::new("src/db.rs"),
-    );
+    let err = tethys
+        .get_dependency_chain(
+            std::path::Path::new("src/nonexistent.rs"),
+            std::path::Path::new("src/db.rs"),
+        )
+        .expect_err("missing 'from' file must error");
 
     assert!(
-        result.is_err(),
-        "should return error when 'from' file doesn't exist"
+        matches!(err, tethys::Error::NotFound(_)),
+        "missing 'from' must be the established NotFound, got: {err:?}"
     );
 }
 
@@ -801,14 +807,16 @@ fn get_dependency_chain_returns_error_for_nonexistent_to() {
     let (_dir, mut tethys) = workspace_with_call_graph();
     tethys.index().expect("index failed");
 
-    let result = tethys.get_dependency_chain(
-        std::path::Path::new("src/db.rs"),
-        std::path::Path::new("src/nonexistent.rs"),
-    );
+    let err = tethys
+        .get_dependency_chain(
+            std::path::Path::new("src/db.rs"),
+            std::path::Path::new("src/nonexistent.rs"),
+        )
+        .expect_err("missing 'to' file must error");
 
     assert!(
-        result.is_err(),
-        "should return error when 'to' file doesn't exist"
+        matches!(err, tethys::Error::NotFound(_)),
+        "missing 'to' must be the established NotFound, got: {err:?}"
     );
 }
 
