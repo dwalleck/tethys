@@ -149,6 +149,51 @@ fn missing_root_is_not_found_in_both_directions() {
     );
 }
 
+/// A neighbor row with a corrupt `language` value must not fail path
+/// hydration: the set-oriented JOIN reads only the file id and `path`
+/// columns, so corruption in columns unrelated to paths cannot error the
+/// query. Before the rewrite this call DID error — per-id hydration read
+/// the whole file row and parsed `language`, which rejects unknown
+/// values. The leniency is intentional (a path query has no use for the
+/// language column); this fence keeps the delta deliberate rather than
+/// accidental.
+#[test]
+fn corrupt_language_on_neighbor_does_not_fail_hydration() {
+    let (_dir, tethys) = indexed_fixture();
+
+    {
+        let conn =
+            rusqlite::Connection::open(tethys.db_path()).expect("open corruption connection");
+        let changed = conn
+            .execute(
+                "UPDATE files SET language = 'klingon' WHERE path = 'src/c.rs'",
+                [],
+            )
+            .expect("corrupt language column");
+        assert_eq!(changed, 1, "exactly one row corrupted");
+    }
+
+    let deps = tethys
+        .get_dependencies(Path::new("src/lib.rs"))
+        .expect("corrupt language on a neighbor must not error path hydration");
+    assert_eq!(
+        sorted_strings(&deps),
+        vec!["src/a.rs", "src/b.rs", "src/c.rs"],
+        "the corrupt-language neighbor is still returned by path"
+    );
+
+    // The corrupt file also works as the query root: root resolution looks
+    // up the id by path and never reads `language` either.
+    let dependents = tethys
+        .get_dependents(Path::new("src/c.rs"))
+        .expect("corrupt language on the root must not error path hydration");
+    assert_eq!(
+        sorted_strings(&dependents),
+        vec!["src/a.rs", "src/lib.rs"],
+        "dependents of the corrupt-language file"
+    );
+}
+
 /// A dangling `file_deps` row (target file absent — possible only in a
 /// hand-edited database, since the index connection enforces foreign keys
 /// and file deletes cascade the edges) is skipped with the established
