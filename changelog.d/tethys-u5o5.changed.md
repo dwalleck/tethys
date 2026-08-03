@@ -1,0 +1,1 @@
+- `tethys cycles` now reports complete directed file-dependency cycles in stable dependency order, deduplicating rotations while preserving reverse directions and workspace-relative paths.
