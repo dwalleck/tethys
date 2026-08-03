@@ -442,7 +442,16 @@ impl Tethys {
 
     // === Graph Analysis ===
 
-    /// Detect circular dependencies in the codebase.
+    /// Detect circular dependencies in the indexed workspace.
+    ///
+    /// Each returned cycle is canonicalized by its lexicographically smallest
+    /// workspace-relative path, follows stored dependency direction, and does
+    /// not repeat its first path. Results are deterministically ordered.
+    ///
+    /// # Errors
+    ///
+    /// Returns database errors, including `Error::NotFound` for a dangling
+    /// indexed dependency endpoint.
     pub fn detect_cycles(&self) -> Result<Vec<Cycle>> {
         self.db.detect_cycles()
     }
