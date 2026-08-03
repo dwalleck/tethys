@@ -1,6 +1,8 @@
 //! SQLite-backed graph queries implemented as concrete `Index` operations.
 
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::path::PathBuf;
 
 use super::Index;
 use super::helpers::row_to_symbol;
@@ -276,8 +278,13 @@ impl Index {
 
     /// Detect circular dependencies in the indexed workspace.
     pub fn detect_cycles(&self) -> Result<Vec<Cycle>> {
+        let paths_by_id = self
+            .list_all_files()?
+            .into_iter()
+            .map(|file| (file.id, file.path))
+            .collect();
         let adj = self.build_adjacency_list()?;
-        self.find_cycles_dfs(&adj)
+        self.find_cycles_dfs(&adj, &paths_by_id)
     }
 }
 
@@ -307,60 +314,26 @@ impl Index {
         Ok(adj)
     }
 
-    /// DFS-based cycle detection.
-    ///
-    /// Uses standard cycle detection with visited set and recursion stack.
-    /// When a back edge is found, reconstructs the cycle path.
-    fn find_cycles_dfs(&self, adj: &HashMap<FileId, Vec<FileId>>) -> Result<Vec<Cycle>> {
-        let mut visited: HashSet<FileId> = HashSet::new();
-        let mut rec_stack: HashSet<FileId> = HashSet::new();
-        let mut path: Vec<FileId> = Vec::new();
-        let mut cycles: Vec<Vec<FileId>> = Vec::new();
-
-        // Get all nodes that participate in the graph
-        let all_nodes: HashSet<FileId> = adj
-            .iter()
-            .flat_map(|(from, tos)| std::iter::once(*from).chain(tos.iter().copied()))
-            .collect();
-
-        let edge_count: usize = adj.values().map(Vec::len).sum();
+    /// Enumerate directed cycles and convert their file IDs to paths.
+    fn find_cycles_dfs(
+        &self,
+        adj: &HashMap<FileId, Vec<FileId>>,
+        paths_by_id: &HashMap<FileId, PathBuf>,
+    ) -> Result<Vec<Cycle>> {
+        let cycle_ids = enumerate_cycles(adj, paths_by_id);
         tracing::debug!(
-            node_count = all_nodes.len(),
-            edge_count = edge_count,
-            "Starting cycle detection with DFS"
+            node_count = paths_by_id.len(),
+            edge_count = adj.values().map(Vec::len).sum::<usize>(),
+            cycle_count = cycle_ids.len(),
+            "Cycle traversal complete"
         );
 
-        for &start in &all_nodes {
-            if !visited.contains(&start) {
-                dfs_visit_for_cycles(
-                    start,
-                    adj,
-                    &mut visited,
-                    &mut rec_stack,
-                    &mut path,
-                    &mut cycles,
-                );
-            }
-        }
-
-        let raw_cycle_count = cycles.len();
-
-        // Deduplicate cycles (same cycle can be discovered from different starting nodes)
-        let unique_cycles = deduplicate_cycles(cycles);
-
-        tracing::debug!(
-            raw_cycles = raw_cycle_count,
-            unique_cycles = unique_cycles.len(),
-            "DFS traversal complete, deduplicating cycles"
-        );
-
-        // Convert file IDs to Cycle structs with paths
-        let result: Result<Vec<Cycle>> = unique_cycles
+        let result: Result<Vec<Cycle>> = cycle_ids
             .into_iter()
             .map(|ids| self.ids_to_cycle(&ids))
             .collect();
 
-        if let Ok(ref cycles) = result {
+        if let Ok(cycles) = &result {
             tracing::info!(cycle_count = cycles.len(), "Cycle detection complete");
         }
 
@@ -408,89 +381,103 @@ impl Index {
 
 // === Cycle Detection Helper Functions ===
 
-/// Recursive DFS visitor for cycle detection.
+/// Enumerate every simple directed cycle once, canonicalized by path.
 ///
-/// Traverses the graph marking nodes as visited. When a back edge is found
-/// (an edge to a node still in the current DFS path/recursion stack), a cycle
-/// is recorded. Back edges indicate cycles because we've reached a node we're
-/// still in the process of exploring.
-fn dfs_visit_for_cycles(
-    node: FileId,
+/// A cycle is explored only from its lexicographically smallest indexed path.
+/// This removes rotation duplicates without reversing directed edges. Missing
+/// file paths sort after indexed paths so a cycle containing a dangling ID is
+/// still returned to the typed conversion layer as `Error::NotFound`.
+fn enumerate_cycles(
     adj: &HashMap<FileId, Vec<FileId>>,
-    visited: &mut HashSet<FileId>,
-    rec_stack: &mut HashSet<FileId>,
+    paths_by_id: &HashMap<FileId, PathBuf>,
+) -> Vec<Vec<FileId>> {
+    let mut nodes: Vec<FileId> = adj
+        .iter()
+        .flat_map(|(from, tos)| std::iter::once(*from).chain(tos.iter().copied()))
+        .collect();
+    nodes.sort_by(|left, right| compare_file_ids(*left, *right, paths_by_id));
+    nodes.dedup();
+
+    let mut sorted_adj = adj.clone();
+    for neighbors in sorted_adj.values_mut() {
+        neighbors.sort_by(|left, right| compare_file_ids(*left, *right, paths_by_id));
+        neighbors.dedup();
+    }
+
+    let mut cycles = Vec::new();
+    let mut path = Vec::new();
+    let mut visited = HashSet::new();
+    for &start in &nodes {
+        visit_cycles(
+            start,
+            start,
+            &sorted_adj,
+            paths_by_id,
+            &mut path,
+            &mut visited,
+            &mut cycles,
+        );
+    }
+
+    cycles.sort_by(|left, right| compare_cycle_ids(left, right, paths_by_id));
+    cycles
+}
+
+fn visit_cycles(
+    node: FileId,
+    start: FileId,
+    adj: &HashMap<FileId, Vec<FileId>>,
+    paths_by_id: &HashMap<FileId, PathBuf>,
     path: &mut Vec<FileId>,
+    visited: &mut HashSet<FileId>,
     cycles: &mut Vec<Vec<FileId>>,
 ) {
     visited.insert(node);
-    rec_stack.insert(node);
     path.push(node);
 
     if let Some(neighbors) = adj.get(&node) {
         for &neighbor in neighbors {
-            if !visited.contains(&neighbor) {
-                dfs_visit_for_cycles(neighbor, adj, visited, rec_stack, path, cycles);
-            } else if rec_stack.contains(&neighbor) {
-                // Back edge found - extract the cycle
-                if let Some(cycle_start_idx) = path.iter().position(|&id| id == neighbor) {
-                    let cycle: Vec<FileId> = path[cycle_start_idx..].to_vec();
-                    cycles.push(cycle);
-                }
+            if neighbor == start {
+                cycles.push(path.clone());
+            } else if !visited.contains(&neighbor)
+                && compare_file_ids(neighbor, start, paths_by_id) != Ordering::Less
+            {
+                visit_cycles(neighbor, start, adj, paths_by_id, path, visited, cycles);
             }
         }
     }
 
     path.pop();
-    rec_stack.remove(&node);
+    visited.remove(&node);
 }
 
-/// Deduplicate cycles by normalizing their representation.
-///
-/// Two cycles are considered the same if they contain the same nodes in the same
-/// circular order, regardless of which node they start with.
-///
-/// We only normalize the starting point, not direction, because the DFS discovers
-/// cycles by following directed edges. In a directed graph, A→B→C→A and C→B→A→C
-/// are topologically distinct, so direction is semantically meaningful.
-fn deduplicate_cycles(cycles: Vec<Vec<FileId>>) -> Vec<Vec<FileId>> {
-    let mut seen: HashSet<Vec<FileId>> = HashSet::new();
-    let mut unique: Vec<Vec<FileId>> = Vec::new();
-
-    for cycle in cycles {
-        if cycle.is_empty() {
-            continue;
-        }
-
-        // Normalize: rotate so the smallest ID is first
-        let normalized = normalize_cycle(&cycle);
-
-        if seen.insert(normalized.clone()) {
-            unique.push(normalized);
-        }
+fn compare_file_ids(
+    left: FileId,
+    right: FileId,
+    paths_by_id: &HashMap<FileId, PathBuf>,
+) -> Ordering {
+    match (paths_by_id.get(&left), paths_by_id.get(&right)) {
+        (Some(left_path), Some(right_path)) => left_path
+            .cmp(right_path)
+            .then_with(|| left.as_i64().cmp(&right.as_i64())),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => left.as_i64().cmp(&right.as_i64()),
     }
-
-    unique
 }
 
-/// Normalize a cycle by rotating it so the smallest ID is first.
-fn normalize_cycle(cycle: &[FileId]) -> Vec<FileId> {
-    if cycle.is_empty() {
-        return Vec::new();
+fn compare_cycle_ids(
+    left: &[FileId],
+    right: &[FileId],
+    paths_by_id: &HashMap<FileId, PathBuf>,
+) -> Ordering {
+    for (left_id, right_id) in left.iter().zip(right) {
+        let ordering = compare_file_ids(*left_id, *right_id, paths_by_id);
+        if ordering != Ordering::Equal {
+            return ordering;
+        }
     }
-
-    // Find the index of the minimum element
-    let min_idx = cycle
-        .iter()
-        .enumerate()
-        .min_by_key(|(_, id)| id.as_i64())
-        .map_or(0, |(idx, _)| idx);
-
-    // Rotate so minimum is first
-    let mut normalized = Vec::with_capacity(cycle.len());
-    normalized.extend_from_slice(&cycle[min_idx..]);
-    normalized.extend_from_slice(&cycle[..min_idx]);
-
-    normalized
+    left.len().cmp(&right.len())
 }
 
 /// Visited-set BFS over the adjacency map: shortest id path `from → to`
@@ -546,31 +533,117 @@ fn bfs_shortest_ids(
 mod tests {
     use super::*;
 
-    #[test]
-    fn normalize_cycle_rotates_to_smallest() {
-        // Test the normalization function directly
-        let cycle = vec![FileId::from(5), FileId::from(2), FileId::from(8)];
-        let normalized = normalize_cycle(&cycle);
-
-        // Should rotate so 2 (smallest) is first
-        assert_eq!(normalized[0].as_i64(), 2);
-        assert_eq!(normalized[1].as_i64(), 8);
-        assert_eq!(normalized[2].as_i64(), 5);
+    fn cycle_paths(
+        cycles: Vec<Vec<FileId>>,
+        paths_by_id: &HashMap<FileId, PathBuf>,
+    ) -> Vec<Vec<PathBuf>> {
+        cycles
+            .into_iter()
+            .map(|cycle| {
+                cycle
+                    .into_iter()
+                    .map(|id| paths_by_id[&id].clone())
+                    .collect()
+            })
+            .collect()
     }
 
     #[test]
-    fn normalize_cycle_handles_empty() {
-        let cycle: Vec<FileId> = vec![];
-        let normalized = normalize_cycle(&cycle);
-        assert!(normalized.is_empty());
+    fn enumerate_cycles_covers_overlap_direction_and_self_loop() {
+        let paths_by_id = HashMap::from([
+            (FileId::from(30), PathBuf::from("src/a.rs")),
+            (FileId::from(10), PathBuf::from("src/b.rs")),
+            (FileId::from(20), PathBuf::from("src/c.rs")),
+            (FileId::from(40), PathBuf::from("src/self.rs")),
+        ]);
+        let adj = HashMap::from([
+            (FileId::from(30), vec![FileId::from(10), FileId::from(20)]),
+            (FileId::from(10), vec![FileId::from(30), FileId::from(20)]),
+            (FileId::from(20), vec![FileId::from(30), FileId::from(10)]),
+            (FileId::from(40), vec![FileId::from(40)]),
+        ]);
+
+        let got = cycle_paths(enumerate_cycles(&adj, &paths_by_id), &paths_by_id);
+        assert_eq!(
+            got,
+            vec![
+                vec![PathBuf::from("src/a.rs"), PathBuf::from("src/b.rs")],
+                vec![
+                    PathBuf::from("src/a.rs"),
+                    PathBuf::from("src/b.rs"),
+                    PathBuf::from("src/c.rs"),
+                ],
+                vec![PathBuf::from("src/a.rs"), PathBuf::from("src/c.rs")],
+                vec![
+                    PathBuf::from("src/a.rs"),
+                    PathBuf::from("src/c.rs"),
+                    PathBuf::from("src/b.rs"),
+                ],
+                vec![PathBuf::from("src/b.rs"), PathBuf::from("src/c.rs")],
+                vec![PathBuf::from("src/self.rs")],
+            ]
+        );
     }
 
     #[test]
-    fn normalize_cycle_handles_single_element() {
-        let cycle = vec![FileId::from(42)];
-        let normalized = normalize_cycle(&cycle);
-        assert_eq!(normalized.len(), 1);
-        assert_eq!(normalized[0].as_i64(), 42);
+    fn enumerate_cycles_handles_empty_graph() {
+        let paths_by_id = HashMap::new();
+        let adj = HashMap::new();
+
+        assert!(enumerate_cycles(&adj, &paths_by_id).is_empty());
+    }
+
+    #[test]
+    fn enumerate_cycles_uses_path_order_not_file_id_order() {
+        let paths_by_id = HashMap::from([
+            (FileId::from(1), PathBuf::from("src/z.rs")),
+            (FileId::from(2), PathBuf::from("src/a.rs")),
+        ]);
+        let adj = HashMap::from([
+            (FileId::from(1), vec![FileId::from(2)]),
+            (FileId::from(2), vec![FileId::from(1)]),
+        ]);
+
+        let got = cycle_paths(enumerate_cycles(&adj, &paths_by_id), &paths_by_id);
+        assert_eq!(
+            got,
+            vec![vec![PathBuf::from("src/a.rs"), PathBuf::from("src/z.rs"),]]
+        );
+    }
+
+    #[test]
+    fn enumerate_cycles_scales_on_sparse_graph() {
+        let mut paths_by_id = HashMap::new();
+        let mut adj: HashMap<FileId, Vec<FileId>> = HashMap::new();
+        for id in 0_i64..1_000 {
+            paths_by_id.insert(FileId::from(id), PathBuf::from(format!("src/f{id}.rs")));
+        }
+        let mut add_edge = |from: i64, to: i64| {
+            adj.entry(FileId::from(from))
+                .or_default()
+                .push(FileId::from(to));
+        };
+        for group in 0_i64..90 {
+            let base = group * 11;
+            for from in base..base + 11 {
+                for to in from + 1..base + 11 {
+                    add_edge(from, to);
+                }
+            }
+        }
+        for from in 990_i64..1_000 {
+            for to in from + 1..1_000 {
+                add_edge(from, to);
+            }
+        }
+        for from in 0_i64..4 {
+            add_edge(from, 990);
+        }
+        add_edge(999, 999);
+
+        let cycles = enumerate_cycles(&adj, &paths_by_id);
+        assert_eq!(cycles.len(), 1);
+        assert_eq!(cycles[0], vec![FileId::from(999)]);
     }
 }
 
