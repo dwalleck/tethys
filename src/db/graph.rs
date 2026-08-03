@@ -315,6 +315,24 @@ impl Index {
             })?;
             for row in rows {
                 let (from, to) = row?;
+                for (endpoint, role) in [(from, "source"), (to, "target")] {
+                    if !paths_by_id.contains_key(&endpoint) {
+                        tracing::error!(
+                            missing_file_id = endpoint.as_i64(),
+                            from_file_id = from.as_i64(),
+                            to_file_id = to.as_i64(),
+                            endpoint_role = role,
+                            "Dependency edge references a file absent from the files table"
+                        );
+                        return Err(Error::NotFound(format!(
+                            "file id: {} ({} endpoint of dependency {} -> {})",
+                            endpoint.as_i64(),
+                            role,
+                            from.as_i64(),
+                            to.as_i64()
+                        )));
+                    }
+                }
                 adj.entry(from).or_default().push(to);
             }
         }

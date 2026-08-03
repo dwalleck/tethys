@@ -596,6 +596,42 @@ fn workspace_with_exact_cycle_graph() -> (TempDir, Tethys) {
     (dir, tethys)
 }
 
+fn workspace_with_four_file_cycle() -> (TempDir, Tethys) {
+    let dir = tempfile::tempdir().expect("failed to create four-file cycle workspace");
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"test_four_file_cycle\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+    )
+    .expect("write Cargo.toml");
+    fs::create_dir_all(dir.path().join("src")).expect("create source directory");
+    for path in ["src/a.rs", "src/b.rs", "src/c.rs", "src/d.rs"] {
+        fs::write(dir.path().join(path), "pub struct Node;\n").expect("write cycle source");
+    }
+
+    let mut tethys = Tethys::new(dir.path()).expect("create Tethys");
+    tethys.index().expect("index four-file cycle workspace");
+
+    let connection = Connection::open(tethys.db_path()).expect("open cycle fixture database");
+    connection
+        .execute("DELETE FROM file_deps", [])
+        .expect("clear generated file dependencies");
+    for (from, to) in [
+        ("src/a.rs", "src/b.rs"),
+        ("src/b.rs", "src/c.rs"),
+        ("src/c.rs", "src/d.rs"),
+        ("src/d.rs", "src/a.rs"),
+    ] {
+        connection
+            .execute(
+                "INSERT INTO file_deps (from_file_id, to_file_id) VALUES (?1, ?2)",
+                rusqlite::params![db_file_id(&connection, from), db_file_id(&connection, to)],
+            )
+            .expect("insert four-file cycle edge");
+    }
+    drop(connection);
+    (dir, tethys)
+}
+
 fn cycle_paths(cycles: &[tethys::Cycle]) -> Vec<Vec<PathBuf>> {
     cycles.iter().map(|cycle| cycle.files.clone()).collect()
 }
@@ -636,10 +672,56 @@ fn detect_cycles_returns_exact_canonical_directed_set() {
             "cycle API must not repeat its first path"
         );
     }
+    for repeat in 1..=2 {
+        assert_eq!(
+            cycle_paths(&tethys.detect_cycles().expect("repeat exact cycle query")),
+            expected,
+            "unchanged index must return stable cycle order on repeat {repeat}"
+        );
+    }
+}
+
+#[test]
+fn detect_cycles_returns_exact_four_file_cycle() {
+    let (_dir, tethys) = workspace_with_four_file_cycle();
+    let cycles = tethys.detect_cycles().expect("detect four-file cycle");
+
     assert_eq!(
-        cycle_paths(&tethys.detect_cycles().expect("repeat exact cycle query")),
-        expected,
-        "unchanged indexes must return stable cycle order"
+        cycle_paths(&cycles),
+        vec![vec![
+            PathBuf::from("src/a.rs"),
+            PathBuf::from("src/b.rs"),
+            PathBuf::from("src/c.rs"),
+            PathBuf::from("src/d.rs"),
+        ]],
+        "four-file cycle should be returned exactly once in dependency order"
+    );
+}
+
+#[test]
+fn detect_cycles_rejects_dangling_dependency_endpoint() {
+    let (_dir, mut tethys) = workspace_with_call_graph();
+    tethys.index().expect("index failed");
+
+    let connection = Connection::open(tethys.db_path()).expect("open indexed database");
+    connection
+        .execute_batch("PRAGMA foreign_keys = OFF;")
+        .expect("disable foreign keys for corruption fixture");
+    let from_id = db_file_id(&connection, "src/main.rs");
+    connection
+        .execute(
+            "INSERT INTO file_deps (from_file_id, to_file_id) VALUES (?1, ?2)",
+            rusqlite::params![from_id, 999_999_i64],
+        )
+        .expect("insert dangling dependency edge");
+    drop(connection);
+
+    let error = tethys
+        .detect_cycles()
+        .expect_err("dangling dependency endpoint must fail");
+    assert!(
+        matches!(&error, tethys::Error::NotFound(message) if message.contains("999999")),
+        "expected typed dangling endpoint error, got: {error:?}"
     );
 }
 
