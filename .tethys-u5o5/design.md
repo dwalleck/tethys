@@ -71,3 +71,9 @@ Let `V` be indexed files, `E` dependency edges, and `C` the number of simple dir
 ## Plan handoff
 
 The implementation plan must split the work into slices no larger than two files each: (1) pure cycle enumeration/canonicalization and database bulk-loading internals, (2) Tethys integration/regression fixtures, and (3) trace/snapshot fences if their test seam cannot fit with slice 1. Each slice must retain C1–C8 coverage and rerun the probe oracle before commit.
+
+## Approval
+
+The requester approved this design: "Approve design"
+
+Date: 2026-08-02
