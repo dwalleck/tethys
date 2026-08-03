@@ -277,18 +277,84 @@ impl Index {
     }
 
     /// Detect circular dependencies in the indexed workspace.
+    ///
+    /// Files and dependency edges are read in one `SQLite` snapshot. Cycle
+    /// members are projected from that snapshot's path map, so conversion
+    /// performs no per-member database lookup.
     pub fn detect_cycles(&self) -> Result<Vec<Cycle>> {
-        let paths_by_id = self
-            .list_all_files()?
-            .into_iter()
-            .map(|file| (file.id, file.path))
-            .collect();
-        let adj = self.build_adjacency_list()?;
-        self.find_cycles_dfs(&adj, &paths_by_id)
+        let mut conn = self.connection()?;
+        let tx = conn.transaction()?;
+
+        let mut paths_by_id = HashMap::new();
+        {
+            let mut stmt = tx.prepare("SELECT id, path FROM files ORDER BY path")?;
+            let rows = stmt.query_map([], |row| {
+                Ok((
+                    FileId::from(row.get::<_, i64>(0)?),
+                    PathBuf::from(row.get::<_, String>(1)?),
+                ))
+            })?;
+            for row in rows {
+                let (id, path) = row?;
+                paths_by_id.insert(id, path);
+            }
+        }
+
+        let mut adj: HashMap<FileId, Vec<FileId>> = HashMap::new();
+        {
+            let mut stmt = tx.prepare(
+                "SELECT from_file_id, to_file_id
+                 FROM file_deps
+                 ORDER BY from_file_id, to_file_id",
+            )?;
+            let rows = stmt.query_map([], |row| {
+                Ok((
+                    FileId::from(row.get::<_, i64>(0)?),
+                    FileId::from(row.get::<_, i64>(1)?),
+                ))
+            })?;
+            for row in rows {
+                let (from, to) = row?;
+                adj.entry(from).or_default().push(to);
+            }
+        }
+
+        let cycle_ids = enumerate_cycles(&adj, &paths_by_id);
+        let mut cycles = Vec::with_capacity(cycle_ids.len());
+        for ids in cycle_ids {
+            let mut files = Vec::with_capacity(ids.len());
+            for (position, id) in ids.iter().copied().enumerate() {
+                let path = paths_by_id.get(&id).cloned().ok_or_else(|| {
+                    tracing::error!(
+                        file_id = id.as_i64(),
+                        cycle_position = position,
+                        cycle_length = ids.len(),
+                        "File not found in database but referenced in dependency cycle"
+                    );
+                    Error::NotFound(format!(
+                        "file id: {} (position {} in cycle of length {})",
+                        id.as_i64(),
+                        position,
+                        ids.len()
+                    ))
+                })?;
+                files.push(path);
+            }
+            cycles.push(Cycle { files });
+        }
+
+        tracing::debug!(
+            node_count = paths_by_id.len(),
+            edge_count = adj.values().map(Vec::len).sum::<usize>(),
+            cycle_count = cycles.len(),
+            "Cycle detection complete"
+        );
+        tx.commit()?;
+        Ok(cycles)
     }
 }
 
-// === Helper methods for Index ===
+// === Cycle Detection Helper Functions ===
 
 impl Index {
     /// Build an adjacency list representation of the dependency graph.
@@ -296,9 +362,7 @@ impl Index {
     /// Returns a map from file ID to list of files it depends on (outgoing edges).
     fn build_adjacency_list(&self) -> Result<HashMap<FileId, Vec<FileId>>> {
         let conn = self.connection()?;
-
         let mut stmt = conn.prepare("SELECT from_file_id, to_file_id FROM file_deps")?;
-
         let rows = stmt.query_map([], |row| {
             let from: i64 = row.get(0)?;
             let to: i64 = row.get(1)?;
@@ -310,76 +374,9 @@ impl Index {
             let (from, to) = result?;
             adj.entry(from).or_default().push(to);
         }
-
         Ok(adj)
     }
-
-    /// Enumerate directed cycles and convert their file IDs to paths.
-    fn find_cycles_dfs(
-        &self,
-        adj: &HashMap<FileId, Vec<FileId>>,
-        paths_by_id: &HashMap<FileId, PathBuf>,
-    ) -> Result<Vec<Cycle>> {
-        let cycle_ids = enumerate_cycles(adj, paths_by_id);
-        tracing::debug!(
-            node_count = paths_by_id.len(),
-            edge_count = adj.values().map(Vec::len).sum::<usize>(),
-            cycle_count = cycle_ids.len(),
-            "Cycle traversal complete"
-        );
-
-        let result: Result<Vec<Cycle>> = cycle_ids
-            .into_iter()
-            .map(|ids| self.ids_to_cycle(&ids))
-            .collect();
-
-        if let Ok(cycles) = &result {
-            tracing::info!(cycle_count = cycles.len(), "Cycle detection complete");
-        }
-
-        result
-    }
-
-    /// Convert a list of file IDs to a `Cycle` struct with file paths.
-    fn ids_to_cycle(&self, ids: &[FileId]) -> Result<Cycle> {
-        let mut files = Vec::with_capacity(ids.len());
-
-        for (idx, &id) in ids.iter().enumerate() {
-            let file = self
-                .get_file_by_id(id)
-                .map_err(|e| {
-                    tracing::error!(
-                        error = %e,
-                        file_id = id.as_i64(),
-                        cycle_position = idx,
-                        cycle_length = ids.len(),
-                        "Database error while resolving file for cycle"
-                    );
-                    e
-                })?
-                .ok_or_else(|| {
-                    tracing::error!(
-                        file_id = id.as_i64(),
-                        cycle_position = idx,
-                        cycle_length = ids.len(),
-                        "File not found in database but referenced in dependency cycle \
-                         (possible data integrity issue)"
-                    );
-                    Error::NotFound(format!(
-                        "file id: {} (position {} in cycle of length {})",
-                        id.as_i64(),
-                        idx,
-                        ids.len()
-                    ))
-                })?;
-            files.push(file.path);
-        }
-
-        Ok(Cycle { files })
-    }
 }
-
-// === Cycle Detection Helper Functions ===
 
 /// Enumerate every simple directed cycle once, canonicalized by path.
 ///
@@ -644,6 +641,272 @@ mod tests {
         let cycles = enumerate_cycles(&adj, &paths_by_id);
         assert_eq!(cycles.len(), 1);
         assert_eq!(cycles[0], vec![FileId::from(999)]);
+    }
+}
+
+#[cfg(test)]
+mod cycle_hydration_fences {
+    use std::path::{Path, PathBuf};
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    use rusqlite::Connection;
+    use tempfile::TempDir;
+
+    use crate::db::Index;
+    use crate::error::Error;
+    use crate::types::{FileId, Language};
+
+    static TRACE_SELECTS: AtomicUsize = AtomicUsize::new(0);
+    static TRACE_PER_ID: AtomicUsize = AtomicUsize::new(0);
+    static SNAPSHOT_WRITE_COUNT: AtomicUsize = AtomicUsize::new(0);
+    static SNAPSHOT_WRITE: Mutex<Option<SnapshotWrite>> = Mutex::new(None);
+
+    #[derive(Debug)]
+    struct SnapshotWrite {
+        path: PathBuf,
+        from: FileId,
+        to: FileId,
+    }
+
+    fn cycle_trace_cb(sql: &str) {
+        if sql.trim_start().starts_with("SELECT") {
+            TRACE_SELECTS.fetch_add(1, Ordering::Relaxed);
+        }
+        if sql.contains("FROM files WHERE id = ") {
+            TRACE_PER_ID.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    fn snapshot_trace_cb(sql: &str) {
+        if !sql.contains("FROM file_deps") {
+            return;
+        }
+        let pending = SNAPSHOT_WRITE.lock().expect("snapshot mutex").take();
+        let Some(pending) = pending else {
+            return;
+        };
+        let connection = Connection::open(pending.path).expect("open snapshot writer");
+        connection
+            .busy_timeout(Duration::from_secs(5))
+            .expect("set writer timeout");
+        connection
+            .execute(
+                "INSERT INTO file_deps (from_file_id, to_file_id) VALUES (?1, ?2)",
+                [pending.from.as_i64(), pending.to.as_i64()],
+            )
+            .expect("insert concurrent edge");
+        SNAPSHOT_WRITE_COUNT.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn reset_trace() {
+        TRACE_SELECTS.store(0, Ordering::Relaxed);
+        TRACE_PER_ID.store(0, Ordering::Relaxed);
+    }
+
+    fn trace_counts() -> (usize, usize) {
+        (
+            TRACE_SELECTS.load(Ordering::Relaxed),
+            TRACE_PER_ID.load(Ordering::Relaxed),
+        )
+    }
+
+    fn temp_index() -> (TempDir, Index) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let index = Index::open(&dir.path().join("idx.db")).expect("open index");
+        (dir, index)
+    }
+
+    fn upsert(index: &mut Index, path: &str) -> FileId {
+        index
+            .upsert_file(Path::new(path), Language::Rust, 0, 0, None)
+            .expect("upsert file")
+    }
+
+    fn edge(index: &mut Index, from: FileId, to: FileId) {
+        index.insert_file_dependency(from, to).expect("insert edge");
+    }
+
+    fn attach_trace(index: &Index) {
+        let mut connection = index.connection().expect("connection");
+        connection.trace(Some(cycle_trace_cb));
+    }
+
+    #[test]
+    fn cycle_query_statement_counts_are_flat() {
+        let (_dir, mut index) = temp_index();
+        attach_trace(&index);
+
+        reset_trace();
+        assert!(index.detect_cycles().expect("empty cycle query").is_empty());
+        assert_eq!(trace_counts(), (2, 0), "empty query must use two SELECTs");
+
+        let a = upsert(&mut index, "src/a.rs");
+        let b = upsert(&mut index, "src/b.rs");
+        let c = upsert(&mut index, "src/c.rs");
+        reset_trace();
+        assert!(
+            index
+                .detect_cycles()
+                .expect("acyclic cycle query")
+                .is_empty()
+        );
+        assert_eq!(trace_counts(), (2, 0), "acyclic query must use two SELECTs");
+
+        edge(&mut index, a, b);
+        edge(&mut index, b, c);
+        edge(&mut index, c, a);
+        reset_trace();
+        assert_eq!(
+            index.detect_cycles().expect("cyclic query").len(),
+            1,
+            "cycle fixture should return one cycle"
+        );
+        assert_eq!(
+            trace_counts(),
+            (2, 0),
+            "cycle hydration must not issue scalar lookups"
+        );
+
+        reset_trace();
+        index.get_file_by_id(a).expect("scalar canary");
+        assert_eq!(
+            trace_counts(),
+            (1, 1),
+            "scalar lookup canary must fire before trusting zero"
+        );
+    }
+
+    #[test]
+    fn cycle_query_scales_sparse_graph() {
+        let (_dir, mut index) = temp_index();
+        let mut ids = Vec::with_capacity(1_000);
+        for id in 0_i64..1_000 {
+            let path = if id == 999 {
+                "src/Ω/self file.rs".to_owned()
+            } else {
+                format!("src/f{id}.rs")
+            };
+            ids.push(upsert(&mut index, &path));
+        }
+
+        {
+            let mut connection = index.connection().expect("connection");
+            let tx = connection.transaction().expect("edge transaction");
+            for group in 0_usize..90 {
+                let base = group * 11;
+                for from in base..base + 11 {
+                    for to in from + 1..base + 11 {
+                        tx.execute(
+                            "INSERT INTO file_deps (from_file_id, to_file_id) VALUES (?1, ?2)",
+                            rusqlite::params![ids[from].as_i64(), ids[to].as_i64()],
+                        )
+                        .expect("insert sparse edge");
+                    }
+                }
+            }
+            for from in 990_usize..1_000 {
+                for to in from + 1..1_000 {
+                    tx.execute(
+                        "INSERT INTO file_deps (from_file_id, to_file_id) VALUES (?1, ?2)",
+                        rusqlite::params![ids[from].as_i64(), ids[to].as_i64()],
+                    )
+                    .expect("insert final sparse edge");
+                }
+            }
+            for from in 0_usize..4 {
+                tx.execute(
+                    "INSERT INTO file_deps (from_file_id, to_file_id) VALUES (?1, ?2)",
+                    rusqlite::params![ids[from].as_i64(), ids[990].as_i64()],
+                )
+                .expect("insert cross-group edge");
+            }
+            tx.execute(
+                "INSERT INTO file_deps (from_file_id, to_file_id) VALUES (?1, ?2)",
+                rusqlite::params![ids[999].as_i64(), ids[999].as_i64()],
+            )
+            .expect("insert sparse self-loop");
+            tx.commit().expect("commit sparse edges");
+        }
+
+        attach_trace(&index);
+        reset_trace();
+        let cycles = index.detect_cycles().expect("sparse cycle query");
+        assert_eq!(cycles.len(), 1);
+        assert_eq!(cycles[0].files, vec![PathBuf::from("src/Ω/self file.rs")]);
+        assert_eq!(
+            trace_counts(),
+            (2, 0),
+            "large cycle conversion must remain two set reads"
+        );
+    }
+
+    #[test]
+    fn cycle_query_dangling_endpoint_returns_notfound() {
+        let (dir, mut index) = temp_index();
+        let a = upsert(&mut index, "src/a.rs");
+        let ghost = FileId::from(99_999);
+        let db_path = dir.path().join("idx.db");
+        let connection = Connection::open(db_path).expect("open dangling writer");
+        connection
+            .pragma_update(None, "foreign_keys", false)
+            .expect("disable foreign keys for corrupt fixture");
+        connection
+            .execute(
+                "INSERT INTO file_deps (from_file_id, to_file_id) VALUES (?1, ?2)",
+                rusqlite::params![a.as_i64(), ghost.as_i64()],
+            )
+            .expect("insert dangling edge");
+        connection
+            .execute(
+                "INSERT INTO file_deps (from_file_id, to_file_id) VALUES (?1, ?2)",
+                rusqlite::params![ghost.as_i64(), a.as_i64()],
+            )
+            .expect("insert reverse dangling edge");
+        drop(connection);
+
+        let error = index
+            .detect_cycles()
+            .expect_err("dangling cycle endpoint must fail");
+        assert!(
+            matches!(&error, Error::NotFound(message) if message.contains("99999")),
+            "expected typed dangling endpoint error, got {error:?}"
+        );
+    }
+
+    #[test]
+    fn cycle_query_uses_one_snapshot() {
+        let (dir, mut index) = temp_index();
+        let a = upsert(&mut index, "src/a.rs");
+        let b = upsert(&mut index, "src/b.rs");
+        edge(&mut index, a, b);
+
+        {
+            let mut connection = index.connection().expect("connection");
+            connection.trace(Some(snapshot_trace_cb));
+        }
+        SNAPSHOT_WRITE_COUNT.store(0, Ordering::Relaxed);
+        *SNAPSHOT_WRITE.lock().expect("snapshot mutex") = Some(SnapshotWrite {
+            path: dir.path().join("idx.db"),
+            from: b,
+            to: a,
+        });
+
+        let cycles = index.detect_cycles().expect("snapshot cycle query");
+        assert!(
+            cycles.is_empty(),
+            "the concurrent reverse edge belongs to the next snapshot"
+        );
+        assert_eq!(
+            SNAPSHOT_WRITE_COUNT.load(Ordering::Relaxed),
+            1,
+            "snapshot writer canary must fire"
+        );
+        assert!(
+            SNAPSHOT_WRITE.lock().expect("snapshot mutex").is_none(),
+            "snapshot writer request must be consumed"
+        );
     }
 }
 
