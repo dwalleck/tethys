@@ -77,10 +77,14 @@ For "what is X / how do I call X / how does process Y work", route via
   `src/languages/mod.rs`: add a `Language` variant, create the module, implement
   `LanguageSupport`, register in `get_language_support`, then implement +
   register a `ModuleResolver`. Do not edit the drivers.
-- **Graph queries are concrete `Index` operations.** Recursive-CTE traversal
-  lives in `src/db/graph.rs` behind the public `Tethys` facade. There is no
-  graph adapter trait or in-memory graph library; reach for SQL-backed methods,
-  and introduce a narrow seam only when a second implementation exists.
+- **Graph queries are concrete `Index` operations.** Traversal lives in
+  `src/db/graph.rs` behind the public `Tethys` facade. Transitive caller and
+  dependent queries are recursive CTEs; dependency-path (tethys-4m9o) and
+  cycle detection (tethys-u5o5) instead load ONE adjacency snapshot and walk
+  it in Rust, because the CTE forms enumerated walks and did not terminate on
+  cyclic indexes (tethys-vwrn). Either way there is no graph adapter trait and
+  no in-memory graph library — introduce a narrow seam only when a second
+  implementation exists. See ADR-0002 and its amendment.
 - **Direct caller modes are explicit at the `Tethys` seam.**
   `CallerMode::Indexed` selects all retained call edges or excludes edges
   supported only by speculative references; `CallerMode::LspRefined` augments

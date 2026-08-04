@@ -1,1 +1,3 @@
-- `tethys cycles` now reports complete directed file-dependency cycles in stable dependency order, deduplicating rotations while preserving reverse directions and workspace-relative paths.
+- `tethys cycles` now reports every distinct simple directed cycle, including one-file self-loops and overlapping cycles, in a stable order; rotations of the same cycle are reported once, and reverse-direction cycles stay distinct.
+- Expect substantially more cycles than before on tightly coupled codebases — complete enumeration lists every distinct cycle rather than one representative per group.
+- `tethys cycles` now fails with a "not found" error when the index holds a dependency edge pointing at a file that is no longer indexed, instead of silently skipping it; re-run `tethys index --rebuild` to repair such an index.

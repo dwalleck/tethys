@@ -83,7 +83,7 @@ The Tethys library will detect directed cycles in the indexed file-dependency gr
 | Canonical first file | Lexicographically smallest workspace-relative path. | Stable across index ID assignment and equivalent rotations. |
 | Paths with spaces or Unicode | Preserve stored relative spelling. | Avoid lossy or absolute projection at the API boundary. |
 | Duplicate dependency rows | Treat as one edge. | `file_deps` primary key is `(from_file_id, to_file_id)`. |
-| Dangling edge endpoint | Return `Error::NotFound`. | Do not emit a path that is not indexed; preserve current integrity-error behavior. |
+| Dangling edge endpoint | Return `Error::NotFound` for any dangling `file_deps` endpoint, whether or not it lies on a cycle. | Do not emit a path that is not indexed. NOTE (review, 2026-08-02): this is deliberately *wider* than the behavior it replaced — `ids_to_cycle` errored only on a dangling cycle member, so an acyclic index holding one corrupt edge now returns `Err` where it previously returned `Ok(vec![])`. It is also stricter than the sibling `file_deps` readers (`get_file_dependency_paths`, `get_file_dependent_paths`), which skip and count such rows without erroring. Accepted knowingly: validating up front is what lets hydration project from the snapshot with no per-member lookup. |
 | Concurrent indexing | Read one consistent SQLite snapshot. | Prevent mixing file rows and edge rows from different index states. |
 | Long cycles | Do not silently cap cycle length or count. | The requester selected complete simple-cycle enumeration. |
 | Missing filesystem source after indexing | Use the indexed database path. | Cycle detection consumes the index; it does not rescan the workspace. |
