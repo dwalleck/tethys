@@ -369,6 +369,203 @@ fn test_add() {
         );
     }
 
+    /// C16 + C13: fresh index and untouched workspace → Confirmed standing;
+    /// creating an unrelated file afterwards flips standing to Indeterminate
+    /// (stale-index) while the traversal result is unchanged.
+    #[test]
+    fn standing_confirmed_when_pristine_and_stale_index_after_unrelated_change() {
+        use tethys::{QueryStanding, StandingReasonKind};
+
+        let (dir, mut tethys) = workspace_with_files(&[(
+            "src/lib.rs",
+            r#"
+pub fn add(a: i32, b: i32) -> i32 { a + b }
+
+#[test]
+fn test_add() {
+    assert_eq!(add(2, 3), 5);
+}
+"#,
+        )]);
+
+        tethys.index().expect("index failed");
+        let report = tethys
+            .get_affected_tests_with_standing(&[PathBuf::from("src/lib.rs")])
+            .expect("with_standing failed");
+        assert_eq!(report.tests.len(), 1);
+        assert_eq!(
+            report.standing,
+            QueryStanding::Confirmed,
+            "pristine workspace must be confirmed"
+        );
+
+        // An unrelated file appears on disk, NOT in the changed list: the
+        // graph may now be missing edges, so standing degrades but the
+        // traversal result must not be suppressed.
+        fs::write(dir.path().join("src/other.rs"), "pub fn other() {}\n")
+            .expect("write unrelated file");
+        let report = tethys
+            .get_affected_tests_with_standing(&[PathBuf::from("src/lib.rs")])
+            .expect("with_standing failed");
+        assert_eq!(report.tests.len(), 1, "traversal result must survive");
+        let QueryStanding::Indeterminate(reasons) = &report.standing else {
+            panic!("expected indeterminate standing after unrelated change");
+        };
+        assert_eq!(reasons.len(), 1, "reasons: {reasons:?}");
+        assert_eq!(reasons[0].kind, StandingReasonKind::StaleIndex);
+        assert_eq!(reasons[0].path, None);
+    }
+
+    /// C6 facade half + reason ordering: a stale changed file still returns
+    /// its dependent tests, with per-file reasons before the stale-index
+    /// line; an unindexed input reports without a trailing stale-index when
+    /// the workspace is otherwise pristine.
+    #[test]
+    fn stale_input_keeps_tests_and_orders_reasons() {
+        use tethys::{QueryStanding, StandingReasonKind};
+
+        let (dir, mut tethys) = workspace_with_files(&[(
+            "src/lib.rs",
+            r#"
+pub fn add(a: i32, b: i32) -> i32 { a + b }
+
+#[test]
+fn test_add() {
+    assert_eq!(add(2, 3), 5);
+}
+"#,
+        )]);
+
+        tethys.index().expect("index failed");
+
+        // Unindexed-only case first, while the workspace is pristine: the
+        // phantom path exists neither on disk nor in the index, so no
+        // stale-index reason may piggyback.
+        let report = tethys
+            .get_affected_tests_with_standing(&[PathBuf::from("phantom.rs")])
+            .expect("with_standing failed");
+        assert!(report.tests.is_empty());
+        let QueryStanding::Indeterminate(reasons) = &report.standing else {
+            panic!("unindexed input must be indeterminate");
+        };
+        assert_eq!(
+            reasons.iter().map(|r| r.kind).collect::<Vec<_>>(),
+            vec![StandingReasonKind::Unindexed],
+            "pristine workspace must not add stale-index: {reasons:?}"
+        );
+
+        // Now make the changed file itself stale: per-file reason first,
+        // whole-index reason last (design D4), tests still returned.
+        fs::write(
+            dir.path().join("src/lib.rs"),
+            "pub fn add(a: i32, b: i32) -> i32 { a + b } // touched\n\n#[test]\nfn test_add() { assert_eq!(add(2, 3), 5); }\n",
+        )
+        .expect("touch lib.rs");
+        let report = tethys
+            .get_affected_tests_with_standing(&[PathBuf::from("src/lib.rs")])
+            .expect("with_standing failed");
+        assert_eq!(report.tests.len(), 1, "stale input must still return tests");
+        let QueryStanding::Indeterminate(reasons) = &report.standing else {
+            panic!("stale input must be indeterminate");
+        };
+        assert_eq!(
+            reasons.iter().map(|r| r.kind).collect::<Vec<_>>(),
+            vec![StandingReasonKind::Stale, StandingReasonKind::StaleIndex],
+            "per-file reasons precede stale-index: {reasons:?}"
+        );
+    }
+
+    /// C12 facade half: empty input is vacuously confirmed even when the
+    /// workspace has drifted from the index.
+    #[test]
+    fn empty_input_is_vacuously_confirmed() {
+        use tethys::QueryStanding;
+
+        let (dir, mut tethys) = workspace_with_files(&[(
+            "src/lib.rs",
+            "pub fn add(a: i32, b: i32) -> i32 { a + b }\n",
+        )]);
+
+        tethys.index().expect("index failed");
+        fs::write(dir.path().join("src/drift.rs"), "pub fn d() {}\n").expect("write drift");
+
+        let report = tethys
+            .get_affected_tests_with_standing(&[])
+            .expect("with_standing failed");
+        assert!(report.tests.is_empty());
+        assert_eq!(
+            report.standing,
+            QueryStanding::Confirmed,
+            "empty input: nothing changed => complete answer"
+        );
+    }
+
+    /// C8 (tethys-xetb): every lexical spelling of the same workspace file
+    /// must resolve to the same index row — `./`-prefixed and intra-path
+    /// `..` spellings previously missed the exact-string lookup and read as
+    /// confirmed-clean.
+    #[test]
+    fn path_spellings_resolve_to_same_file() {
+        let (_dir, mut tethys) = workspace_with_files(&[(
+            "src/lib.rs",
+            r#"
+pub fn add(a: i32, b: i32) -> i32 { a + b }
+
+#[test]
+fn test_add() {
+    assert_eq!(add(2, 3), 5);
+}
+"#,
+        )]);
+
+        tethys.index().expect("index failed");
+        for spelling in [
+            "src/lib.rs",
+            "./src/lib.rs",
+            "src/../src/lib.rs",
+            "src/./lib.rs",
+        ] {
+            let affected = tethys
+                .get_affected_tests(&[PathBuf::from(spelling)])
+                .expect("get_affected_tests failed");
+            assert_eq!(
+                affected.len(),
+                1,
+                "spelling {spelling:?} must resolve to the indexed file"
+            );
+            assert_eq!(affected[0].name, "test_add");
+        }
+    }
+
+    /// Escaping and unresolvable spellings must degrade to "no row" (empty
+    /// result here; the standing-aware entry point reports them as
+    /// `unindexed`) — never panic, never accidentally match.
+    #[test]
+    fn escaping_path_spellings_resolve_to_nothing() {
+        let (_dir, mut tethys) = workspace_with_files(&[(
+            "src/lib.rs",
+            r#"
+pub fn add(a: i32, b: i32) -> i32 { a + b }
+
+#[test]
+fn test_add() {
+    assert_eq!(add(2, 3), 5);
+}
+"#,
+        )]);
+
+        tethys.index().expect("index failed");
+        for spelling in ["../escape.rs", "", "."] {
+            let affected = tethys
+                .get_affected_tests(&[PathBuf::from(spelling)])
+                .expect("get_affected_tests should not error");
+            assert!(
+                affected.is_empty(),
+                "spelling {spelling:?} must not match any indexed file"
+            );
+        }
+    }
+
     #[test]
     fn skips_unindexed_root_without_losing_indexed_results() {
         let (_dir, mut tethys) = workspace_with_files(&[(

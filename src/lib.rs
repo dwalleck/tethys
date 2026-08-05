@@ -58,13 +58,14 @@ pub use dead_code::{DeadCodeFinding, DeadCodeReport, DeadCodeSummary};
 pub use error::{Error, IndexError, IndexErrorKind, Result};
 pub use graph::{FileImpact, FileImpactDependent, SymbolImpact, SymbolImpactCaller};
 pub use types::{
-    ArchPhaseResult, ArchStats, CallEdgeSelection, Caller, CallerMode, CouplingDetail,
-    CouplingMetrics, CouplingSort, CrateInfo, Cycle, DatabaseStats, FileAnalysis, FileId,
-    FunctionSignature, Import, IndexOptions, IndexStats, IndexUpdate, IndexedFile, Language,
-    LspCompletedSession, LspOutcome, LspSessionResult, Package, PackageDependency, PackageId,
-    PackageSource, PanicKind, PanicPoint, Parameter, ParameterKind, ReachabilityDirection,
-    ReachabilityResult, ReachablePath, Reference, ReferenceKind, ResolutionStrategy, Span,
-    StalenessReport, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp, Visibility,
+    AffectedTestsReport, ArchPhaseResult, ArchStats, CallEdgeSelection, Caller, CallerMode,
+    CouplingDetail, CouplingMetrics, CouplingSort, CrateInfo, Cycle, DatabaseStats, FileAnalysis,
+    FileId, FunctionSignature, Import, IndexOptions, IndexStats, IndexUpdate, IndexedFile,
+    Language, LspCompletedSession, LspOutcome, LspSessionResult, Package, PackageDependency,
+    PackageId, PackageSource, PanicKind, PanicPoint, Parameter, ParameterKind, QueryStanding,
+    ReachabilityDirection, ReachabilityResult, ReachablePath, Reference, ReferenceKind,
+    ResolutionStrategy, Span, StalenessReport, StandingReason, StandingReasonKind, Symbol,
+    SymbolId, SymbolKind, UnresolvedRefForLsp, Visibility,
 };
 pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 
@@ -113,6 +114,46 @@ fn saturating_depth_to_u32(depth: usize) -> u32 {
         );
         u32::MAX
     })
+}
+
+/// Lexically normalize a relative path: drop `.` components and resolve
+/// intra-path `..` against preceding segments, so `./src/lib.rs` and
+/// `src/../src/lib.rs` match the DB row stored as `src/lib.rs`.
+///
+/// Purely textual — no filesystem access, so it works for paths that no
+/// longer (or never did) exist. Paths that escape upward (a `..` with
+/// nothing left to pop) are returned as-is: they cannot name an indexed
+/// file, and query standing reports them as `unindexed` downstream.
+/// (Distinct from `cargo::sanitize_target_path`, which *rejects* `..` in
+/// manifest targets rather than resolving it.)
+fn lexically_normalize(path: &Path) -> Cow<'_, Path> {
+    use std::path::Component;
+
+    let mut parts: Vec<&std::ffi::OsStr> = Vec::new();
+    for comp in path.components() {
+        match comp {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if parts.pop().is_none() {
+                    return Cow::Borrowed(path);
+                }
+            }
+            Component::Normal(seg) => parts.push(seg),
+            // Unreachable for relative inputs; bail rather than mangle.
+            Component::Prefix(_) | Component::RootDir => return Cow::Borrowed(path),
+        }
+    }
+
+    // Compare the rebuilt form against the raw input rather than trusting a
+    // components() scan: components() itself hides interior `.` segments
+    // (`src/./lib.rs` iterates as src, lib.rs), so a "looks already normal"
+    // fast path would return the unnormalized original string.
+    let rebuilt: PathBuf = parts.iter().collect();
+    if rebuilt.as_os_str() == path.as_os_str() {
+        Cow::Borrowed(path)
+    } else {
+        Cow::Owned(rebuilt)
+    }
 }
 
 #[expect(
@@ -226,27 +267,35 @@ impl Tethys {
     ///
     /// Handles symlink differences (e.g., `/var` -> `/private/var` on macOS) by
     /// attempting canonicalization when the initial `strip_prefix` fails on
-    /// absolute paths. Returns `Cow::Borrowed` for the common fast path,
-    /// `Cow::Owned` only when canonicalization was needed.
+    /// absolute paths. Relative inputs are the documented "relative to
+    /// workspace root" form: they are lexically normalized (`./` dropped,
+    /// intra-path `..` resolved) so every spelling of the same file matches
+    /// the same DB row (tethys-xetb), and they never warn (tethys-vk3z).
+    /// Returns `Cow::Borrowed` for the common fast path, `Cow::Owned` only
+    /// when canonicalization or normalization rewrote the path.
     pub(crate) fn relative_path<'a>(&self, path: &'a Path) -> Cow<'a, Path> {
         if let Ok(relative) = path.strip_prefix(&self.workspace_root) {
             return Cow::Borrowed(relative);
         }
 
-        // For absolute paths, try canonicalizing to resolve symlinks
-        if path.is_absolute()
-            && let Ok(canonical) = path.canonicalize()
-            && let Ok(relative) = canonical.strip_prefix(&self.workspace_root)
-        {
-            return Cow::Owned(relative.to_path_buf());
+        if path.is_absolute() {
+            // Try canonicalizing to resolve symlinks
+            if let Ok(canonical) = path.canonicalize()
+                && let Ok(relative) = canonical.strip_prefix(&self.workspace_root)
+            {
+                return Cow::Owned(relative.to_path_buf());
+            }
+            // An unindexable input, not an anomaly: query standing reports
+            // these as `unindexed` rather than a log line shouting about it.
+            debug!(
+                path = %path.display(),
+                workspace = %self.workspace_root.display(),
+                "Absolute path outside workspace root, using as-is"
+            );
+            return Cow::Borrowed(path);
         }
 
-        warn!(
-            path = %path.display(),
-            workspace = %self.workspace_root.display(),
-            "Path is outside workspace root, using as-is"
-        );
-        Cow::Borrowed(path)
+        lexically_normalize(path)
     }
 
     // === File Queries ===
@@ -736,6 +785,69 @@ impl Tethys {
     /// # Ok::<(), tethys::Error>(())
     /// ```
     pub fn get_affected_tests(&self, changed_files: &[PathBuf]) -> Result<Vec<Symbol>> {
+        // Straight to the traversal: this entry point reports no standing,
+        // so it must not pay for classification plus the needs_update()
+        // workspace walk only to discard them. Standing-aware callers use
+        // get_affected_tests_with_standing.
+        self.traverse_affected_tests(changed_files)
+    }
+
+    /// Get affected tests together with the query standing — whether the
+    /// index can stand behind the result being complete.
+    ///
+    /// The `tests` list is always the best-effort traversal result, even
+    /// when standing is indeterminate (fail-open with signal). Standing is
+    /// [`QueryStanding::Indeterminate`] when any of the v1 triggers fire:
+    ///
+    /// - `unindexed`: a changed file has no index row (including
+    ///   unindexable outside-workspace inputs);
+    /// - `stale`: a changed file's indexed mtime/size diverge from disk,
+    ///   including deleted-on-disk;
+    /// - `stale-index`: any indexed file was added/modified/deleted on disk
+    ///   since indexing — the dependency graph itself may be missing edges,
+    ///   so even current inputs cannot be vouched for. Emitted last.
+    ///
+    /// Changed-file paths may be workspace-relative in any lexical spelling
+    /// (`src/x.rs`, `./src/x.rs`, `a/../b`) or absolute; unknown spellings
+    /// degrade to deterministic `unindexed` reasons, never silent skips.
+    ///
+    /// An empty `changed_files` slice is vacuously [`QueryStanding::Confirmed`]:
+    /// if nothing changed, "no affected tests" is complete regardless of
+    /// index freshness.
+    pub fn get_affected_tests_with_standing(
+        &self,
+        changed_files: &[PathBuf],
+    ) -> Result<AffectedTestsReport> {
+        if changed_files.is_empty() {
+            return Ok(AffectedTestsReport {
+                tests: Vec::new(),
+                standing: QueryStanding::Confirmed,
+            });
+        }
+
+        let mut reasons = self.classify_changed_files(changed_files)?;
+        if self.needs_update()? {
+            reasons.push(StandingReason {
+                kind: StandingReasonKind::StaleIndex,
+                path: None,
+            });
+        }
+
+        let tests = self.traverse_affected_tests(changed_files)?;
+        let standing = if reasons.is_empty() {
+            QueryStanding::Confirmed
+        } else {
+            QueryStanding::Indeterminate(reasons)
+        };
+
+        Ok(AffectedTestsReport { tests, standing })
+    }
+
+    /// Reverse-traversal core shared by the affected-tests entry points:
+    /// resolve changed files to ids (unknown files contribute nothing here —
+    /// standing classification reports them), walk dependents, filter test
+    /// symbols.
+    fn traverse_affected_tests(&self, changed_files: &[PathBuf]) -> Result<Vec<Symbol>> {
         use std::collections::HashSet;
 
         // Get file IDs for the changed files

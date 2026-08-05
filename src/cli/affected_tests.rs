@@ -1,13 +1,36 @@
 //! `tethys affected-tests` command implementation.
+//!
+//! Exit-code contract (tethys-09wx, CONTEXT.md "Query standing"):
+//! - **0** — confirmed: the index stands behind the result; empty stdout
+//!   means confirmed no affected tests.
+//! - **2** — indeterminate: the result may be under-complete; stdout still
+//!   carries whatever tests were found, and one machine-readable
+//!   `indeterminate: <kind>: <detail>` line per reason goes to stderr
+//!   (grep anchor `^indeterminate: ` — tracing lines start with a
+//!   timestamp, so the anchor never collides).
+//! - **1** — hard error (unchanged).
+//!
+//! Standing itself is computed by the facade
+//! (`get_affected_tests_with_standing`); this layer only maps it onto the
+//! process contract.
 
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 
 use colored::Colorize;
-use tethys::Tethys;
+use tethys::{QueryStanding, StandingReason, Tethys};
 use tracing::{debug, warn};
 
-/// Run the affected-tests command.
-pub fn run(workspace: &Path, files: &[String], names_only: bool) -> Result<(), tethys::Error> {
+/// Exit code for an indeterminate query standing — distinct from `1`
+/// (hard error) so CI recipes can fail open with signal.
+const EXIT_INDETERMINATE: u8 = 2;
+
+/// Run the affected-tests command, returning the process exit code.
+pub fn run(
+    workspace: &Path,
+    files: &[String],
+    names_only: bool,
+) -> Result<ExitCode, tethys::Error> {
     debug!(workspace = %workspace.display(), "Opening tethys database");
     let tethys = Tethys::new(workspace)?;
 
@@ -17,7 +40,7 @@ pub fn run(workspace: &Path, files: &[String], names_only: bool) -> Result<(), t
     if changed_files.is_empty() {
         warn!("No files specified for affected-tests query");
         eprintln!("{}: no files specified", "warning".yellow());
-        return Ok(());
+        return Ok(ExitCode::SUCCESS);
     }
 
     debug!(
@@ -25,14 +48,15 @@ pub fn run(workspace: &Path, files: &[String], names_only: bool) -> Result<(), t
         files = ?changed_files,
         "Querying affected tests"
     );
-    let affected = tethys.get_affected_tests(&changed_files)?;
+    let report = tethys.get_affected_tests_with_standing(&changed_files)?;
+    let affected = report.tests;
     debug!(affected_count = affected.len(), "Found affected tests");
 
     if affected.is_empty() {
         if !names_only {
             println!("No tests affected by changes to the specified files.");
         }
-        return Ok(());
+        return Ok(exit_for_standing(&report.standing));
     }
 
     if names_only {
@@ -85,5 +109,33 @@ pub fn run(workspace: &Path, files: &[String], names_only: bool) -> Result<(), t
         );
     }
 
-    Ok(())
+    Ok(exit_for_standing(&report.standing))
+}
+
+/// Map query standing onto the process contract: emit one machine-readable
+/// reason line per trigger on stderr, then pick the exit code.
+///
+/// Reason lines are contract output, not logs — they never route through
+/// `tracing` (whose lines are timestamped and level-tagged), so the
+/// `^indeterminate: ` grep anchor stays collision-free on stderr.
+fn exit_for_standing(standing: &QueryStanding) -> ExitCode {
+    use tethys::StandingReasonKind;
+
+    match standing {
+        QueryStanding::Confirmed => ExitCode::SUCCESS,
+        QueryStanding::Indeterminate(reasons) => {
+            for StandingReason { kind, path } in reasons {
+                // Keyed on the kind, not on path-absence: a future path-less
+                // kind must not silently borrow stale-index's detail string.
+                match (kind, path) {
+                    (StandingReasonKind::StaleIndex, _) => {
+                        eprintln!("indeterminate: {kind}: workspace changed since last index");
+                    }
+                    (_, Some(p)) => eprintln!("indeterminate: {kind}: {}", p.display()),
+                    (_, None) => eprintln!("indeterminate: {kind}:"),
+                }
+            }
+            ExitCode::from(EXIT_INDETERMINATE)
+        }
+    }
 }
