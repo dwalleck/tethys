@@ -1236,6 +1236,74 @@ pub struct StalenessReport {
     pub deleted: Vec<PathBuf>,
 }
 
+/// Why a query's standing is indeterminate, for one input file or for the
+/// index as a whole. See CONTEXT.md "Query standing".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StandingReason {
+    /// Which trigger fired.
+    pub kind: StandingReasonKind,
+    /// The offending input, normalized workspace-relative. `None` for
+    /// whole-index reasons ([`StandingReasonKind::StaleIndex`]).
+    pub path: Option<PathBuf>,
+}
+
+/// The concrete v1 reason kinds for an indeterminate query standing.
+///
+/// Marked `#[non_exhaustive]`: resolution-quality triggers are planned once
+/// the Act 1 resolver work lands (PRD tethys-l6nt).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum StandingReasonKind {
+    /// The input has no row in the index (including unindexable
+    /// outside-workspace inputs).
+    Unindexed,
+    /// The input's indexed mtime/size diverge from disk, including
+    /// deleted-on-disk (the row exists but the file is gone).
+    Stale,
+    /// Some indexed file was added/modified/deleted on disk since indexing:
+    /// the dependency graph itself may be missing edges, so even current
+    /// inputs cannot be vouched for.
+    StaleIndex,
+}
+
+impl std::fmt::Display for StandingReasonKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Unindexed => "unindexed",
+            Self::Stale => "stale",
+            Self::StaleIndex => "stale-index",
+        };
+        f.write_str(s)
+    }
+}
+
+/// Whether the index can stand behind an affected-tests result.
+///
+/// *Confirmed* means every changed-file input is indexed and fresh and the
+/// index matches the working tree; an empty result is then a real "no
+/// affected tests". *Indeterminate* means the result may be under-complete;
+/// the reasons say why. See CONTEXT.md "Query standing".
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QueryStanding {
+    /// The index stands behind the result.
+    Confirmed,
+    /// The result may be under-complete; never treat empty as clean.
+    Indeterminate(Vec<StandingReason>),
+}
+
+/// Result of [`get_affected_tests_with_standing`].
+///
+/// [`get_affected_tests_with_standing`]: crate::Tethys::get_affected_tests_with_standing
+#[derive(Debug, Clone)]
+pub struct AffectedTestsReport {
+    /// Test symbols from files that (transitively) depend on the changed
+    /// files — always the best-effort traversal result, even when standing
+    /// is indeterminate (fail-open with signal).
+    pub tests: Vec<Symbol>,
+    /// Whether the index can stand behind `tests` being complete.
+    pub standing: QueryStanding,
+}
+
 impl StalenessReport {
     /// Returns `true` when all three buckets (modified, added, deleted) are
     /// empty — i.e. the index matches the filesystem and no work is required.

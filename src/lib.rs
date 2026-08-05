@@ -58,13 +58,14 @@ pub use dead_code::{DeadCodeFinding, DeadCodeReport, DeadCodeSummary};
 pub use error::{Error, IndexError, IndexErrorKind, Result};
 pub use graph::{FileImpact, FileImpactDependent, SymbolImpact, SymbolImpactCaller};
 pub use types::{
-    ArchPhaseResult, ArchStats, CallEdgeSelection, Caller, CallerMode, CouplingDetail,
-    CouplingMetrics, CouplingSort, CrateInfo, Cycle, DatabaseStats, FileAnalysis, FileId,
-    FunctionSignature, Import, IndexOptions, IndexStats, IndexUpdate, IndexedFile, Language,
-    LspCompletedSession, LspOutcome, LspSessionResult, Package, PackageDependency, PackageId,
-    PackageSource, PanicKind, PanicPoint, Parameter, ParameterKind, ReachabilityDirection,
-    ReachabilityResult, ReachablePath, Reference, ReferenceKind, ResolutionStrategy, Span,
-    StalenessReport, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp, Visibility,
+    AffectedTestsReport, ArchPhaseResult, ArchStats, CallEdgeSelection, Caller, CallerMode,
+    CouplingDetail, CouplingMetrics, CouplingSort, CrateInfo, Cycle, DatabaseStats, FileAnalysis,
+    FileId, FunctionSignature, Import, IndexOptions, IndexStats, IndexUpdate, IndexedFile,
+    Language, LspCompletedSession, LspOutcome, LspSessionResult, Package, PackageDependency,
+    PackageId, PackageSource, PanicKind, PanicPoint, Parameter, ParameterKind, QueryStanding,
+    ReachabilityDirection, ReachabilityResult, ReachablePath, Reference, ReferenceKind,
+    ResolutionStrategy, Span, StalenessReport, StandingReason, StandingReasonKind, Symbol,
+    SymbolId, SymbolKind, UnresolvedRefForLsp, Visibility,
 };
 pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 

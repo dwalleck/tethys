@@ -12,7 +12,10 @@ use tracing::{debug, warn};
 use crate::Tethys;
 use crate::db::normalize_path;
 use crate::error::Result;
-use crate::types::{FileId, IndexOptions, IndexStats, IndexUpdate, Language, StalenessReport};
+use crate::types::{
+    FileId, IndexOptions, IndexStats, IndexUpdate, Language, StalenessReport, StandingReason,
+    StandingReasonKind,
+};
 
 /// Classification of a single file's state relative to its indexed entry.
 ///
@@ -143,6 +146,62 @@ impl Tethys {
             added,
             deleted,
         })
+    }
+
+    /// Classify the query standing of a set of changed-file inputs.
+    ///
+    /// Returns one [`StandingReason`] per unique offending input in
+    /// first-occurrence order, deduplicated on the normalized
+    /// workspace-relative form (so `src/lib.rs` and `./src/lib.rs` yield at
+    /// most one reason). Current files contribute nothing. Divergence uses
+    /// the same `classify_indexed_file` source of truth as
+    /// [`get_stale_files`](Self::get_stale_files): mtime or size differ ⇒
+    /// `Stale`, deleted-on-disk ⇒ `Stale`, no row ⇒ `Unindexed`.
+    ///
+    /// Deliberately per-input only — the whole-index `StaleIndex` trigger is
+    /// layered on by `get_affected_tests_with_standing`, so this stays O(n)
+    /// row lookups + stats for n changed files.
+    // `allow`, not `expect`: the unit tests below DO call this, so the
+    // expectation would be unfulfilled for test targets while the lib target
+    // still needs the suppression until the facade wires it up (next slice).
+    #[allow(
+        dead_code,
+        reason = "wired up by get_affected_tests_with_standing in the next slice"
+    )]
+    pub(crate) fn classify_changed_files(
+        &self,
+        changed_files: &[PathBuf],
+    ) -> Result<Vec<StandingReason>> {
+        let mut seen: HashSet<String> = HashSet::new();
+        let mut reasons = Vec::new();
+
+        for path in changed_files {
+            let relative = self.relative_path(path);
+            let key = normalize_path(relative.as_ref());
+            if !seen.insert(key.clone()) {
+                continue;
+            }
+
+            match self.db.get_file(&relative)? {
+                None => reasons.push(StandingReason {
+                    kind: StandingReasonKind::Unindexed,
+                    path: Some(PathBuf::from(key)),
+                }),
+                Some(file) => {
+                    let abs = self.workspace_root.join(relative.as_ref());
+                    if classify_indexed_file(&abs, file.mtime_ns, file.size_bytes)
+                        != FileChange::Unchanged
+                    {
+                        reasons.push(StandingReason {
+                            kind: StandingReasonKind::Stale,
+                            path: Some(PathBuf::from(key)),
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(reasons)
     }
 
     /// Build the indexed-file lookup map keyed by normalized workspace-relative path.
@@ -372,5 +431,122 @@ mod tests {
         let missing = dir.path().join("never-existed.rs");
 
         assert_eq!(classify_indexed_file(&missing, 0, 0), FileChange::Deleted);
+    }
+
+    mod changed_file_standing {
+        use crate::Tethys;
+        use crate::types::StandingReasonKind;
+        use std::fs;
+        use std::path::PathBuf;
+        use tempfile::TempDir;
+
+        /// Minimal indexed workspace: one lib file, freshly indexed, so every
+        /// test constructs its own ground truth by manipulation afterwards.
+        fn indexed_workspace() -> (TempDir, Tethys) {
+            let dir = TempDir::new().expect("tempdir");
+            fs::write(
+                dir.path().join("Cargo.toml"),
+                "[package]\nname = \"standing_ws\"\nversion = \"0.0.0\"\nedition = \"2021\"\n",
+            )
+            .expect("write Cargo.toml");
+            fs::create_dir_all(dir.path().join("src")).expect("mkdir src");
+            fs::write(dir.path().join("src/lib.rs"), "pub fn a() {}\n").expect("write lib.rs");
+            let mut tethys = Tethys::new(dir.path()).expect("Tethys::new");
+            tethys.index().expect("index");
+            (dir, tethys)
+        }
+
+        #[test]
+        fn current_file_yields_no_reasons() {
+            let (_dir, tethys) = indexed_workspace();
+            let reasons = tethys
+                .classify_changed_files(&[PathBuf::from("src/lib.rs")])
+                .expect("classify");
+            assert!(
+                reasons.is_empty(),
+                "current file must be clean: {reasons:?}"
+            );
+        }
+
+        #[test]
+        fn empty_input_yields_no_reasons() {
+            let (_dir, tethys) = indexed_workspace();
+            let reasons = tethys.classify_changed_files(&[]).expect("classify");
+            assert!(reasons.is_empty());
+        }
+
+        /// Dedup fires on the normalized form: two spellings of one missing
+        /// file produce exactly one `Unindexed` reason carrying that form.
+        #[test]
+        fn unindexed_spellings_dedup_to_one_reason() {
+            let (_dir, tethys) = indexed_workspace();
+            let reasons = tethys
+                .classify_changed_files(&[PathBuf::from("nope.rs"), PathBuf::from("./nope.rs")])
+                .expect("classify");
+            assert_eq!(reasons.len(), 1, "expected one deduped reason: {reasons:?}");
+            assert_eq!(reasons[0].kind, StandingReasonKind::Unindexed);
+            assert_eq!(
+                reasons[0].path.as_deref(),
+                Some(std::path::Path::new("nope.rs"))
+            );
+        }
+
+        /// Size divergence alone must classify Stale even when the mtime
+        /// matches (bug class: mtime-only comparison). Simulated from the
+        /// index side, matching the `classify_existing_file` idiom above.
+        #[test]
+        fn size_divergence_with_matching_mtime_is_stale() {
+            let (_dir, tethys) = indexed_workspace();
+            let conn = rusqlite::Connection::open(tethys.db_path()).expect("open db");
+            conn.execute(
+                "UPDATE files SET size_bytes = size_bytes + 1 WHERE path = 'src/lib.rs'",
+                [],
+            )
+            .expect("shift indexed size");
+            drop(conn);
+
+            let reasons = tethys
+                .classify_changed_files(&[PathBuf::from("src/lib.rs")])
+                .expect("classify");
+            assert_eq!(reasons.len(), 1, "size-only divergence must be stale");
+            assert_eq!(reasons[0].kind, StandingReasonKind::Stale);
+        }
+
+        /// Deleted-on-disk maps to Stale (design D2), not an error.
+        #[test]
+        fn deleted_on_disk_is_stale_not_error() {
+            let (dir, tethys) = indexed_workspace();
+            fs::remove_file(dir.path().join("src/lib.rs")).expect("delete");
+
+            let reasons = tethys
+                .classify_changed_files(&[PathBuf::from("src/lib.rs")])
+                .expect("classify must not error on deleted files");
+            assert_eq!(reasons.len(), 1);
+            assert_eq!(reasons[0].kind, StandingReasonKind::Stale);
+        }
+
+        /// Mixed input keeps first-occurrence order: [current, unindexed,
+        /// stale] reports [unindexed, stale] in that order.
+        #[test]
+        fn mixed_inputs_report_in_first_occurrence_order() {
+            let (dir, tethys) = indexed_workspace();
+            fs::write(dir.path().join("src/new.rs"), "pub fn b() {}\n").expect("write new file");
+            // src/lib.rs touched -> stale; src/new.rs post-index -> unindexed.
+            fs::write(
+                dir.path().join("src/lib.rs"),
+                "pub fn a() { /* changed */ }\n",
+            )
+            .expect("touch lib.rs");
+
+            let reasons = tethys
+                .classify_changed_files(&[PathBuf::from("src/new.rs"), PathBuf::from("src/lib.rs")])
+                .expect("classify");
+            let kinds: Vec<_> = reasons.iter().map(|r| r.kind).collect();
+            assert_eq!(
+                kinds,
+                vec![StandingReasonKind::Unindexed, StandingReasonKind::Stale],
+                "reasons: {reasons:?}"
+            );
+        }
     }
 }
