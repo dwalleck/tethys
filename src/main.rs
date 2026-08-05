@@ -245,11 +245,14 @@ fn main() -> ExitCode {
         _ => "trace",
     };
 
+    // Logs are diagnostics, not data: they go to stderr so machine-readable
+    // stdout (--names-only, --json) stays pipe-safe (tethys-sspl).
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(filter)),
         )
         .with_target(false)
+        .with_writer(std::io::stderr)
         .init();
 
     // Determine workspace root
