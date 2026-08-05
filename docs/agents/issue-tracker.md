@@ -7,8 +7,10 @@ rivets IDs in commit and PR messages.
 
 ## Core commands
 
-- `rivets create --title "..." -t <bug|feature|task|epic|chore> -p <0-4> -l "a,b" -D "..."`
-  — create an issue. Priority: 0=critical … 4=backlog. Also accepts
+- `rivets create --title "..." -k <bug|feature|task|epic|chore> -p <0-4> -l "a,b" -D "..."`
+  — create an issue. The kind flag is `-k`/`--kind`, NOT `-t` (clap rejects
+  `-t` outright). Add `-y` to skip the interactive confirmation when
+  scripting. Priority: 0=critical … 4=backlog. Also accepts
   `--acceptance`, `--design`, `--deps "type:id,..."` (types: blocks, related,
   parent-child, discovered-from), and `--external-ref`.
 - `rivets list` / `rivets ready` / `rivets blocked` — query the backlog.

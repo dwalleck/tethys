@@ -1289,9 +1289,15 @@ pub struct Caller {
 }
 
 /// A circular dependency detected in the codebase.
+///
+/// `files` contains each indexed workspace-relative path exactly once, in
+/// stored dependency direction. The sequence is rotated to the
+/// lexicographically smallest path and does not repeat that path at the end.
+/// The collection returned by `Tethys::detect_cycles` is deterministically
+/// ordered by these canonical path sequences.
 #[derive(Debug, Clone)]
 pub struct Cycle {
-    /// Files involved in the cycle, in dependency order
+    /// Indexed workspace-relative files in canonical dependency order.
     pub files: Vec<PathBuf>,
 }
 

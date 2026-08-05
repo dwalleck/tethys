@@ -28,3 +28,23 @@ Algorithms that don't express cleanly as CTEs (e.g. Tarjan SCC for rich cycle
 grouping, weighted shortest path) could justify petgraph for those *specific*
 operations. A narrow internal seam should be introduced only when a second real
 implementation exists.
+
+## Amendment (2026-08-02, tethys-u5o5)
+
+The **decision stands** — petgraph is still not a dependency and there is still
+no graph adapter trait. Two of the four operations named above have since moved
+off recursive CTEs, so the "recursive CTEs express all of them" premise above is
+narrower than originally recorded:
+
+- **Shortest path** (tethys-4m9o, tethys-vwrn): the CTE enumerated walks rather
+  than visiting nodes, so it did not terminate on a cyclic index. Replaced by a
+  visited-set BFS over one adjacency load.
+- **Cycle detection** (tethys-u5o5): complete simple-cycle enumeration with
+  rotation canonicalization has no natural CTE form. Replaced by a DFS over one
+  adjacency snapshot.
+
+Both still load from SQLite and hold no persistent in-memory graph, so the
+"database is the single source of truth" property is intact. What is *lost* is
+the third rationale — `max_depth` bounding inside the query. In-Rust traversal
+must bound itself explicitly, and cycle detection currently does not (see the
+enumeration cost note in the tethys-u5o5 review).
