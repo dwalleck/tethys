@@ -239,7 +239,14 @@ Per-crate afferent (Ca) and efferent (Ce) dependency counts, plus the derived
 instability metric `Ce / (Ca + Ce)`.
 
 **Cycle**:
-A circular dependency among files.
+A circular dependency among files, recorded as a directed sequence of
+workspace-relative paths rooted at its lexicographically smallest member. The
+first file is not repeated at the end. Rotations of the same traversal collapse
+to one result; direction does not — `a → b → c` and `a → c → b` are two cycles
+when both sets of directed edges exist. A file depending on itself is a
+one-element cycle.
+_Avoid_: treating a rotation and a reversal as the same thing (rotations
+collapse, reversals do not)
 
 **Dead code**:
 A non-public, non-test symbol with zero inbound evidence — no resolved reference
