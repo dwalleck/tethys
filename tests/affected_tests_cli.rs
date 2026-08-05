@@ -88,3 +88,22 @@ fn stdout_carries_only_data() {
     // somewhere must be stderr, or they'd have corrupted stdout above.
     assert!(!out.stderr.is_empty(), "debug logs should appear on stderr");
 }
+
+/// C10 (tethys-vk3z): a valid relative in-workspace path must not warn
+/// "outside workspace root".
+#[test]
+fn relative_path_does_not_warn_outside_workspace() {
+    let ws = fixture_workspace();
+    index(ws.path());
+
+    let out = run_tethys(
+        ws.path(),
+        &["affected-tests", "--names-only", "src/lib.rs"],
+        None,
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("outside workspace root"),
+        "spurious outside-workspace warn for a valid relative path:\n{stderr}"
+    );
+}

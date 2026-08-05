@@ -115,6 +115,46 @@ fn saturating_depth_to_u32(depth: usize) -> u32 {
     })
 }
 
+/// Lexically normalize a relative path: drop `.` components and resolve
+/// intra-path `..` against preceding segments, so `./src/lib.rs` and
+/// `src/../src/lib.rs` match the DB row stored as `src/lib.rs`.
+///
+/// Purely textual — no filesystem access, so it works for paths that no
+/// longer (or never did) exist. Paths that escape upward (a `..` with
+/// nothing left to pop) are returned as-is: they cannot name an indexed
+/// file, and query standing reports them as `unindexed` downstream.
+/// (Distinct from `cargo::sanitize_target_path`, which *rejects* `..` in
+/// manifest targets rather than resolving it.)
+fn lexically_normalize(path: &Path) -> Cow<'_, Path> {
+    use std::path::Component;
+
+    let mut parts: Vec<&std::ffi::OsStr> = Vec::new();
+    for comp in path.components() {
+        match comp {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if parts.pop().is_none() {
+                    return Cow::Borrowed(path);
+                }
+            }
+            Component::Normal(seg) => parts.push(seg),
+            // Unreachable for relative inputs; bail rather than mangle.
+            Component::Prefix(_) | Component::RootDir => return Cow::Borrowed(path),
+        }
+    }
+
+    // Compare the rebuilt form against the raw input rather than trusting a
+    // components() scan: components() itself hides interior `.` segments
+    // (`src/./lib.rs` iterates as src, lib.rs), so a "looks already normal"
+    // fast path would return the unnormalized original string.
+    let rebuilt: PathBuf = parts.iter().collect();
+    if rebuilt.as_os_str() == path.as_os_str() {
+        Cow::Borrowed(path)
+    } else {
+        Cow::Owned(rebuilt)
+    }
+}
+
 #[expect(
     clippy::missing_errors_doc,
     reason = "error docs deferred to avoid churn during active development"
@@ -226,27 +266,35 @@ impl Tethys {
     ///
     /// Handles symlink differences (e.g., `/var` -> `/private/var` on macOS) by
     /// attempting canonicalization when the initial `strip_prefix` fails on
-    /// absolute paths. Returns `Cow::Borrowed` for the common fast path,
-    /// `Cow::Owned` only when canonicalization was needed.
+    /// absolute paths. Relative inputs are the documented "relative to
+    /// workspace root" form: they are lexically normalized (`./` dropped,
+    /// intra-path `..` resolved) so every spelling of the same file matches
+    /// the same DB row (tethys-xetb), and they never warn (tethys-vk3z).
+    /// Returns `Cow::Borrowed` for the common fast path, `Cow::Owned` only
+    /// when canonicalization or normalization rewrote the path.
     pub(crate) fn relative_path<'a>(&self, path: &'a Path) -> Cow<'a, Path> {
         if let Ok(relative) = path.strip_prefix(&self.workspace_root) {
             return Cow::Borrowed(relative);
         }
 
-        // For absolute paths, try canonicalizing to resolve symlinks
-        if path.is_absolute()
-            && let Ok(canonical) = path.canonicalize()
-            && let Ok(relative) = canonical.strip_prefix(&self.workspace_root)
-        {
-            return Cow::Owned(relative.to_path_buf());
+        if path.is_absolute() {
+            // Try canonicalizing to resolve symlinks
+            if let Ok(canonical) = path.canonicalize()
+                && let Ok(relative) = canonical.strip_prefix(&self.workspace_root)
+            {
+                return Cow::Owned(relative.to_path_buf());
+            }
+            // An unindexable input, not an anomaly: query standing reports
+            // these as `unindexed` rather than a log line shouting about it.
+            debug!(
+                path = %path.display(),
+                workspace = %self.workspace_root.display(),
+                "Absolute path outside workspace root, using as-is"
+            );
+            return Cow::Borrowed(path);
         }
 
-        warn!(
-            path = %path.display(),
-            workspace = %self.workspace_root.display(),
-            "Path is outside workspace root, using as-is"
-        );
-        Cow::Borrowed(path)
+        lexically_normalize(path)
     }
 
     // === File Queries ===

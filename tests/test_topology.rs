@@ -369,6 +369,72 @@ fn test_add() {
         );
     }
 
+    /// C8 (tethys-xetb): every lexical spelling of the same workspace file
+    /// must resolve to the same index row — `./`-prefixed and intra-path
+    /// `..` spellings previously missed the exact-string lookup and read as
+    /// confirmed-clean.
+    #[test]
+    fn path_spellings_resolve_to_same_file() {
+        let (_dir, mut tethys) = workspace_with_files(&[(
+            "src/lib.rs",
+            r#"
+pub fn add(a: i32, b: i32) -> i32 { a + b }
+
+#[test]
+fn test_add() {
+    assert_eq!(add(2, 3), 5);
+}
+"#,
+        )]);
+
+        tethys.index().expect("index failed");
+        for spelling in [
+            "src/lib.rs",
+            "./src/lib.rs",
+            "src/../src/lib.rs",
+            "src/./lib.rs",
+        ] {
+            let affected = tethys
+                .get_affected_tests(&[PathBuf::from(spelling)])
+                .expect("get_affected_tests failed");
+            assert_eq!(
+                affected.len(),
+                1,
+                "spelling {spelling:?} must resolve to the indexed file"
+            );
+            assert_eq!(affected[0].name, "test_add");
+        }
+    }
+
+    /// Escaping and unresolvable spellings must degrade to "no row" (empty
+    /// result today; `unindexed` standing once tethys-09wx lands) — never
+    /// panic, never accidentally match.
+    #[test]
+    fn escaping_path_spellings_resolve_to_nothing() {
+        let (_dir, mut tethys) = workspace_with_files(&[(
+            "src/lib.rs",
+            r#"
+pub fn add(a: i32, b: i32) -> i32 { a + b }
+
+#[test]
+fn test_add() {
+    assert_eq!(add(2, 3), 5);
+}
+"#,
+        )]);
+
+        tethys.index().expect("index failed");
+        for spelling in ["../escape.rs", "", "."] {
+            let affected = tethys
+                .get_affected_tests(&[PathBuf::from(spelling)])
+                .expect("get_affected_tests should not error");
+            assert!(
+                affected.is_empty(),
+                "spelling {spelling:?} must not match any indexed file"
+            );
+        }
+    }
+
     #[test]
     fn skips_unindexed_root_without_losing_indexed_results() {
         let (_dir, mut tethys) = workspace_with_files(&[(
