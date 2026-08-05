@@ -268,6 +268,13 @@ set is empty (untested-code with zero test roots indexed: every product symbol
 is trivially unreachable, so the analysis reports nothing rather than accusing
 everything). An indeterminate empty result means "cannot see", never "clean" —
 it must surface distinguishably, not as silence.
+Concrete reason kinds (v1, affected-tests): *unindexed* — an input has no
+index row (including unindexable outside-workspace inputs); *stale* — an
+input's indexed mtime/size diverge from disk (including deleted-on-disk);
+*stale-index* — some indexed file changed on disk since indexing, so the
+dependency graph itself may be missing edges and even current inputs cannot
+be vouched for.
 _Avoid_: treating an empty result as clean without checking standing; conflating
 standing with confidence bands (bands grade individual edges; standing grades a
-query's inputs).
+query's inputs); "stale" for the whole-workspace condition (that is stale-index;
+stale is per-input).

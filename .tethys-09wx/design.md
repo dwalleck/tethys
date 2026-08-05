@@ -42,8 +42,15 @@ Extend-existing throughout — no new seam, so no `design-an-interface` pass.
   stderr-reason semantics; human stdout shape is unchanged.
 - v1 triggers: (a) changed file has no row; (b) changed file's mtime_ns OR
   size_bytes differ from its row (`classify_indexed_file` semantics — "differ",
-  not just "newer": any divergence means the index cannot vouch).
+  not just "newer": any divergence means the index cannot vouch);
+  (c) whole-index staleness via early-exit `needs_update()` — any indexed file
+  added/modified/deleted on disk emits one fixed line
+  `indeterminate: stale-index: workspace changed since last index`, after the
+  per-file reasons. (c) is deliberately a superset signal: it also fires
+  whenever (b) fires or a new-on-disk file triggers (a) — all applicable
+  reasons are emitted, complete and deterministic.
   Deleted-on-disk maps to `stale` (row exists, disk disagrees).
+  Outside-workspace inputs report `unindexed` (unindexable ⇒ cannot vouch).
 - Resolution-quality triggers stay out per the issue, gated on Act 1 resolver
   work (PRD tethys-l6nt).
 
@@ -93,6 +100,7 @@ Subtractive in two places:
 | C13 | `get_affected_tests` public behavior unchanged | run existing suite untouched | `tests/test_topology.rs` (pre-existing, written against old model) | 5m | pending | existing suite |
 | C14 | CLI layer contains no direct DB/fs-metadata access | grep `rusqlite\|fs::metadata\|sqlite` in `src/cli/affected_tests.rs` == 0 | grep (mechanical) | 5m | pending | assert in `tests/architecture.rs` |
 | C15 | Determinism: same invocation twice → byte-identical stdout + reason lines + exit | bin test: run twice, compare | byte diff | 5m | pending | `affected_tests_cli::deterministic_output` |
+| C16 | Current changed file + any OTHER indexed file changed on disk → exit 2 + `stale-index` line; pristine workspace → no such line | bin test: create unrelated file post-index, query current file; inverse assert lives in C3's confirmed test | fixture construction | 10m | pending | `affected_tests_cli::stale_index_is_indeterminate` |
 
 Non-vacuity (buggy implementation each falsifier catches): C2 subscriber left
 on stdout; C3 current misread as stale; C4 silently-skip retained; C5
@@ -109,33 +117,28 @@ C14 CLI stat-ing files directly; C15 HashMap order leaking into output.
 2. **No JSON output mode / envelope** for affected-tests — that surface
    belongs to the tethys-zwaz convergence; the `^indeterminate: ` stderr
    anchor and pure-data stdout are designed to compose with it.
-3. **No full-workspace staleness trigger in v1 as issued** — see open
-   decision D1; if excluded it gets filed as its own issue at the pause.
+3. **No per-file detail for trigger (c)** — the `stale-index` line is a
+   fixed string (no counts, no file list): enumerating offenders costs a full
+   `get_stale_files` walk and the CI reaction is identical either way; a
+   consumer wanting the list runs `tethys index` which reports it.
 4. **No auto-reindex on indeterminate** — mechanism in the tool, policy in
    the consumer (the CI recipe decides to re-run or re-index).
 5. **No human-mode stdout change** — indeterminacy is exit code + stderr.
 6. **TOCTOU accepted** between stat and answer, same documented posture as
    `get_stale_files`.
 
-## Open decisions for the design pause
+## Decisions (resolved at design pause, 2026-08-05)
 
-- **D1 — third trigger (c), whole-index staleness.** The issue's v1 triggers
-  check only the *changed* files, which leaves a false-confirm hole: index at
-  t0; at t1 edit test T to import F; at t2 query with changed=[F]. F's row is
-  current, T's indexed edges lack T→F, result omits T's tests — yet standing
-  reads *confirmed*. A trigger (c) via `needs_update()` (any indexed file
-  added/modified/deleted on disk ⇒ `indeterminate: stale-index`) closes it,
-  is deterministic, and never fires in the documented recipe (index
-  immediately before query). Cost: one early-exit stat walk per query. In dev
-  it fires on any edit-after-index — honest, but chatty.
-  **Recommendation: include (c).** Without it, "confirmed" overclaims — the
-  posture the issue exists to fix. If excluded: file the hole as an issue.
-- **D2 — deleted-on-disk kind**: map to `stale` (recommended — row/disk
-  disagree; two reason kinds stay two) vs a third kind `deleted`.
-- **D3 — in-branch scope**: fix tethys-sspl (logs→stderr, affects every
-  command's log channel) and tethys-vk3z (spurious WARN) in this branch as
-  prerequisites; tethys-xetb's fix is inherently in-branch. Confirm.
-- **D4 — reason-line format**: `indeterminate: <kind>: <path>` on stderr,
-  normalized workspace-relative path, first-occurrence order, deduped.
-- **D5 — outside-workspace inputs**: report as `unindexed` (recommended:
-  unindexable ⇒ index cannot vouch; deterministic) vs hard error exit 1.
+- **D1 — trigger (c) whole-index staleness: INCLUDED** (closes the
+  false-confirm hole where an edited-but-unlisted file hides graph edges;
+  claim C16). The `needs_update()` early-exit walk runs once per query.
+- **D2 — deleted-on-disk maps to `stale`** (two reason kinds for per-file
+  triggers stay two).
+- **D3 — in-branch scope approved**: tethys-sspl (logs→stderr) and
+  tethys-vk3z (spurious WARN) fixed here as prerequisites; tethys-xetb
+  inherently in-branch.
+- **D4 — reason-line format approved**: `indeterminate: <kind>: <path>`,
+  normalized workspace-relative path, first-occurrence order, deduped;
+  `stale-index` line is fixed-string, emitted last.
+- **D5 — outside-workspace inputs report `unindexed`** (fail-open with
+  signal, not exit 1).
