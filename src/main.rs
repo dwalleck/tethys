@@ -270,10 +270,17 @@ fn main() -> ExitCode {
         },
     };
 
-    let result = run_command(&workspace, cli.command);
+    // affected-tests owns its exit code (0 confirmed / 2 indeterminate /
+    // 1 error — tethys-09wx); every other command maps Ok(()) -> SUCCESS.
+    let result = match cli.command {
+        Commands::AffectedTests { files, names_only } => {
+            cli::affected_tests::run(&workspace, &files, names_only)
+        }
+        command => run_command(&workspace, command).map(|()| ExitCode::SUCCESS),
+    };
 
     match result {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(code) => code,
         Err(e) => {
             eprintln!("{}: {e}", "error".red().bold());
             // Show cause chain for nested errors
@@ -329,8 +336,11 @@ fn run_command(workspace: &Path, command: Commands) -> Result<(), tethys::Error>
             direction,
             max_depth,
         } => cli::reachable::run(workspace, &symbol, &direction, Some(max_depth)),
-        Commands::AffectedTests { files, names_only } => {
-            cli::affected_tests::run(workspace, &files, names_only)
+        // AffectedTests is dispatched in main() — it returns an ExitCode
+        // (0 confirmed / 2 indeterminate) instead of the unit Ok this
+        // function's signature maps to SUCCESS.
+        Commands::AffectedTests { .. } => {
+            unreachable!("AffectedTests is dispatched before run_command")
         }
         Commands::PanicPoints {
             include_tests,
