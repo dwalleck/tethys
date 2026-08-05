@@ -369,7 +369,6 @@ fn test_add() {
         );
     }
 
-    /// C8 (tethys-xetb): every lexical spelling of the same workspace file
     /// C16 + C13: fresh index and untouched workspace → Confirmed standing;
     /// creating an unrelated file afterwards flips standing to Indeterminate
     /// (stale-index) while the traversal result is unchanged.
@@ -501,6 +500,7 @@ fn test_add() {
         );
     }
 
+    /// C8 (tethys-xetb): every lexical spelling of the same workspace file
     /// must resolve to the same index row — `./`-prefixed and intra-path
     /// `..` spellings previously missed the exact-string lookup and read as
     /// confirmed-clean.

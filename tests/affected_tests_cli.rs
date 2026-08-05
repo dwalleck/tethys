@@ -402,3 +402,54 @@ fn cli_layer_never_touches_db_or_fs_metadata() {
         );
     }
 }
+
+/// C7 bin half: a changed file deleted after indexing (row exists, disk
+/// gone) reads as `stale` — fail-open exit 2, never a hard error.
+#[test]
+fn deleted_on_disk_is_indeterminate_stale() {
+    let ws = fixture_workspace();
+    index(ws.path());
+    std::fs::remove_file(ws.path().join("src/leaf.rs")).expect("delete leaf.rs");
+
+    let out = run_tethys(
+        ws.path(),
+        &["affected-tests", "--names-only", "src/leaf.rs"],
+        None,
+    );
+    assert_eq!(
+        exit_code(&out),
+        2,
+        "deleted file must fail open, not hard-error"
+    );
+    let reasons = reason_lines(&out);
+    assert!(
+        reasons.contains(&"indeterminate: stale: src/leaf.rs".to_owned()),
+        "deleted-on-disk maps to stale (design D2), got: {reasons:?}"
+    );
+}
+
+/// Human mode (no --names-only) carries the same exit and stderr-reason
+/// semantics as machine mode; the human report stays on stdout.
+#[test]
+fn human_mode_shares_exit_and_reason_contract() {
+    let ws = fixture_workspace();
+    index(ws.path());
+    std::fs::write(ws.path().join("src/lib.rs"), LIB_RS).expect("rewrite same content");
+
+    let out = run_tethys(ws.path(), &["affected-tests", "src/lib.rs"], None);
+    assert_eq!(
+        exit_code(&out),
+        2,
+        "human mode must share the exit contract"
+    );
+    let reasons = reason_lines(&out);
+    assert!(
+        reasons.contains(&"indeterminate: stale: src/lib.rs".to_owned()),
+        "human mode must share the stderr reason contract, got: {reasons:?}"
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("test_add"),
+        "human report must still list found tests:\n{stdout}"
+    );
+}

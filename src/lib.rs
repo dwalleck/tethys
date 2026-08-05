@@ -785,7 +785,11 @@ impl Tethys {
     /// # Ok::<(), tethys::Error>(())
     /// ```
     pub fn get_affected_tests(&self, changed_files: &[PathBuf]) -> Result<Vec<Symbol>> {
-        Ok(self.get_affected_tests_with_standing(changed_files)?.tests)
+        // Straight to the traversal: this entry point reports no standing,
+        // so it must not pay for classification plus the needs_update()
+        // workspace walk only to discard them. Standing-aware callers use
+        // get_affected_tests_with_standing.
+        self.traverse_affected_tests(changed_files)
     }
 
     /// Get affected tests together with the query standing — whether the

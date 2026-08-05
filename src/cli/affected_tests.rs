@@ -119,13 +119,20 @@ pub fn run(
 /// `tracing` (whose lines are timestamped and level-tagged), so the
 /// `^indeterminate: ` grep anchor stays collision-free on stderr.
 fn exit_for_standing(standing: &QueryStanding) -> ExitCode {
+    use tethys::StandingReasonKind;
+
     match standing {
         QueryStanding::Confirmed => ExitCode::SUCCESS,
         QueryStanding::Indeterminate(reasons) => {
             for StandingReason { kind, path } in reasons {
-                match path {
-                    Some(p) => eprintln!("indeterminate: {kind}: {}", p.display()),
-                    None => eprintln!("indeterminate: {kind}: workspace changed since last index"),
+                // Keyed on the kind, not on path-absence: a future path-less
+                // kind must not silently borrow stale-index's detail string.
+                match (kind, path) {
+                    (StandingReasonKind::StaleIndex, _) => {
+                        eprintln!("indeterminate: {kind}: workspace changed since last index");
+                    }
+                    (_, Some(p)) => eprintln!("indeterminate: {kind}: {}", p.display()),
+                    (_, None) => eprintln!("indeterminate: {kind}:"),
                 }
             }
             ExitCode::from(EXIT_INDETERMINATE)
