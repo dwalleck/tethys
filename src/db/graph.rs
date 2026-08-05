@@ -475,20 +475,50 @@ fn run_cycle_search(
         neighbors.dedup();
     }
 
+    let ranks: HashMap<FileId, usize> = nodes.iter().copied().zip(0..).collect();
+
     let mut search = CycleSearch {
         adj: &adj,
         paths_by_id,
         path: Vec::new(),
         blocked: HashSet::new(),
         blocked_by: HashMap::new(),
+        component: HashSet::new(),
         cycles: Vec::new(),
         visits: 0,
     };
-    for &start in &nodes {
-        // Johnson's bookkeeping is scoped to one start node's subgraph.
+
+    // Johnson's outer loop. Rather than searching from every node, advance a
+    // cursor to the least node of the least component that can host a cycle
+    // and search only that component. Nodes on no cycle are never searched
+    // from at all, which is the whole of tethys-usvm: before this, a start
+    // that could not reach itself still paid a full walk, so one cycle over
+    // 10,000 files cost 50,005,000 visits.
+    let mut cursor = 0;
+    while cursor < nodes.len() {
+        let remaining = &nodes[cursor..];
+        let allowed: HashSet<FileId> = remaining.iter().copied().collect();
+
+        let component = strongly_connected_components(&adj, &allowed, remaining)
+            .into_iter()
+            .filter(|component| hosts_cycle(component, &adj))
+            .min_by_key(|component| component.iter().map(|node| ranks[node]).min());
+
+        // No component left can close a cycle, so no later start can either.
+        let Some(component) = component else { break };
+
+        let start = *component
+            .iter()
+            .min_by_key(|node| ranks[node])
+            .expect("a component that hosts a cycle has at least one member");
+
+        // Johnson's bookkeeping is scoped to one component's search.
         search.blocked.clear();
         search.blocked_by.clear();
+        search.component = component.into_iter().collect();
         search.visit(start, start);
+
+        cursor = ranks[&start] + 1;
     }
 
     let mut cycles = search.cycles;
@@ -496,6 +526,118 @@ fn run_cycle_search(
     CycleSearchOutcome {
         cycles,
         visits: search.visits,
+    }
+}
+
+/// Strongly-connected components of the subgraph induced on `allowed`.
+///
+/// Johnson's enumeration is only output-sensitive when each start node's
+/// search is confined to the component that start belongs to: a node that
+/// cannot reach itself can begin no cycle, and walking away from it is the
+/// entire cost this restriction removes (tethys-usvm).
+///
+/// Iterative rather than the textbook recursion. [`CycleSearch::visit`] and
+/// [`CycleSearch::unblock`] already recurse without a depth bound
+/// (tethys-qqbi); a third unbounded site would deepen that issue instead of
+/// leaving it where it is, so this pass carries an explicit work stack and
+/// costs no stack depth at all.
+///
+/// Roots are taken in `order` so the component sequence is deterministic
+/// across runs. Cost is one `O(V + E)` pass over the induced subgraph: every
+/// node is pushed and popped once and every edge is examined once.
+fn strongly_connected_components(
+    adj: &HashMap<FileId, Vec<FileId>>,
+    allowed: &HashSet<FileId>,
+    order: &[FileId],
+) -> Vec<Vec<FileId>> {
+    debug_assert!(
+        order.iter().all(|node| allowed.contains(node)),
+        "order must list only nodes of the induced subgraph"
+    );
+
+    let mut index_of: HashMap<FileId, usize> = HashMap::new();
+    let mut lowlink: HashMap<FileId, usize> = HashMap::new();
+    let mut on_stack: HashSet<FileId> = HashSet::new();
+    let mut component_stack: Vec<FileId> = Vec::new();
+    let mut components: Vec<Vec<FileId>> = Vec::new();
+    let mut next_index = 0;
+
+    // Each frame is (node, index of the next neighbour to examine).
+    let mut work: Vec<(FileId, usize)> = Vec::new();
+
+    for &root in order {
+        if index_of.contains_key(&root) {
+            continue;
+        }
+        work.push((root, 0));
+
+        while let Some(&mut (node, ref mut cursor)) = work.last_mut() {
+            if *cursor == 0 {
+                index_of.insert(node, next_index);
+                lowlink.insert(node, next_index);
+                next_index += 1;
+                component_stack.push(node);
+                on_stack.insert(node);
+            }
+
+            let neighbors = adj.get(&node).map_or(&[][..], Vec::as_slice);
+            let mut descended = false;
+            for (offset, &neighbor) in neighbors.iter().enumerate().skip(*cursor) {
+                if !allowed.contains(&neighbor) {
+                    continue;
+                }
+                if let Some(&neighbor_index) = index_of.get(&neighbor) {
+                    // Only stack members are in the same component-in-progress;
+                    // a finished neighbour belongs to an already-emitted one.
+                    if on_stack.contains(&neighbor) {
+                        let low = lowlink[&node].min(neighbor_index);
+                        lowlink.insert(node, low);
+                    }
+                } else {
+                    *cursor = offset + 1;
+                    work.push((neighbor, 0));
+                    descended = true;
+                    break;
+                }
+            }
+            if descended {
+                continue;
+            }
+
+            if lowlink[&node] == index_of[&node] {
+                let mut component = Vec::new();
+                while let Some(member) = component_stack.pop() {
+                    on_stack.remove(&member);
+                    component.push(member);
+                    if member == node {
+                        break;
+                    }
+                }
+                components.push(component);
+            }
+
+            work.pop();
+            if let Some(&(parent, _)) = work.last() {
+                let low = lowlink[&parent].min(lowlink[&node]);
+                lowlink.insert(parent, low);
+            }
+        }
+    }
+
+    components
+}
+
+/// Whether a component contains a cycle, and so is worth searching.
+///
+/// Johnson calls these the non-trivial components. A component of two or more
+/// nodes is mutually reachable by definition; a lone node hosts a cycle only
+/// when it depends on itself. Testing merely that the component is non-empty
+/// would leave every singleton looking live and skip nothing at all.
+fn hosts_cycle(component: &[FileId], adj: &HashMap<FileId, Vec<FileId>>) -> bool {
+    match component {
+        [] => false,
+        [only] => adj.get(only).is_some_and(|targets| targets.contains(only)),
+        _ => true,
     }
 }
 
@@ -517,6 +659,11 @@ struct CycleSearch<'a> {
     /// Johnson's `B`: for each node, the blocked nodes to release when it is
     /// unblocked.
     blocked_by: HashMap<FileId, HashSet<FileId>>,
+    /// The strongly-connected component the current search is confined to.
+    ///
+    /// Every cycle through `start` lies wholly inside `start`'s component, so
+    /// stepping outside it can only reach nodes that cannot come back.
+    component: HashSet<FileId>,
     /// Canonically rotated cycles found so far, unordered.
     cycles: Vec<Vec<FileId>>,
     /// Node visits made, reported as [`CycleSearchOutcome::visits`].
@@ -528,12 +675,22 @@ impl<'a> CycleSearch<'a> {
     ///
     /// Returns whether any cycle through `start` was reached from `node`.
     ///
-    /// Two prunes make each cycle appear exactly once. The
+    /// Three prunes shape the walk. [`Self::component`] confines it to nodes
+    /// that can reach `start` again, which is what keeps cost proportional to
+    /// cycles rather than to graph size. The
     /// `compare_file_ids(neighbour, start, ..) == Less` skip confines the
     /// search to nodes at or after `start` in path order, so a cycle is
     /// discovered only while walking from its own smallest member — that is
     /// what makes the recorded [`Self::path`] canonically rotated. The
     /// `blocked` set keeps each walk simple.
+    ///
+    /// Callers must pass the least-ranked member of [`Self::component`] as
+    /// `start`. The rank skip is what enforces that rather than merely
+    /// documenting it: component membership already implies `neighbour >=
+    /// start` for a correctly rooted search, so the test looks redundant and
+    /// is not — it is the reason a mis-rooted component degrades to the older,
+    /// slower behaviour instead of silently emitting duplicate rotations. Do
+    /// not delete it as dead.
     ///
     /// The `found` return is Johnson's contribution and the reason cost is
     /// bounded by the number of cycles rather than the number of simple
@@ -551,7 +708,9 @@ impl<'a> CycleSearch<'a> {
         self.blocked.insert(node);
 
         for &neighbor in neighbors {
-            if compare_file_ids(neighbor, start, self.paths_by_id) == Ordering::Less {
+            if !self.component.contains(&neighbor)
+                || compare_file_ids(neighbor, start, self.paths_by_id) == Ordering::Less
+            {
                 continue;
             }
             if neighbor == start {
@@ -566,7 +725,9 @@ impl<'a> CycleSearch<'a> {
             self.unblock(node);
         } else {
             for &neighbor in neighbors {
-                if compare_file_ids(neighbor, start, self.paths_by_id) != Ordering::Less {
+                if self.component.contains(&neighbor)
+                    && compare_file_ids(neighbor, start, self.paths_by_id) != Ordering::Less
+                {
                     self.blocked_by.entry(neighbor).or_default().insert(node);
                 }
             }
@@ -701,6 +862,150 @@ mod tests {
             .collect()
     }
 
+    /// Build an adjacency map from `(from, to)` pairs given as plain integers.
+    fn edges(pairs: &[(i64, i64)]) -> HashMap<FileId, Vec<FileId>> {
+        let mut adj: HashMap<FileId, Vec<FileId>> = HashMap::new();
+        for &(from, to) in pairs {
+            adj.entry(FileId::from(from))
+                .or_default()
+                .push(FileId::from(to));
+        }
+        adj
+    }
+
+    /// Zero-padded paths, so lexicographic path order equals numeric id order.
+    fn padded_paths(ids: &[i64]) -> HashMap<FileId, PathBuf> {
+        ids.iter()
+            .map(|&id| (FileId::from(id), PathBuf::from(format!("src/f{id:04}.rs"))))
+            .collect()
+    }
+
+    /// Components as sorted id lists, so comparison ignores discovery order.
+    fn sorted_components(components: &[Vec<FileId>]) -> Vec<Vec<i64>> {
+        let mut out: Vec<Vec<i64>> = components
+            .iter()
+            .map(|component| {
+                let mut ids: Vec<i64> = component.iter().copied().map(FileId::as_i64).collect();
+                ids.sort_unstable();
+                ids
+            })
+            .collect();
+        out.sort();
+        out
+    }
+
+    fn all_of(ids: &[i64]) -> (HashSet<FileId>, Vec<FileId>) {
+        let nodes: Vec<FileId> = ids.iter().copied().map(FileId::from).collect();
+        (nodes.iter().copied().collect(), nodes)
+    }
+
+    /// Components must match a decomposition computed by hand.
+    ///
+    /// Each shape is small enough to verify by inspection, which is the point:
+    /// the oracle here is arithmetic on paper, not another traversal.
+    #[test]
+    fn scc_decomposition_matches_hand_computed_components() {
+        // Two disjoint two-cycles.
+        let adj = edges(&[(0, 1), (1, 0), (2, 3), (3, 2)]);
+        let (allowed, order) = all_of(&[0, 1, 2, 3]);
+        assert_eq!(
+            sorted_components(&strongly_connected_components(&adj, &allowed, &order)),
+            vec![vec![0, 1], vec![2, 3]]
+        );
+
+        // Three-cycle with an acyclic tail hanging off it.
+        let adj = edges(&[(0, 1), (1, 2), (2, 0), (2, 3)]);
+        let (allowed, order) = all_of(&[0, 1, 2, 3]);
+        assert_eq!(
+            sorted_components(&strongly_connected_components(&adj, &allowed, &order)),
+            vec![vec![0, 1, 2], vec![3]]
+        );
+
+        // A pure chain decomposes into singletons.
+        let adj = edges(&[(0, 1), (1, 2)]);
+        let (allowed, order) = all_of(&[0, 1, 2]);
+        assert_eq!(
+            sorted_components(&strongly_connected_components(&adj, &allowed, &order)),
+            vec![vec![0], vec![1], vec![2]]
+        );
+
+        // A node depending on itself is its own component.
+        let adj = edges(&[(0, 0)]);
+        let (allowed, order) = all_of(&[0]);
+        assert_eq!(
+            sorted_components(&strongly_connected_components(&adj, &allowed, &order)),
+            vec![vec![0]]
+        );
+    }
+
+    /// Only the induced subgraph participates: excluded nodes cut their edges.
+    ///
+    /// This is what makes the enumeration cursor work — the two-cycle below
+    /// stops being a component once one of its members is out of range.
+    #[test]
+    fn scc_respects_the_induced_subgraph() {
+        let adj = edges(&[(0, 1), (1, 0), (1, 2)]);
+        let (allowed, order) = all_of(&[1, 2]);
+
+        assert_eq!(
+            sorted_components(&strongly_connected_components(&adj, &allowed, &order)),
+            vec![vec![1], vec![2]],
+            "the 0 <-> 1 cycle must not survive dropping node 0"
+        );
+    }
+
+    #[test]
+    fn scc_on_empty_subgraph_returns_no_components() {
+        let adj = edges(&[(0, 1), (1, 0)]);
+        let allowed = HashSet::new();
+
+        assert!(strongly_connected_components(&adj, &allowed, &[]).is_empty());
+    }
+
+    /// A component hosts a cycle only when it can actually close one.
+    #[test]
+    fn hosts_cycle_requires_two_nodes_or_a_self_edge() {
+        let adj = edges(&[(0, 1), (1, 0), (5, 5), (7, 8)]);
+
+        assert!(hosts_cycle(&[FileId::from(0), FileId::from(1)], &adj));
+        assert!(hosts_cycle(&[FileId::from(5)], &adj));
+        assert!(
+            !hosts_cycle(&[FileId::from(7)], &adj),
+            "a lone node with only outgoing edges closes no cycle"
+        );
+        assert!(!hosts_cycle(&[], &adj));
+    }
+
+    /// The component pass must cost no stack depth.
+    ///
+    /// A textbook recursive Tarjan overflows on this chain; the iterative one
+    /// returns 100,000 singletons. Every other component bug is caught by the
+    /// decomposition oracle above — recursion depth is invisible at the scale
+    /// those fixtures run at, which is why this fixture is large and boring
+    /// rather than small and clever (tethys-qqbi).
+    #[test]
+    fn scc_pass_is_iterative_on_deep_chain() {
+        const NODES: i64 = 100_000;
+
+        let mut adj: HashMap<FileId, Vec<FileId>> = HashMap::new();
+        for id in 0..NODES - 1 {
+            adj.insert(FileId::from(id), vec![FileId::from(id + 1)]);
+        }
+        let ids: Vec<i64> = (0..NODES).collect();
+        let (allowed, order) = all_of(&ids);
+
+        let components = strongly_connected_components(&adj, &allowed, &order);
+
+        assert_eq!(components.len(), usize::try_from(NODES).expect("fits"));
+        assert!(components.iter().all(|component| component.len() == 1));
+        assert!(
+            !components
+                .iter()
+                .any(|component| hosts_cycle(component, &adj)),
+            "a chain hosts no cycle"
+        );
+    }
+
     #[test]
     fn enumerate_cycles_covers_overlap_direction_and_self_loop() {
         let paths_by_id = HashMap::from([
@@ -805,6 +1110,51 @@ mod tests {
         assert_eq!(
             got,
             vec![vec![PathBuf::from("src/a.rs"), PathBuf::from("src/z.rs"),]]
+        );
+    }
+
+    /// A cycle reachable only through nodes that are on no cycle must survive.
+    ///
+    /// The `1 <-> 2` cycle sits behind node 0, which leads into it but has no
+    /// way back; node 2000 leads into node 0; and `3 -> 4` dangles off to one
+    /// side. Confining the search to a component is only safe if the cursor
+    /// still lands on each cycle's least member, so the bug this fixture
+    /// catches is advancing the cursor past a whole component instead of past
+    /// its minimum — that skips node 1 and loses the cycle entirely.
+    #[test]
+    fn enumerate_cycles_finds_cycles_behind_acyclic_fringe() {
+        let paths_by_id = padded_paths(&[0, 1, 2, 3, 4, 2000]);
+        let adj = edges(&[(0, 1), (1, 2), (2, 1), (2000, 0), (3, 4)]);
+
+        let got = cycle_paths(enumerate_cycles(adj, &paths_by_id), &paths_by_id);
+
+        assert_eq!(
+            got,
+            vec![vec![
+                PathBuf::from("src/f0001.rs"),
+                PathBuf::from("src/f0002.rs"),
+            ]]
+        );
+    }
+
+    /// Blocking state must not leak from one component's search to the next.
+    ///
+    /// Two disjoint two-cycles are searched in separate passes. If `blocked`
+    /// or `blocked_by` survived between passes, the second cycle would look
+    /// already-explored and go unreported.
+    #[test]
+    fn enumerate_cycles_keeps_disjoint_components_independent() {
+        let paths_by_id = padded_paths(&[0, 1, 2, 3]);
+        let adj = edges(&[(0, 1), (1, 0), (2, 3), (3, 2)]);
+
+        let got = cycle_paths(enumerate_cycles(adj, &paths_by_id), &paths_by_id);
+
+        assert_eq!(
+            got,
+            vec![
+                vec![PathBuf::from("src/f0000.rs"), PathBuf::from("src/f0001.rs"),],
+                vec![PathBuf::from("src/f0002.rs"), PathBuf::from("src/f0003.rs"),],
+            ]
         );
     }
 
