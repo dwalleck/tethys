@@ -161,13 +161,6 @@ impl Tethys {
     /// Deliberately per-input only — the whole-index `StaleIndex` trigger is
     /// layered on by `get_affected_tests_with_standing`, so this stays O(n)
     /// row lookups + stats for n changed files.
-    // `allow`, not `expect`: the unit tests below DO call this, so the
-    // expectation would be unfulfilled for test targets while the lib target
-    // still needs the suppression until the facade wires it up (next slice).
-    #[allow(
-        dead_code,
-        reason = "wired up by get_affected_tests_with_standing in the next slice"
-    )]
     pub(crate) fn classify_changed_files(
         &self,
         changed_files: &[PathBuf],

@@ -785,6 +785,65 @@ impl Tethys {
     /// # Ok::<(), tethys::Error>(())
     /// ```
     pub fn get_affected_tests(&self, changed_files: &[PathBuf]) -> Result<Vec<Symbol>> {
+        Ok(self.get_affected_tests_with_standing(changed_files)?.tests)
+    }
+
+    /// Get affected tests together with the query standing — whether the
+    /// index can stand behind the result being complete.
+    ///
+    /// The `tests` list is always the best-effort traversal result, even
+    /// when standing is indeterminate (fail-open with signal). Standing is
+    /// [`QueryStanding::Indeterminate`] when any of the v1 triggers fire:
+    ///
+    /// - `unindexed`: a changed file has no index row (including
+    ///   unindexable outside-workspace inputs);
+    /// - `stale`: a changed file's indexed mtime/size diverge from disk,
+    ///   including deleted-on-disk;
+    /// - `stale-index`: any indexed file was added/modified/deleted on disk
+    ///   since indexing — the dependency graph itself may be missing edges,
+    ///   so even current inputs cannot be vouched for. Emitted last.
+    ///
+    /// Changed-file paths may be workspace-relative in any lexical spelling
+    /// (`src/x.rs`, `./src/x.rs`, `a/../b`) or absolute; unknown spellings
+    /// degrade to deterministic `unindexed` reasons, never silent skips.
+    ///
+    /// An empty `changed_files` slice is vacuously [`QueryStanding::Confirmed`]:
+    /// if nothing changed, "no affected tests" is complete regardless of
+    /// index freshness.
+    pub fn get_affected_tests_with_standing(
+        &self,
+        changed_files: &[PathBuf],
+    ) -> Result<AffectedTestsReport> {
+        if changed_files.is_empty() {
+            return Ok(AffectedTestsReport {
+                tests: Vec::new(),
+                standing: QueryStanding::Confirmed,
+            });
+        }
+
+        let mut reasons = self.classify_changed_files(changed_files)?;
+        if self.needs_update()? {
+            reasons.push(StandingReason {
+                kind: StandingReasonKind::StaleIndex,
+                path: None,
+            });
+        }
+
+        let tests = self.traverse_affected_tests(changed_files)?;
+        let standing = if reasons.is_empty() {
+            QueryStanding::Confirmed
+        } else {
+            QueryStanding::Indeterminate(reasons)
+        };
+
+        Ok(AffectedTestsReport { tests, standing })
+    }
+
+    /// Reverse-traversal core shared by the affected-tests entry points:
+    /// resolve changed files to ids (unknown files contribute nothing here —
+    /// standing classification reports them), walk dependents, filter test
+    /// symbols.
+    fn traverse_affected_tests(&self, changed_files: &[PathBuf]) -> Result<Vec<Symbol>> {
         use std::collections::HashSet;
 
         // Get file IDs for the changed files
