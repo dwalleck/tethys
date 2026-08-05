@@ -378,3 +378,27 @@ fn stale_index_is_indeterminate() {
         "traversal result must survive stale-index standing: {lines:?}"
     );
 }
+
+/// C14 (placement): the CLI layer maps standing to the process contract and
+/// nothing else — it must never open the database or stat files itself,
+/// which would silently fork the staleness semantics from the facade's
+/// single source of truth (`classify_indexed_file`).
+#[test]
+fn cli_layer_never_touches_db_or_fs_metadata() {
+    let src = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/cli/affected_tests.rs"),
+    )
+    .expect("read affected_tests.rs source");
+    for forbidden in [
+        "rusqlite",
+        "fs::metadata",
+        "fs::symlink_metadata",
+        "Connection",
+    ] {
+        assert!(
+            !src.contains(forbidden),
+            "src/cli/affected_tests.rs must not reference {forbidden:?} — \
+             standing comes from the facade, not ad-hoc DB/fs access"
+        );
+    }
+}
