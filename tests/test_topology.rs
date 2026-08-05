@@ -538,8 +538,8 @@ fn test_add() {
     }
 
     /// Escaping and unresolvable spellings must degrade to "no row" (empty
-    /// result today; `unindexed` standing once tethys-09wx lands) — never
-    /// panic, never accidentally match.
+    /// result here; the standing-aware entry point reports them as
+    /// `unindexed`) — never panic, never accidentally match.
     #[test]
     fn escaping_path_spellings_resolve_to_nothing() {
         let (_dir, mut tethys) = workspace_with_files(&[(
