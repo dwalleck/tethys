@@ -77,14 +77,32 @@ tethys callers "MyStruct::method" --lsp
 
 ## CI Integration
 
-The `affected-tests` command outputs test names suitable for filtering test runs:
+The `affected-tests` command outputs test names suitable for filtering test
+runs, and its exit code says whether the index can stand behind the answer
+(*query standing*):
+
+- **exit 0** — confirmed. Empty stdout means confirmed **no** affected tests:
+  safe to skip the suite.
+- **exit 2** — indeterminate. The index could not vouch for the result
+  (a changed file is unindexed or stale, or the workspace changed since
+  indexing). stdout still lists whatever tests *were* found; one
+  machine-readable reason per line goes to stderr, grep-able as
+  `^indeterminate: ` (kinds: `unindexed`, `stale`, `stale-index`).
+- **exit 1** — tooling error.
+
+The mechanism lives in the tool; the skip/run policy belongs to the consumer:
 
 ```bash
-# Get affected test names for changed files
-TESTS=$(tethys affected-tests $(git diff --name-only main) --names-only)
+# Index right before querying so standing reflects this checkout.
+tethys index
 
-# Run only affected tests
-cargo test $TESTS
+CHANGED=$(git diff --name-only main)
+TESTS=$(tethys affected-tests $CHANGED --names-only)
+case $? in
+    0) [ -n "$TESTS" ] && cargo test $TESTS ;; # confirmed; empty = safe skip
+    2) cargo test ;;                           # indeterminate: fail open
+    *) exit 1 ;;                               # tooling error
+esac
 ```
 
 ## License
