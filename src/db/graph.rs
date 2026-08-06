@@ -440,6 +440,7 @@ fn enumerate_cycles(
     let outcome = run_cycle_search(adj, paths_by_id);
     tracing::debug!(
         visits = outcome.visits,
+        scc_passes = outcome.scc_passes,
         cycle_count = outcome.cycles.len(),
         "Cycle enumeration complete"
     );
@@ -456,6 +457,14 @@ struct CycleSearchOutcome {
     /// tracks cycles found rather than simple paths walked — the distinction
     /// Johnson's blocking buys.
     visits: usize,
+    /// Component passes made, one per iteration of the enumeration cursor.
+    ///
+    /// Bounded by `min(nodes, cycles + 1)`: a pass either finds a component
+    /// that hosts a cycle — and so yields at least one cycle before the
+    /// cursor advances — or finds none and ends the search. Fenced so that
+    /// recomputing components per start node, rather than per cursor jump,
+    /// shows up as a test failure instead of as silent quadratic cost.
+    scc_passes: usize,
 }
 
 /// [`enumerate_cycles`], additionally reporting how much work it took.
@@ -495,9 +504,11 @@ fn run_cycle_search(
     // that could not reach itself still paid a full walk, so one cycle over
     // 10,000 files cost 50,005,000 visits.
     let mut cursor = 0;
+    let mut scc_passes = 0;
     while cursor < nodes.len() {
         let remaining = &nodes[cursor..];
         let allowed: HashSet<FileId> = remaining.iter().copied().collect();
+        scc_passes += 1;
 
         let component = strongly_connected_components(&adj, &allowed, remaining)
             .into_iter()
@@ -526,6 +537,7 @@ fn run_cycle_search(
     CycleSearchOutcome {
         cycles,
         visits: search.visits,
+        scc_passes,
     }
 }
 
@@ -1047,10 +1059,17 @@ mod tests {
     ///
     /// A layered DAG (every edge points from layer `n` to layer `n+1`) has
     /// zero cycles but `width ^ (layers - 1)` simple paths — 10,077,696 here.
-    /// Johnson's blocking visits each node at most once per start node, so
-    /// the work is quadratic in nodes; without it the search walks every
-    /// path, and this same shape took 6.4s at 10 layers and 228s at 12
-    /// (tethys-u5o5 review).
+    /// Without Johnson's blocking the search walks every one of them, and
+    /// this same shape took 6.4s at 10 layers and 228s at 12 (tethys-u5o5
+    /// review). Blocking alone brought that to one pass per start node,
+    /// quadratic in nodes.
+    ///
+    /// The component restriction removes the rest: a DAG has no component
+    /// that can host a cycle, so the very first pass ends the search and the
+    /// walk never begins. The budget is therefore `nodes + edges` rather than
+    /// `nodes ^ 2`, and the observed count is zero (tethys-usvm). Testing
+    /// that a component is merely non-empty, instead of that it can close a
+    /// cycle, puts this back near 3,600.
     #[test]
     fn enumerate_cycles_stays_output_sensitive_on_acyclic_dag() {
         const WIDTH: i64 = 6;
@@ -1078,12 +1097,123 @@ mod tests {
             outcome.cycles.is_empty(),
             "a layered DAG contains no directed cycle"
         );
-        let budget = usize::try_from(node_count * node_count).expect("budget fits");
+        let edge_count = (LAYERS - 1) * WIDTH * WIDTH;
+        let budget = usize::try_from(node_count + edge_count).expect("budget fits");
         assert!(
             outcome.visits <= budget,
-            "acyclic enumeration must stay within {budget} visits (one pass per \
-             start node), walked {} — cost is tracking simple paths, not cycles",
+            "acyclic enumeration must stay within {budget} visits (nodes + \
+             edges), walked {} — cost is tracking graph size, not cycles",
             outcome.visits
+        );
+        assert_eq!(
+            outcome.visits, 0,
+            "no component can host a cycle, so no search should start at all"
+        );
+        assert_eq!(
+            outcome.scc_passes, 1,
+            "one pass proves the graph acyclic; more means the cursor is \
+             advancing per start node instead of per component"
+        );
+    }
+
+    /// One cycle over N files must cost N visits, not `N(N+1)/2`.
+    ///
+    /// The fixture is a single ring, so the answer never grows and only the
+    /// graph does. Before the component restriction, start `f_k` walked the
+    /// tail `f_k..f_N-1` and was turned back at the closing edge because it
+    /// points at a file ordered before `f_k` — `N - k` wasted visits for
+    /// every `k > 0`, summing to `N(N+1)/2`. At 10,000 files that measured
+    /// 50,005,000 visits and 9.17s for one cycle (tethys-usvm).
+    ///
+    /// Now only `f_0` sits in a component that can host a cycle, so exactly
+    /// one search runs and walks the ring once. Computing components but
+    /// forgetting to confine the walk to them leaves this at 80,200.
+    #[test]
+    fn enumerate_cycles_visits_each_node_once_on_single_cycle() {
+        const NODES: i64 = 400;
+
+        let ids: Vec<i64> = (0..NODES).collect();
+        let paths_by_id = padded_paths(&ids);
+        let ring: Vec<(i64, i64)> = (0..NODES).map(|id| (id, (id + 1) % NODES)).collect();
+
+        let outcome = run_cycle_search(edges(&ring), &paths_by_id);
+
+        assert_eq!(outcome.cycles.len(), 1, "the ring is one cycle");
+        assert_eq!(
+            outcome.visits,
+            usize::try_from(NODES).expect("fits"),
+            "each file on the one cycle is visited once and nothing else is"
+        );
+        assert_eq!(
+            outcome.scc_passes, 2,
+            "one pass finds the ring, one proves nothing is left"
+        );
+    }
+
+    /// The walk must stop at the component edge, not merely at the rank edge.
+    ///
+    /// Files 0 and 1 depend on each other; 1 also starts a chain out to file
+    /// 4 that never comes back. Every one of those trailing files is ordered
+    /// after the cycle's first file, so the rank test alone lets the walk
+    /// wander down the whole chain and back. Only component membership stops
+    /// it, which makes this the fixture that separates the two prunes.
+    ///
+    /// A ring cannot make that distinction — its component is everything the
+    /// start can reach, so confining the walk removes nothing and a
+    /// ring-shaped fence passes with the confinement deleted.
+    #[test]
+    fn enumerate_cycles_does_not_walk_past_the_component() {
+        let paths_by_id = padded_paths(&[0, 1, 2, 3, 4]);
+        let adj = edges(&[(0, 1), (1, 0), (1, 2), (2, 3), (3, 4)]);
+
+        let outcome = run_cycle_search(adj, &paths_by_id);
+
+        assert_eq!(
+            cycle_paths(outcome.cycles, &paths_by_id),
+            vec![vec![
+                PathBuf::from("src/f0000.rs"),
+                PathBuf::from("src/f0001.rs"),
+            ]]
+        );
+        assert_eq!(
+            outcome.visits, 2,
+            "only the two files on the cycle should be visited; walking the \
+             trailing chain as well costs 5"
+        );
+    }
+
+    /// Component passes must stay within `min(nodes, cycles + 1)`.
+    ///
+    /// Every pass either yields at least one cycle or ends the search, so the
+    /// count cannot grow with graph size alone. The fixture is deliberately
+    /// dense — six files depending on each other both ways, plus one that
+    /// depends on itself — so every pass does find a live component and the
+    /// bound is actually reached rather than trivially satisfied. Recomputing
+    /// components once per start node instead of per cursor jump breaks this.
+    #[test]
+    fn enumerate_cycles_scc_passes_stay_bounded() {
+        let ids: Vec<i64> = (0..7).collect();
+        let paths_by_id = padded_paths(&ids);
+        let mut pairs: Vec<(i64, i64)> = Vec::new();
+        for from in 0..6 {
+            for to in 0..6 {
+                if from != to {
+                    pairs.push((from, to));
+                }
+            }
+        }
+        pairs.push((6, 6));
+
+        let outcome = run_cycle_search(edges(&pairs), &paths_by_id);
+
+        let bound = ids.len().min(outcome.cycles.len() + 1);
+        assert!(
+            outcome.scc_passes <= bound,
+            "made {} component passes over {} nodes returning {} cycles, \
+             bound is min(nodes, cycles + 1) = {bound}",
+            outcome.scc_passes,
+            ids.len(),
+            outcome.cycles.len()
         );
     }
 
