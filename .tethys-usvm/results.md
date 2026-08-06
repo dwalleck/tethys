@@ -1,0 +1,117 @@
+# Results — tethys-usvm
+
+Every oracle, falsifier and regression fence run against the assembled
+release binary after the final slice.
+
+## 1. Sparse workspaces — the shape the issue is about
+
+One directed cycle of N files, so the answer is always exactly one cycle and
+only the graph grows. `visits` read from the binary's own debug log.
+
+| files | visits before | visits after | expected (= N) | passes | secs before | secs after |
+|------:|--------------:|-------------:|---------------:|-------:|------------:|-----------:|
+| 10 | 55 | 10 | 10 | 2 | — | 0.005 |
+| 50 | 1,275 | 50 | 50 | 2 | — | 0.005 |
+| 100 | 5,050 | 100 | 100 | 2 | — | 0.003 |
+| 200 | 20,100 | 200 | 200 | 2 | — | 0.005 |
+| 400 | 80,200 | 400 | 400 | 2 | — | 0.005 |
+| 1,000 | 500,500 | 1,000 | 1,000 | 2 | 0.15 | 0.007 |
+| 2,000 | 2,001,000 | 2,000 | 2,000 | 2 | 0.43 | 0.012 |
+| 4,000 | 8,002,000 | 4,000 | 4,000 | 2 | 1.59 | 0.021 |
+| 10,000 | 50,005,000 | **10,000** | 10,000 | 2 | 9.17 | **0.047** |
+
+The `visits before` column is the closed form `N(N+1)/2` derived in
+`findings.md` and measured exactly at every size. After the change the count
+lands on exactly `N` at every size, and the pass count is a flat 2 — one pass
+finds the ring's component, one proves nothing is left.
+
+**Acceptance criterion 2** (10,000 files well under a second): 9.17 s →
+0.047 s, a factor of 195.
+
+## 2. Dense workspace — the shape that could have regressed
+
+tethys's own index: 116 files, 400 edges, 27,016 cycles.
+
+| | before | after |
+|---|---|---|
+| visits | 135,888 | 134,790 |
+| component passes | n/a | 24 |
+| wall, min of 5 | 0.130 s | 0.104 s |
+| wall, median of 5 | 0.170 s | 0.124 s |
+| cycles | 27,016 | 27,016 |
+| md5 of `tethys cycles` | `6cd0b5e753cfae4fc4c18a89ac165d61` | `6cd0b5e753cfae4fc4c18a89ac165d61` |
+
+Densely cyclic graphs were the one place the restriction could cost more than
+it saves — 24 component passes are work the old search never did. Visits fell
+slightly and wall time fell with them, so the added passes are cheaper than
+the starts they eliminate even here.
+
+**Acceptance criterion 3** (output byte-for-byte identical): md5 matches, to
+the byte, over 27,016 cycles.
+
+Note the ticket's own AC pinned md5 `e80b712d9855e6807fef26e623625ab1` at
+24,025 cycles. That baseline was stale — main gained a file between the
+ticket being filed and this branch. The figure above is this branch's base,
+verified stable across three consecutive runs before any code changed.
+
+## 3. Design falsifier
+
+`.tethys-usvm/design_falsifier.py`, re-run after implementation. All four
+kill conditions still pass: 53 graphs agree across the current-code port, the
+proposed design and an exhaustive brute-force oracle; single-cycle visits
+land on N; acyclic graphs cost 0 visits; component passes stay within
+`min(V, C+1)` with tightest slack 0 over 60 random dense graphs.
+
+## 4. Regression fences
+
+| Claim | Fence | Result |
+|---|---|---|
+| 1, 5, 12 | `enumerate_cycles_covers_overlap_direction_and_self_loop` | pass (unmodified from before this change) |
+| 2, 8 | `enumerate_cycles_finds_cycles_behind_acyclic_fringe`, `enumerate_cycles_keeps_disjoint_components_independent` | pass |
+| 3 | `enumerate_cycles_visits_each_node_once_on_single_cycle` | pass — 400 visits for 400 files |
+| 3 | `enumerate_cycles_does_not_walk_past_the_component` | pass — 2 visits, not 5 |
+| 4 | `enumerate_cycles_stays_output_sensitive_on_acyclic_dag` | pass — budget tightened `nodes²` (3,600) → `nodes + edges` (384), observed 0 |
+| 6 | `enumerate_cycles_does_not_regress_on_dense_graph` | pass — 410 cycles, visits under the 416 pre-change ceiling |
+| 7 | `enumerate_cycles_scc_passes_stay_bounded` | pass |
+| 9 | `scc_pass_is_iterative_on_deep_chain` | pass — 100,000 nodes, no overflow, 0.10 s |
+| 10 | `enumerate_cycles_handles_empty_graph` | pass (unmodified) |
+| 11 | `enumerate_cycles_uses_path_order_not_file_id_order` | pass (unmodified) |
+| — | `scc_decomposition_matches_hand_computed_components`, `scc_respects_the_induced_subgraph`, `scc_on_empty_subgraph_returns_no_components`, `hosts_cycle_requires_two_nodes_or_a_self_edge` | pass |
+
+Full suite: `cargo nextest run` green, clippy pedantic `-D warnings` clean,
+`cargo fmt --check` clean, doctests green.
+
+## 5. Non-vacuity — mutation testing the fences
+
+The design named two buggy implementations its fences had to catch. Both were
+run against the real test suite.
+
+| Mutation | Caught by |
+|---|---|
+| `hosts_cycle` tests "component is non-empty" instead of "can close a cycle" | 3 fences fail |
+| the component prune is deleted from `CycleSearch::visit` | **initially none** — see below |
+
+The second mutation initially survived the entire suite. Every fixture was
+either a ring or a graph whose cycles had only in-fringes, and for both of
+those the component *is* everything the start can reach, so confining the
+walk removes nothing observable.
+
+`enumerate_cycles_does_not_walk_past_the_component` was written to close that
+gap: it gives a cycle an out-fringe — a chain hanging off it, ordered after
+the cycle's first file — so the rank test alone lets the walk wander down it.
+The fence fails at 5 visits against 2 when the prune is removed.
+
+This separated two effects the design had merged. The **cursor** — skipping
+start nodes that cannot host a cycle — is what produced the 195× win at
+10,000 files. The **component confinement** is a smaller, separate win that
+only pays on cycles with trailing structure, and it is invisible to any
+ring-shaped fixture.
+
+## 6. Out of scope, still true
+
+- `CycleSearch::visit` and `unblock` remain recursive and can still overflow
+  the stack on a sufficiently deep component (tethys-qqbi, open). The
+  component pass added here is iterative precisely so that issue is no
+  harder than it was.
+- `load_cycle_snapshot` still errors table-wide on any dangling `file_deps`
+  endpoint (tethys-e3j1, open).
