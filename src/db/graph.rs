@@ -1192,6 +1192,27 @@ mod tests {
     /// components once per start node instead of per cursor jump breaks this.
     #[test]
     fn enumerate_cycles_scc_passes_stay_bounded() {
+        let (ids, outcome) = dense_search();
+
+        let bound = ids.len().min(outcome.cycles.len() + 1);
+        assert!(
+            outcome.scc_passes <= bound,
+            "made {} component passes over {} nodes returning {} cycles, \
+             bound is min(nodes, cycles + 1) = {bound}",
+            outcome.scc_passes,
+            ids.len(),
+            outcome.cycles.len()
+        );
+    }
+
+    /// The dense shape this restriction can only lose on.
+    ///
+    /// Six files all depending on each other, plus one depending on itself:
+    /// 410 cycles over 7 files. Densely cyclic graphs were already paying
+    /// close to one visit per cycle before this change, so the component
+    /// passes are pure added work there — the one place the restriction can
+    /// cost more than it saves.
+    fn dense_search() -> (Vec<i64>, CycleSearchOutcome) {
         let ids: Vec<i64> = (0..7).collect();
         let paths_by_id = padded_paths(&ids);
         let mut pairs: Vec<(i64, i64)> = Vec::new();
@@ -1205,15 +1226,31 @@ mod tests {
         pairs.push((6, 6));
 
         let outcome = run_cycle_search(edges(&pairs), &paths_by_id);
+        (ids, outcome)
+    }
 
-        let bound = ids.len().min(outcome.cycles.len() + 1);
+    /// Densely cyclic graphs must not pay for the component restriction.
+    ///
+    /// The pre-change search made 416 visits on this fixture. Confining the
+    /// walk cannot help here — the whole graph is one component — so the
+    /// ceiling is the old cost, and anything above it means the component
+    /// passes are costing more than they save.
+    ///
+    /// Measured on tethys's own index, the same shape at 116 files and 400
+    /// edges: 135,888 visits before, 134,790 after, output byte-identical.
+    #[test]
+    fn enumerate_cycles_does_not_regress_on_dense_graph() {
+        const PRE_CHANGE_VISITS: usize = 416;
+
+        let (_, outcome) = dense_search();
+
+        assert_eq!(outcome.cycles.len(), 410, "the dense fixture's cycle count");
         assert!(
-            outcome.scc_passes <= bound,
-            "made {} component passes over {} nodes returning {} cycles, \
-             bound is min(nodes, cycles + 1) = {bound}",
-            outcome.scc_passes,
-            ids.len(),
-            outcome.cycles.len()
+            outcome.visits <= PRE_CHANGE_VISITS,
+            "made {} visits against a pre-change baseline of \
+             {PRE_CHANGE_VISITS} — the component passes are costing more \
+             than the restriction saves on densely cyclic graphs",
+            outcome.visits
         );
     }
 
