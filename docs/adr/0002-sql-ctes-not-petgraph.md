@@ -48,3 +48,40 @@ Both still load from SQLite and hold no persistent in-memory graph, so the
 the third rationale — `max_depth` bounding inside the query. In-Rust traversal
 must bound itself explicitly, and cycle detection currently does not (see the
 enumeration cost note in the tethys-u5o5 review).
+
+## Amendment (2026-08-06, tethys-usvm)
+
+The **decision stands**, and this amendment exists because the case for
+reopening it has now actually arrived and was still declined.
+
+Tarjan SCC — named in Consequences above as the first example of an algorithm
+that "could justify petgraph" — has shipped, hand-rolled and iterative, in
+`strongly_connected_components` (`src/db/graph.rs`). Cycle enumeration needs
+it to confine each search to the component its start belongs to; without that
+restriction cost tracked graph size rather than answer size (50,005,000 node
+visits for a single cycle over 10,000 files).
+
+petgraph was still not adopted, for reasons specific to this use:
+
+- The implementation is about 90 lines with one call site, entirely inside
+  the module that owns cycle detection. petgraph's `tarjan_scc` would need
+  the file-dependency graph marshalled into a `DiGraph` and the resulting
+  node indices mapped back to `FileId` on every pass — the SQL↔petgraph
+  bridge this ADR rejected, rebuilt per pass rather than once.
+- The enumeration runs a pass per cursor jump over a *shrinking induced
+  subgraph*. That is not a whole-graph decomposition, which is the shape
+  library APIs are built around.
+- tethys-6k6b is actively removing single-implementation graph seams. Adding
+  a dependency whose only consumer is one private function would recreate
+  the shape that epic exists to delete.
+
+The correct reading of the original Consequences paragraph is therefore
+narrower than it appears: *needing* Tarjan is not on its own a reason to take
+petgraph. The reason would be needing several such algorithms, or needing one
+whose correct implementation is genuinely hard to get right.
+
+Also correcting the previous amendment's closing claim. Cycle detection still
+does not bound its *recursion depth* — `CycleSearch::visit` and `unblock`
+remain recursive, tracked as tethys-qqbi. But it is no longer unbounded in
+*cost*: work is now `O((V+E) · min(V, C+1))`, and the component pass added
+here is deliberately iterative so that it adds no new stack depth.

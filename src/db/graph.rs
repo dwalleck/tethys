@@ -440,6 +440,8 @@ fn enumerate_cycles(
     let outcome = run_cycle_search(adj, paths_by_id);
     tracing::debug!(
         visits = outcome.visits,
+        scc_passes = outcome.scc_passes,
+        component_work = outcome.component_work,
         cycle_count = outcome.cycles.len(),
         "Cycle enumeration complete"
     );
@@ -450,12 +452,34 @@ fn enumerate_cycles(
 struct CycleSearchOutcome {
     /// Canonical cycles in deterministic result order.
     cycles: Vec<Vec<FileId>>,
-    /// Number of node visits the search made.
+    /// Number of node visits the cycle search made.
     ///
     /// Logged as enumeration diagnostics, and fenced by tests to prove cost
     /// tracks cycles found rather than simple paths walked — the distinction
     /// Johnson's blocking buys.
+    ///
+    /// This counts the search alone. It is not the total cost of enumeration
+    /// and must not be budgeted as though it were: see
+    /// [`Self::component_work`].
     visits: usize,
+    /// Component passes made, one per iteration of the enumeration cursor.
+    ///
+    /// Bounded by `min(nodes, cycles + 1)`: a pass either finds a component
+    /// that hosts a cycle — and so yields at least one cycle before the
+    /// cursor advances — or finds none and ends the search. Fenced so that
+    /// recomputing components per start node, rather than per cursor jump,
+    /// shows up as a test failure instead of as silent quadratic cost.
+    scc_passes: usize,
+    /// Nodes entered plus edges examined across every component pass.
+    ///
+    /// [`Self::visits`] stopped being a fair measure of total cost when the
+    /// component restriction landed: the restriction's whole effect is to
+    /// move work out of the cycle search and into these passes. An acyclic
+    /// graph now reports zero visits while a full `O(V + E)` walk still
+    /// happens here, so a budget meaning to bound enumeration's real cost has
+    /// to read both numbers. Budgeting `visits` alone would have recorded the
+    /// work as eliminated rather than relocated.
+    component_work: usize,
 }
 
 /// [`enumerate_cycles`], additionally reporting how much work it took.
@@ -475,20 +499,58 @@ fn run_cycle_search(
         neighbors.dedup();
     }
 
+    let ranks: HashMap<FileId, usize> = nodes.iter().copied().zip(0..).collect();
+
     let mut search = CycleSearch {
         adj: &adj,
         paths_by_id,
         path: Vec::new(),
         blocked: HashSet::new(),
         blocked_by: HashMap::new(),
+        component: HashSet::new(),
         cycles: Vec::new(),
         visits: 0,
     };
-    for &start in &nodes {
-        // Johnson's bookkeeping is scoped to one start node's subgraph.
+
+    // Johnson's outer loop. Rather than searching from every node, advance a
+    // cursor to the least node of the least component that can host a cycle
+    // and search only that component. Nodes on no cycle are never searched
+    // from at all, which is the whole of tethys-usvm: before this, a start
+    // that could not reach itself still paid a full walk, so one cycle over
+    // 10,000 files cost 50,005,000 visits.
+    let mut cursor = 0;
+    let mut scc_passes = 0;
+    let mut component_work = 0;
+    while cursor < nodes.len() {
+        let scan = strongly_connected_components(&adj, &nodes[cursor..]);
+        scc_passes += 1;
+        component_work += scan.work;
+
+        // Each candidate is paired with its least-ranked member: that member
+        // is both the key the least component is chosen by and the start the
+        // search runs from, so it is computed once.
+        let rooted = scan
+            .components
+            .into_iter()
+            .filter(|component| hosts_cycle(component, &adj))
+            .filter_map(|component| {
+                let least = *component.iter().min_by_key(|node| ranks[node])?;
+                Some((least, component))
+            })
+            .min_by_key(|(least, _)| ranks[least]);
+
+        // No component left can close a cycle, so no later start can either.
+        let Some((start, component)) = rooted else {
+            break;
+        };
+
+        // Johnson's bookkeeping is scoped to one component's search.
         search.blocked.clear();
         search.blocked_by.clear();
+        search.component = component.into_iter().collect();
         search.visit(start, start);
+
+        cursor = ranks[&start] + 1;
     }
 
     let mut cycles = search.cycles;
@@ -496,6 +558,134 @@ fn run_cycle_search(
     CycleSearchOutcome {
         cycles,
         visits: search.visits,
+        scc_passes,
+        component_work,
+    }
+}
+
+/// One component pass: the decomposition, and what computing it cost.
+struct ComponentScan {
+    /// Strongly-connected components, in discovery order.
+    components: Vec<Vec<FileId>>,
+    /// Nodes entered plus edges examined during the pass.
+    ///
+    /// Counted because it is otherwise invisible. The restriction moves work
+    /// out of [`CycleSearch::visit`] and into here, so a budget that watched
+    /// only [`CycleSearchOutcome::visits`] would read zero on an acyclic
+    /// graph while the same `O(V + E)` walk carried on in this pass — the
+    /// measurement would improve without the cost going anywhere.
+    work: usize,
+}
+
+/// Strongly-connected components of the subgraph induced on `nodes`.
+///
+/// Johnson's enumeration is only output-sensitive when each start node's
+/// search is confined to the component that start belongs to: a node that
+/// cannot reach itself can begin no cycle, and walking away from it is the
+/// entire cost this restriction removes (tethys-usvm).
+///
+/// Iterative rather than the textbook recursion. [`CycleSearch::visit`] and
+/// [`CycleSearch::unblock`] already recurse without a depth bound
+/// (tethys-qqbi); a third unbounded site would deepen that issue instead of
+/// leaving it where it is, so this pass carries an explicit work stack and
+/// costs no stack depth at all.
+///
+/// Roots are taken in `nodes` order so the component sequence is
+/// deterministic across runs. Cost is one `O(V + E)` pass over the induced
+/// subgraph: every node is entered once and every edge examined once.
+fn strongly_connected_components(
+    adj: &HashMap<FileId, Vec<FileId>>,
+    nodes: &[FileId],
+) -> ComponentScan {
+    let allowed: HashSet<FileId> = nodes.iter().copied().collect();
+    let order = nodes;
+    let mut work = 0;
+
+    let mut index_of: HashMap<FileId, usize> = HashMap::new();
+    let mut lowlink: HashMap<FileId, usize> = HashMap::new();
+    let mut on_stack: HashSet<FileId> = HashSet::new();
+    let mut component_stack: Vec<FileId> = Vec::new();
+    let mut components: Vec<Vec<FileId>> = Vec::new();
+    let mut next_index = 0;
+
+    // Each frame is (node, index of the next neighbour to examine).
+    let mut frames: Vec<(FileId, usize)> = Vec::new();
+
+    for &root in order {
+        if index_of.contains_key(&root) {
+            continue;
+        }
+        frames.push((root, 0));
+
+        while let Some(&mut (node, ref mut cursor)) = frames.last_mut() {
+            if *cursor == 0 {
+                index_of.insert(node, next_index);
+                lowlink.insert(node, next_index);
+                next_index += 1;
+                component_stack.push(node);
+                on_stack.insert(node);
+                work += 1;
+            }
+
+            let neighbors = adj.get(&node).map_or(&[][..], Vec::as_slice);
+            let mut descended = false;
+            for (offset, &neighbor) in neighbors.iter().enumerate().skip(*cursor) {
+                work += 1;
+                if !allowed.contains(&neighbor) {
+                    continue;
+                }
+                if let Some(&neighbor_index) = index_of.get(&neighbor) {
+                    // Only stack members are in the same component-in-progress;
+                    // a finished neighbour belongs to an already-emitted one.
+                    if on_stack.contains(&neighbor) {
+                        let low = lowlink[&node].min(neighbor_index);
+                        lowlink.insert(node, low);
+                    }
+                } else {
+                    *cursor = offset + 1;
+                    frames.push((neighbor, 0));
+                    descended = true;
+                    break;
+                }
+            }
+            if descended {
+                continue;
+            }
+
+            if lowlink[&node] == index_of[&node] {
+                let mut component = Vec::new();
+                while let Some(member) = component_stack.pop() {
+                    on_stack.remove(&member);
+                    component.push(member);
+                    if member == node {
+                        break;
+                    }
+                }
+                components.push(component);
+            }
+
+            frames.pop();
+            if let Some(&(parent, _)) = frames.last() {
+                let low = lowlink[&parent].min(lowlink[&node]);
+                lowlink.insert(parent, low);
+            }
+        }
+    }
+
+    ComponentScan { components, work }
+}
+
+/// Whether a component contains a cycle, and so is worth searching.
+///
+/// Johnson calls these the non-trivial components. A component of two or more
+/// nodes is mutually reachable by definition; a lone node hosts a cycle only
+/// when it depends on itself. Testing merely that the component is non-empty
+/// would leave every singleton looking live and skip nothing at all.
+fn hosts_cycle(component: &[FileId], adj: &HashMap<FileId, Vec<FileId>>) -> bool {
+    match component {
+        [] => false,
+        [only] => adj.get(only).is_some_and(|targets| targets.contains(only)),
+        _ => true,
     }
 }
 
@@ -517,6 +707,11 @@ struct CycleSearch<'a> {
     /// Johnson's `B`: for each node, the blocked nodes to release when it is
     /// unblocked.
     blocked_by: HashMap<FileId, HashSet<FileId>>,
+    /// The strongly-connected component the current search is confined to.
+    ///
+    /// Every cycle through `start` lies wholly inside `start`'s component, so
+    /// stepping outside it can only reach nodes that cannot come back.
+    component: HashSet<FileId>,
     /// Canonically rotated cycles found so far, unordered.
     cycles: Vec<Vec<FileId>>,
     /// Node visits made, reported as [`CycleSearchOutcome::visits`].
@@ -528,12 +723,22 @@ impl<'a> CycleSearch<'a> {
     ///
     /// Returns whether any cycle through `start` was reached from `node`.
     ///
-    /// Two prunes make each cycle appear exactly once. The
+    /// Three prunes shape the walk. [`Self::component`] confines it to nodes
+    /// that can reach `start` again, which is what keeps cost proportional to
+    /// cycles rather than to graph size. The
     /// `compare_file_ids(neighbour, start, ..) == Less` skip confines the
     /// search to nodes at or after `start` in path order, so a cycle is
     /// discovered only while walking from its own smallest member — that is
     /// what makes the recorded [`Self::path`] canonically rotated. The
     /// `blocked` set keeps each walk simple.
+    ///
+    /// Callers must pass the least-ranked member of [`Self::component`] as
+    /// `start`. The rank skip is what enforces that rather than merely
+    /// documenting it: component membership already implies `neighbour >=
+    /// start` for a correctly rooted search, so the test looks redundant and
+    /// is not — it is the reason a mis-rooted component degrades to the older,
+    /// slower behaviour instead of silently emitting duplicate rotations. Do
+    /// not delete it as dead.
     ///
     /// The `found` return is Johnson's contribution and the reason cost is
     /// bounded by the number of cycles rather than the number of simple
@@ -551,7 +756,7 @@ impl<'a> CycleSearch<'a> {
         self.blocked.insert(node);
 
         for &neighbor in neighbors {
-            if compare_file_ids(neighbor, start, self.paths_by_id) == Ordering::Less {
+            if !self.in_search_space(neighbor, start) {
                 continue;
             }
             if neighbor == start {
@@ -566,7 +771,7 @@ impl<'a> CycleSearch<'a> {
             self.unblock(node);
         } else {
             for &neighbor in neighbors {
-                if compare_file_ids(neighbor, start, self.paths_by_id) != Ordering::Less {
+                if self.in_search_space(neighbor, start) {
                     self.blocked_by.entry(neighbor).or_default().insert(node);
                 }
             }
@@ -574,6 +779,31 @@ impl<'a> CycleSearch<'a> {
 
         self.path.pop();
         found
+    }
+
+    /// Whether `neighbor` is a step this search is allowed to take.
+    ///
+    /// Both of the walk's prunes live here, and they must stay together: the
+    /// recursion loop and the [`Self::blocked_by`] registration below it have
+    /// to agree exactly on which neighbours are in play, or a node gets
+    /// blocked behind a successor the walk never explores and real cycles go
+    /// unreported. They were previously written out twice as each other's
+    /// negation, which is one careless edit away from that bug.
+    ///
+    /// [`Self::component`] membership is the cost prune: outside the
+    /// component there is no way back to `start`. The rank test is the
+    /// canonicalization prune — a cycle may only be recorded while walking
+    /// from its own least-ranked member, which is what leaves
+    /// [`Self::path`] already rotated to canonical form.
+    ///
+    /// The rank test looks redundant, because a correctly rooted component
+    /// contains no node ranked before `start`. It is kept deliberately: it is
+    /// what makes a mis-rooted component degrade to the older, slower
+    /// behaviour instead of silently emitting duplicate rotations. Do not
+    /// delete it as dead.
+    fn in_search_space(&self, neighbor: FileId, start: FileId) -> bool {
+        self.component.contains(&neighbor)
+            && compare_file_ids(neighbor, start, self.paths_by_id) != Ordering::Less
     }
 
     /// Johnson's `UNBLOCK`: release `node` and everything waiting on it.
@@ -701,6 +931,152 @@ mod tests {
             .collect()
     }
 
+    /// Build an adjacency map from `(from, to)` pairs given as plain integers.
+    fn edges(pairs: &[(i64, i64)]) -> HashMap<FileId, Vec<FileId>> {
+        let mut adj: HashMap<FileId, Vec<FileId>> = HashMap::new();
+        for &(from, to) in pairs {
+            adj.entry(FileId::from(from))
+                .or_default()
+                .push(FileId::from(to));
+        }
+        adj
+    }
+
+    /// Zero-padded paths, so lexicographic path order equals numeric id order.
+    fn padded_paths(ids: &[i64]) -> HashMap<FileId, PathBuf> {
+        ids.iter()
+            .map(|&id| (FileId::from(id), PathBuf::from(format!("src/f{id:04}.rs"))))
+            .collect()
+    }
+
+    /// Components as sorted id lists, so comparison ignores discovery order.
+    fn sorted_components(components: &[Vec<FileId>]) -> Vec<Vec<i64>> {
+        let mut out: Vec<Vec<i64>> = components
+            .iter()
+            .map(|component| {
+                let mut ids: Vec<i64> = component.iter().copied().map(FileId::as_i64).collect();
+                ids.sort_unstable();
+                ids
+            })
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// The induced-subgraph node list for a set of raw ids.
+    fn induced(ids: &[i64]) -> Vec<FileId> {
+        ids.iter().copied().map(FileId::from).collect()
+    }
+
+    /// Components must match a decomposition computed by hand.
+    ///
+    /// Each shape is small enough to verify by inspection, which is the point:
+    /// the oracle here is arithmetic on paper, not another traversal.
+    #[test]
+    fn scc_decomposition_matches_hand_computed_components() {
+        // Two disjoint two-cycles.
+        let adj = edges(&[(0, 1), (1, 0), (2, 3), (3, 2)]);
+        let order = induced(&[0, 1, 2, 3]);
+        assert_eq!(
+            sorted_components(&strongly_connected_components(&adj, &order).components),
+            vec![vec![0, 1], vec![2, 3]]
+        );
+
+        // Three-cycle with an acyclic tail hanging off it.
+        let adj = edges(&[(0, 1), (1, 2), (2, 0), (2, 3)]);
+        let order = induced(&[0, 1, 2, 3]);
+        assert_eq!(
+            sorted_components(&strongly_connected_components(&adj, &order).components),
+            vec![vec![0, 1, 2], vec![3]]
+        );
+
+        // A pure chain decomposes into singletons.
+        let adj = edges(&[(0, 1), (1, 2)]);
+        let order = induced(&[0, 1, 2]);
+        assert_eq!(
+            sorted_components(&strongly_connected_components(&adj, &order).components),
+            vec![vec![0], vec![1], vec![2]]
+        );
+
+        // A node depending on itself is its own component.
+        let adj = edges(&[(0, 0)]);
+        let order = induced(&[0]);
+        assert_eq!(
+            sorted_components(&strongly_connected_components(&adj, &order).components),
+            vec![vec![0]]
+        );
+    }
+
+    /// Only the induced subgraph participates: excluded nodes cut their edges.
+    ///
+    /// This is what makes the enumeration cursor work — the two-cycle below
+    /// stops being a component once one of its members is out of range.
+    #[test]
+    fn scc_respects_the_induced_subgraph() {
+        let adj = edges(&[(0, 1), (1, 0), (1, 2)]);
+        let order = induced(&[1, 2]);
+
+        assert_eq!(
+            sorted_components(&strongly_connected_components(&adj, &order).components),
+            vec![vec![1], vec![2]],
+            "the 0 <-> 1 cycle must not survive dropping node 0"
+        );
+    }
+
+    #[test]
+    fn scc_on_empty_subgraph_returns_no_components() {
+        let adj = edges(&[(0, 1), (1, 0)]);
+
+        let scan = strongly_connected_components(&adj, &[]);
+
+        assert!(scan.components.is_empty());
+        assert_eq!(scan.work, 0, "an empty subgraph costs nothing to scan");
+    }
+
+    /// A component hosts a cycle only when it can actually close one.
+    #[test]
+    fn hosts_cycle_requires_two_nodes_or_a_self_edge() {
+        let adj = edges(&[(0, 1), (1, 0), (5, 5), (7, 8)]);
+
+        assert!(hosts_cycle(&[FileId::from(0), FileId::from(1)], &adj));
+        assert!(hosts_cycle(&[FileId::from(5)], &adj));
+        assert!(
+            !hosts_cycle(&[FileId::from(7)], &adj),
+            "a lone node with only outgoing edges closes no cycle"
+        );
+        assert!(!hosts_cycle(&[], &adj));
+    }
+
+    /// The component pass must cost no stack depth.
+    ///
+    /// A textbook recursive Tarjan overflows on this chain; the iterative one
+    /// returns 100,000 singletons. Every other component bug is caught by the
+    /// decomposition oracle above — recursion depth is invisible at the scale
+    /// those fixtures run at, which is why this fixture is large and boring
+    /// rather than small and clever (tethys-qqbi).
+    #[test]
+    fn scc_pass_is_iterative_on_deep_chain() {
+        const NODES: i64 = 100_000;
+
+        let mut adj: HashMap<FileId, Vec<FileId>> = HashMap::new();
+        for id in 0..NODES - 1 {
+            adj.insert(FileId::from(id), vec![FileId::from(id + 1)]);
+        }
+        let ids: Vec<i64> = (0..NODES).collect();
+        let order = induced(&ids);
+
+        let components = strongly_connected_components(&adj, &order).components;
+
+        assert_eq!(components.len(), usize::try_from(NODES).expect("fits"));
+        assert!(components.iter().all(|component| component.len() == 1));
+        assert!(
+            !components
+                .iter()
+                .any(|component| hosts_cycle(component, &adj)),
+            "a chain hosts no cycle"
+        );
+    }
+
     #[test]
     fn enumerate_cycles_covers_overlap_direction_and_self_loop() {
         let paths_by_id = HashMap::from([
@@ -742,10 +1118,17 @@ mod tests {
     ///
     /// A layered DAG (every edge points from layer `n` to layer `n+1`) has
     /// zero cycles but `width ^ (layers - 1)` simple paths — 10,077,696 here.
-    /// Johnson's blocking visits each node at most once per start node, so
-    /// the work is quadratic in nodes; without it the search walks every
-    /// path, and this same shape took 6.4s at 10 layers and 228s at 12
-    /// (tethys-u5o5 review).
+    /// Without Johnson's blocking the search walks every one of them, and
+    /// this same shape took 6.4s at 10 layers and 228s at 12 (tethys-u5o5
+    /// review). Blocking alone brought that to one pass per start node,
+    /// quadratic in nodes.
+    ///
+    /// The component restriction removes the rest: a DAG has no component
+    /// that can host a cycle, so the very first pass ends the search and the
+    /// walk never begins. The budget is therefore `nodes + edges` rather than
+    /// `nodes ^ 2`, and the observed count is zero (tethys-usvm). Testing
+    /// that a component is merely non-empty, instead of that it can close a
+    /// cycle, puts this back near 3,600.
     #[test]
     fn enumerate_cycles_stays_output_sensitive_on_acyclic_dag() {
         const WIDTH: i64 = 6;
@@ -773,12 +1156,180 @@ mod tests {
             outcome.cycles.is_empty(),
             "a layered DAG contains no directed cycle"
         );
-        let budget = usize::try_from(node_count * node_count).expect("budget fits");
+        let edge_count = (LAYERS - 1) * WIDTH * WIDTH;
+        let budget = usize::try_from(node_count + edge_count).expect("budget fits");
+        let total = outcome.visits + outcome.component_work;
         assert!(
-            outcome.visits <= budget,
-            "acyclic enumeration must stay within {budget} visits (one pass per \
-             start node), walked {} — cost is tracking simple paths, not cycles",
+            total <= budget,
+            "acyclic enumeration must stay within {budget} units of work \
+             (nodes + edges), spent {total} — {} searching and {} scanning \
+             components",
+            outcome.visits,
+            outcome.component_work
+        );
+        assert_eq!(
+            outcome.visits, 0,
+            "no component can host a cycle, so no search should start at all"
+        );
+        assert_eq!(
+            outcome.scc_passes, 1,
+            "one pass proves the graph acyclic; more means the cursor is \
+             advancing per start node instead of per component"
+        );
+    }
+
+    /// One cycle over N files must cost N visits, not `N(N+1)/2`.
+    ///
+    /// The fixture is a single ring, so the answer never grows and only the
+    /// graph does. Before the component restriction, start `f_k` walked the
+    /// tail `f_k..f_N-1` and was turned back at the closing edge because it
+    /// points at a file ordered before `f_k` — `N - k` wasted visits for
+    /// every `k > 0`, summing to `N(N+1)/2`. At 10,000 files that measured
+    /// 50,005,000 visits and 9.17s for one cycle (tethys-usvm).
+    ///
+    /// Now only `f_0` sits in a component that can host a cycle, so exactly
+    /// one search runs and walks the ring once. Computing components but
+    /// forgetting to confine the walk to them leaves this at 80,200.
+    #[test]
+    fn enumerate_cycles_visits_each_node_once_on_single_cycle() {
+        const NODES: i64 = 400;
+
+        let ids: Vec<i64> = (0..NODES).collect();
+        let paths_by_id = padded_paths(&ids);
+        let ring: Vec<(i64, i64)> = (0..NODES).map(|id| (id, (id + 1) % NODES)).collect();
+
+        let outcome = run_cycle_search(edges(&ring), &paths_by_id);
+
+        assert_eq!(outcome.cycles.len(), 1, "the ring is one cycle");
+        assert_eq!(
+            outcome.visits,
+            usize::try_from(NODES).expect("fits"),
+            "each file on the one cycle is visited once and nothing else is"
+        );
+        assert_eq!(
+            outcome.scc_passes, 2,
+            "one pass finds the ring, one proves nothing is left"
+        );
+    }
+
+    /// The walk must stop at the component edge, not merely at the rank edge.
+    ///
+    /// Files 0 and 1 depend on each other; 1 also starts a chain out to file
+    /// 4 that never comes back. Every one of those trailing files is ordered
+    /// after the cycle's first file, so the rank test alone lets the walk
+    /// wander down the whole chain and back. Only component membership stops
+    /// it, which makes this the fixture that separates the two prunes.
+    ///
+    /// A ring cannot make that distinction — its component is everything the
+    /// start can reach, so confining the walk removes nothing and a
+    /// ring-shaped fence passes with the confinement deleted.
+    #[test]
+    fn enumerate_cycles_does_not_walk_past_the_component() {
+        let paths_by_id = padded_paths(&[0, 1, 2, 3, 4]);
+        let adj = edges(&[(0, 1), (1, 0), (1, 2), (2, 3), (3, 4)]);
+
+        let outcome = run_cycle_search(adj, &paths_by_id);
+
+        assert_eq!(
+            cycle_paths(outcome.cycles, &paths_by_id),
+            vec![vec![
+                PathBuf::from("src/f0000.rs"),
+                PathBuf::from("src/f0001.rs"),
+            ]]
+        );
+        assert_eq!(
+            outcome.visits, 2,
+            "only the two files on the cycle should be visited; walking the \
+             trailing chain as well costs 5"
+        );
+    }
+
+    /// Component passes must stay within `min(nodes, cycles + 1)`.
+    ///
+    /// Every pass either yields at least one cycle or ends the search, so the
+    /// count cannot grow with graph size alone. The fixture is deliberately
+    /// dense — six files depending on each other both ways, plus one that
+    /// depends on itself — so every pass does find a live component and the
+    /// bound is actually reached rather than trivially satisfied. Recomputing
+    /// components once per start node instead of per cursor jump breaks this.
+    #[test]
+    fn enumerate_cycles_scc_passes_stay_bounded() {
+        let (ids, outcome) = dense_search();
+
+        let bound = ids.len().min(outcome.cycles.len() + 1);
+        assert!(
+            outcome.scc_passes <= bound,
+            "made {} component passes over {} nodes returning {} cycles, \
+             bound is min(nodes, cycles + 1) = {bound}",
+            outcome.scc_passes,
+            ids.len(),
+            outcome.cycles.len()
+        );
+    }
+
+    /// The dense shape this restriction can only lose on.
+    ///
+    /// Six files all depending on each other, plus one depending on itself:
+    /// 410 cycles over 7 files. Densely cyclic graphs were already paying
+    /// close to one visit per cycle before this change, so the component
+    /// passes are pure added work there — the one place the restriction can
+    /// cost more than it saves.
+    fn dense_search() -> (Vec<i64>, CycleSearchOutcome) {
+        let ids: Vec<i64> = (0..7).collect();
+        let paths_by_id = padded_paths(&ids);
+        let mut pairs: Vec<(i64, i64)> = Vec::new();
+        for from in 0..6 {
+            for to in 0..6 {
+                if from != to {
+                    pairs.push((from, to));
+                }
+            }
+        }
+        pairs.push((6, 6));
+
+        let outcome = run_cycle_search(edges(&pairs), &paths_by_id);
+        (ids, outcome)
+    }
+
+    /// Densely cyclic graphs must not pay for the component restriction.
+    ///
+    /// Two separate things are asserted, because one number cannot carry
+    /// both. The search itself must not grow: the pre-change walk made 416
+    /// visits on this fixture, and confining it cannot help here since the
+    /// whole graph is one component. Separately, the component passes are
+    /// work the old search never did, and that work is bounded per pass —
+    /// each is one `O(V + E)` scan of a shrinking subgraph, so it cannot
+    /// exceed `passes * (nodes + edges)`.
+    ///
+    /// Asserting `visits` alone would be decoration: the component passes
+    /// are not counted in it, so no amount of pass cost could ever make that
+    /// assertion fail.
+    ///
+    /// End-to-end evidence lives in wall-clock, not in either counter. On
+    /// tethys's own index at 116 files and 400 edges: 0.170s to 0.124s
+    /// median, output byte-identical.
+    #[test]
+    fn enumerate_cycles_does_not_regress_on_dense_graph() {
+        const PRE_CHANGE_VISITS: usize = 416;
+        const EDGES: usize = 31;
+
+        let (ids, outcome) = dense_search();
+
+        assert_eq!(outcome.cycles.len(), 410, "the dense fixture's cycle count");
+        assert!(
+            outcome.visits <= PRE_CHANGE_VISITS,
+            "the cycle search made {} visits against a pre-change baseline of \
+             {PRE_CHANGE_VISITS} — confining the walk has made the search \
+             itself more expensive",
             outcome.visits
+        );
+        let scan_budget = outcome.scc_passes * (ids.len() + EDGES);
+        assert!(
+            outcome.component_work <= scan_budget,
+            "component passes spent {} units over {} passes, budget is one \
+             linear scan each = {scan_budget}",
+            outcome.component_work,
+            outcome.scc_passes
         );
     }
 
@@ -805,6 +1356,51 @@ mod tests {
         assert_eq!(
             got,
             vec![vec![PathBuf::from("src/a.rs"), PathBuf::from("src/z.rs"),]]
+        );
+    }
+
+    /// A cycle reachable only through nodes that are on no cycle must survive.
+    ///
+    /// The `1 <-> 2` cycle sits behind node 0, which leads into it but has no
+    /// way back; node 2000 leads into node 0; and `3 -> 4` dangles off to one
+    /// side. Confining the search to a component is only safe if the cursor
+    /// still lands on each cycle's least member, so the bug this fixture
+    /// catches is advancing the cursor past a whole component instead of past
+    /// its minimum — that skips node 1 and loses the cycle entirely.
+    #[test]
+    fn enumerate_cycles_finds_cycles_behind_acyclic_fringe() {
+        let paths_by_id = padded_paths(&[0, 1, 2, 3, 4, 2000]);
+        let adj = edges(&[(0, 1), (1, 2), (2, 1), (2000, 0), (3, 4)]);
+
+        let got = cycle_paths(enumerate_cycles(adj, &paths_by_id), &paths_by_id);
+
+        assert_eq!(
+            got,
+            vec![vec![
+                PathBuf::from("src/f0001.rs"),
+                PathBuf::from("src/f0002.rs"),
+            ]]
+        );
+    }
+
+    /// Blocking state must not leak from one component's search to the next.
+    ///
+    /// Two disjoint two-cycles are searched in separate passes. If `blocked`
+    /// or `blocked_by` survived between passes, the second cycle would look
+    /// already-explored and go unreported.
+    #[test]
+    fn enumerate_cycles_keeps_disjoint_components_independent() {
+        let paths_by_id = padded_paths(&[0, 1, 2, 3]);
+        let adj = edges(&[(0, 1), (1, 0), (2, 3), (3, 2)]);
+
+        let got = cycle_paths(enumerate_cycles(adj, &paths_by_id), &paths_by_id);
+
+        assert_eq!(
+            got,
+            vec![
+                vec![PathBuf::from("src/f0000.rs"), PathBuf::from("src/f0001.rs"),],
+                vec![PathBuf::from("src/f0002.rs"), PathBuf::from("src/f0003.rs"),],
+            ]
         );
     }
 
