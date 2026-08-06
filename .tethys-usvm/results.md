@@ -25,8 +25,15 @@ The `visits before` column is the closed form `N(N+1)/2` derived in
 lands on exactly `N` at every size, and the pass count is a flat 2 — one pass
 finds the ring's component, one proves nothing is left.
 
+**Counting the component passes too**, since visits alone understate the new
+cost (§6). At 10,000 files the two passes spend 39,998 units — 20,000 over
+the full graph, 19,998 over the graph minus its first file — for a total of
+**49,998 units against 50,005,000 visits before**, a thousandfold reduction
+that holds even when the added work is charged in full.
+
 **Acceptance criterion 2** (10,000 files well under a second): 9.17 s →
-0.047 s, a factor of 195.
+**0.025 s** (min of 3; 0.047 s on the earlier run, which included more
+process-start variance).
 
 ## 2. Dense workspace — the shape that could have regressed
 
@@ -34,17 +41,30 @@ tethys's own index: 116 files, 400 edges, 27,016 cycles.
 
 | | before | after |
 |---|---|---|
-| visits | 135,888 | 134,790 |
+| visits (cycle search) | 135,888 | 134,790 |
 | component passes | n/a | 24 |
+| component work (nodes + edges scanned) | n/a | 8,311 |
 | wall, min of 5 | 0.130 s | 0.104 s |
-| wall, median of 5 | 0.170 s | 0.124 s |
+| wall, median of 5 | 0.170 s | 0.158 s |
 | cycles | 27,016 | 27,016 |
 | md5 of `tethys cycles` | `6cd0b5e753cfae4fc4c18a89ac165d61` | `6cd0b5e753cfae4fc4c18a89ac165d61` |
 
+Charged honestly, total work on this shape *rises*: 135,888 units before,
+143,101 after. Wall-clock still falls, because a component-scan unit is much
+cheaper than a search visit — a visit pushes a path, inserts into a hash set,
+and clones the path when a cycle closes. This is the one shape where the
+restriction is a net cost in operations and a net win in time, and it is why
+the dense fence asserts the two counters separately instead of summing them.
+
 Densely cyclic graphs were the one place the restriction could cost more than
-it saves — 24 component passes are work the old search never did. Visits fell
-slightly and wall time fell with them, so the added passes are cheaper than
-the starts they eliminate even here.
+it saves — 24 component passes are work the old search never did.
+
+**Read the visits column carefully.** It counts the cycle search only, and
+the component passes are not in it, so the fall from 135,888 to 134,790 shows
+that the *search* did not get more expensive — it is not evidence about the
+passes at all. The end-to-end evidence is wall-clock, which fell alongside
+it. Pass cost is tracked separately as `component_work` (added during
+pre-PR review, see §5).
 
 **Acceptance criterion 3** (output byte-for-byte identical): md5 matches, to
 the byte, over 27,016 cycles.
@@ -106,6 +126,39 @@ start nodes that cannot host a cycle — is what produced the 195× win at
 10,000 files. The **component confinement** is a smaller, separate win that
 only pays on cycles with trailing structure, and it is invisible to any
 ring-shaped fixture.
+
+## 6. Corrections applied during pre-PR review
+
+The spec-axis reviewer found that `visits` counts the cycle search alone and
+that the component passes contributed nothing to it. Two claims rested on
+that number and should not have:
+
+- `enumerate_cycles_does_not_regress_on_dense_graph` asserted `visits <= 416`
+  under a doc comment saying anything above it meant "the component passes
+  are costing more than they save." No amount of pass cost could ever have
+  failed that assertion.
+- The tightened acyclic budget read `visits <= nodes + edges` and observed
+  **0**, which looked like the work had been eliminated. It had been
+  *relocated* — into the uncounted component pass.
+
+Fixed by counting it. `ComponentScan::work` now records nodes entered plus
+edges examined per pass, accumulated as
+`CycleSearchOutcome::component_work` and logged beside `visits`. The acyclic
+budget now bounds `visits + component_work` and lands on **exactly 384 =
+nodes + edges (60 + 324)** — tight rather than trivially satisfied, and
+honestly comparable against the ~3,600 visits the same shape cost before this
+change. The dense fence asserts the two quantities separately, since summing
+search visits and scan units would be adding incommensurable things.
+
+This is the second fence in this change found to be passing for a reason
+unrelated to what it claimed to prove; the first was caught by mutation
+testing during slice 3 (§5). Both were assertions written against intent
+rather than against what the counter could observe.
+
+Also amended `docs/adr/0002-sql-ctes-not-petgraph.md`, which named Tarjan SCC
+as the example algorithm that "could justify petgraph." It shipped here
+hand-rolled, so the ADR needed to record that the case arrived and was still
+declined, and why.
 
 ## 6. Out of scope, still true
 

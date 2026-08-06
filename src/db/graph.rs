@@ -441,6 +441,7 @@ fn enumerate_cycles(
     tracing::debug!(
         visits = outcome.visits,
         scc_passes = outcome.scc_passes,
+        component_work = outcome.component_work,
         cycle_count = outcome.cycles.len(),
         "Cycle enumeration complete"
     );
@@ -451,11 +452,15 @@ fn enumerate_cycles(
 struct CycleSearchOutcome {
     /// Canonical cycles in deterministic result order.
     cycles: Vec<Vec<FileId>>,
-    /// Number of node visits the search made.
+    /// Number of node visits the cycle search made.
     ///
     /// Logged as enumeration diagnostics, and fenced by tests to prove cost
     /// tracks cycles found rather than simple paths walked — the distinction
     /// Johnson's blocking buys.
+    ///
+    /// This counts the search alone. It is not the total cost of enumeration
+    /// and must not be budgeted as though it were: see
+    /// [`Self::component_work`].
     visits: usize,
     /// Component passes made, one per iteration of the enumeration cursor.
     ///
@@ -465,6 +470,16 @@ struct CycleSearchOutcome {
     /// recomputing components per start node, rather than per cursor jump,
     /// shows up as a test failure instead of as silent quadratic cost.
     scc_passes: usize,
+    /// Nodes entered plus edges examined across every component pass.
+    ///
+    /// [`Self::visits`] stopped being a fair measure of total cost when the
+    /// component restriction landed: the restriction's whole effect is to
+    /// move work out of the cycle search and into these passes. An acyclic
+    /// graph now reports zero visits while a full `O(V + E)` walk still
+    /// happens here, so a budget meaning to bound enumeration's real cost has
+    /// to read both numbers. Budgeting `visits` alone would have recorded the
+    /// work as eliminated rather than relocated.
+    component_work: usize,
 }
 
 /// [`enumerate_cycles`], additionally reporting how much work it took.
@@ -505,23 +520,29 @@ fn run_cycle_search(
     // 10,000 files cost 50,005,000 visits.
     let mut cursor = 0;
     let mut scc_passes = 0;
+    let mut component_work = 0;
     while cursor < nodes.len() {
-        let remaining = &nodes[cursor..];
-        let allowed: HashSet<FileId> = remaining.iter().copied().collect();
+        let scan = strongly_connected_components(&adj, &nodes[cursor..]);
         scc_passes += 1;
+        component_work += scan.work;
 
-        let component = strongly_connected_components(&adj, &allowed, remaining)
+        // Each candidate is paired with its least-ranked member: that member
+        // is both the key the least component is chosen by and the start the
+        // search runs from, so it is computed once.
+        let rooted = scan
+            .components
             .into_iter()
             .filter(|component| hosts_cycle(component, &adj))
-            .min_by_key(|component| component.iter().map(|node| ranks[node]).min());
+            .filter_map(|component| {
+                let least = *component.iter().min_by_key(|node| ranks[node])?;
+                Some((least, component))
+            })
+            .min_by_key(|(least, _)| ranks[least]);
 
         // No component left can close a cycle, so no later start can either.
-        let Some(component) = component else { break };
-
-        let start = *component
-            .iter()
-            .min_by_key(|node| ranks[node])
-            .expect("a component that hosts a cycle has at least one member");
+        let Some((start, component)) = rooted else {
+            break;
+        };
 
         // Johnson's bookkeeping is scoped to one component's search.
         search.blocked.clear();
@@ -538,10 +559,25 @@ fn run_cycle_search(
         cycles,
         visits: search.visits,
         scc_passes,
+        component_work,
     }
 }
 
-/// Strongly-connected components of the subgraph induced on `allowed`.
+/// One component pass: the decomposition, and what computing it cost.
+struct ComponentScan {
+    /// Strongly-connected components, in discovery order.
+    components: Vec<Vec<FileId>>,
+    /// Nodes entered plus edges examined during the pass.
+    ///
+    /// Counted because it is otherwise invisible. The restriction moves work
+    /// out of [`CycleSearch::visit`] and into here, so a budget that watched
+    /// only [`CycleSearchOutcome::visits`] would read zero on an acyclic
+    /// graph while the same `O(V + E)` walk carried on in this pass — the
+    /// measurement would improve without the cost going anywhere.
+    work: usize,
+}
+
+/// Strongly-connected components of the subgraph induced on `nodes`.
 ///
 /// Johnson's enumeration is only output-sensitive when each start node's
 /// search is confined to the component that start belongs to: a node that
@@ -554,18 +590,16 @@ fn run_cycle_search(
 /// leaving it where it is, so this pass carries an explicit work stack and
 /// costs no stack depth at all.
 ///
-/// Roots are taken in `order` so the component sequence is deterministic
-/// across runs. Cost is one `O(V + E)` pass over the induced subgraph: every
-/// node is pushed and popped once and every edge is examined once.
+/// Roots are taken in `nodes` order so the component sequence is
+/// deterministic across runs. Cost is one `O(V + E)` pass over the induced
+/// subgraph: every node is entered once and every edge examined once.
 fn strongly_connected_components(
     adj: &HashMap<FileId, Vec<FileId>>,
-    allowed: &HashSet<FileId>,
-    order: &[FileId],
-) -> Vec<Vec<FileId>> {
-    debug_assert!(
-        order.iter().all(|node| allowed.contains(node)),
-        "order must list only nodes of the induced subgraph"
-    );
+    nodes: &[FileId],
+) -> ComponentScan {
+    let allowed: HashSet<FileId> = nodes.iter().copied().collect();
+    let order = nodes;
+    let mut work = 0;
 
     let mut index_of: HashMap<FileId, usize> = HashMap::new();
     let mut lowlink: HashMap<FileId, usize> = HashMap::new();
@@ -575,26 +609,28 @@ fn strongly_connected_components(
     let mut next_index = 0;
 
     // Each frame is (node, index of the next neighbour to examine).
-    let mut work: Vec<(FileId, usize)> = Vec::new();
+    let mut frames: Vec<(FileId, usize)> = Vec::new();
 
     for &root in order {
         if index_of.contains_key(&root) {
             continue;
         }
-        work.push((root, 0));
+        frames.push((root, 0));
 
-        while let Some(&mut (node, ref mut cursor)) = work.last_mut() {
+        while let Some(&mut (node, ref mut cursor)) = frames.last_mut() {
             if *cursor == 0 {
                 index_of.insert(node, next_index);
                 lowlink.insert(node, next_index);
                 next_index += 1;
                 component_stack.push(node);
                 on_stack.insert(node);
+                work += 1;
             }
 
             let neighbors = adj.get(&node).map_or(&[][..], Vec::as_slice);
             let mut descended = false;
             for (offset, &neighbor) in neighbors.iter().enumerate().skip(*cursor) {
+                work += 1;
                 if !allowed.contains(&neighbor) {
                     continue;
                 }
@@ -607,7 +643,7 @@ fn strongly_connected_components(
                     }
                 } else {
                     *cursor = offset + 1;
-                    work.push((neighbor, 0));
+                    frames.push((neighbor, 0));
                     descended = true;
                     break;
                 }
@@ -628,15 +664,15 @@ fn strongly_connected_components(
                 components.push(component);
             }
 
-            work.pop();
-            if let Some(&(parent, _)) = work.last() {
+            frames.pop();
+            if let Some(&(parent, _)) = frames.last() {
                 let low = lowlink[&parent].min(lowlink[&node]);
                 lowlink.insert(parent, low);
             }
         }
     }
 
-    components
+    ComponentScan { components, work }
 }
 
 /// Whether a component contains a cycle, and so is worth searching.
@@ -720,9 +756,7 @@ impl<'a> CycleSearch<'a> {
         self.blocked.insert(node);
 
         for &neighbor in neighbors {
-            if !self.component.contains(&neighbor)
-                || compare_file_ids(neighbor, start, self.paths_by_id) == Ordering::Less
-            {
+            if !self.in_search_space(neighbor, start) {
                 continue;
             }
             if neighbor == start {
@@ -737,9 +771,7 @@ impl<'a> CycleSearch<'a> {
             self.unblock(node);
         } else {
             for &neighbor in neighbors {
-                if self.component.contains(&neighbor)
-                    && compare_file_ids(neighbor, start, self.paths_by_id) != Ordering::Less
-                {
+                if self.in_search_space(neighbor, start) {
                     self.blocked_by.entry(neighbor).or_default().insert(node);
                 }
             }
@@ -747,6 +779,31 @@ impl<'a> CycleSearch<'a> {
 
         self.path.pop();
         found
+    }
+
+    /// Whether `neighbor` is a step this search is allowed to take.
+    ///
+    /// Both of the walk's prunes live here, and they must stay together: the
+    /// recursion loop and the [`Self::blocked_by`] registration below it have
+    /// to agree exactly on which neighbours are in play, or a node gets
+    /// blocked behind a successor the walk never explores and real cycles go
+    /// unreported. They were previously written out twice as each other's
+    /// negation, which is one careless edit away from that bug.
+    ///
+    /// [`Self::component`] membership is the cost prune: outside the
+    /// component there is no way back to `start`. The rank test is the
+    /// canonicalization prune — a cycle may only be recorded while walking
+    /// from its own least-ranked member, which is what leaves
+    /// [`Self::path`] already rotated to canonical form.
+    ///
+    /// The rank test looks redundant, because a correctly rooted component
+    /// contains no node ranked before `start`. It is kept deliberately: it is
+    /// what makes a mis-rooted component degrade to the older, slower
+    /// behaviour instead of silently emitting duplicate rotations. Do not
+    /// delete it as dead.
+    fn in_search_space(&self, neighbor: FileId, start: FileId) -> bool {
+        self.component.contains(&neighbor)
+            && compare_file_ids(neighbor, start, self.paths_by_id) != Ordering::Less
     }
 
     /// Johnson's `UNBLOCK`: release `node` and everything waiting on it.
@@ -906,9 +963,9 @@ mod tests {
         out
     }
 
-    fn all_of(ids: &[i64]) -> (HashSet<FileId>, Vec<FileId>) {
-        let nodes: Vec<FileId> = ids.iter().copied().map(FileId::from).collect();
-        (nodes.iter().copied().collect(), nodes)
+    /// The induced-subgraph node list for a set of raw ids.
+    fn induced(ids: &[i64]) -> Vec<FileId> {
+        ids.iter().copied().map(FileId::from).collect()
     }
 
     /// Components must match a decomposition computed by hand.
@@ -919,33 +976,33 @@ mod tests {
     fn scc_decomposition_matches_hand_computed_components() {
         // Two disjoint two-cycles.
         let adj = edges(&[(0, 1), (1, 0), (2, 3), (3, 2)]);
-        let (allowed, order) = all_of(&[0, 1, 2, 3]);
+        let order = induced(&[0, 1, 2, 3]);
         assert_eq!(
-            sorted_components(&strongly_connected_components(&adj, &allowed, &order)),
+            sorted_components(&strongly_connected_components(&adj, &order).components),
             vec![vec![0, 1], vec![2, 3]]
         );
 
         // Three-cycle with an acyclic tail hanging off it.
         let adj = edges(&[(0, 1), (1, 2), (2, 0), (2, 3)]);
-        let (allowed, order) = all_of(&[0, 1, 2, 3]);
+        let order = induced(&[0, 1, 2, 3]);
         assert_eq!(
-            sorted_components(&strongly_connected_components(&adj, &allowed, &order)),
+            sorted_components(&strongly_connected_components(&adj, &order).components),
             vec![vec![0, 1, 2], vec![3]]
         );
 
         // A pure chain decomposes into singletons.
         let adj = edges(&[(0, 1), (1, 2)]);
-        let (allowed, order) = all_of(&[0, 1, 2]);
+        let order = induced(&[0, 1, 2]);
         assert_eq!(
-            sorted_components(&strongly_connected_components(&adj, &allowed, &order)),
+            sorted_components(&strongly_connected_components(&adj, &order).components),
             vec![vec![0], vec![1], vec![2]]
         );
 
         // A node depending on itself is its own component.
         let adj = edges(&[(0, 0)]);
-        let (allowed, order) = all_of(&[0]);
+        let order = induced(&[0]);
         assert_eq!(
-            sorted_components(&strongly_connected_components(&adj, &allowed, &order)),
+            sorted_components(&strongly_connected_components(&adj, &order).components),
             vec![vec![0]]
         );
     }
@@ -957,10 +1014,10 @@ mod tests {
     #[test]
     fn scc_respects_the_induced_subgraph() {
         let adj = edges(&[(0, 1), (1, 0), (1, 2)]);
-        let (allowed, order) = all_of(&[1, 2]);
+        let order = induced(&[1, 2]);
 
         assert_eq!(
-            sorted_components(&strongly_connected_components(&adj, &allowed, &order)),
+            sorted_components(&strongly_connected_components(&adj, &order).components),
             vec![vec![1], vec![2]],
             "the 0 <-> 1 cycle must not survive dropping node 0"
         );
@@ -969,9 +1026,11 @@ mod tests {
     #[test]
     fn scc_on_empty_subgraph_returns_no_components() {
         let adj = edges(&[(0, 1), (1, 0)]);
-        let allowed = HashSet::new();
 
-        assert!(strongly_connected_components(&adj, &allowed, &[]).is_empty());
+        let scan = strongly_connected_components(&adj, &[]);
+
+        assert!(scan.components.is_empty());
+        assert_eq!(scan.work, 0, "an empty subgraph costs nothing to scan");
     }
 
     /// A component hosts a cycle only when it can actually close one.
@@ -1004,9 +1063,9 @@ mod tests {
             adj.insert(FileId::from(id), vec![FileId::from(id + 1)]);
         }
         let ids: Vec<i64> = (0..NODES).collect();
-        let (allowed, order) = all_of(&ids);
+        let order = induced(&ids);
 
-        let components = strongly_connected_components(&adj, &allowed, &order);
+        let components = strongly_connected_components(&adj, &order).components;
 
         assert_eq!(components.len(), usize::try_from(NODES).expect("fits"));
         assert!(components.iter().all(|component| component.len() == 1));
@@ -1099,11 +1158,14 @@ mod tests {
         );
         let edge_count = (LAYERS - 1) * WIDTH * WIDTH;
         let budget = usize::try_from(node_count + edge_count).expect("budget fits");
+        let total = outcome.visits + outcome.component_work;
         assert!(
-            outcome.visits <= budget,
-            "acyclic enumeration must stay within {budget} visits (nodes + \
-             edges), walked {} — cost is tracking graph size, not cycles",
-            outcome.visits
+            total <= budget,
+            "acyclic enumeration must stay within {budget} units of work \
+             (nodes + edges), spent {total} — {} searching and {} scanning \
+             components",
+            outcome.visits,
+            outcome.component_work
         );
         assert_eq!(
             outcome.visits, 0,
@@ -1231,26 +1293,43 @@ mod tests {
 
     /// Densely cyclic graphs must not pay for the component restriction.
     ///
-    /// The pre-change search made 416 visits on this fixture. Confining the
-    /// walk cannot help here — the whole graph is one component — so the
-    /// ceiling is the old cost, and anything above it means the component
-    /// passes are costing more than they save.
+    /// Two separate things are asserted, because one number cannot carry
+    /// both. The search itself must not grow: the pre-change walk made 416
+    /// visits on this fixture, and confining it cannot help here since the
+    /// whole graph is one component. Separately, the component passes are
+    /// work the old search never did, and that work is bounded per pass —
+    /// each is one `O(V + E)` scan of a shrinking subgraph, so it cannot
+    /// exceed `passes * (nodes + edges)`.
     ///
-    /// Measured on tethys's own index, the same shape at 116 files and 400
-    /// edges: 135,888 visits before, 134,790 after, output byte-identical.
+    /// Asserting `visits` alone would be decoration: the component passes
+    /// are not counted in it, so no amount of pass cost could ever make that
+    /// assertion fail.
+    ///
+    /// End-to-end evidence lives in wall-clock, not in either counter. On
+    /// tethys's own index at 116 files and 400 edges: 0.170s to 0.124s
+    /// median, output byte-identical.
     #[test]
     fn enumerate_cycles_does_not_regress_on_dense_graph() {
         const PRE_CHANGE_VISITS: usize = 416;
+        const EDGES: usize = 31;
 
-        let (_, outcome) = dense_search();
+        let (ids, outcome) = dense_search();
 
         assert_eq!(outcome.cycles.len(), 410, "the dense fixture's cycle count");
         assert!(
             outcome.visits <= PRE_CHANGE_VISITS,
-            "made {} visits against a pre-change baseline of \
-             {PRE_CHANGE_VISITS} — the component passes are costing more \
-             than the restriction saves on densely cyclic graphs",
+            "the cycle search made {} visits against a pre-change baseline of \
+             {PRE_CHANGE_VISITS} — confining the walk has made the search \
+             itself more expensive",
             outcome.visits
+        );
+        let scan_budget = outcome.scc_passes * (ids.len() + EDGES);
+        assert!(
+            outcome.component_work <= scan_budget,
+            "component passes spent {} units over {} passes, budget is one \
+             linear scan each = {scan_budget}",
+            outcome.component_work,
+            outcome.scc_passes
         );
     }
 

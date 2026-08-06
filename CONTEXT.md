@@ -248,6 +248,17 @@ one-element cycle.
 _Avoid_: treating a rotation and a reversal as the same thing (rotations
 collapse, reversals do not)
 
+**Component (strongly-connected)**:
+A set of files that can all reach each other through dependency edges. Every
+cycle lies wholly inside one component, so cycle detection searches only
+within components and skips files that belong to none — a file that cannot
+reach itself can begin no cycle. A component *hosts a cycle* when it has more
+than one file, or is a single file that depends on itself; components that
+host none are never searched.
+_Avoid_: cluster, group, island (this is the graph-theory term and the code
+uses it precisely); calling a lone file with no self-dependency a component
+that hosts a cycle
+
 **Dead code**:
 A non-public, non-test symbol with zero inbound evidence — no resolved reference
 from outside itself (every confidence band counts, speculative included), no
