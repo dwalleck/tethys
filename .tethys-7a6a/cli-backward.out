@@ -1,0 +1,23 @@
+Backward reachability from "extract_references_recursive":
+
+  Depth 1 direct (3):
+    • extract_references (43:142)
+    • visit_invocation (43:314)
+    • visit_member_access (43:336)
+  Depth 2 transitive (14):
+    • CSharpLanguage::extract_references (43:89)
+    • accessor_body_refs_attribute_to_member_span (43:2006)
+    • base_list_emits_anchored_inherit_edges (43:1508)
+    • extracts_generic_object_creation (43:2465)
+    • extracts_member_method_call (43:2429)
+    • extracts_method_call (43:2412)
+    • extracts_object_creation (43:2447)
+    • member_read_chained_emits_one_ref_per_level (43:1917)
+    • member_read_on_assignment_lhs_is_emitted (43:2051)
+    • member_read_on_invocation_result_and_in_arguments (43:1977)
+    • member_read_simple_emits_field_access (43:1892)
+    • member_read_skips_invocation_callee_spine (43:1949)
+    • no_member_access_means_no_field_access_refs (43:2071)
+    • tracks_containing_symbol_for_references (43:2483)
+
+Summary: 17 symbols across 1 files (max depth: 2)
