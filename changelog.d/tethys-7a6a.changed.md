@@ -1,0 +1,1 @@
+- `tethys reachable` now traverses forward and backward call graphs from one bulk index snapshot, preserving shortest paths, depth limits, and cycle-safe results without per-symbol database queries.
