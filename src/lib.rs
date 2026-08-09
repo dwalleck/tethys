@@ -100,9 +100,8 @@ fn index_db_path(workspace_root: &Path) -> PathBuf {
 
 /// Convert a `usize` depth to `u32`, saturating at `u32::MAX` with a `warn!`.
 ///
-/// The public API takes `usize` for consistency with [`Tethys::get_forward_reachable`]
-/// and [`Tethys::get_backward_reachable`], while the DB layer's recursive CTE
-/// binds depth as `u32`. This helper bridges the gap. Saturating (rather than
+/// The public API takes `usize`, while the DB layer binds depth as `u32`.
+/// This helper bridges the gap. Saturating (rather than
 /// truncating) keeps the requested behavior monotone, and the log makes the
 /// cap discoverable.
 fn saturating_depth_to_u32(depth: usize) -> u32 {
@@ -555,71 +554,11 @@ impl Tethys {
         })
     }
 
-    /// BFS traversal of the call graph in a given direction.
-    ///
-    /// Shared implementation for both forward (callees) and backward (callers) reachability.
-    /// The `get_neighbors` closure determines the direction by returning either callees or
-    /// callers for a given symbol.
-    ///
-    /// The BFS uses fail-fast error handling: if a database error occurs while fetching
-    /// neighbors for any symbol, traversal stops immediately and the error is returned.
-    #[expect(
-        clippy::unused_self,
-        reason = "method is a private helper called on self; callers pass closures that capture self"
-    )]
-    fn bfs_reachable(
-        &self,
-        start_id: SymbolId,
-        max_depth: usize,
-        get_neighbors: impl Fn(SymbolId) -> Result<Vec<Symbol>>,
-        direction: types::ReachabilityDirection,
-        source: Symbol,
-    ) -> Result<types::ReachabilityResult> {
-        use std::collections::{HashSet, VecDeque};
-
-        let mut visited: HashSet<SymbolId> = HashSet::new();
-        let mut results: Vec<types::ReachablePath> = Vec::new();
-        let mut queue: VecDeque<(SymbolId, Vec<Symbol>, usize)> = VecDeque::new();
-
-        queue.push_back((start_id, vec![], 0));
-        visited.insert(start_id);
-
-        while let Some((current_id, path, depth)) = queue.pop_front() {
-            if depth >= max_depth {
-                continue;
-            }
-
-            for neighbor in get_neighbors(current_id)? {
-                if visited.insert(neighbor.id) {
-                    let mut new_path = path.clone();
-                    new_path.push(neighbor.clone());
-
-                    results.push(types::ReachablePath {
-                        target: neighbor.clone(),
-                        path: new_path.clone(),
-                        depth: depth + 1,
-                    });
-
-                    queue.push_back((neighbor.id, new_path, depth + 1));
-                }
-            }
-        }
-
-        Ok(types::ReachabilityResult {
-            source,
-            reachable: results,
-            max_depth,
-            direction,
-        })
-    }
-
     /// Get forward reachable symbols: what can this symbol reach?
     ///
-    /// Performs BFS traversal of the call graph following callees (outgoing edges).
-    /// Returns all symbols that can be reached from the source symbol within `max_depth`.
-    ///
-    /// The BFS uses fail-fast error handling: if a database error occurs while fetching
-    /// callees for any symbol, traversal stops immediately and the error is returned.
+    /// Delegates to [`Tethys::get_reachable`] with
+    /// [`ReachabilityDirection::Forward`]. The graph is loaded in bulk before
+    /// traversal.
     ///
     /// # Arguments
     ///
@@ -647,27 +586,14 @@ impl Tethys {
         qualified_name: &str,
         max_depth: Option<usize>,
     ) -> Result<types::ReachabilityResult> {
-        let source = self
-            .db
-            .get_symbol_by_qualified_name(qualified_name)?
-            .ok_or_else(|| Error::NotFound(format!("symbol: {qualified_name}")))?;
-
-        self.bfs_reachable(
-            source.id,
-            max_depth.unwrap_or(50),
-            |id| self.db.get_callees(id),
-            types::ReachabilityDirection::Forward,
-            source,
-        )
+        self.get_reachable(qualified_name, ReachabilityDirection::Forward, max_depth)
     }
 
     /// Get backward reachable symbols: who can reach this symbol?
     ///
-    /// Performs BFS traversal of the call graph following callers (incoming edges).
-    /// Returns all symbols that can reach the analyzed symbol within `max_depth`.
-    ///
-    /// The BFS uses fail-fast error handling: if a database error occurs while fetching
-    /// callers for any symbol, traversal stops immediately and the error is returned.
+    /// Delegates to [`Tethys::get_reachable`] with
+    /// [`ReachabilityDirection::Backward`]. The graph is loaded in bulk before
+    /// traversal.
     ///
     /// # Arguments
     ///
@@ -695,25 +621,7 @@ impl Tethys {
         qualified_name: &str,
         max_depth: Option<usize>,
     ) -> Result<types::ReachabilityResult> {
-        let source = self
-            .db
-            .get_symbol_by_qualified_name(qualified_name)?
-            .ok_or_else(|| Error::NotFound(format!("symbol: {qualified_name}")))?;
-
-        self.bfs_reachable(
-            source.id,
-            max_depth.unwrap_or(50),
-            |id| {
-                Ok(self
-                    .db
-                    .get_callers(id, CallEdgeSelection::All)?
-                    .into_iter()
-                    .map(|c| c.symbol)
-                    .collect())
-            },
-            types::ReachabilityDirection::Backward,
-            source,
-        )
+        self.get_reachable(qualified_name, ReachabilityDirection::Backward, max_depth)
     }
 
     // === Crate Resolution ===
@@ -1529,7 +1437,7 @@ mod tests {
         .expect("write Cargo.toml");
         std::fs::write(
             src_dir.join("lib.rs"),
-            "pub fn target() {}\npub fn source() { target(); }\n",
+            "pub fn target() {}\npub fn left() { target(); }\npub fn right() {}\npub fn source() { left(); right(); }\n",
         )
         .expect("write lib.rs");
 
@@ -1543,14 +1451,18 @@ mod tests {
         let (_workspace, tethys) = indexed_reachability_workspace();
 
         let result = tethys
-            .get_reachable("source", ReachabilityDirection::Forward, Some(1))
+            .get_reachable("source", ReachabilityDirection::Forward, Some(2))
             .expect("forward reachability");
 
         assert_eq!(result.direction, ReachabilityDirection::Forward);
-        assert_eq!(result.max_depth, 1);
-        assert_eq!(result.reachable.len(), 1);
-        assert_eq!(result.reachable[0].target.qualified_name, "target");
-        assert_eq!(result.reachable[0].path.len(), 1);
+        assert_eq!(result.max_depth, 2);
+        assert_eq!(result.reachable.len(), 3);
+        let target = result
+            .reachable
+            .iter()
+            .find(|entry| entry.target.qualified_name == "target")
+            .expect("target is reachable");
+        assert_eq!(target.path.len(), 2);
     }
 
     #[test]
@@ -1562,5 +1474,52 @@ mod tests {
             .expect_err("missing source must fail at depth zero");
 
         assert!(matches!(error, Error::NotFound(message) if message == "symbol: missing"));
+    }
+
+    fn assert_same_reachability(left: &ReachabilityResult, right: &ReachabilityResult) {
+        assert_eq!(left.source.id, right.source.id);
+        assert_eq!(left.max_depth, right.max_depth);
+        assert_eq!(left.direction, right.direction);
+        assert_eq!(left.reachable.len(), right.reachable.len());
+        for (left_entry, right_entry) in left.reachable.iter().zip(&right.reachable) {
+            assert_eq!(left_entry.target.id, right_entry.target.id);
+            assert_eq!(left_entry.target.is_test, right_entry.target.is_test);
+            assert_eq!(left_entry.depth, right_entry.depth);
+            assert_eq!(
+                left_entry
+                    .path
+                    .iter()
+                    .map(|symbol| symbol.id)
+                    .collect::<Vec<_>>(),
+                right_entry
+                    .path
+                    .iter()
+                    .map(|symbol| symbol.id)
+                    .collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn reachability_wrappers_match_canonical_operation() {
+        let (_workspace, tethys) = indexed_reachability_workspace();
+
+        for depth in [0, 1, 3] {
+            let forward = tethys
+                .get_forward_reachable("source", Some(depth))
+                .expect("forward wrapper");
+            let canonical_forward = tethys
+                .get_reachable("source", ReachabilityDirection::Forward, Some(depth))
+                .expect("canonical forward");
+            assert_same_reachability(&forward, &canonical_forward);
+
+            let backward = tethys
+                .get_backward_reachable("target", Some(depth))
+                .expect("backward wrapper");
+            let canonical_backward = tethys
+                .get_reachable("target", ReachabilityDirection::Backward, Some(depth))
+                .expect("canonical backward");
+            assert_same_reachability(&backward, &canonical_backward);
+        }
     }
 }

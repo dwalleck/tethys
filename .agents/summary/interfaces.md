@@ -62,6 +62,7 @@ classDiagram
         +get_dependencies(file) Result
         +get_dependency_chain(from, to) Result
         +detect_cycles() Result~Vec~Cycle~~
+        +get_reachable(symbol, direction, depth) Result~ReachabilityResult~
         +get_forward_reachable(symbol, depth) Result~ReachabilityResult~
         +get_backward_reachable(symbol, depth) Result~ReachabilityResult~
         +get_packages() Result~Vec~Package~~

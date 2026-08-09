@@ -128,9 +128,13 @@ unique at minimum depth, and neither result fabricates reference counts.
 
 ### Reachability
 
-`reachable <symbol> --direction forward|backward --max-depth N` does a BFS over
-the call graph (`get_forward_reachable` / `get_backward_reachable`), returning
-reachable symbols grouped by depth. Cyclic graphs terminate safely.
+`reachable <symbol> --direction forward|backward --max-depth N` maps the CLI
+direction to `Tethys::get_reachable`. The canonical operation loads symbols and
+call edges in one SQLite snapshot, then runs direction-parameterized BFS with
+one predecessor per discovered symbol. Results are unique at minimum depth,
+preserve BFS discovery order and valid source-excluding paths, and terminate on
+cycles. `get_forward_reachable` and `get_backward_reachable` remain delegating
+library wrappers.
 
 ### Cycle Detection
 
