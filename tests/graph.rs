@@ -2276,6 +2276,86 @@ fn canonical_reachability_preserves_is_test() {
     }
 }
 
+#[test]
+fn canonical_reachability_preserves_source_and_dangling_posture() {
+    let (_dir, mut tethys) = workspace_with_reachability_routes();
+    tethys.index().expect("index failed");
+    let connection = Connection::open(tethys.db_path()).expect("open index");
+    connection
+        .pragma_update(None, "foreign_keys", false)
+        .expect("disable foreign keys");
+    let source_id = connection
+        .query_row(
+            "SELECT id FROM symbols WHERE qualified_name = 'source' ORDER BY id LIMIT 1",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .expect("source id");
+    connection
+        .execute(
+            "INSERT INTO symbols (
+                file_id, name, module_path, qualified_name, kind, line, column,
+                end_line, end_column, signature, visibility, parent_symbol_id, is_test
+             )
+             SELECT
+                file_id, name, module_path, qualified_name, kind, line, column,
+                end_line, end_column, signature, visibility, parent_symbol_id, is_test
+             FROM symbols WHERE id = ?1",
+            [source_id],
+        )
+        .expect("insert duplicate source");
+    connection
+        .execute(
+            "INSERT INTO call_edges (caller_symbol_id, callee_symbol_id, call_count)
+             VALUES (?1, 999999, 1)",
+            [source_id],
+        )
+        .expect("insert dangling edge");
+    let expected_direct = {
+        let mut statement = connection
+            .prepare(
+                "SELECT s.id
+                 FROM call_edges ce
+                 JOIN symbols s ON s.id = ce.callee_symbol_id
+                 WHERE ce.caller_symbol_id = ?1
+                 ORDER BY s.qualified_name, s.id",
+            )
+            .expect("prepare inner-join oracle");
+        statement
+            .query_map([source_id], |row| row.get::<_, i64>(0))
+            .expect("query inner-join oracle")
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("collect inner-join oracle")
+    };
+    drop(connection);
+
+    let result = tethys
+        .get_reachable("source", ReachabilityDirection::Forward, Some(1))
+        .expect("dangling edge must be omitted");
+    assert_eq!(result.source.id.as_i64(), source_id);
+    assert_eq!(
+        result
+            .reachable
+            .iter()
+            .map(|entry| entry.target.id.as_i64())
+            .collect::<Vec<_>>(),
+        expected_direct
+    );
+
+    let connection = Connection::open(tethys.db_path()).expect("reopen index");
+    connection
+        .execute("UPDATE symbols SET is_test = X'01' WHERE name = 'beta'", [])
+        .expect("corrupt symbol projection");
+    drop(connection);
+    let error = tethys
+        .get_reachable("source", ReachabilityDirection::Forward, Some(1))
+        .expect_err("corrupt row must fail");
+    assert!(matches!(
+        error,
+        Error::Database(rusqlite::Error::InvalidColumnType(..))
+    ));
+}
+
 fn workspace_with_strongly_connected_calls() -> (TempDir, Tethys) {
     let dir = tempfile::tempdir().expect("failed to create temp dir");
     fs::write(
