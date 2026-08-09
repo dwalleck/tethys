@@ -218,7 +218,10 @@ impl Index {
             while cursor != source_id {
                 path_ids.push(cursor);
                 cursor = *parents.get(&cursor).ok_or_else(|| {
-                    Error::NotFound(format!("predecessor for symbol id: {}", cursor.as_i64()))
+                    Error::Internal(format!(
+                        "missing predecessor for symbol id: {}",
+                        cursor.as_i64()
+                    ))
                 })?;
             }
             path_ids.reverse();
