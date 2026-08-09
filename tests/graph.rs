@@ -2143,6 +2143,76 @@ fn canonical_reachability_paths_are_shortest_unique_and_valid() {
     );
 }
 
+#[test]
+fn canonical_reachability_preserves_bfs_discovery_order() {
+    let (_dir, mut tethys) = workspace_with_reachability_routes();
+    tethys.index().expect("index failed");
+
+    let result = tethys
+        .get_reachable("source", ReachabilityDirection::Forward, Some(4))
+        .expect("forward reachability");
+    let observed = result
+        .reachable
+        .iter()
+        .map(|entry| entry.target.qualified_name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        observed,
+        vec!["alpha", "beta", "long_1", "target", "long_2"]
+    );
+
+    let mut globally_sorted = result
+        .reachable
+        .iter()
+        .map(|entry| (entry.depth, entry.target.qualified_name.as_str()))
+        .collect::<Vec<_>>();
+    globally_sorted.sort_unstable();
+    assert_ne!(
+        observed,
+        globally_sorted
+            .iter()
+            .map(|(_, name)| *name)
+            .collect::<Vec<_>>(),
+        "fixture must distinguish queue discovery from global sorting"
+    );
+
+    let connection = Connection::open(tethys.db_path()).expect("open index");
+    connection
+        .execute(
+            "UPDATE symbols SET qualified_name = 'aaa_same'
+             WHERE name IN ('alpha', 'beta')",
+            [],
+        )
+        .expect("create qualified-name tie");
+    let tied_ids = {
+        let mut statement = connection
+            .prepare(
+                "SELECT id FROM symbols
+                 WHERE qualified_name = 'aaa_same'
+                 ORDER BY id",
+            )
+            .expect("prepare tied ids");
+        statement
+            .query_map([], |row| row.get::<_, i64>(0))
+            .expect("query tied ids")
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("collect tied ids")
+    };
+    drop(connection);
+
+    let tied = tethys
+        .get_reachable("source", ReachabilityDirection::Forward, Some(1))
+        .expect("tied reachability");
+    assert_eq!(
+        tied.reachable
+            .iter()
+            .take(2)
+            .map(|entry| entry.target.id.as_i64())
+            .collect::<Vec<_>>(),
+        tied_ids
+    );
+}
+
 fn workspace_with_strongly_connected_calls() -> (TempDir, Tethys) {
     let dir = tempfile::tempdir().expect("failed to create temp dir");
     fs::write(
