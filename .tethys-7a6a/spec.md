@@ -92,7 +92,7 @@ Tethys will expose one canonical direction-parameterized reachability operation.
 | Target has multiple routes at the same depth | Retain the route discovered first by deterministic adjacency order. | Makes path selection reproducible without global result sorting. |
 | Reachability contains speculative call edges | Traverse all indexed call edges. | Provenance filtering is scoped to callers and impact by `tethys-6k6b`; legacy reachability has no exclusion mode. |
 | Bulk query returns test and non-test symbols | Decode the complete symbol projection, including the real `is_test` column. | Avoids inheriting the projection defect tracked by `tethys-6bui`. |
-| A call edge has a dangling endpoint | Preserve the current fail-fast database error posture. | A broader posture decision is tracked by `tethys-e3j1` for `tethys-71if`. |
+| A call edge has a dangling endpoint | Silently omit the dangling neighbor, matching the legacy inner-join result; unrelated SQL and row-decoding failures still return errors. | A new validation or warning posture is tracked by `tethys-e3j1` for `tethys-71if`. |
 | Legacy wrapper is called | Delegate to the canonical operation. | Requester retained wrappers until `tethys-71if` while requiring one traversal implementation. |
 
 ## Out of scope
@@ -131,13 +131,14 @@ This change does NOT include:
 | 5 | Does this PR remove the two public wrappers? | No. They delegate until `tethys-71if` removes them. | Requester explicitly selected retention on 2026-08-08 to reconcile contradictory tracker wording. |
 | 6 | How is the open `is_test` projection defect handled? | The new bulk query selects and decodes the real symbol columns and adds a non-test forward-reachability fence; adjacent methods remain tracked by `tethys-6bui`. | Prevents the new operation from inheriting the known defect without absorbing unrelated repair scope. |
 | 7 | What happens when the source qualified name is duplicated? | Preserve the current first-row lookup and leave unique-or-decline semantics to `tethys-bvgb`. | The probe found 75 duplicate groups in the self-index, exposing a pre-existing resolver defect rather than traversal behavior. |
+| 8 | What is the existing dangling-edge posture? | Preserve inner-join-equivalent omission of missing endpoints; continue propagating SQL and decode errors. | Design premise research corrected the earlier assumption that legacy reachability validates dangling endpoints; `tethys-e3j1` owns any behavior change. |
 
 ## Sign-off
 
 Agent summary:
 
-> One canonical `Tethys` operation will traverse forward or backward over a single call-graph snapshot, preserve deterministic BFS order, shortest-depth uniqueness, exact path and depth behavior, and cycle safety, and reconstruct paths from one predecessor per discovered symbol. The CLI keeps its current inputs and defaults. The two old public methods remain only as delegating wrappers until `tethys-71if`. The new query must decode complete symbol rows so non-test targets remain non-test. Duplicate-qualified-name source lookup remains unchanged and tracked by `tethys-bvgb`; unrelated graph-projection and resolver defects stay with their existing tracker issues.
+> One canonical `Tethys` operation will traverse forward or backward over a single call-graph snapshot, preserve deterministic BFS order, shortest-depth uniqueness, exact path and depth behavior, and cycle safety, and reconstruct paths from one predecessor per discovered symbol. The CLI keeps its current inputs and defaults. The two old public methods remain only as delegating wrappers until `tethys-71if`. The new query must decode complete symbol rows so non-test targets remain non-test. Duplicate-qualified-name source lookup and inner-join-equivalent omission of dangling endpoints remain unchanged under `tethys-bvgb` and `tethys-e3j1`; unrelated graph-projection and resolver defects stay with their existing tracker issues.
 
-The requester agreed: "Yes, approve amendment"
+The requester agreed: "Approved. Just make sure tethys-e3j1 is updated appropriately"
 
 Date: 2026-08-08
