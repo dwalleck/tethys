@@ -253,7 +253,7 @@ Every slice uses scoped TDD where it adds tests. Every slice gate is: targeted t
 
 **Design claim:** Claim 1A — canonical seam for the Rust library surface.
 
-**Oracle:** LSP references plus behavior equality between canonical method and each wrapper.
+**Oracle:** LSP references plus behavior equality between canonical method and each wrapper. The comparator's default checks canonical real-`is_test`; `--legacy-is-test` preserves the pre-cutover baseline.
 
 **Stress fixture:** One asymmetric graph called through all three public methods at depths 0, 1, and 3. Wrapper results must equal canonical results byte-for-byte in the matching direction, including effective saturated depth.
 
@@ -261,9 +261,9 @@ Every slice uses scoped TDD where it adds tests. Every slice gate is: targeted t
 
 **Wall budget:** Not applicable.
 
-**Files:** `src/lib.rs`, `tests/graph.rs`.
+**Files:** `src/lib.rs`, `.agents/summary/interfaces.md`, `.agents/summary/workflows.md`. This approved three-file exception is required by the repository's same-commit documentation rule; splitting would make the normative summaries stale.
 
-**Smallest code change:** Replace wrapper bodies with one-line calls to `get_reachable`, update docs and the saturation helper link, delete private `bfs_reachable`, and add equality coverage. Preserve wrappers until `tethys-71if`.
+**Smallest code change:** Replace wrapper bodies with one-line calls to `get_reachable`, update the saturation helper link, delete private `bfs_reachable`, and add equality coverage inside `src/lib.rs`. Update both normative summaries in the same commit. Preserve wrappers until `tethys-71if`.
 
 **Preconditions:** Same runtime checks as canonical method; wrappers add none.
 
@@ -272,7 +272,7 @@ Every slice uses scoped TDD where it adds tests. Every slice gate is: targeted t
 **Verification:**
 - [ ] `reachability_wrappers_match_canonical_operation` passes.
 - [ ] Asymmetric wrapper stress fixture matches canonical results.
-- [ ] Prototype comparisons A/B still agree through the retained wrappers.
+- [ ] Post-cutover prototype comparisons A/B agree through the retained wrappers; pre-cutover artifacts still agree under `--legacy-is-test`.
 - [ ] LSP/text recall net finds no second traversal body or direct neighbor-query loop.
 - [ ] Full Rust gates pass.
 

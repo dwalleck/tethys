@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
-"""Item-by-item comparison for tethys-7a6a: probe (real public API) vs
-oracle (raw SQLite BFS) reachability dumps.
+"""Compare tethys-7a6a public reachability with an independent raw-SQLite BFS.
 
-Traversal slice (id, depth, path, discovery order) must match EXACTLY for
-every tag. is_test is audited separately: backward slices must match
-exactly (the legacy query reads the real column); forward slices may differ
-where the legacy get_callees projection decodes call_count as is_test
-(tethys-6bui) — every such difference must satisfy
-probe_is_test == (edge_count != 0).
+IDs, depths, paths, discovery order, and real ``symbols.is_test`` values must
+match exactly. ``--legacy-is-test`` reproduces the pre-cutover audit: forward
+wrappers decoded ``call_edges.call_count`` as ``is_test`` under tethys-6bui,
+and every difference must be explained by that mechanism.
 
-Exit code 0 = full agreement under that definition; 1 = any violation.
+Exit code 0 means full agreement under the selected projection contract.
 
-Usage: compare.py <probe.out> <oracle.out>
+Usage: compare.py [--legacy-is-test] <probe.out> <oracle.out>
 """
 import re
 import sys
 
-probe_file, oracle_file = sys.argv[1], sys.argv[2]
+legacy_is_test = "--legacy-is-test" in sys.argv[1:]
+paths = [argument for argument in sys.argv[1:] if argument != "--legacy-is-test"]
+if len(paths) != 2:
+    raise SystemExit("usage: compare.py [--legacy-is-test] <probe.out> <oracle.out>")
+probe_file, oracle_file = paths
 PAT = re.compile(
     r"ENTRY (\S+) seq=(\d+) id=(\d+) depth=(\d+) is_test=(\S+) qn=(\S+) "
     r"path=\[([^\]]*)\](?: edge_count=(\S+))?"
@@ -102,8 +103,9 @@ for tag in sorted(set(pe) | set(oe)):
                 f"{side}/{tag}: path.len {len(e['path'])} != depth {e['depth']}"
             )
 
-    # is_test audit.
-    if tag.startswith("fwd"):
+    # Projection audit. The default is the post-cutover canonical contract;
+    # legacy mode retains the pre-cutover defect evidence.
+    if legacy_is_test and tag.startswith("fwd"):
         mech_ok = all(
             (p["is_test"] == "true") == (o["edge_count"] != 0)
             for p, o in zip(probe, oracle)
@@ -116,20 +118,19 @@ for tag in sorted(set(pe) | set(oe)):
             for p, o in zip(probe, oracle)
         )
         if not mech_ok:
-            print(f"[{tag}] FAIL: is_test differences not explained by call_count")
+            print(f"[{tag}] FAIL: legacy is_test differences not explained by call_count")
             ok = False
         else:
             print(
-                f"[{tag}] is_test audit: {flipped} legacy flips, "
+                f"[{tag}] legacy is_test audit: {flipped} flips, "
                 f"{real_non_test_mislabeled} real non-test targets mislabeled "
                 f"as test; every flip == (edge_count != 0) PASS"
             )
+    elif [p["is_test"] for p in probe] != [o["is_test"] for o in oracle]:
+        print(f"[{tag}] FAIL: is_test differs from real symbols.is_test")
+        ok = False
     else:
-        if [p["is_test"] for p in probe] != [o["is_test"] for o in oracle]:
-            print(f"[{tag}] FAIL: backward is_test differs from real column")
-            ok = False
-        else:
-            print(f"[{tag}] is_test matches real symbols.is_test PASS")
+        print(f"[{tag}] is_test matches real symbols.is_test PASS")
 
 # Self-loop / cycle fact: the source must never be returned as its own target.
 for tag in sorted(pe):

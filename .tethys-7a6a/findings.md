@@ -26,7 +26,8 @@ order that an independent raw-SQLite BFS computes — and what does the legacy
   cloning). Emits the same lines plus the REAL `is_test` column and the discovery
   edge's `call_count`.
 - **Comparator** (`.tethys-7a6a/compare.py`): item-by-item; also pins empty slices
-  via META counts and asserts source-never-returned.
+  via META counts and asserts source-never-returned. `--legacy-is-test` audits
+  the pre-cutover defect; the default requires real `symbols.is_test`.
 
 ## Commands (all ran in repo root; committed audit artifacts stay under `.tethys-7a6a/`; generated build and database copies stayed in `target/` and `/tmp/`)
 
@@ -40,8 +41,8 @@ python3 .tethys-7a6a/oracle.py /tmp/t7a6a-probe/ws/.rivets/index/tethys.db Tethy
 python3 .tethys-7a6a/oracle.py /tmp/t7a6a-probe/ws/.rivets/index/tethys.db extract_references_recursive 4 > .tethys-7a6a/oracle-b.out
 /tmp/t7a6a-probe/probe /tmp/t7a6a-probe/ws Tethys::get_forward_reachable 4 > .tethys-7a6a/probe-a.out
 /tmp/t7a6a-probe/probe /tmp/t7a6a-probe/ws extract_references_recursive 4 > .tethys-7a6a/probe-b.out
-python3 .tethys-7a6a/compare.py .tethys-7a6a/probe-a.out .tethys-7a6a/oracle-a.out > .tethys-7a6a/compare-a.txt   # rc=0
-python3 .tethys-7a6a/compare.py .tethys-7a6a/probe-b.out .tethys-7a6a/oracle-b.out > .tethys-7a6a/compare-b.txt   # rc=0
+python3 .tethys-7a6a/compare.py --legacy-is-test .tethys-7a6a/probe-a.out .tethys-7a6a/oracle-a.out > .tethys-7a6a/compare-a.txt   # rc=0
+python3 .tethys-7a6a/compare.py --legacy-is-test .tethys-7a6a/probe-b.out .tethys-7a6a/oracle-b.out > .tethys-7a6a/compare-b.txt   # rc=0
 # CLI surface (direction spellings, default 10, config error posture):
 target/debug/tethys -w /tmp/t7a6a-probe/ws reachable Tethys::get_forward_reachable --direction forward -n 3   # rc=0
 target/debug/tethys -w /tmp/t7a6a-probe/ws reachable extract_references_recursive --direction backward -n 2  # rc=0
@@ -64,6 +65,16 @@ directions.
 
 Invariants asserted per entry on both sides: `path.len() == depth`, no duplicate
 target ids, source never returned as its own target (self-loop/cycle fact).
+
+## Post-cutover oracle rerun
+
+After `get_forward_reachable` and `get_backward_reachable` became canonical
+delegators, the rebuilt probe was compared without `--legacy-is-test`. Both
+production sources again returned `RESULT: AGREE`: all 66 entries matched on
+IDs, depths, paths, discovery order, and real `symbols.is_test` in both
+directions. Running the committed pre-cutover outputs with
+`--legacy-is-test` still returns `RESULT: AGREE`, preserving the original
+defect evidence rather than rewriting it.
 
 ## Corrections (documented)
 

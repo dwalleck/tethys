@@ -4,7 +4,7 @@
 
 Replace the legacy per-visited-symbol reachability loop with one canonical direction-parameterized operation. Preserve observable reachability behavior while moving bulk graph traversal and predecessor reconstruction into the concrete `Index` graph module behind the `Tethys` seam.
 
-Evidence: `.tethys-7a6a/probe.rs` and the independent raw-SQLite `.tethys-7a6a/oracle.py` agree on 66 production-index entries across both directions, including IDs, minimum depths, paths, and discovery order. The probe also exposed the live forward `is_test` projection defect and duplicate source-name ambiguity documented in `.tethys-7a6a/findings.md`.
+Evidence: `.tethys-7a6a/probe.rs` and the independent raw-SQLite `.tethys-7a6a/oracle.py` agree on 66 production-index entries across both directions, including IDs, minimum depths, paths, and discovery order. The pre-cutover probe exposed the live forward `is_test` projection defect and duplicate source-name ambiguity documented in `.tethys-7a6a/findings.md`; the post-cutover probe agrees with real `symbols.is_test` in both directions.
 
 ## Input shapes
 
@@ -114,6 +114,25 @@ No new seam is introduced. The existing `Tethys` facade and concrete `Index` gra
 9. **Legacy edge behavior:** duplicate source names retain first-row lookup, dangling endpoints are silently omitted, and other database/decode errors propagate.
 10. **Bounded search state:** BFS stores at most one predecessor and one queue entry per discovered symbol, uses $O(V+E)$ search memory, and never clones growing partial paths during search.
 
+### Reopened projection decision
+
+Slice 10 exposed an oracle-version boundary: retained wrappers now delegate to
+the canonical operation, so their forward results stop inheriting
+`get_callees`' `call_count`-as-`is_test` defect. The requester reopened the
+design and selected the canonical real-`is_test` contract on 2026-08-08.
+
+The probe comparator therefore has two explicit contracts:
+
+- `--legacy-is-test` preserves the committed pre-cutover evidence and requires
+  every forward mismatch to equal `call_count != 0`.
+- The default is the post-cutover oracle and requires real `symbols.is_test` in
+  both directions.
+
+No compatibility corruption is added to the wrappers. Doing so would retain a
+second projection path and falsify Claims 1 and 8.
+
+Requester re-approval: “Approve amended design” (2026-08-08).
+
 ## Falsification
 
 | # | Claim | Falsifier | Independent oracle | Cost | Status | Regression fence |
@@ -125,7 +144,7 @@ No new seam is introduced. The existing `Tethys` facade and concrete `Index` gra
 | 5 | Cycle safety | Traverse both directions through a source self-loop and three-node cycle. Nontermination or any returned source falsifies the claim. Buggy implementation: omit the source sentinel from `parents`. | Fixture node/edge count and timeout | 4 min | pending | integration test `canonical_reachability_excludes_source_in_cycles` |
 | 6 | Discovery order | Use a graph where queue discovery order differs from global `(depth, qualified_name)` order. Any globally sorted or nondeterministic sequence falsifies the claim. Buggy implementation: sort completed results or iterate unsorted `HashMap` neighbors. | Hand-enumerated FIFO queue transcript | 4 min | pending | integration test `canonical_reachability_preserves_bfs_discovery_order` |
 | 7 | Depth contract | Exercise `None`, 0, 1, finite 2, `u32::MAX`, and—on 64-bit—`u32::MAX + 1`; wrong effective depth, boundary inclusion, or warning count falsifies the claim. Buggy implementation: retain raw `usize` or use `depth > max`. | Shared contract from `tethys-u1rs` plus captured tracing events | 7 min | pending | integration tests `canonical_reachability_obeys_depth_contract` and `canonical_reachability_saturates_oversized_depth` |
-| 8 | Projection correctness | Reach a known non-test symbol forward and a known test symbol in each direction. Any flag differing from raw `symbols.is_test` falsifies the claim. Buggy implementation: decode `call_count` at column 13. | Direct SQLite `symbols.is_test` query | 3 min | pending | integration test `canonical_reachability_preserves_is_test` |
+| 8 | Projection correctness | Reach a known non-test symbol forward and a known test symbol in each direction. Any flag differing from raw `symbols.is_test` falsifies the claim. Buggy implementation: decode `call_count` at column 13. | Direct SQLite `symbols.is_test` query | 3 min | passed: post-cutover probe matches raw flags in both directions; legacy mode preserves defect evidence | integration test `canonical_reachability_preserves_is_test` |
 | 9 | Legacy edge behavior | Compare canonical lookup with existing first-row symbol lookup on a duplicate; inject one dangling endpoint and one decodable SQL failure. Different source selection, non-silent dangling behavior, or swallowed SQL/decode error falsifies the claim. Buggy implementation: validate all endpoints or use `filter_map(Result::ok)`. | Existing `get_symbol_by_qualified_name`, inner-join query, and concrete rusqlite error variant | 9 min | pending | integration test `canonical_reachability_preserves_source_and_dangling_posture` |
 | 10 | Bounded search state | Audit queue/parent types and run the ≥100-target fixture. More than one parent/queue insertion per discovered ID or any queued `Vec<Symbol>` falsifies the claim. Buggy implementation: carry `path.clone()` in every queue item. | Type/AST inspection plus unique-discovery counters | 5 min | pending | unit test `reachability_bfs_discovers_each_symbol_once`; structural review of queue type |
 
@@ -134,11 +153,18 @@ No new seam is introduced. The existing `Tethys` facade and concrete `Index` gra
 Claim 3 is the cheapest executable premise because its artifacts already exist. On 2026-08-08:
 
 ```text
-python3 .tethys-7a6a/compare.py .tethys-7a6a/probe-a.out .tethys-7a6a/oracle-a.out
-python3 .tethys-7a6a/compare.py .tethys-7a6a/probe-b.out .tethys-7a6a/oracle-b.out
+python3 .tethys-7a6a/compare.py --legacy-is-test .tethys-7a6a/probe-a.out .tethys-7a6a/oracle-a.out
+python3 .tethys-7a6a/compare.py --legacy-is-test .tethys-7a6a/probe-b.out .tethys-7a6a/oracle-b.out
 ```
 
-Both comparisons returned `RESULT: AGREE`: 66/66 entries matched on IDs, depths, paths, and order across both directions. This kills the premise that bulk raw-edge BFS cannot reproduce the public directional semantics.
+Both pre-cutover comparisons returned `RESULT: AGREE`: 66/66 entries matched
+on IDs, depths, paths, and order, while legacy mode independently explained
+every forward projection mismatch by `call_count != 0`. After wrapper
+delegation, rebuilding and rerunning the same probe with the comparator's
+default contract also returned `RESULT: AGREE`; all 66 entries then matched
+real `symbols.is_test` in both directions. This kills both the premise that
+bulk raw-edge BFS cannot reproduce the public directional semantics and the
+premise that wrapper delegation requires legacy projection corruption.
 
 ## Negative space
 
