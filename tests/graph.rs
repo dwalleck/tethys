@@ -2213,6 +2213,69 @@ fn canonical_reachability_preserves_bfs_discovery_order() {
     );
 }
 
+#[test]
+fn canonical_reachability_preserves_is_test() {
+    let (_dir, mut tethys) = workspace_with_reachability_routes();
+    tethys.index().expect("index failed");
+    let connection = Connection::open(tethys.db_path()).expect("open index");
+    connection
+        .execute_batch(
+            "UPDATE symbols SET is_test = 0 WHERE name = 'alpha';
+             UPDATE symbols SET is_test = 1 WHERE name = 'beta';
+             UPDATE call_edges SET call_count = 5
+             WHERE caller_symbol_id = (SELECT id FROM symbols WHERE name = 'source')
+               AND callee_symbol_id = (SELECT id FROM symbols WHERE name = 'alpha');
+             UPDATE call_edges SET call_count = 0
+             WHERE caller_symbol_id = (SELECT id FROM symbols WHERE name = 'source')
+               AND callee_symbol_id = (SELECT id FROM symbols WHERE name = 'beta');
+             UPDATE call_edges SET call_count = 5
+             WHERE caller_symbol_id = (SELECT id FROM symbols WHERE name = 'alpha')
+               AND callee_symbol_id = (SELECT id FROM symbols WHERE name = 'target');
+             UPDATE call_edges SET call_count = 0
+             WHERE caller_symbol_id = (SELECT id FROM symbols WHERE name = 'beta')
+               AND callee_symbol_id = (SELECT id FROM symbols WHERE name = 'target');",
+        )
+        .expect("seed projection trap");
+    let raw_flags = {
+        let mut statement = connection
+            .prepare(
+                "SELECT qualified_name, is_test FROM symbols
+                 WHERE name IN ('alpha', 'beta')",
+            )
+            .expect("prepare symbol flags");
+        statement
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, bool>(1)?))
+            })
+            .expect("query symbol flags")
+            .collect::<std::result::Result<std::collections::HashMap<_, _>, _>>()
+            .expect("collect symbol flags")
+    };
+    drop(connection);
+
+    for (start, direction) in [
+        ("source", ReachabilityDirection::Forward),
+        ("target", ReachabilityDirection::Backward),
+    ] {
+        let result = tethys
+            .get_reachable(start, direction, Some(1))
+            .expect("canonical reachability");
+        let projected = result
+            .reachable
+            .iter()
+            .filter(|entry| matches!(entry.target.qualified_name.as_str(), "alpha" | "beta"))
+            .map(|entry| (entry.target.qualified_name.as_str(), entry.target.is_test))
+            .collect::<std::collections::HashMap<_, _>>();
+        assert_eq!(projected.get("alpha"), Some(&raw_flags["alpha"]));
+        assert_eq!(projected.get("beta"), Some(&raw_flags["beta"]));
+        assert!(
+            !projected["alpha"],
+            "call_count=5 must not decode as is_test"
+        );
+        assert!(projected["beta"], "call_count=0 must not erase is_test");
+    }
+}
+
 fn workspace_with_strongly_connected_calls() -> (TempDir, Tethys) {
     let dir = tempfile::tempdir().expect("failed to create temp dir");
     fs::write(
