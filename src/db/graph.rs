@@ -2401,4 +2401,38 @@ mod reachability_snapshot_fences {
         assert_eq!(forward, vec![a, b, c]);
         assert_eq!(backward, vec![d]);
     }
+
+    #[test]
+    fn reachability_bfs_discovers_each_symbol_once() {
+        let (_dir, mut index) = fresh_index();
+        let file_id = file(&mut index);
+        let source = symbol(&index, file_id, "source");
+        let sink = symbol(&index, file_id, "sink");
+        let branches = (0..100)
+            .map(|branch| symbol(&index, file_id, &format!("branch_{branch:03}")))
+            .collect::<Vec<_>>();
+        for branch in &branches {
+            edge(&index, source, *branch);
+            edge(&index, *branch, sink);
+        }
+        edge(&index, sink, source);
+
+        let result = index
+            .get_reachable(source, ReachabilityDirection::Forward, 100)
+            .expect("fan-out reachability");
+        let unique = result
+            .iter()
+            .map(|entry| entry.target.id)
+            .collect::<std::collections::HashSet<_>>();
+
+        assert_eq!(result.len(), 101);
+        assert_eq!(unique.len(), result.len());
+        assert!(!unique.contains(&source));
+        let sink_path = result
+            .iter()
+            .find(|entry| entry.target.id == sink)
+            .expect("sink reachable");
+        assert_eq!(sink_path.depth, 2);
+        assert_eq!(sink_path.path.len(), 2);
+    }
 }
