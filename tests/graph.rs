@@ -9,7 +9,7 @@ use rusqlite::Connection;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
-use tethys::{CallEdgeSelection, CallerMode, Tethys};
+use tethys::{CallEdgeSelection, CallerMode, Error, ReachabilityDirection, Tethys};
 
 /// Create a workspace with a known dependency structure for testing.
 ///
@@ -1973,6 +1973,439 @@ fn reachability_max_depth_none_uses_default() {
         result_explicit.reachable_count(),
         "None and Some(50) should produce same results"
     );
+}
+
+#[test]
+fn canonical_reachability_obeys_depth_contract() {
+    let (_dir, mut tethys) = workspace_with_intra_file_calls();
+    tethys.index().expect("index failed");
+
+    let omitted = tethys
+        .get_reachable("process", ReachabilityDirection::Forward, None)
+        .expect("omitted depth");
+    let zero = tethys
+        .get_reachable("process", ReachabilityDirection::Forward, Some(0))
+        .expect("zero depth");
+    let one = tethys
+        .get_reachable("process", ReachabilityDirection::Forward, Some(1))
+        .expect("one depth");
+    let two = tethys
+        .get_reachable("process", ReachabilityDirection::Forward, Some(2))
+        .expect("two depth");
+    let maximum = tethys
+        .get_reachable(
+            "process",
+            ReachabilityDirection::Forward,
+            Some(u32::MAX as usize),
+        )
+        .expect("u32 max depth");
+
+    assert_eq!(omitted.max_depth, 50);
+    assert_eq!(zero.max_depth, 0);
+    assert!(zero.is_empty());
+    assert_eq!(one.max_depth, 1);
+    assert!(one.reachable.iter().all(|entry| entry.depth == 1));
+    assert_eq!(two.max_depth, 2);
+    assert!(two.reachable.iter().all(|entry| entry.depth <= 2));
+    assert!(two.reachable_count() >= one.reachable_count());
+    assert_eq!(maximum.max_depth, u32::MAX as usize);
+    assert_eq!(maximum.reachable_count(), omitted.reachable_count());
+
+    let error = tethys
+        .get_reachable("NoSuchSymbol", ReachabilityDirection::Forward, Some(0))
+        .expect_err("depth zero must validate the source");
+    assert!(matches!(error, Error::NotFound(message) if message == "symbol: NoSuchSymbol"));
+}
+
+#[cfg(target_pointer_width = "64")]
+#[tracing_test::traced_test]
+#[test]
+fn canonical_reachability_saturates_oversized_depth() {
+    let (_dir, mut tethys) = workspace_with_intra_file_calls();
+    tethys.index().expect("index failed");
+
+    let result = tethys
+        .get_reachable(
+            "process",
+            ReachabilityDirection::Forward,
+            Some(u32::MAX as usize + 1),
+        )
+        .expect("oversized depth");
+
+    assert_eq!(result.max_depth, u32::MAX as usize);
+    assert!(logs_contain(
+        "max_depth exceeds u32::MAX; saturating to u32::MAX"
+    ));
+}
+
+fn workspace_with_reachability_routes() -> (TempDir, Tethys) {
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"reachability_routes\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write Cargo.toml");
+    fs::create_dir_all(dir.path().join("src")).expect("create src dir");
+    fs::write(
+        dir.path().join("src/lib.rs"),
+        "pub fn source() { alpha(); beta(); long_1(); }\n\
+         pub fn alpha() { target(); }\n\
+         pub fn beta() { target(); }\n\
+         pub fn long_1() { long_2(); }\n\
+         pub fn long_2() { target(); }\n\
+         pub fn target() {}\n",
+    )
+    .expect("write lib.rs");
+    let tethys = Tethys::new(dir.path()).expect("create Tethys");
+    (dir, tethys)
+}
+
+#[test]
+fn canonical_reachability_paths_are_shortest_unique_and_valid() {
+    let (_dir, mut tethys) = workspace_with_reachability_routes();
+    tethys.index().expect("index failed");
+    let edges = std::collections::HashSet::from([
+        ("source", "alpha"),
+        ("source", "beta"),
+        ("source", "long_1"),
+        ("alpha", "target"),
+        ("beta", "target"),
+        ("long_1", "long_2"),
+        ("long_2", "target"),
+    ]);
+
+    for (direction, start) in [
+        (ReachabilityDirection::Forward, "source"),
+        (ReachabilityDirection::Backward, "target"),
+    ] {
+        let result = tethys
+            .get_reachable(start, direction, Some(4))
+            .expect("canonical reachability");
+        let mut target_ids = std::collections::HashSet::new();
+        for entry in &result.reachable {
+            assert!(target_ids.insert(entry.target.id), "target must be unique");
+            assert_eq!(entry.path.len(), entry.depth);
+            assert!(
+                entry
+                    .path
+                    .iter()
+                    .all(|symbol| symbol.qualified_name != start)
+            );
+            assert_eq!(
+                entry.path.last().map(|symbol| symbol.id),
+                Some(entry.target.id)
+            );
+
+            let mut previous = start;
+            for symbol in &entry.path {
+                let edge = match direction {
+                    ReachabilityDirection::Forward => (previous, symbol.qualified_name.as_str()),
+                    ReachabilityDirection::Backward => (symbol.qualified_name.as_str(), previous),
+                };
+                assert!(edges.contains(&edge), "invalid {direction:?} edge {edge:?}");
+                previous = &symbol.qualified_name;
+            }
+        }
+    }
+
+    let forward = tethys
+        .get_reachable("source", ReachabilityDirection::Forward, Some(4))
+        .expect("forward reachability");
+    let target = forward
+        .reachable
+        .iter()
+        .find(|entry| entry.target.qualified_name == "target")
+        .expect("target reachable");
+    assert_eq!(
+        target
+            .path
+            .iter()
+            .map(|symbol| symbol.qualified_name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["alpha", "target"]
+    );
+
+    let backward = tethys
+        .get_reachable("target", ReachabilityDirection::Backward, Some(4))
+        .expect("backward reachability");
+    let source = backward
+        .reachable
+        .iter()
+        .find(|entry| entry.target.qualified_name == "source")
+        .expect("source reaches target");
+    assert_eq!(
+        source
+            .path
+            .iter()
+            .map(|symbol| symbol.qualified_name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["alpha", "source"]
+    );
+}
+
+#[test]
+fn canonical_reachability_preserves_bfs_discovery_order() {
+    let (_dir, mut tethys) = workspace_with_reachability_routes();
+    tethys.index().expect("index failed");
+
+    let result = tethys
+        .get_reachable("source", ReachabilityDirection::Forward, Some(4))
+        .expect("forward reachability");
+    let observed = result
+        .reachable
+        .iter()
+        .map(|entry| entry.target.qualified_name.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        observed,
+        vec!["alpha", "beta", "long_1", "target", "long_2"]
+    );
+
+    let mut globally_sorted = result
+        .reachable
+        .iter()
+        .map(|entry| (entry.depth, entry.target.qualified_name.as_str()))
+        .collect::<Vec<_>>();
+    globally_sorted.sort_unstable();
+    assert_ne!(
+        observed,
+        globally_sorted
+            .iter()
+            .map(|(_, name)| *name)
+            .collect::<Vec<_>>(),
+        "fixture must distinguish queue discovery from global sorting"
+    );
+
+    let connection = Connection::open(tethys.db_path()).expect("open index");
+    connection
+        .execute(
+            "UPDATE symbols SET qualified_name = 'aaa_same'
+             WHERE name IN ('alpha', 'beta')",
+            [],
+        )
+        .expect("create qualified-name tie");
+    let tied_ids = {
+        let mut statement = connection
+            .prepare(
+                "SELECT id FROM symbols
+                 WHERE qualified_name = 'aaa_same'
+                 ORDER BY id",
+            )
+            .expect("prepare tied ids");
+        statement
+            .query_map([], |row| row.get::<_, i64>(0))
+            .expect("query tied ids")
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("collect tied ids")
+    };
+    drop(connection);
+
+    let tied = tethys
+        .get_reachable("source", ReachabilityDirection::Forward, Some(1))
+        .expect("tied reachability");
+    assert_eq!(
+        tied.reachable
+            .iter()
+            .take(2)
+            .map(|entry| entry.target.id.as_i64())
+            .collect::<Vec<_>>(),
+        tied_ids
+    );
+}
+
+#[test]
+fn canonical_reachability_preserves_is_test() {
+    let (_dir, mut tethys) = workspace_with_reachability_routes();
+    tethys.index().expect("index failed");
+    let connection = Connection::open(tethys.db_path()).expect("open index");
+    connection
+        .execute_batch(
+            "UPDATE symbols SET is_test = 0 WHERE name = 'alpha';
+             UPDATE symbols SET is_test = 1 WHERE name = 'beta';
+             UPDATE call_edges SET call_count = 5
+             WHERE caller_symbol_id = (SELECT id FROM symbols WHERE name = 'source')
+               AND callee_symbol_id = (SELECT id FROM symbols WHERE name = 'alpha');
+             UPDATE call_edges SET call_count = 0
+             WHERE caller_symbol_id = (SELECT id FROM symbols WHERE name = 'source')
+               AND callee_symbol_id = (SELECT id FROM symbols WHERE name = 'beta');
+             UPDATE call_edges SET call_count = 5
+             WHERE caller_symbol_id = (SELECT id FROM symbols WHERE name = 'alpha')
+               AND callee_symbol_id = (SELECT id FROM symbols WHERE name = 'target');
+             UPDATE call_edges SET call_count = 0
+             WHERE caller_symbol_id = (SELECT id FROM symbols WHERE name = 'beta')
+               AND callee_symbol_id = (SELECT id FROM symbols WHERE name = 'target');",
+        )
+        .expect("seed projection trap");
+    let raw_flags = {
+        let mut statement = connection
+            .prepare(
+                "SELECT qualified_name, is_test FROM symbols
+                 WHERE name IN ('alpha', 'beta')",
+            )
+            .expect("prepare symbol flags");
+        statement
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, bool>(1)?))
+            })
+            .expect("query symbol flags")
+            .collect::<std::result::Result<std::collections::HashMap<_, _>, _>>()
+            .expect("collect symbol flags")
+    };
+    drop(connection);
+
+    for (start, direction) in [
+        ("source", ReachabilityDirection::Forward),
+        ("target", ReachabilityDirection::Backward),
+    ] {
+        let result = tethys
+            .get_reachable(start, direction, Some(1))
+            .expect("canonical reachability");
+        let projected = result
+            .reachable
+            .iter()
+            .filter(|entry| matches!(entry.target.qualified_name.as_str(), "alpha" | "beta"))
+            .map(|entry| (entry.target.qualified_name.as_str(), entry.target.is_test))
+            .collect::<std::collections::HashMap<_, _>>();
+        assert_eq!(projected.get("alpha"), Some(&raw_flags["alpha"]));
+        assert_eq!(projected.get("beta"), Some(&raw_flags["beta"]));
+        assert!(
+            !projected["alpha"],
+            "call_count=5 must not decode as is_test"
+        );
+        assert!(projected["beta"], "call_count=0 must not erase is_test");
+    }
+}
+
+#[test]
+fn canonical_reachability_preserves_source_and_dangling_posture() {
+    let (_dir, mut tethys) = workspace_with_reachability_routes();
+    tethys.index().expect("index failed");
+    let connection = Connection::open(tethys.db_path()).expect("open index");
+    connection
+        .pragma_update(None, "foreign_keys", false)
+        .expect("disable foreign keys");
+    let source_id = connection
+        .query_row(
+            "SELECT id FROM symbols WHERE qualified_name = 'source' ORDER BY id LIMIT 1",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .expect("source id");
+    connection
+        .execute(
+            "INSERT INTO symbols (
+                file_id, name, module_path, qualified_name, kind, line, column,
+                end_line, end_column, signature, visibility, parent_symbol_id, is_test
+             )
+             SELECT
+                file_id, name, module_path, qualified_name, kind, line, column,
+                end_line, end_column, signature, visibility, parent_symbol_id, is_test
+             FROM symbols WHERE id = ?1",
+            [source_id],
+        )
+        .expect("insert duplicate source");
+    connection
+        .execute(
+            "INSERT INTO call_edges (caller_symbol_id, callee_symbol_id, call_count)
+             VALUES (?1, 999999, 1)",
+            [source_id],
+        )
+        .expect("insert dangling edge");
+    let expected_direct = {
+        let mut statement = connection
+            .prepare(
+                "SELECT s.id
+                 FROM call_edges ce
+                 JOIN symbols s ON s.id = ce.callee_symbol_id
+                 WHERE ce.caller_symbol_id = ?1
+                 ORDER BY s.qualified_name, s.id",
+            )
+            .expect("prepare inner-join oracle");
+        statement
+            .query_map([source_id], |row| row.get::<_, i64>(0))
+            .expect("query inner-join oracle")
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .expect("collect inner-join oracle")
+    };
+    drop(connection);
+
+    let result = tethys
+        .get_reachable("source", ReachabilityDirection::Forward, Some(1))
+        .expect("dangling edge must be omitted");
+    assert_eq!(result.source.id.as_i64(), source_id);
+    assert_eq!(
+        result
+            .reachable
+            .iter()
+            .map(|entry| entry.target.id.as_i64())
+            .collect::<Vec<_>>(),
+        expected_direct
+    );
+
+    let connection = Connection::open(tethys.db_path()).expect("reopen index");
+    connection
+        .execute("UPDATE symbols SET is_test = X'01' WHERE name = 'beta'", [])
+        .expect("corrupt symbol projection");
+    drop(connection);
+    let error = tethys
+        .get_reachable("source", ReachabilityDirection::Forward, Some(1))
+        .expect_err("corrupt row must fail");
+    assert!(matches!(
+        error,
+        Error::Database(rusqlite::Error::InvalidColumnType(..))
+    ));
+}
+
+fn workspace_with_strongly_connected_calls() -> (TempDir, Tethys) {
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"strong_calls\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write Cargo.toml");
+    fs::create_dir_all(dir.path().join("src")).expect("create src dir");
+    fs::write(
+        dir.path().join("src/lib.rs"),
+        "pub fn s() { s(); a(); }\n\
+         pub fn a() { b(); }\n\
+         pub fn b() { b(); c(); }\n\
+         pub fn c() { d(); }\n\
+         pub fn d() { s(); }\n",
+    )
+    .expect("write lib.rs");
+    let tethys = Tethys::new(dir.path()).expect("create Tethys");
+    (dir, tethys)
+}
+
+#[test]
+fn canonical_reachability_excludes_source_in_cycles() {
+    let (_dir, mut tethys) = workspace_with_strongly_connected_calls();
+    tethys.index().expect("index failed");
+    let expected = std::collections::HashSet::from(["a", "b", "c", "d"]);
+
+    for direction in [
+        ReachabilityDirection::Forward,
+        ReachabilityDirection::Backward,
+    ] {
+        for depth in [None, Some(100)] {
+            let result = tethys
+                .get_reachable("s", direction, depth)
+                .expect("cyclic reachability");
+            let names = result
+                .reachable
+                .iter()
+                .map(|entry| entry.target.qualified_name.as_str())
+                .collect::<std::collections::HashSet<_>>();
+            assert_eq!(names, expected, "{direction:?} at depth {depth:?}");
+            assert_eq!(result.reachable.len(), 4);
+            assert!(
+                result
+                    .reachable
+                    .iter()
+                    .all(|entry| entry.target.qualified_name != "s")
+            );
+        }
+    }
 }
 
 /// Helper that creates a workspace with a cyclic call pattern: a -> b -> c -> a

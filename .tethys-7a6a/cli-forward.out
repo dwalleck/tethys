@@ -1,0 +1,24 @@
+Forward reachability from "Tethys::get_forward_reachable":
+
+  Depth 1 direct (4):
+    • Error::NotFound (59:51)
+    • Index::get_callees (39:76)
+    • ReachabilityResult (65:1404)
+    • Tethys::bfs_reachable (62:538)
+  Depth 2 transitive (8):
+    • Index::connection (35:172)
+    • ReachabilityDirection (65:1376)
+    • ReachablePath (65:1387)
+    • Result (59:25)
+    • Symbol (65:760)
+    • SymbolId (65:31)
+    • SymbolId::as_i64 (65:36)
+    • Tethys::new (62:170)
+  Depth 3 transitive (5):
+    • Error::Internal (59:64)
+    • Error::Io (59:39)
+    • Index::open (35:118)
+    • discover_crates (4:26)
+    • index_db_path (62:94)
+
+Summary: 17 symbols across 6 files (max depth: 3)

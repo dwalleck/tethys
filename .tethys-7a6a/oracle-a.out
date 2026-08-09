@@ -1,0 +1,43 @@
+META fwd symbol=Tethys::get_forward_reachable source_id=1747 max_depth=4 count=22 dir=forward
+ENTRY fwd seq=0 id=1576 depth=1 is_test=false qn=Error::NotFound path=[1576] edge_count=1
+ENTRY fwd seq=1 id=658 depth=1 is_test=false qn=Index::get_callees path=[658] edge_count=1
+ENTRY fwd seq=2 id=2159 depth=1 is_test=false qn=ReachabilityResult path=[2159] edge_count=1
+ENTRY fwd seq=3 id=1746 depth=1 is_test=false qn=Tethys::bfs_reachable path=[1746] edge_count=1
+ENTRY fwd seq=4 id=520 depth=2 is_test=false qn=Index::connection path=[658,520] edge_count=1
+ENTRY fwd seq=5 id=1566 depth=2 is_test=false qn=Result path=[658,1566] edge_count=2
+ENTRY fwd seq=6 id=2013 depth=2 is_test=false qn=Symbol path=[658,2013] edge_count=1
+ENTRY fwd seq=7 id=1882 depth=2 is_test=false qn=SymbolId path=[658,1882] edge_count=1
+ENTRY fwd seq=8 id=1884 depth=2 is_test=false qn=SymbolId::as_i64 path=[658,1884] edge_count=1
+ENTRY fwd seq=9 id=2152 depth=2 is_test=false qn=ReachabilityDirection path=[1746,2152] edge_count=1
+ENTRY fwd seq=10 id=2155 depth=2 is_test=false qn=ReachablePath path=[1746,2155] edge_count=2
+ENTRY fwd seq=11 id=1724 depth=2 is_test=false qn=Tethys::new path=[1746,1724] edge_count=3
+ENTRY fwd seq=12 id=1580 depth=3 is_test=false qn=Error::Internal path=[658,520,1580] edge_count=1
+ENTRY fwd seq=13 id=1570 depth=3 is_test=false qn=Error::Io path=[1746,1724,1570] edge_count=1
+ENTRY fwd seq=14 id=519 depth=3 is_test=false qn=Index::open path=[1746,1724,519] edge_count=1
+ENTRY fwd seq=15 id=26 depth=3 is_test=false qn=discover_crates path=[1746,1724,26] edge_count=1
+ENTRY fwd seq=16 id=1721 depth=3 is_test=false qn=index_db_path path=[1746,1724,1721] edge_count=1
+ENTRY fwd seq=17 id=1574 depth=4 is_test=false qn=Error::Config path=[1746,1724,519,1574] edge_count=1
+ENTRY fwd seq=18 id=1903 depth=4 is_test=false qn=CrateInfo path=[1746,1724,26,1903] edge_count=1
+ENTRY fwd seq=19 id=33 depth=4 is_test=false qn=glob_member path=[1746,1724,26,33] edge_count=1
+ENTRY fwd seq=20 id=27 depth=4 is_test=false qn=parse_crate path=[1746,1724,26,27] edge_count=2
+ENTRY fwd seq=21 id=29 depth=4 is_test=false qn=parse_crate_from_manifest path=[1746,1724,26,29] edge_count=1
+META bwd symbol=Tethys::get_forward_reachable source_id=1747 max_depth=4 count=13 dir=backward
+ENTRY bwd seq=0 id=2867 depth=1 is_test=true qn=get_forward_reachable_finds_direct_callees path=[2867] edge_count=None
+ENTRY bwd seq=1 id=2868 depth=1 is_test=true qn=get_forward_reachable_finds_transitive_callees path=[2868] edge_count=None
+ENTRY bwd seq=2 id=2869 depth=1 is_test=true qn=get_forward_reachable_returns_empty_for_leaf_symbol path=[2869] edge_count=None
+ENTRY bwd seq=3 id=2865 depth=1 is_test=true qn=get_forward_reachable_returns_error_for_nonexistent_symbol path=[2865] edge_count=None
+ENTRY bwd seq=4 id=2877 depth=1 is_test=true qn=reachability_max_depth_none_uses_default path=[2877] edge_count=None
+ENTRY bwd seq=5 id=2875 depth=1 is_test=true qn=reachability_paths_are_valid path=[2875] edge_count=None
+ENTRY bwd seq=6 id=2873 depth=1 is_test=true qn=reachability_respects_max_depth path=[2873] edge_count=None
+ENTRY bwd seq=7 id=2874 depth=1 is_test=true qn=reachability_result_at_depth_filters_correctly path=[2874] edge_count=None
+ENTRY bwd seq=8 id=2879 depth=1 is_test=true qn=reachability_terminates_on_cyclic_call_graph path=[2879] edge_count=None
+ENTRY bwd seq=9 id=56 depth=1 is_test=false qn=run path=[56] edge_count=None
+ENTRY bwd seq=10 id=2932 depth=1 is_test=true qn=unit_test_call_edge_attaches_to_test_symbol path=[2932] edge_count=None
+ENTRY bwd seq=11 id=1854 depth=2 is_test=false qn=run_command path=[56,1854] edge_count=None
+ENTRY bwd seq=12 id=1853 depth=3 is_test=false qn=main path=[56,1854,1853] edge_count=None
+META fwd0 symbol=Tethys::get_forward_reachable source_id=1747 max_depth=0 count=0 dir=forward
+META fwd1 symbol=Tethys::get_forward_reachable source_id=1747 max_depth=1 count=4 dir=forward
+ENTRY fwd1 seq=0 id=1576 depth=1 is_test=false qn=Error::NotFound path=[1576] edge_count=1
+ENTRY fwd1 seq=1 id=658 depth=1 is_test=false qn=Index::get_callees path=[658] edge_count=1
+ENTRY fwd1 seq=2 id=2159 depth=1 is_test=false qn=ReachabilityResult path=[2159] edge_count=1
+ENTRY fwd1 seq=3 id=1746 depth=1 is_test=false qn=Tethys::bfs_reachable path=[1746] edge_count=1

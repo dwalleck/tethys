@@ -1,0 +1,9 @@
+[fwd0] PASS: empty slice (count=0) on both sides
+[bwd] PASS: 17 entries, ids/depths/paths/order identical
+[bwd] is_test matches real symbols.is_test PASS
+[fwd] PASS: 14 entries, ids/depths/paths/order identical
+[fwd] is_test audit: 14 legacy flips, 14 real non-test targets mislabeled as test; every flip == (edge_count != 0) PASS
+[fwd1] PASS: 7 entries, ids/depths/paths/order identical
+[fwd1] is_test audit: 7 legacy flips, 7 real non-test targets mislabeled as test; every flip == (edge_count != 0) PASS
+source never returned as its own target (self-loop/cycle fact): PASS
+RESULT: AGREE

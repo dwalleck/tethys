@@ -1,0 +1,1 @@
+- `tethys reachable` handles large forward and backward call graphs more efficiently while preserving shortest paths, depth limits, and cycle-safe results.
