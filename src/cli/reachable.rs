@@ -18,15 +18,16 @@ pub fn run(
 ) -> Result<(), tethys::Error> {
     let tethys = Tethys::new(workspace)?;
 
-    let result = match direction.to_lowercase().as_str() {
-        "forward" | "f" => tethys.get_forward_reachable(symbol, max_depth)?,
-        "backward" | "b" => tethys.get_backward_reachable(symbol, max_depth)?,
+    let direction = match direction.to_lowercase().as_str() {
+        "forward" | "f" => ReachabilityDirection::Forward,
+        "backward" | "b" => ReachabilityDirection::Backward,
         _ => {
             return Err(tethys::Error::Config(format!(
                 "Invalid direction '{direction}'. Use 'forward' (or 'f') or 'backward' (or 'b')."
             )));
         }
     };
+    let result = tethys.get_reachable(symbol, direction, max_depth)?;
 
     print_reachability_result(&result);
 
