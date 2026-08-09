@@ -2038,6 +2038,111 @@ fn canonical_reachability_saturates_oversized_depth() {
     ));
 }
 
+fn workspace_with_reachability_routes() -> (TempDir, Tethys) {
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"reachability_routes\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write Cargo.toml");
+    fs::create_dir_all(dir.path().join("src")).expect("create src dir");
+    fs::write(
+        dir.path().join("src/lib.rs"),
+        "pub fn source() { alpha(); beta(); long_1(); }\n\
+         pub fn alpha() { target(); }\n\
+         pub fn beta() { target(); }\n\
+         pub fn long_1() { long_2(); }\n\
+         pub fn long_2() { target(); }\n\
+         pub fn target() {}\n",
+    )
+    .expect("write lib.rs");
+    let tethys = Tethys::new(dir.path()).expect("create Tethys");
+    (dir, tethys)
+}
+
+#[test]
+fn canonical_reachability_paths_are_shortest_unique_and_valid() {
+    let (_dir, mut tethys) = workspace_with_reachability_routes();
+    tethys.index().expect("index failed");
+    let edges = std::collections::HashSet::from([
+        ("source", "alpha"),
+        ("source", "beta"),
+        ("source", "long_1"),
+        ("alpha", "target"),
+        ("beta", "target"),
+        ("long_1", "long_2"),
+        ("long_2", "target"),
+    ]);
+
+    for (direction, start) in [
+        (ReachabilityDirection::Forward, "source"),
+        (ReachabilityDirection::Backward, "target"),
+    ] {
+        let result = tethys
+            .get_reachable(start, direction, Some(4))
+            .expect("canonical reachability");
+        let mut target_ids = std::collections::HashSet::new();
+        for entry in &result.reachable {
+            assert!(target_ids.insert(entry.target.id), "target must be unique");
+            assert_eq!(entry.path.len(), entry.depth);
+            assert!(
+                entry
+                    .path
+                    .iter()
+                    .all(|symbol| symbol.qualified_name != start)
+            );
+            assert_eq!(
+                entry.path.last().map(|symbol| symbol.id),
+                Some(entry.target.id)
+            );
+
+            let mut previous = start;
+            for symbol in &entry.path {
+                let edge = match direction {
+                    ReachabilityDirection::Forward => (previous, symbol.qualified_name.as_str()),
+                    ReachabilityDirection::Backward => (symbol.qualified_name.as_str(), previous),
+                };
+                assert!(edges.contains(&edge), "invalid {direction:?} edge {edge:?}");
+                previous = &symbol.qualified_name;
+            }
+        }
+    }
+
+    let forward = tethys
+        .get_reachable("source", ReachabilityDirection::Forward, Some(4))
+        .expect("forward reachability");
+    let target = forward
+        .reachable
+        .iter()
+        .find(|entry| entry.target.qualified_name == "target")
+        .expect("target reachable");
+    assert_eq!(
+        target
+            .path
+            .iter()
+            .map(|symbol| symbol.qualified_name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["alpha", "target"]
+    );
+
+    let backward = tethys
+        .get_reachable("target", ReachabilityDirection::Backward, Some(4))
+        .expect("backward reachability");
+    let source = backward
+        .reachable
+        .iter()
+        .find(|entry| entry.target.qualified_name == "source")
+        .expect("source reaches target");
+    assert_eq!(
+        source
+            .path
+            .iter()
+            .map(|symbol| symbol.qualified_name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["alpha", "source"]
+    );
+}
+
 /// Helper that creates a workspace with a cyclic call pattern: a -> b -> c -> a
 fn workspace_with_cyclic_calls() -> (TempDir, Tethys) {
     let dir = tempfile::tempdir().expect("failed to create temp dir");
