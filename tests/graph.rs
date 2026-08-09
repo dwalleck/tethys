@@ -9,7 +9,7 @@ use rusqlite::Connection;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
-use tethys::{CallEdgeSelection, CallerMode, Tethys};
+use tethys::{CallEdgeSelection, CallerMode, Error, ReachabilityDirection, Tethys};
 
 /// Create a workspace with a known dependency structure for testing.
 ///
@@ -1973,6 +1973,69 @@ fn reachability_max_depth_none_uses_default() {
         result_explicit.reachable_count(),
         "None and Some(50) should produce same results"
     );
+}
+
+#[test]
+fn canonical_reachability_obeys_depth_contract() {
+    let (_dir, mut tethys) = workspace_with_intra_file_calls();
+    tethys.index().expect("index failed");
+
+    let omitted = tethys
+        .get_reachable("process", ReachabilityDirection::Forward, None)
+        .expect("omitted depth");
+    let zero = tethys
+        .get_reachable("process", ReachabilityDirection::Forward, Some(0))
+        .expect("zero depth");
+    let one = tethys
+        .get_reachable("process", ReachabilityDirection::Forward, Some(1))
+        .expect("one depth");
+    let two = tethys
+        .get_reachable("process", ReachabilityDirection::Forward, Some(2))
+        .expect("two depth");
+    let maximum = tethys
+        .get_reachable(
+            "process",
+            ReachabilityDirection::Forward,
+            Some(u32::MAX as usize),
+        )
+        .expect("u32 max depth");
+
+    assert_eq!(omitted.max_depth, 50);
+    assert_eq!(zero.max_depth, 0);
+    assert!(zero.is_empty());
+    assert_eq!(one.max_depth, 1);
+    assert!(one.reachable.iter().all(|entry| entry.depth == 1));
+    assert_eq!(two.max_depth, 2);
+    assert!(two.reachable.iter().all(|entry| entry.depth <= 2));
+    assert!(two.reachable_count() >= one.reachable_count());
+    assert_eq!(maximum.max_depth, u32::MAX as usize);
+    assert_eq!(maximum.reachable_count(), omitted.reachable_count());
+
+    let error = tethys
+        .get_reachable("NoSuchSymbol", ReachabilityDirection::Forward, Some(0))
+        .expect_err("depth zero must validate the source");
+    assert!(matches!(error, Error::NotFound(message) if message == "symbol: NoSuchSymbol"));
+}
+
+#[cfg(target_pointer_width = "64")]
+#[tracing_test::traced_test]
+#[test]
+fn canonical_reachability_saturates_oversized_depth() {
+    let (_dir, mut tethys) = workspace_with_intra_file_calls();
+    tethys.index().expect("index failed");
+
+    let result = tethys
+        .get_reachable(
+            "process",
+            ReachabilityDirection::Forward,
+            Some(u32::MAX as usize + 1),
+        )
+        .expect("oversized depth");
+
+    assert_eq!(result.max_depth, u32::MAX as usize);
+    assert!(logs_contain(
+        "max_depth exceeds u32::MAX; saturating to u32::MAX"
+    ));
 }
 
 /// Helper that creates a workspace with a cyclic call pattern: a -> b -> c -> a
