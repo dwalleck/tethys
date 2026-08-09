@@ -6,7 +6,7 @@ Global production scale for loop budgets: 100,000 symbols ($V$), 250,000 call ed
 
 Every slice uses scoped TDD where it adds tests. Every slice gate is: targeted test, stress fixture, prove-it comparator against the current binary, complexity/statement check, regression fence, then full `cargo nextest run`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`, and `cargo test --doc`. Any failure stops the build before commit.
 
-## Slice 1: Load one deterministic reachability snapshot
+## Slice 1: Publish the snapshot-backed canonical core
 
 **Design claim:** Claim 2 — fixed snapshot cost.
 
@@ -18,9 +18,9 @@ Every slice uses scoped TDD where it adds tests. Every slice gate is: targeted t
 
 **Wall budget:** Not applicable; on-demand query. Both the one-target and 100-target fixtures must complete within the targeted test timeout.
 
-**Files:** `src/db/graph.rs`.
+**Files:** `src/db/graph.rs`, `src/lib.rs`.
 
-**Smallest code change:** Add the private snapshot record and loader using one deferred transaction, `SYMBOLS_COLUMNS`, `row_to_symbol`, complete `Result` collection, directional endpoint-presence filtering, and `(qualified_name, id)` neighbor ordering. Add canary-guarded unit tests beside existing cycle hydration fences.
+**Smallest code change:** Add the snapshot record and loader using one deferred transaction, `SYMBOLS_COLUMNS`, `row_to_symbol`, complete `Result` collection, endpoint-presence filtering, and `(qualified_name, id)` neighbor ordering. Add predecessor BFS plus `Index::get_reachable`, then publish `Tethys::get_reachable` immediately so the production build has a real caller and no temporary dead-code suppression. Add canary-guarded unit tests beside existing cycle hydration fences. This plan revision was approved after the original Index-first staging failed clippy's dead-code gate.
 
 **Preconditions:** None documented. SQL/decode failure propagation is load-bearing and enforced with `?`; no `filter_map(Result::ok)` or `.ok()` suppression.
 
@@ -47,7 +47,7 @@ Every slice uses scoped TDD where it adds tests. Every slice gate is: targeted t
 
 **Files:** `src/db/graph.rs`.
 
-**Smallest code change:** Add `Index::get_reachable(source_id, direction, max_depth)` and a predecessor-map BFS over the snapshot. Build only the requested adjacency orientation. Return discovery metadata projected as existing `ReachablePath` records.
+**Smallest code change:** Add the directional and speculative-edge unit fences around the already-live `Index::get_reachable`; refine adjacency transposition only if the oracle exposes a mismatch.
 
 **Preconditions:** Source ID is supplied by the facade; a missing ID yields an empty traversal only if the source record is absent from the snapshot, but the public runtime lookup prevents that production shape. No undocumented panic/assert precondition.
 
@@ -72,9 +72,9 @@ Every slice uses scoped TDD where it adds tests. Every slice gate is: targeted t
 
 **Wall budget:** Not applicable; on-demand query.
 
-**Files:** `src/lib.rs`, `tests/graph.rs`.
+**Files:** `tests/graph.rs`.
 
-**Smallest code change:** Add documented `Tethys::get_reachable(name, direction, Option<usize>)`; resolve source with existing first-row lookup, normalize depth through `saturating_depth_to_u32`, delegate to `Index`, and build `ReachabilityResult`. Add direct canonical integration coverage for all depth branches.
+**Smallest code change:** Add direct canonical integration coverage for every depth branch around the facade published in Slice 1; correct normalization only if a fence fails.
 
 **Preconditions:** Qualified-name existence is load-bearing and enforced at runtime with `Error::NotFound`, including depth zero. Oversized depth is accepted by saturating; no panic precondition.
 

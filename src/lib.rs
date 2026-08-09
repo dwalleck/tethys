@@ -523,6 +523,38 @@ impl Tethys {
 
     // === Reachability Analysis ===
 
+    /// Get every symbol reachable in one call-graph direction.
+    ///
+    /// `Forward` follows callees; `Backward` follows callers. Results preserve
+    /// BFS discovery order and contain one shortest path per reachable symbol.
+    /// `max_depth` limits traversal depth. `None` uses the crate-wide default
+    /// of 50; values larger than `u32::MAX` saturate with a warning.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NotFound`] if no symbol matches `qualified_name`.
+    /// Database and row-decoding errors are returned unchanged.
+    pub fn get_reachable(
+        &self,
+        qualified_name: &str,
+        direction: ReachabilityDirection,
+        max_depth: Option<usize>,
+    ) -> Result<ReachabilityResult> {
+        let source = self
+            .db
+            .get_symbol_by_qualified_name(qualified_name)?
+            .ok_or_else(|| Error::NotFound(format!("symbol: {qualified_name}")))?;
+        let depth = max_depth.map_or(db::DEFAULT_MAX_DEPTH, saturating_depth_to_u32);
+        let reachable = self.db.get_reachable(source.id, direction, depth)?;
+
+        Ok(ReachabilityResult {
+            source,
+            reachable,
+            max_depth: usize::try_from(depth).unwrap_or(usize::MAX),
+            direction,
+        })
+    }
+
     /// BFS traversal of the call graph in a given direction.
     ///
     /// Shared implementation for both forward (callees) and backward (callers) reachability.
@@ -1484,5 +1516,51 @@ mod tests {
                 .all(|caller| caller.file == Path::new("src/lib.rs")),
             "hydrated callers must expose their workspace-relative indexed file"
         );
+    }
+
+    fn indexed_reachability_workspace() -> (TempDir, Tethys) {
+        let workspace = temp_workspace();
+        let src_dir = workspace.path().join("src");
+        std::fs::create_dir_all(&src_dir).expect("create src dir");
+        std::fs::write(
+            workspace.path().join("Cargo.toml"),
+            "[package]\nname = \"reachable_fixture\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+        )
+        .expect("write Cargo.toml");
+        std::fs::write(
+            src_dir.join("lib.rs"),
+            "pub fn target() {}\npub fn source() { target(); }\n",
+        )
+        .expect("write lib.rs");
+
+        let mut tethys = Tethys::new(workspace.path()).expect("create tethys");
+        tethys.index().expect("index fixture");
+        (workspace, tethys)
+    }
+
+    #[test]
+    fn get_reachable_returns_forward_path() {
+        let (_workspace, tethys) = indexed_reachability_workspace();
+
+        let result = tethys
+            .get_reachable("source", ReachabilityDirection::Forward, Some(1))
+            .expect("forward reachability");
+
+        assert_eq!(result.direction, ReachabilityDirection::Forward);
+        assert_eq!(result.max_depth, 1);
+        assert_eq!(result.reachable.len(), 1);
+        assert_eq!(result.reachable[0].target.qualified_name, "target");
+        assert_eq!(result.reachable[0].path.len(), 1);
+    }
+
+    #[test]
+    fn get_reachable_depth_zero_still_validates_source() {
+        let (_workspace, tethys) = indexed_reachability_workspace();
+
+        let error = tethys
+            .get_reachable("missing", ReachabilityDirection::Forward, Some(0))
+            .expect_err("missing source must fail at depth zero");
+
+        assert!(matches!(error, Error::NotFound(message) if message == "symbol: missing"));
     }
 }

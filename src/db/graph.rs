@@ -5,10 +5,13 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 
 use super::Index;
-use super::helpers::row_to_symbol;
+use super::helpers::{SYMBOLS_COLUMNS, row_to_symbol};
 use crate::error::{Error, Result};
 use crate::graph::{FileImpact, FileImpactDependent, FilePath, SymbolImpactCaller};
-use crate::types::{CallEdgeSelection, Caller, Cycle, FileId, SymbolId};
+use crate::types::{
+    CallEdgeSelection, Caller, Cycle, FileId, ReachabilityDirection, ReachablePath, Symbol,
+    SymbolId,
+};
 
 /// Default maximum depth for recursive graph traversals.
 ///
@@ -148,6 +151,135 @@ impl Index {
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(callers)
+    }
+
+    /// Return every symbol reachable from `source_id` in BFS discovery order.
+    ///
+    /// Symbols and call edges are loaded with two set-valued reads in one
+    /// `SQLite` snapshot. Search keeps one predecessor per discovered symbol;
+    /// public paths are materialized only after discovery completes.
+    pub(crate) fn get_reachable(
+        &self,
+        source_id: SymbolId,
+        direction: ReachabilityDirection,
+        max_depth: u32,
+    ) -> Result<Vec<ReachablePath>> {
+        let ReachabilitySnapshot {
+            symbols_by_id,
+            edges,
+        } = self.load_reachability_snapshot()?;
+        if !symbols_by_id.contains_key(&source_id) {
+            return Err(Error::NotFound(format!(
+                "symbol id: {}",
+                source_id.as_i64()
+            )));
+        }
+
+        let mut adj: HashMap<SymbolId, Vec<SymbolId>> = HashMap::new();
+        for (caller, callee) in edges {
+            if !symbols_by_id.contains_key(&caller) || !symbols_by_id.contains_key(&callee) {
+                continue;
+            }
+            let (from, to) = match direction {
+                ReachabilityDirection::Forward => (caller, callee),
+                ReachabilityDirection::Backward => (callee, caller),
+            };
+            adj.entry(from).or_default().push(to);
+        }
+        for neighbours in adj.values_mut() {
+            neighbours
+                .sort_unstable_by(|left, right| compare_symbol_ids(*left, *right, &symbols_by_id));
+        }
+
+        let mut parents = HashMap::new();
+        parents.insert(source_id, source_id);
+        let mut queue = VecDeque::from([(source_id, 0_u32)]);
+        let mut discovered = Vec::new();
+        while let Some((current, depth)) = queue.pop_front() {
+            if depth >= max_depth {
+                continue;
+            }
+            for &next in adj.get(&current).into_iter().flatten() {
+                if parents.contains_key(&next) {
+                    continue;
+                }
+                let next_depth = depth + 1;
+                parents.insert(next, current);
+                queue.push_back((next, next_depth));
+                discovered.push((next, next_depth));
+            }
+        }
+
+        let mut reachable = Vec::with_capacity(discovered.len());
+        for (target_id, depth) in discovered {
+            let depth = usize::try_from(depth).unwrap_or(usize::MAX);
+            let mut path_ids = Vec::with_capacity(depth);
+            let mut cursor = target_id;
+            while cursor != source_id {
+                path_ids.push(cursor);
+                cursor = *parents.get(&cursor).ok_or_else(|| {
+                    Error::NotFound(format!("predecessor for symbol id: {}", cursor.as_i64()))
+                })?;
+            }
+            path_ids.reverse();
+
+            let mut path = Vec::with_capacity(path_ids.len());
+            for id in path_ids {
+                path.push(
+                    symbols_by_id
+                        .get(&id)
+                        .cloned()
+                        .ok_or_else(|| Error::NotFound(format!("symbol id: {}", id.as_i64())))?,
+                );
+            }
+            let target = symbols_by_id
+                .get(&target_id)
+                .cloned()
+                .ok_or_else(|| Error::NotFound(format!("symbol id: {}", target_id.as_i64())))?;
+            reachable.push(ReachablePath {
+                target,
+                path,
+                depth,
+            });
+        }
+        Ok(reachable)
+    }
+
+    /// Read symbols and call edges in one deferred `SQLite` snapshot.
+    fn load_reachability_snapshot(&self) -> Result<ReachabilitySnapshot> {
+        let mut conn = self.connection()?;
+        let tx = conn.transaction()?;
+
+        let mut symbols_by_id = HashMap::new();
+        {
+            let mut stmt = tx.prepare(&format!("SELECT {SYMBOLS_COLUMNS} FROM symbols"))?;
+            let rows = stmt.query_map([], row_to_symbol)?;
+            for row in rows {
+                let symbol = row?;
+                symbols_by_id.insert(symbol.id, symbol);
+            }
+        }
+
+        let mut edges = Vec::new();
+        {
+            let mut stmt =
+                tx.prepare("SELECT caller_symbol_id, callee_symbol_id FROM call_edges")?;
+            let rows = stmt.query_map([], |row| {
+                Ok((
+                    SymbolId::from(row.get::<_, i64>(0)?),
+                    SymbolId::from(row.get::<_, i64>(1)?),
+                ))
+            })?;
+            for row in rows {
+                edges.push(row?);
+            }
+        }
+
+        drop(tx);
+        Ok(ReachabilitySnapshot {
+            symbols_by_id,
+            edges,
+        })
     }
 }
 
@@ -398,6 +530,31 @@ struct CycleSnapshot {
     paths_by_id: HashMap<FileId, PathBuf>,
     /// Outgoing dependency edges: file id to the files it depends on.
     adj: HashMap<FileId, Vec<FileId>>,
+}
+
+/// One consistent read of the symbol call graph.
+struct ReachabilitySnapshot {
+    /// Complete symbol records keyed by database id.
+    symbols_by_id: HashMap<SymbolId, Symbol>,
+    /// Directed caller-to-callee edges.
+    edges: Vec<(SymbolId, SymbolId)>,
+}
+
+/// Total order over symbol ids by qualified name, then database id.
+fn compare_symbol_ids(
+    left: SymbolId,
+    right: SymbolId,
+    symbols_by_id: &HashMap<SymbolId, Symbol>,
+) -> Ordering {
+    match (symbols_by_id.get(&left), symbols_by_id.get(&right)) {
+        (Some(left_symbol), Some(right_symbol)) => left_symbol
+            .qualified_name
+            .cmp(&right_symbol.qualified_name)
+            .then_with(|| left.as_i64().cmp(&right.as_i64())),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => left.as_i64().cmp(&right.as_i64()),
+    }
 }
 
 // === Helper methods for Index ===
@@ -2070,6 +2227,147 @@ mod chain_4m9o_fences {
         assert!(
             matches!(err, Error::NotFound(ref m) if m.contains(&fb.as_i64().to_string())),
             "expected NotFound naming the dangling id, got: {err:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod reachability_snapshot_fences {
+    //! Statement-count fence for unified reachability's bulk graph snapshot.
+    //!
+    //! Trace counters are process-global, so assertions must run under nextest.
+
+    use std::path::Path;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use rusqlite::params;
+    use tempfile::TempDir;
+
+    use crate::db::Index;
+    use crate::db::symbols::InsertSymbolParams;
+    use crate::types::{Language, ReachabilityDirection, SymbolId, SymbolKind, Visibility};
+
+    static TRACE_SELECTS: AtomicUsize = AtomicUsize::new(0);
+    static TRACE_PER_ID: AtomicUsize = AtomicUsize::new(0);
+
+    fn trace_cb(sql: &str) {
+        if sql.trim_start().starts_with("SELECT") {
+            TRACE_SELECTS.fetch_add(1, Ordering::Relaxed);
+        }
+        if sql.contains("FROM symbols WHERE id = ") {
+            TRACE_PER_ID.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    fn reset_trace() {
+        TRACE_SELECTS.store(0, Ordering::Relaxed);
+        TRACE_PER_ID.store(0, Ordering::Relaxed);
+    }
+
+    fn trace_counts() -> (usize, usize) {
+        (
+            TRACE_SELECTS.load(Ordering::Relaxed),
+            TRACE_PER_ID.load(Ordering::Relaxed),
+        )
+    }
+
+    fn fresh_index() -> (TempDir, Index) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let index = Index::open(&dir.path().join("idx.db")).expect("open index");
+        (dir, index)
+    }
+
+    fn file(index: &mut Index) -> crate::types::FileId {
+        index
+            .upsert_file(Path::new("src/lib.rs"), Language::Rust, 0, 0, None)
+            .expect("upsert file")
+    }
+
+    fn symbol(index: &Index, file_id: crate::types::FileId, name: &str) -> SymbolId {
+        index
+            .insert_symbol(&InsertSymbolParams {
+                file_id,
+                name,
+                module_path: "",
+                qualified_name: name,
+                kind: SymbolKind::Function,
+                line: 1,
+                column: 1,
+                span: None,
+                signature: None,
+                visibility: Visibility::Public,
+                parent_symbol_id: None,
+                is_test: false,
+            })
+            .expect("insert symbol")
+    }
+
+    fn edge(index: &Index, from: SymbolId, to: SymbolId) {
+        index
+            .connection()
+            .expect("connection")
+            .execute(
+                "INSERT INTO call_edges (caller_symbol_id, callee_symbol_id, call_count)
+                 VALUES (?1, ?2, 1)",
+                params![from.as_i64(), to.as_i64()],
+            )
+            .expect("insert call edge");
+    }
+
+    fn attach_trace(index: &Index) {
+        index
+            .connection()
+            .expect("connection")
+            .trace(Some(trace_cb));
+    }
+
+    #[test]
+    fn reachability_snapshot_statement_counts_are_flat() {
+        let (_small_dir, mut small) = fresh_index();
+        let small_file = file(&mut small);
+        let small_source = symbol(&small, small_file, "small_source");
+        let small_target = symbol(&small, small_file, "small_target");
+        edge(&small, small_source, small_target);
+        attach_trace(&small);
+
+        reset_trace();
+        let small_result = small
+            .get_reachable(small_source, ReachabilityDirection::Forward, 100)
+            .expect("small reachability");
+        assert_eq!(small_result.len(), 1);
+        assert_eq!(
+            trace_counts(),
+            (2, 0),
+            "one-target traversal must use two set reads"
+        );
+
+        let (_large_dir, mut large) = fresh_index();
+        let large_file = file(&mut large);
+        let ids = (0..=100)
+            .map(|index| symbol(&large, large_file, &format!("symbol_{index:03}")))
+            .collect::<Vec<_>>();
+        for pair in ids.windows(2) {
+            edge(&large, pair[0], pair[1]);
+        }
+        attach_trace(&large);
+
+        reset_trace();
+        let large_result = large
+            .get_reachable(ids[0], ReachabilityDirection::Forward, 100)
+            .expect("large reachability");
+        assert_eq!(large_result.len(), 100);
+        assert_eq!(
+            trace_counts(),
+            (2, 0),
+            "100-target traversal must keep statement count flat"
+        );
+
+        reset_trace();
+        large.get_symbol_by_id(ids[0]).expect("scalar canary");
+        assert_eq!(
+            trace_counts(),
+            (1, 1),
+            "scalar lookup canary must fire before trusting zero"
         );
     }
 }

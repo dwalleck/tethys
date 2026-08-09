@@ -79,12 +79,14 @@ For "what is X / how do I call X / how does process Y work", route via
   register a `ModuleResolver`. Do not edit the drivers.
 - **Graph queries are concrete `Index` operations.** Traversal lives in
   `src/db/graph.rs` behind the public `Tethys` facade. Transitive caller and
-  dependent queries are recursive CTEs; dependency-path (tethys-4m9o) and
-  cycle detection (tethys-u5o5) instead load ONE adjacency snapshot and walk
-  it in Rust, because the CTE forms enumerated walks and did not terminate on
-  cyclic indexes (tethys-vwrn). Either way there is no graph adapter trait and
-  no in-memory graph library — introduce a narrow seam only when a second
-  implementation exists. See ADR-0002 and its amendment.
+  dependent queries are recursive CTEs; dependency-path (tethys-4m9o), cycle
+  detection (tethys-u5o5), and reachability (tethys-7a6a) instead load ONE
+  adjacency snapshot and walk it in Rust. Dependency paths and cycles avoid
+  CTE walk enumeration on cyclic indexes (tethys-vwrn); reachability uses
+  predecessor BFS to avoid per-symbol queries and growing path clones. There
+  is no graph adapter trait or in-memory graph library — introduce a narrow
+  seam only when a second implementation exists. See ADR-0002 and its
+  amendment.
 - **Direct caller modes are explicit at the `Tethys` seam.**
   `CallerMode::Indexed` selects all retained call edges or excludes edges
   supported only by speculative references; `CallerMode::LspRefined` augments
