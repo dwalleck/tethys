@@ -2370,4 +2370,35 @@ mod reachability_snapshot_fences {
             "scalar lookup canary must fire before trusting zero"
         );
     }
+
+    #[test]
+    fn canonical_reachability_follows_edges_in_both_directions() {
+        let (_dir, mut index) = fresh_index();
+        let file_id = file(&mut index);
+        let source = symbol(&index, file_id, "source");
+        let a = symbol(&index, file_id, "a");
+        let b = symbol(&index, file_id, "b");
+        let c = symbol(&index, file_id, "c");
+        let d = symbol(&index, file_id, "d");
+        edge(&index, source, a);
+        edge(&index, source, b);
+        edge(&index, a, c);
+        edge(&index, d, source);
+
+        let forward = index
+            .get_reachable(source, ReachabilityDirection::Forward, 2)
+            .expect("forward reachability")
+            .into_iter()
+            .map(|entry| entry.target.id)
+            .collect::<Vec<_>>();
+        let backward = index
+            .get_reachable(source, ReachabilityDirection::Backward, 2)
+            .expect("backward reachability")
+            .into_iter()
+            .map(|entry| entry.target.id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(forward, vec![a, b, c]);
+        assert_eq!(backward, vec![d]);
+    }
 }
