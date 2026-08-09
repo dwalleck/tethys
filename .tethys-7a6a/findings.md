@@ -112,3 +112,20 @@ defect evidence rather than rewriting it.
 4. **Depth contract holds on real data:** depth 0 validates and returns empty;
    depth 1 is direct-only; bounded depths traverse monotonically; paths are
    shortest (`len == depth`), source-excluded, target-last — on all 66 entries.
+
+## Review-feedback decisions
+
+| # | Finding | Category | Verified? | Decision | Note |
+|---|---|---|---|---|---|
+| 1 | `AGENTS.md` omits reachability from snapshot-backed Rust graph walks | Convention | Yes: its graph-query invariant still names only dependency paths and cycles | Modify | Add reachability and its predecessor-BFS rationale. |
+| 2 | `AGENTS.md` must enumerate `.tethys-7a6a/` as a historical artifact directory | Convention | No: more than twenty other `.tethys-*` artifact directories are intentionally not enumerated | Reject | The Gotchas sentence is illustrative, not an exhaustive directory registry. |
+| 3 | Changelog text describes internals and uses the avoided term “database” for the index | Convention | Yes: `changelog.d/README.md` requires observable CLI wording and `CONTEXT.md` prefers “index” | Modify | State the user-visible large-graph efficiency improvement and preserved behavior. |
+| 4 | Delegating reachability wrappers are Middle Men | Design | Yes: both are intentional one-line compatibility delegates | Reject (defer) | Duplicate of open `tethys-71if`, which owns their clean removal after this issue. |
+| 5 | Extract the three `NotFound` lookup shapes into one helper | Smell | Partly: the predecessor lookup has different data and failure semantics; only two symbol-map lookups match | Reject | A two-call helper would hide the map and error context without reducing meaningful duplication. |
+| 6 | Extract the two `u32`-to-`usize` conversions | Smell | Yes: one projects path depth and one projects the facade envelope | Reject | Two layer-specific conversions do not justify another abstraction. |
+| 7 | Share the three temporary workspace fixture builders | Smell | No: they exercise DB-unit, facade, and actual-binary boundaries with different fixtures | Reject | Cross-boundary sharing would couple tests and obscure their setup contracts. |
+| 8 | Remove total-order fallback arms from `compare_symbol_ids` | Polish | Yes: the current caller prefilters missing endpoints | Reject | The total comparator remains deterministic if reused and avoids an invariant panic for negligible cost. |
+| 9 | A missing BFS predecessor should be `Error::Internal`, not `Error::NotFound` | Design | Yes: `Error` documents unexpected state as `Internal`; a missing parent is not a requested resource | Accept | Change the impossible-state error classification at its source. |
+| 10 | Normalize `types::ReachabilityResult` to the imported short name in wrapper signatures | Style | Yes, but the qualified signatures predate this diff | Reject | Not introduced by this PR and no behavior or maintenance gain. |
+| 11 | Add an automated source-shape fence proving BFS never clones growing paths | Spec | No missing contract: the signed spec explicitly requires implementation audit plus path-equivalence, both present | Reject | A source-text test would fence implementation syntax rather than observable behavior. |
+| 12 | Close `tethys-7a6a` on the PR branch before CI | Process | No: `docs/agents/issue-tracker.md` has no such rule; the ship workflow closes rivets only after merge | Reject | The issue correctly remains `in_progress` while PR #43 is open. |
