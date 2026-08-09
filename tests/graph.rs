@@ -2143,6 +2143,58 @@ fn canonical_reachability_paths_are_shortest_unique_and_valid() {
     );
 }
 
+fn workspace_with_strongly_connected_calls() -> (TempDir, Tethys) {
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"strong_calls\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+    )
+    .expect("write Cargo.toml");
+    fs::create_dir_all(dir.path().join("src")).expect("create src dir");
+    fs::write(
+        dir.path().join("src/lib.rs"),
+        "pub fn s() { s(); a(); }\n\
+         pub fn a() { b(); }\n\
+         pub fn b() { b(); c(); }\n\
+         pub fn c() { d(); }\n\
+         pub fn d() { s(); }\n",
+    )
+    .expect("write lib.rs");
+    let tethys = Tethys::new(dir.path()).expect("create Tethys");
+    (dir, tethys)
+}
+
+#[test]
+fn canonical_reachability_excludes_source_in_cycles() {
+    let (_dir, mut tethys) = workspace_with_strongly_connected_calls();
+    tethys.index().expect("index failed");
+    let expected = std::collections::HashSet::from(["a", "b", "c", "d"]);
+
+    for direction in [
+        ReachabilityDirection::Forward,
+        ReachabilityDirection::Backward,
+    ] {
+        for depth in [None, Some(100)] {
+            let result = tethys
+                .get_reachable("s", direction, depth)
+                .expect("cyclic reachability");
+            let names = result
+                .reachable
+                .iter()
+                .map(|entry| entry.target.qualified_name.as_str())
+                .collect::<std::collections::HashSet<_>>();
+            assert_eq!(names, expected, "{direction:?} at depth {depth:?}");
+            assert_eq!(result.reachable.len(), 4);
+            assert!(
+                result
+                    .reachable
+                    .iter()
+                    .all(|entry| entry.target.qualified_name != "s")
+            );
+        }
+    }
+}
+
 /// Helper that creates a workspace with a cyclic call pattern: a -> b -> c -> a
 fn workspace_with_cyclic_calls() -> (TempDir, Tethys) {
     let dir = tempfile::tempdir().expect("failed to create temp dir");
