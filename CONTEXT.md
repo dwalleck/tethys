@@ -25,6 +25,70 @@ Cargo's unit of compilation, discovered from a `Cargo.toml`. Prefer "crate" over
 "package" — the latter is only the `[package]` table; the resolved unit is a crate.
 _Avoid_: package, module (for a whole compilation unit)
 
+### C# project model (tethys-chlt)
+
+**Project**:
+A C# MSBuild project identified by its workspace-relative project-file path,
+distinct from the assemblies it produces and the solutions that include it.
+_Avoid_: crate, assembly (when you mean the project)
+
+**Evaluation context**:
+The recorded configuration, platform, runtime identifier, and global properties
+under which projects are evaluated, together with their toolchain and restore
+provenance.
+_Avoid_: build configuration (when you mean the complete context)
+
+**Evaluation unit**:
+One C# project for one target framework under an evaluation context, with its own
+effective source membership and semantic facts. Framework identity includes
+applicable version, profile, and platform distinctions, not just SDK shorthand.
+_Avoid_: compilation (a compiler invocation), compilation unit (ambiguous with a
+source syntax root), assembly (when you mean the evaluation scope)
+
+**Assembly metadata**:
+The evaluated output information associated with an evaluation unit, such as its
+assembly name; distinct projects may share that name.
+_Avoid_: project identity, assembly name (as a unique project key)
+
+**Source membership**:
+An indexed file's participation in an evaluation unit; the same physical indexed
+file may participate in several units.
+_Avoid_: file ownership (when it implies exactly one project)
+
+**Source-only scope**:
+Physical-file scope for syntax facts without established project-and-framework
+semantics, distinct from an evaluation unit.
+_Avoid_: orphan project, default target framework, inferred assembly
+
+### C# binding model (approved roadmap vocabulary, tethys-07eh)
+
+**Semantic symbol**:
+A C# entity within an evaluation unit, distinct from its declaration locations.
+Partial declarations can describe one semantic symbol; overloads and entities in
+different evaluation units remain distinct.
+_Avoid_: declaration location (as the entity's identity)
+
+**Declaration location**:
+A source location declaring a semantic symbol; one semantic symbol may have
+several such locations. Synthesized and external entities do not acquire invented
+source declarations.
+_Avoid_: symbol (when counting the locations of partial declarations)
+
+**Direct call target**:
+The member selected by C# compile-time semantics for a call, distinct from the
+implementation that might execute at runtime.
+_Avoid_: runtime target, every compatible implementation
+
+**Possible dispatch**:
+An evidence-supported relationship from a selected member to an implementation
+that may execute. It is not proof of a direct call or actual test coverage.
+_Avoid_: direct call, proven execution
+
+**External semantic target**:
+A referenced entity with established assembly-scoped identity whose source is not
+indexed. Its identity is distinct from any same-named local symbol.
+_Avoid_: unresolved local symbol, fabricated source symbol
+
 ### Code entities
 
 **Symbol**:

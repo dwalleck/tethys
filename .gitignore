@@ -39,3 +39,8 @@ Thumbs.db
 
 # Tethys SQLite index (regenerable from source)
 .rivets/index/
+
+# Private notes: details of non-public reference repositories used for
+# qualification. Public docs and tracker entries refer to these files
+# by path and never repeat their contents.
+docs/private/
