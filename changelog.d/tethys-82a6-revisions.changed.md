@@ -1,0 +1,3 @@
+- `tethys index` publishes one coherent revision; infrastructure failures keep the previous index intact in both batch and streaming modes.
+- `tethys index --rebuild` replaces outdated schemas atomically instead of deleting the prior index before work begins. Other commands refuse incompatible schemas with rebuild guidance.
+- Files that cannot be read or parsed are reported without carrying their stale symbols and references into the new revision.

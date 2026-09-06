@@ -167,6 +167,15 @@ impl Tethys {
     /// - Excludes common build directories (`target/`, `node_modules/`, `bin/`, `obj/`, `build/`, `dist/`, `vendor/`, `__pycache__`)
     /// - Database stored at `.rivets/index/tethys.db`
     pub fn new(workspace_root: &Path) -> Result<Self> {
+        Self::open_workspace(workspace_root, false)
+    }
+
+    /// Rebuild even an outdated index without deleting its last committed state.
+    pub fn rebuild_workspace(workspace_root: &Path, options: IndexOptions) -> Result<IndexStats> {
+        Self::open_workspace(workspace_root, true)?.index_in_revision(options, true)
+    }
+
+    fn open_workspace(workspace_root: &Path, rebuild: bool) -> Result<Self> {
         let workspace_root = workspace_root.canonicalize().map_err(|e| {
             Error::Io(std::io::Error::new(
                 e.kind(),
@@ -175,7 +184,11 @@ impl Tethys {
         })?;
 
         let db_path = index_db_path(&workspace_root);
-        let db = Index::open(&db_path)?;
+        let db = if rebuild {
+            Index::open_for_rebuild(&db_path)?
+        } else {
+            Index::open(&db_path)?
+        };
 
         let crates = cargo::discover_crates(&workspace_root);
 
@@ -198,12 +211,9 @@ impl Tethys {
 
     /// Delete the on-disk index files (db + WAL/SHM sidecars), if any.
     ///
-    /// The rebuild escape hatch for an index whose schema predates the
-    /// current binary: `Index::open` refuses outdated schemas with a
-    /// "run `tethys index --rebuild`" error, so the rebuild path must be
-    /// able to clear the files BEFORE opening — otherwise the guard would
-    /// brick its own remedy. No connection exists yet at call time, so
-    /// plain file removal is safe (no `SQLite` locks to dance around).
+    /// Standalone removal only: callers must ensure no live connection uses the
+    /// index. Rebuilds use [`Self::rebuild_workspace`] instead, preserving the old
+    /// revision if indexing fails.
     pub fn remove_index_files(workspace_root: &Path) -> Result<()> {
         Index::remove_db_files(&index_db_path(workspace_root))
     }
@@ -627,6 +637,7 @@ impl Tethys {
     // === Crate Resolution ===
 
     /// Get all discovered crates in this workspace.
+    #[must_use]
     pub fn crates(&self) -> &[CrateInfo] {
         &self.crates
     }
@@ -663,6 +674,7 @@ impl Tethys {
     ///
     /// This is a convenience method that returns just the path component
     /// of the containing crate.
+    #[must_use]
     pub fn get_crate_root_for_file(&self, file_path: &Path) -> Option<&Path> {
         self.get_crate_for_file(file_path).map(|c| c.path.as_path())
     }
@@ -670,6 +682,7 @@ impl Tethys {
     // === Database ===
 
     /// Get path to the `SQLite` database file.
+    #[must_use]
     pub fn db_path(&self) -> &Path {
         &self.db_path
     }

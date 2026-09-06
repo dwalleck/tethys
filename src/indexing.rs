@@ -157,11 +157,20 @@ impl Tethys {
     /// println!("Resolved {} references via LSP", stats.total_lsp_resolved());
     /// # Ok::<(), tethys::Error>(())
     /// ```
+    pub fn index_with_options(&mut self, options: IndexOptions) -> Result<IndexStats> {
+        self.index_in_revision(options, false)
+    }
+
     #[expect(
         clippy::too_many_lines,
         reason = "orchestration method with sequential indexing phases"
     )]
-    pub fn index_with_options(&mut self, options: IndexOptions) -> Result<IndexStats> {
+    pub(crate) fn index_in_revision(
+        &mut self,
+        options: IndexOptions,
+        rebuild: bool,
+    ) -> Result<IndexStats> {
+        let revision = self.db.begin_revision(rebuild)?;
         let start = Instant::now();
         let mut files_indexed = 0;
         let mut symbols_found = 0;
@@ -232,58 +241,61 @@ impl Tethys {
                 "Starting streaming indexing (parse + write in parallel)"
             );
 
-            let batch_writer =
-                BatchWriter::new(self.db_path.clone(), options.streaming_batch_size());
-
             let progress_counter = AtomicUsize::new(0);
             let parse_errors: Mutex<Vec<IndexError>> = Mutex::new(Vec::new());
+            let write_result = std::thread::scope(|scope| -> Result<_> {
+                let batch_writer =
+                    BatchWriter::new(scope, &self.db, options.streaming_batch_size());
 
-            // Parse in parallel and send to background writer
-            source_files.par_iter().for_each(|(file_path, language)| {
-                let current = progress_counter.fetch_add(1, Ordering::Relaxed);
-                if current.is_multiple_of(100) {
-                    trace!(progress = current, total = total_files, "Parsing files...");
-                }
-
-                match Self::parse_file_static(&workspace_root, file_path, *language) {
-                    Ok(data) => {
-                        batch_writer.send(data);
-                    }
-                    Err(e) => {
-                        let kind = IndexErrorKind::from(&e);
-                        match parse_errors.lock() {
-                            Ok(mut guard) => {
-                                guard.push(IndexError::new(file_path.clone(), kind, e.to_string()));
+                // Parse in parallel and send to background writer
+                let sent: Result<()> =
+                    source_files
+                        .par_iter()
+                        .try_for_each(|(file_path, language)| {
+                            let current = progress_counter.fetch_add(1, Ordering::Relaxed);
+                            if current.is_multiple_of(100) {
+                                trace!(progress = current, total = total_files, "Parsing files...");
                             }
-                            Err(poisoned) => {
-                                tracing::warn!(
-                                    file = %file_path.display(),
-                                    "Mutex poisoned during error collection, recovering"
-                                );
-                                poisoned.into_inner().push(IndexError::new(
-                                    file_path.clone(),
-                                    kind,
-                                    e.to_string(),
-                                ));
-                            }
-                        }
-                    }
-                }
-            });
 
-            // Wait for batch writer to finish
-            let write_result = batch_writer.finish()?;
+                            match Self::parse_file_static(&workspace_root, file_path, *language) {
+                                Ok(data) => {
+                                    batch_writer.send(data)?;
+                                }
+                                Err(e) => {
+                                    let kind = IndexErrorKind::from(&e);
+                                    match parse_errors.lock() {
+                                        Ok(mut guard) => {
+                                            guard.push(IndexError::new(
+                                                file_path.clone(),
+                                                kind,
+                                                e.to_string(),
+                                            ));
+                                        }
+                                        Err(poisoned) => {
+                                            tracing::warn!(
+                                                file = %file_path.display(),
+                                                "Mutex poisoned during error collection, recovering"
+                                            );
+                                            poisoned.into_inner().push(IndexError::new(
+                                                file_path.clone(),
+                                                kind,
+                                                e.to_string(),
+                                            ));
+                                        }
+                                    }
+                                }
+                            }
+                            Ok(())
+                        });
+
+                // Wait for batch writer to finish
+                let result = batch_writer.finish()?;
+                sent?;
+                Ok(result)
+            })?;
             files_indexed = write_result.stats.files_written;
             symbols_found = write_result.stats.symbols_written;
             references_found = write_result.stats.references_written;
-
-            if write_result.stats.files_failed > 0 {
-                warn!(
-                    files_failed = write_result.stats.files_failed,
-                    files_written = write_result.stats.files_written,
-                    "Some files failed to write to database during streaming indexing"
-                );
-            }
 
             // Collect parse errors
             match parse_errors.into_inner() {
@@ -297,6 +309,8 @@ impl Tethys {
                     errors.extend(poisoned.into_inner());
                 }
             }
+
+            self.remove_failed_parse_facts(&errors)?;
 
             info!(
                 files_indexed,
@@ -374,6 +388,8 @@ impl Tethys {
                 }
             }
 
+            self.remove_failed_parse_facts(&errors)?;
+
             info!(
                 parsed_count = parsed_files.len(),
                 error_count = errors.len(),
@@ -383,21 +399,10 @@ impl Tethys {
             // Phase 1b: Sequential database writes
             // This must be sequential because rusqlite Connection is not Sync
             for data in &parsed_files {
-                match self.write_parsed_file(data, &mut pending) {
-                    Ok((sym_count, ref_count)) => {
-                        files_indexed += 1;
-                        symbols_found += sym_count;
-                        references_found += ref_count;
-                    }
-                    Err(e) => {
-                        let kind = IndexErrorKind::from(&e);
-                        errors.push(IndexError::new(
-                            data.relative_path.clone(),
-                            kind,
-                            e.to_string(),
-                        ));
-                    }
-                }
+                let (sym_count, ref_count) = self.write_parsed_file(data, &mut pending)?;
+                files_indexed += 1;
+                symbols_found += sym_count;
+                references_found += ref_count;
             }
 
             info!(
@@ -423,27 +428,17 @@ impl Tethys {
         }
 
         // Convert remaining pending to (from_path, dep_path) for reporting
-        let unresolved_dependencies: Vec<(PathBuf, PathBuf)> = pending
-            .into_iter()
-            .filter_map(|p| match self.db.get_file_by_id(p.from_file_id) {
-                Ok(Some(f)) => Some((f.path, p.dep_path)),
-                Ok(None) => {
-                    warn!(
-                        file_id = %p.from_file_id,
-                        "File not found when building unresolved deps list"
-                    );
-                    None
-                }
-                Err(e) => {
-                    warn!(
-                        file_id = %p.from_file_id,
-                        error = %e,
-                        "DB error when building unresolved deps list"
-                    );
-                    None
-                }
-            })
-            .collect();
+        let mut unresolved_dependencies = Vec::with_capacity(pending.len());
+        for p in pending {
+            if let Some(f) = self.db.get_file_by_id(p.from_file_id)? {
+                unresolved_dependencies.push((f.path, p.dep_path));
+            } else {
+                warn!(
+                    file_id = %p.from_file_id,
+                    "File not found when building unresolved deps list"
+                );
+            }
+        }
 
         // Log unresolved dependencies with actual file paths
         for (from_path, dep_path) in &unresolved_dependencies {
@@ -543,24 +538,15 @@ impl Tethys {
         // Update query planner statistics after bulk writes
         self.db.analyze()?;
 
-        let arch_phase = match self.run_architecture_phase() {
-            Ok(arch) => {
-                tracing::debug!(
-                    packages = arch.packages_recorded,
-                    files = arch.files_assigned,
-                    edges = arch.package_deps_recorded,
-                    "architecture phase complete"
-                );
-                Some(ArchPhaseResult::Completed(arch))
-            }
-            Err(e) => {
-                tracing::warn!(
-                    error = %e,
-                    "architecture phase failed; index data is otherwise valid"
-                );
-                Some(ArchPhaseResult::Failed(e.to_string()))
-            }
-        };
+        let arch = self.run_architecture_phase()?;
+        tracing::debug!(
+            packages = arch.packages_recorded,
+            files = arch.files_assigned,
+            edges = arch.package_deps_recorded,
+            "architecture phase complete"
+        );
+        let arch_phase = Some(ArchPhaseResult::Completed(arch));
+        revision.commit()?;
 
         Ok(IndexStats {
             files_indexed,
@@ -574,6 +560,18 @@ impl Tethys {
             lsp_sessions,
             arch_phase,
         })
+    }
+
+    /// Failed source parsing removes prior facts instead of publishing stale data.
+    fn remove_failed_parse_facts(&self, errors: &[IndexError]) -> Result<()> {
+        let mut ids = Vec::with_capacity(errors.len());
+        for error in errors {
+            if let Some(id) = self.db.get_file_id(&self.relative_path(&error.path))? {
+                ids.push(id);
+            }
+        }
+        self.db.delete_files(&ids)?;
+        Ok(())
     }
 
     /// Build a map of `FileId` -> crate name for every indexed file.
@@ -1261,11 +1259,8 @@ impl Tethys {
         use crate::db::PackageInsert;
         use crate::types::PackageSource;
 
-        // Non-Rust workspaces have no crates; succeed with all-zero stats
-        // rather than returning Err. The upstream call site wraps Ok(_) into
-        // Some(ArchPhaseResult::Completed) and Err(_) into Failed, so this
-        // path produces Some(Completed(zeros)) — distinct from a real phase
-        // failure (Some(Failed)) and from "phase didn't run" (None).
+        // Non-Rust workspaces have no crates; succeed with all-zero stats.
+        // Real architecture failures abort the enclosing revision.
         if self.crates.is_empty() {
             return Ok(crate::types::ArchStats::default());
         }

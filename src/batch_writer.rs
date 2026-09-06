@@ -14,36 +14,31 @@
 //! │  ──────────────       │  ────────────────────────               │
 //! │  rayon::par_iter()    │  recv() from channel                    │
 //! │  parse files          │  accumulate until batch_size            │
-//! │  send to channel ─────┼→ write batch (file-level transactions)  │
-//! │  ...                  │  log errors, continue on failure        │
-//! │  drop sender          │  return WriteStats                      │
+//! │  send to channel ─────┼→ write batch (file-level savepoints)    │
+//! │  ...                  │  propagate storage failures             │
+//! │  drop sender          │  return Result<WriteStats>              │
 //! └─────────────────────────────────────────────────────────────────┘
 //! ```
 //!
 //! ## Usage
 //!
 //! ```ignore
-//! use std::path::PathBuf;
-//!
-//! let db_path = PathBuf::from("/tmp/index.db");
-//! let batch_writer = BatchWriter::new(db_path, 100);
-//!
-//! source_files.par_iter().for_each(|(path, lang)| {
-//!     if let Ok(data) = Tethys::parse_file_static(&workspace_root, path, *lang) {
-//!         let _ = batch_writer.send(data);
-//!     }
-//! });
-//!
-//! let result = batch_writer.finish()?;
-//! // result.stats contains write statistics
-//! // Dependencies are computed after all files are written
+//! std::thread::scope(|scope| {
+//!     let batch_writer = BatchWriter::new(scope, &index, 100);
+//!     let sent = source_files.par_iter().try_for_each(|(path, lang)| {
+//!         let data = Tethys::parse_file_static(&workspace_root, path, *lang)?;
+//!         batch_writer.send(data)
+//!     });
+//!     let result = batch_writer.finish()?;
+//!     sent?;
+//!     Ok::<_, tethys::Error>(result)
+//! })?;
 //! ```
 
-use std::path::PathBuf;
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::thread::{self, JoinHandle};
+use std::sync::mpsc::{self, Receiver, SyncSender};
+use std::thread::{Scope, ScopedJoinHandle};
 
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, trace};
 
 use crate::db::{Index, SymbolData};
 use crate::error::{Error, Result};
@@ -76,53 +71,60 @@ pub struct BatchWriteResult {
 ///
 /// This struct owns the sending end of an MPSC channel. Parsed files are sent
 /// via [`send()`](Self::send) and accumulated in the background thread until
-/// [`batch_size`](Self::new) files are collected, at which point they're written
-/// in a single `SQLite` transaction.
+/// `batch_size` files are collected, at which point they're written using
+/// file-level savepoints on the caller's database connection.
 ///
 /// When [`finish()`](Self::finish) is called, the sender is dropped, the
 /// background thread completes any remaining writes, and the final statistics
 /// are returned.
-pub struct BatchWriter {
+pub struct BatchWriter<'scope> {
     /// Channel sender for parsed file data.
-    sender: Sender<ParsedFileData>,
+    sender: SyncSender<ParsedFileData>,
     /// Handle to the background writer thread.
-    handle: JoinHandle<Result<BatchWriteResult>>,
+    handle: ScopedJoinHandle<'scope, Result<BatchWriteResult>>,
 }
 
-impl BatchWriter {
+impl<'scope> BatchWriter<'scope> {
     /// Create a new batch writer with the given database and batch size.
     ///
     /// # Arguments
-    /// * `db_path` - Path to the `SQLite` database file
-    /// * `batch_size` - Number of files to accumulate before committing a transaction
+    /// * `scope` - Thread scope that bounds the writer's lifetime
+    /// * `db` - The caller's index, including its active revision
+    /// * `batch_size` - Number of files to accumulate before writing
     ///
     /// # Panics
     /// Panics if `batch_size` is 0 (would cause infinite accumulation without writes).
     #[must_use]
-    pub fn new(db_path: PathBuf, batch_size: usize) -> Self {
+    pub fn new<'env>(
+        scope: &'scope Scope<'scope, 'env>,
+        db: &'env Index,
+        batch_size: usize,
+    ) -> Self {
         assert!(batch_size > 0, "batch_size must be at least 1");
 
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::sync_channel(batch_size);
 
-        let handle = thread::spawn(move || Self::writer_thread(db_path, receiver, batch_size));
+        let handle = scope.spawn(move || Self::writer_thread(db, &receiver, batch_size));
 
         Self { sender, handle }
     }
 
     /// Send parsed file data to the background writer.
     ///
-    /// This is non-blocking. If the channel is disconnected (background thread
-    /// panicked), the data is silently dropped and an error is logged.
+    /// Applies backpressure when the bounded queue is full; disconnection returns an error.
     ///
     /// # Arguments
     /// * `data` - The parsed file data to write
-    pub fn send(&self, data: ParsedFileData) {
-        if let Err(e) = self.sender.send(data) {
-            error!(
-                file = %e.0.relative_path.display(),
-                "Failed to send to batch writer (receiver disconnected)"
-            );
-        }
+    ///
+    /// # Errors
+    /// Returns an error if the background writer has disconnected.
+    pub fn send(&self, data: ParsedFileData) -> Result<()> {
+        self.sender.send(data).map_err(|e| {
+            Error::Internal(format!(
+                "Failed to send {} to batch writer (receiver disconnected)",
+                e.0.relative_path.display()
+            ))
+        })
     }
 
     /// Finish writing and return the final statistics.
@@ -156,16 +158,11 @@ impl BatchWriter {
     }
 
     /// Background thread function that receives and writes file data.
-    #[expect(
-        clippy::needless_pass_by_value,
-        reason = "PathBuf must be owned by the spawned thread"
-    )]
     fn writer_thread(
-        db_path: PathBuf,
-        receiver: Receiver<ParsedFileData>,
+        db: &Index,
+        receiver: &Receiver<ParsedFileData>,
         batch_size: usize,
     ) -> Result<BatchWriteResult> {
-        let mut db = Index::open(&db_path)?;
         let mut stats = WriteStats::default();
         let mut batch: Vec<ParsedFileData> = Vec::with_capacity(batch_size);
 
@@ -181,13 +178,13 @@ impl BatchWriter {
                     batch.push(data);
 
                     if batch.len() >= batch_size {
-                        Self::write_batch(&mut db, &mut batch, &mut stats);
+                        Self::write_batch(db, &mut batch, &mut stats)?;
                     }
                 }
                 Err(_) => {
                     // Channel closed (all senders dropped) -- write remaining batch and exit.
                     if !batch.is_empty() {
-                        Self::write_batch(&mut db, &mut batch, &mut stats);
+                        Self::write_batch(db, &mut batch, &mut stats)?;
                     }
                     break;
                 }
@@ -207,44 +204,35 @@ impl BatchWriter {
     }
 
     /// Write a batch of files.
-    fn write_batch(db: &mut Index, batch: &mut Vec<ParsedFileData>, stats: &mut WriteStats) {
+    fn write_batch(
+        db: &Index,
+        batch: &mut Vec<ParsedFileData>,
+        stats: &mut WriteStats,
+    ) -> Result<()> {
         trace!(batch_size = batch.len(), "Writing batch");
 
-        // Each file is written atomically via index_parsed_file_atomic — one
-        // transaction covering the file row, symbols, refs, and imports. The
-        // batch here amortizes channel overhead; the transaction batching
-        // happens at the file level inside the Index API.
+        // File savepoints preserve atomic writes without publishing the
+        // enclosing revision. Batches amortize channel overhead.
         for data in batch.drain(..) {
-            match Self::write_single_file(db, &data) {
-                Ok((sym_count, ref_count)) => {
-                    stats.files_written += 1;
-                    stats.symbols_written += sym_count;
-                    stats.references_written += ref_count;
-                }
-                Err(e) => {
-                    // Log but continue - we don't want one bad file to stop everything
-                    warn!(
-                        file = %data.relative_path.display(),
-                        error = %e,
-                        "Failed to write file to database"
-                    );
-                    stats.files_failed += 1;
-                }
-            }
+            let (sym_count, ref_count) = Self::write_single_file(db, &data)?;
+            stats.files_written += 1;
+            stats.symbols_written += sym_count;
+            stats.references_written += ref_count;
         }
 
         stats.batches_committed += 1;
+        Ok(())
     }
 
     /// Write a single file to the database.
     ///
     /// The complete write (file record, symbols, references, imports) happens
-    /// in ONE transaction via [`Index::index_parsed_file_atomic`] — shared
+    /// in ONE savepoint via [`Index::index_parsed_file_atomic`] — shared
     /// with the batch-mode path, so the two write modes can no longer drift.
     /// Does NOT compute file-level dependencies - that requires access to
     /// Tethys state (workspace root, module path resolution) and is done
     /// after all files are written.
-    fn write_single_file(db: &mut Index, data: &ParsedFileData) -> Result<(usize, usize)> {
+    fn write_single_file(db: &Index, data: &ParsedFileData) -> Result<(usize, usize)> {
         // Convert owned symbols to borrowed for insertion
         let symbol_data: Vec<SymbolData<'_>> =
             data.symbols.iter().map(|s| s.as_symbol_data()).collect();
@@ -269,6 +257,8 @@ mod tests {
     use super::*;
     use crate::parallel::OwnedSymbolData;
     use crate::types::{Language, SymbolKind, Visibility};
+    use std::path::PathBuf;
+    use std::thread;
     use tempfile::TempDir;
 
     fn temp_db_path() -> (TempDir, PathBuf) {
@@ -281,7 +271,7 @@ mod tests {
     fn batch_writer_writes_single_file() {
         let (_dir, db_path) = temp_db_path();
 
-        let writer = BatchWriter::new(db_path.clone(), 10);
+        let db = Index::open(&db_path).expect("open");
 
         let data = ParsedFileData {
             relative_path: PathBuf::from("src/main.rs"),
@@ -307,9 +297,11 @@ mod tests {
             imports: vec![],
         };
 
-        writer.send(data);
-
-        let result = writer.finish().expect("finish");
+        let result = thread::scope(|scope| {
+            let writer = BatchWriter::new(scope, &db, 10);
+            writer.send(data).expect("send");
+            writer.finish().expect("finish")
+        });
 
         assert_eq!(result.stats.files_written, 1);
         assert_eq!(result.stats.symbols_written, 1);
@@ -320,24 +312,26 @@ mod tests {
     fn batch_writer_respects_batch_size() {
         let (_dir, db_path) = temp_db_path();
 
-        // Batch size of 3
-        let writer = BatchWriter::new(db_path.clone(), 3);
+        let db = Index::open(&db_path).expect("open");
+        let result = thread::scope(|scope| {
+            let writer = BatchWriter::new(scope, &db, 3);
 
-        // Send 7 files - should result in 3 batches (3 + 3 + 1)
-        for i in 0..7 {
-            let data = ParsedFileData {
-                relative_path: PathBuf::from(format!("src/file{i}.rs")),
-                language: Language::Rust,
-                mtime_ns: 1_234_567_890 + i64::from(i),
-                size_bytes: 100,
-                symbols: vec![],
-                references: vec![],
-                imports: vec![],
-            };
-            writer.send(data);
-        }
+            // Send 7 files - should result in 3 batches (3 + 3 + 1)
+            for i in 0..7 {
+                let data = ParsedFileData {
+                    relative_path: PathBuf::from(format!("src/file{i}.rs")),
+                    language: Language::Rust,
+                    mtime_ns: 1_234_567_890 + i64::from(i),
+                    size_bytes: 100,
+                    symbols: vec![],
+                    references: vec![],
+                    imports: vec![],
+                };
+                writer.send(data).expect("send");
+            }
 
-        let result = writer.finish().expect("finish");
+            writer.finish().expect("finish")
+        });
 
         assert_eq!(result.stats.files_written, 7);
         assert_eq!(result.stats.batches_committed, 3);
@@ -347,38 +341,25 @@ mod tests {
     fn batch_writer_handles_empty_input() {
         let (_dir, db_path) = temp_db_path();
 
-        let writer = BatchWriter::new(db_path.clone(), 10);
-
-        // Don't send any files
-        let result = writer.finish().expect("finish");
+        let db = Index::open(&db_path).expect("open");
+        let result =
+            thread::scope(|scope| BatchWriter::new(scope, &db, 10).finish().expect("finish"));
 
         assert_eq!(result.stats.files_written, 0);
         assert_eq!(result.stats.batches_committed, 0);
-    }
-
-    #[test]
-    fn write_stats_default() {
-        let stats = WriteStats::default();
-        assert_eq!(stats.files_written, 0);
-        assert_eq!(stats.files_failed, 0);
-        assert_eq!(stats.symbols_written, 0);
-        assert_eq!(stats.references_written, 0);
-        assert_eq!(stats.batches_committed, 0);
     }
 
     // build_qualified_name tests live with the canonical implementation in
     // db/files.rs (build_qualified_name_shapes); the duplicate this module
     // once carried was deleted with the duplicated write path.
 
-    /// One bad file in a streaming batch must not poison the others
-    /// (plan slice 3 stress fixture: failure isolation). The bad file's
-    /// dangling `parent_symbol_id` violates the FK inside its own
-    /// transaction; the surrounding files commit normally.
+    /// A storage failure must reach the revision owner and roll back every file.
     #[test]
-    fn bad_file_in_batch_is_isolated() {
+    fn bad_file_in_batch_aborts_revision() {
         let (_dir, db_path) = temp_db_path();
 
-        let writer = BatchWriter::new(db_path.clone(), 3);
+        let db = Index::open(&db_path).expect("open");
+        let revision = db.begin_revision(false).expect("begin");
 
         let good = |name: &str| ParsedFileData {
             relative_path: PathBuf::from(format!("src/{name}.rs")),
@@ -407,24 +388,20 @@ mod tests {
         let mut bad = good("poisoned");
         bad.symbols[0].parent_symbol_id = Some(crate::types::SymbolId::from(999_999));
 
-        writer.send(good("a"));
-        writer.send(bad);
-        writer.send(good("b"));
-
-        let result = writer.finish().expect("finish");
-        assert_eq!(result.stats.files_written, 2, "good files must survive");
-        assert_eq!(result.stats.files_failed, 1, "bad file must be counted");
-
-        let db = Index::open(&db_path).expect("reopen");
+        let result = thread::scope(|scope| {
+            let writer = BatchWriter::new(scope, &db, 3);
+            writer.send(good("a")).expect("send first");
+            writer.send(bad).expect("send bad");
+            writer.send(good("b")).expect("send last");
+            writer.finish()
+        });
+        assert!(result.is_err(), "storage failure must abort indexing");
+        drop(revision);
         assert!(
             db.get_file_id(std::path::Path::new("src/a.rs"))
                 .expect("query")
-                .is_some()
-                && db
-                    .get_file_id(std::path::Path::new("src/b.rs"))
-                    .expect("query")
-                    .is_some(),
-            "files before and after the bad one must be present"
+                .is_none(),
+            "earlier successful file must roll back"
         );
         assert!(
             db.get_file_id(std::path::Path::new("src/poisoned.rs"))

@@ -55,7 +55,7 @@ impl Index {
         );
 
         let mut conn = self.connection()?;
-        let tx = conn.transaction()?;
+        let tx = conn.savepoint()?;
 
         // 1. Wipe. Cascade clears the two child tables.
         tx.execute("DELETE FROM arch_packages", [])?;

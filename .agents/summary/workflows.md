@@ -7,7 +7,8 @@ the **indexing pipeline** (write path) and **query workflows** (read path).
 
 ```mermaid
 flowchart TD
-    Start([tethys index]) --> Discover["Discover files (walk_dir, skip excluded dirs)"]
+    Start([tethys index]) --> Begin["Begin unpublished revision"]
+    Begin --> Discover["Discover files (walk_dir, skip excluded dirs)"]
     Discover --> Filter["Filter to supported extensions (.rs, .cs)"]
     Filter --> Parse["Parse in parallel (rayon + tree-sitter)"]
     Parse --> Extract["Extract symbols / refs / imports (LanguageSupport)"]
@@ -22,7 +23,8 @@ flowchart TD
     LSP -- yes --> Refine["Refine unresolved refs via LSP"]
     LSP -- no --> Arch
     Refine --> Arch["Architecture phase: packages, package deps, coupling"]
-    Arch --> Stats([Return IndexStats])
+    Arch --> Publish["Commit complete revision"]
+    Publish --> Stats([Return IndexStats])
 ```
 
 ### Stages
@@ -38,7 +40,8 @@ flowchart TD
 4. **Extraction** — the language's `LanguageSupport` yields symbols, references,
    and imports from each tree.
 5. **Persistence** — batch mode writes after parsing; streaming mode hands
-   parsed files to a `BatchWriter` thread in configurable batches.
+   parsed files to a scoped `BatchWriter` with a bounded queue. Both modes use
+   the revision's shared connection and file-level savepoints.
 6. **Deferred resolution** — references to not-yet-indexed files are queued as
    `PendingDependency` and retried in resolution passes until no progress is
    made; this tolerates circular and forward references.
@@ -49,6 +52,9 @@ flowchart TD
    resolved via a language server.
 9. **Architecture phase** — assigns files to packages, rolls `file_deps` up to
    `arch_package_deps`, and prepares coupling metrics.
+10. **Publication** — commit source, resolution and architecture facts together.
+    Fatal failures roll back the whole run; reported source-read/parse failures
+    remove stale file facts from the successfully published revision.
 
 ### Cross-file reference resolution detail
 
@@ -76,19 +82,18 @@ from `ModuleResolver`. Rust uses `crate::`/`self::`/`super::` resolution
 
 ```mermaid
 flowchart LR
-    A([tethys index]) --> B["get_stale_files (compare mtime vs DB)"]
-    B --> C{Changes?}
-    C -- none --> D([No-op])
-    C -- "added/modified/deleted" --> E["Reindex changed files"]
-    E --> F["Re-resolve + recompute edges"]
-    F --> G([IndexUpdate])
-    H([tethys index --rebuild]) --> I["reset DB + full reindex"]
+    A([needs_update / get_stale_files]) --> B["Compare filesystem with indexed mtime"]
+    B --> C([Staleness result])
+    D([update]) --> E["Full index pipeline"]
+    E --> F([IndexUpdate])
+    H([tethys index --rebuild]) --> I["Replace schema and facts in one revision"]
 ```
 
 `reindex.rs` classifies each indexed file (`FileChange`: added, modified,
 deleted, unchanged) by comparing filesystem mtime to the stored `mtime_ns`.
-`--rebuild` clears the database (including WAL/SHM sidecars) and reindexes from
-scratch.
+`update` currently delegates to a full reindex. `--rebuild` replaces schema and
+facts transactionally; failure preserves the previous index rather than deleting
+the database or its WAL/SHM sidecars before indexing (tethys-82a6).
 
 ## Query Workflows
 

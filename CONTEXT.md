@@ -219,6 +219,12 @@ speculative edge is an *unverified* one.
 The pipeline that parses source, extracts symbols and references, stores them, and
 runs reference resolution.
 
+**Index revision** (tethys-82a6):
+A coherently published set of workspace facts from one indexing run. A failed
+publication leaves the preceding revision visible; reported source failures may
+leave a successful revision incomplete, but do not preserve stale file facts.
+_Avoid_: snapshot (when you mean the published index revision), batch
+
 **Extraction**:
 Pulling symbols and references out of one parsed file for one language, behind the
 `LanguageSupport` trait. Together with module-path resolution, the only
@@ -251,9 +257,9 @@ _Avoid_: stale file (staleness also covers modified and added), deleted file
 (ambiguous with a file the purge already removed)
 
 **Streaming mode**:
-An indexing mode that writes parsed files to SQLite incrementally via a background
-writer thread, bounding memory to the batch size. The contrast is **batch mode**,
-the default, which accumulates all data in memory before writing.
+An indexing mode that bounds queued parsed files and writes through a background
+writer before publishing one index revision. The contrast is **batch mode**,
+which accumulates all parsed data before writing.
 
 ### The seam
 

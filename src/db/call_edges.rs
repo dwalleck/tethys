@@ -149,14 +149,9 @@ impl Index {
         let (csharp_decls_per_file, csharp_usings_per_file) =
             self.build_csharp_namespace_corroboration()?;
 
-        // Re-acquire the connection (with mutable access for the transaction)
-        // and wrap the insert loop in an explicit transaction. The project
-        // pattern (see `files.rs::upsert_file_with_symbols`, `architecture.rs::
-        // repopulate_architecture`) wraps bulk inserts this way so SQLite issues
-        // one fsync at commit time instead of N — significant on workspaces
-        // with thousands of cross-file edges.
+        // A savepoint is atomic standalone and nests inside a whole-run revision.
         let mut conn = self.connection()?;
-        let tx = conn.transaction()?;
+        let tx = conn.savepoint()?;
         let mut inserted = 0usize;
         let mut dropped = 0usize;
         for (from_fid_i64, to_fid_i64, ref_count) in aggregated {
