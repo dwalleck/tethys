@@ -202,6 +202,8 @@ Root cause is native SDK RuntimeIdentifierInference.targets55–63: Windows Fram
 
 S2b now passes actual Windows locked restore, licensing, both runtime-flavor packaging and SDK qualification. Framework assembly path/version and literal controls also pass. First classic unit differs at MSBuildBinPath; exact values are required before choosing between lexical path equivalence and a real effective-toolset mismatch.
 
+**Observed cause and repair:** run34071402251/job101589359326 reports worker MSBuildBinPath=Current/Bin/amd64 versus direct oracle=Current/Bin. This is a real toolset mismatch, not lexical spelling. Primary MSBuild BuildEnvironmentHelper source routes an externally hosted AnyCPU/x64 process to the VS amd64 toolset; Locator1.7.8 does not pin it for VS17.14, and MSBUILD_EXE_PATH is architecture-normalized. Pin net472 PlatformTarget=x86 to match the already-qualified root MSBuild.exe authority. Do not change the oracle or manufacture a Toolset. Existing RuntimeIdentifiers remains a restore-graph setting, not process architecture. Deployment guidance is updated atomically.
+
 ## S3: Implement the neutral discovery adapters and freshness contract
 
 **Claim IDs:** C3, C4, C6, C7, C9.

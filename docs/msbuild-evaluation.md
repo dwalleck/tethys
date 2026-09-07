@@ -18,7 +18,7 @@ The Windows Framework companion runs as:
 msbuild-evaluate/framework/Tethys.MSBuild.Evaluate.exe
 ```
 
-The SDK worker targets .NET 8 with `LatestMajor` runtime roll-forward so an installed newer SDK can load its matching MSBuild. The Framework worker targets .NET Framework 4.7.2 and is qualified against Visual Studio MSBuild. A missing companion, runtime, or selected toolchain is an error; evaluation never builds or downloads its own helper.
+The SDK worker targets .NET 8 with `LatestMajor` runtime roll-forward so an installed newer SDK can load its matching MSBuild. The Framework worker targets .NET Framework 4.7.2 and runs x86 to match the qualified Visual Studio 17.14 `MSBuild/Current/Bin/MSBuild.exe` host; select that installation directory, not its `amd64` sibling. Assembly loading alone does not establish the effective toolset: an AnyCPU worker can load from `Bin` yet evaluate using `Bin/amd64`. A missing companion, runtime, or selected toolchain is an error; evaluation never builds or downloads its own helper.
 
 For development, build the companion explicitly before invoking it:
 

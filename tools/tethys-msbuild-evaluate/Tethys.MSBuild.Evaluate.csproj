@@ -13,6 +13,8 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <!-- Windows infers this RID for Framework executables; lock that graph on every build OS. -->
     <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net472'">win-x86</RuntimeIdentifiers>
+    <!-- Match the qualified VS Current/Bin/MSBuild.exe host, not its amd64 sibling. -->
+    <PlatformTarget Condition="'$(TargetFramework)' == 'net472'">x86</PlatformTarget>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
   </PropertyGroup>
