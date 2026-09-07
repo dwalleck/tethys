@@ -41,6 +41,52 @@ fn reason(standing: &DiscoveryStanding) -> DiscoveryFailureReason {
     }
 }
 
+fn debug_restore(root: &Path, snapshot: &DiscoverySnapshot) {
+    eprintln!(
+        "[DEBUG-82a6-restore] root={} canonical={:?} projects={:?}",
+        root.display(),
+        root.canonicalize(),
+        snapshot.projects
+    );
+    let output = root.join("obj");
+    eprintln!(
+        "[DEBUG-82a6-restore] obj={:?}",
+        fs::read_dir(&output).map(|entries| entries
+            .map(|entry| entry.map(|entry| entry.file_name()))
+            .collect::<Vec<_>>())
+    );
+    for name in [
+        "project.assets.json",
+        "App.csproj.nuget.dgspec.json",
+        "Z.csproj.nuget.dgspec.json",
+    ] {
+        match fs::read(output.join(name)) {
+            Ok(bytes) => match serde_json::from_slice::<serde_json::Value>(&bytes) {
+                Ok(value) => {
+                    eprintln!(
+                        "[DEBUG-82a6-restore] file={name} version={} restore={} project_keys={:?}",
+                        value["version"],
+                        value["project"]["restore"],
+                        value["projects"]
+                            .as_object()
+                            .map(|projects| projects.keys().collect::<Vec<_>>())
+                    );
+                    for field in ["projectPath", "projectUniqueName"] {
+                        if let Some(path) = value["project"]["restore"][field].as_str() {
+                            eprintln!(
+                                "[DEBUG-82a6-restore] field={field} raw={path:?} canonical={:?}",
+                                Path::new(path).canonicalize()
+                            );
+                        }
+                    }
+                }
+                Err(error) => eprintln!("[DEBUG-82a6-restore] file={name} json_error={error}"),
+            },
+            Err(error) => eprintln!("[DEBUG-82a6-restore] file={name} read_error={error}"),
+        }
+    }
+}
+
 #[test]
 fn trust_gate_precedes_host_and_restore() {
     let root = TempDir::new().unwrap();
@@ -403,6 +449,7 @@ fn authorized_restore_rechecks_metadata_before_confirmation() {
             ..options()
         },
     );
+    debug_restore(root.path(), &snapshot);
     assert_eq!(
         snapshot.projects[0].standing,
         DiscoveryStanding::Confirmed,
@@ -497,6 +544,7 @@ fn later_restore_does_not_excuse_an_earlier_glob_change() {
             ..options()
         },
     );
+    debug_restore(root.path(), &snapshot);
     let earlier = snapshot
         .projects
         .iter()

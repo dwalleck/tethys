@@ -346,7 +346,7 @@ jobs:
               for name, value in values.items():
                   output.write(f"{name}={value}\n")
       - name: Qualify real discovery failures, currentness and cache
-        run: cargo nextest run --all-features --lib --test discovery_candidates --test discovery_failures --test discovery_cache --test discovery_runtime --run-ignored all
+        run: cargo nextest run --all-features --lib --test discovery_candidates --test discovery_failures --test discovery_cache --test discovery_runtime --run-ignored all --no-fail-fast
       - name: Build actual CLI for discovery smoke
         if: runner.os != 'Windows'
         run: cargo build --lib --bin tethys

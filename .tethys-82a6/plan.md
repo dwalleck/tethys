@@ -271,6 +271,8 @@ Additional review fences: native_metadata_names_are_case_insensitive_without_rew
 
 **Integrated local proof:** artifact514 passes fmt, clippy, cargo-deny,1156 ordinary tests,677 native-enabled checks,18 doctests, actual public-seam discovery/cache/trust smoke, frozen Cargo output and C13 S3. NativePathReview found no actionable bugs. Final source hashes and raw mutation logs are retained in evidence/discovery-mutations-jwjlp7cw: all7 named mutations trigger8 intended behavioral failures;8 baseline controls and8 explicitly re-executed post-restoration controls pass. The runner now records each phase and executes the affected fence after restoring source, rather than relying on restored bytes alone. Actual post-fix Windows membership/cache/restore qualification remains mandatory.
 
+**Post-fix Windows result:** at6a72c81, job101674184103/run34100683372 passes native source membership, cache invalidation, zero-evaluator hits, missing/outside paths and XML whitespace. The gate remains FAIL: authorized restore cannot validate its produced inputs, and the earlier-glob fixture remains Confirmed;7 tests were cancelled before execution. Artifact520 retains the full native log. F14/F15 diagnosis is recorded in review-decisions.md, with temporary test-only state capture and --no-fail-fast to expose all existing failures; no production fix is accepted by hypothesis.
+
 ## S4: Persist and publish evaluated metadata during index and reindex
 
 **Claim IDs:** C8.
