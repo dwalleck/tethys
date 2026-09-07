@@ -94,6 +94,26 @@ Issue-local oracles and test fixtures are non-production. Named test paths occur
 - `python3 .tethys-82a6/oracles/module_shape.py --stage S1` → approved owners only; named C13 mutation fails.
 - `cargo build --lib --bin tethys && rustc --edition=2024 .tethys-82a6/oracles/revision_stream.rs --extern tethys=target/debug/libtethys.rlib -L dependency=target/debug/deps -o /tmp/tethys-revision-stream`; run `python3 .tethys-82a6/oracles/revision_smoke.py --files 15124` with and without `--streaming-driver /tmp/tethys-revision-stream` → real CLI/library publication agrees with independent SQL manifests and measured resource caps.
 
+## S1a: Repair canonical-path fixture portability
+
+**Claim IDs:** C1 repair; no new production claim owner.
+**Expected behavior:** the unreadable-source fence accepts the exact canonical file identity on Linux alias roots, macOS temporary-directory aliases and Windows extended paths; stale-fact and unaffected-source checks remain unchanged.
+**Oracle:** filesystem canonical identity plus observed Windows/macOS CI failures; a symlinked TMPDIR reproduces the same mismatch locally.
+**Stress fixture:** existing two-source fixture under a symlinked temporary root, one unreadable source and one valid sibling; exactly one diagnostic, failed facts absent, valid sibling retained.
+**Regression fence:** existing tests/indexing.rs::reindex_reports_unreadable_source_without_publishing_stale_facts, exercised with aliased TMPDIR and by platform CI.
+**Named mutation:** restore the fixture's uncanonical expected path; the alias-root run must fail with two spellings of the same file. This repairs an existing fence, not a production behavior change.
+**Complexity/production scale:** N/A — no production loop or storage change; fixture still contains two files and one canonicalization.
+**Wall budget/phase:** N/A — no always-on phase changed; focused fixture must remain deterministic and bounded.
+**Module shape:** production owners/deltas unchanged; module_shape.py --stage S1 must remain PASS.
+**Files:** tests/indexing.rs and this plan amendment. No production/docs contract or changelog change is needed.
+**Estimate:** one fixture-correctness repair.
+**Diff estimate:** 25 lines including gate planning.
+**PR increment:** repair in Atomic index revisions PR #44 before resuming S2.
+**Commands and expected results:**
+- With a created symlink to an isolated temporary directory, `TMPDIR=<alias> cargo nextest run --test indexing -E 'test(reindex_reports_unreadable_source)'` → exact canonical identity and stale-fact assertions pass; original assertion fails.
+- `cargo fmt --check && cargo clippy --all-targets --all-features -- -D warnings && cargo nextest run && cargo test --doc` → existing gates green.
+- GitHub CI Windows/macOS test jobs on PR #44 → original failing fixture and remaining suites pass before the next increment resumes.
+
 ## S2: Deliver an evaluation-only managed worker
 
 **Claim IDs:** C5, C14.

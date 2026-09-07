@@ -1359,7 +1359,12 @@ fn reindex_reports_unreadable_source_without_publishing_stale_facts() {
     fs::write(&original, [0xFF, 0xFE, 0x00, 0x01, 0x80, 0x81]).expect("make source unreadable");
     let stats = tethys.index().expect("publish bounded source failure");
     assert_eq!(stats.errors.len(), 1);
-    assert_eq!(stats.errors[0].path, original);
+    assert_eq!(
+        stats.errors[0].path,
+        original
+            .canonicalize()
+            .expect("canonical failed source path")
+    );
     assert!(
         tethys
             .get_file(&original)
