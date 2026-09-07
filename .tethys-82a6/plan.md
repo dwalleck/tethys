@@ -183,6 +183,25 @@ Root cause is native SDK RuntimeIdentifierInference.targets55–63: Windows Fram
 
 **Local repair proof:** locked restore succeeds both normally and with explicit RuntimeIdentifier=win-x86. NuGet records the RID graph for both target frameworks; existing package versions remain locked. --prepare revalidates all25 MIT dependencies, SDK clean-install C5/C14 passes, and both target frameworks compile with zero warnings/errors. Actual Windows qualification remains required.
 
+## S2c: Diagnose Framework effective-toolset identity
+
+**Claim IDs:** C5, C14.
+**Expected behavior:** classic effective properties agree with the direct selected VS host, without hiding a different toolset behind assembly identity.
+**Oracle:** actual Windows direct-MSBuild property values and worker values.
+**Stress fixture:** Client40 with explicit ToolsVersion=Current.
+**Regression fence:** existing exact property comparison; report both values on failure.
+**Named mutation:** divergent MSBuildBinPath already fails run34071104686/job101588538892; no assertion is relaxed for diagnosis.
+**Complexity/production scale:** diagnostic-only probe first.
+**Wall budget/phase:** existing CI timeouts.
+**Module shape:** existing qualification owner; any product fix follows observed evidence.
+**Files:** issue-local worker qualification runner; this audit record.
+**Estimate:** one platform diagnosis/repair checkpoint.
+**Diff estimate:** 30 lines before any evidence-routed fix.
+**PR increment:** Evaluation companion PR45.
+**Commands and expected results:** push value-reporting probe; read actual Windows mismatch; repair only its demonstrated cause and re-run the full Windows oracle.
+
+S2b now passes actual Windows locked restore, licensing, both runtime-flavor packaging and SDK qualification. Framework assembly path/version and literal controls also pass. First classic unit differs at MSBuildBinPath; exact values are required before choosing between lexical path equivalence and a real effective-toolset mismatch.
+
 ## S3: Implement the neutral discovery adapters and freshness contract
 
 **Claim IDs:** C3, C4, C6, C7, C9.

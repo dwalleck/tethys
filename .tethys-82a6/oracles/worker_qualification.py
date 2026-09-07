@@ -294,7 +294,8 @@ def qualify(destination, host, installed_only):
             identity(result, oracle)
             properties = result["properties"]
             for name in PROPERTIES:
-                require(properties.get(name, "") == oracle["Properties"][name], f"C5 property differs from MSBuild: {name}")
+                require(properties.get(name, "") == oracle["Properties"][name],
+                        f"C5 property differs from MSBuild: {name}: worker={properties.get(name)!r}, oracle={oracle['Properties'][name]!r}")
             expected = {"TargetFrameworkIdentifier": unit["identifier"], "TargetFrameworkVersion": unit["version"],
                         "TargetFrameworkProfile": unit["profile"], "AssemblyName": "Collision", "LangVersion": unit["lang"],
                         "QualificationOverride": "caller value", "Configuration": "Qualification", "VSToolsPath": ""}
