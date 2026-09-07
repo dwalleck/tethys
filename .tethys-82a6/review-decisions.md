@@ -1,6 +1,6 @@
 # Review decisions
 
-**Current S4 status: local and native checkpoint PASS at d04d7a1; diagnostic-free final CI pending.** F19–F29 are repaired and all17 native CI jobs pass. The native mutation archive is retained before temporary diagnostic cleanup. S3/S3a remains accepted at d9119ff. Earlier pending/failure notes below are historical checkpoints. S5, S6 and final assembled qualification remain required.
+**Current S4 status: accepted, including diagnostic-free native CI at4c8b397.** All17 jobs pass in run34158268592. F19–F29 are repaired; native mutation evidence is retained and temporary diagnostics are removed. Earlier pending/failure notes below are historical checkpoints. S5 may proceed. S5, S6 and final assembled qualification remain required before issue closure.
 
 | finding-id | finding | reviewer | evidence-state | evidence | decision | fix | note |
 |---|---|---|---|---|---|---|---|
@@ -405,3 +405,5 @@ runner cleanup is required there.
 - **Bounded qualification:** macOS public discovery smoke completes in2m01s instead of14m28s; publication smoke completes in34s. The entire managed job finishes in15m07s under its unchanged25-minute cap. CARGO_PROFILE_DEV_OPT_LEVEL=1 affects qualification binaries only; the frozen Cargo and independently authored discovery/publication checks still pass. Product performance budgets and subprocess deadlines are unchanged.
 - **Cleanup/retention:** remove test-only DEBUG-f26 output, the100-run CI diagnostic and the one-off CI mutation/upload steps after retaining their evidence. Keep the actual exited-group regression, useful failure variants, portable evidence basenames and native-only mutation selector. The termination algorithm and named mutant are unchanged by cleanup; retained native falsification remains applicable despite shifted line numbers.
 - **Clean local proof:** artifact838 passes fmt, all-target/all-feature clippy with -D warnings,1167 ordinary tests,18 doctests and C13 after diagnostic removal. AGENTS.md/CONTEXT.md and user-facing discovery/changelog descriptions remain accurate; this cleanup does not change their contracts. Final diagnostic-free native CI remains required before the next slice.
+
+- **Final native acceptance:** diagnostic-free4c8b397dcbbf1c5ddbbbca8040a39b1186dd44b4 passes all17 jobs in run34158268592, including native Linux, macOS and Windows qualification and both applicable smoke paths. The clean macOS managed job completes in9m55s. Fresh upstream fetch reveals no unseen main commits. This closeout changes only evidence/plan records, leaving the qualified production, tests and CI bytes unchanged; S5 may proceed. S6 and final assembled qualification are not waived.
