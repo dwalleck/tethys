@@ -234,7 +234,8 @@ def bounded_copy(repo, destination):
 
 
 def run_fence(tree, evidence, env, fence, label, timeout, mutated):
-    log = evidence / f'{label}--{fence.name}.log'
+    log_name = fence.name.replace('::', '-')
+    log = evidence / f'{label}--{log_name}.log'
     target = ['--lib'] if fence.binary is None else ['--test', fence.binary]
     command = ['cargo', 'nextest', 'run', '--locked', '--color', 'never', *target,
                '--run-ignored', 'only' if fence.ignored else 'default',
