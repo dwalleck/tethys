@@ -296,6 +296,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Setup Rust for native discovery qualification
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      # Cache fallback cleanup removes non-Cargo files from target; package afterward.
       - name: Restore locked dependencies, check licenses, package SDK companion
         if: runner.os != 'Windows'
         run: python .tethys-82a6/oracles/worker_qualification.py --host sdk --prepare
@@ -307,10 +312,6 @@ jobs:
       - name: Qualify classic metadata and clean VS installation
         if: runner.os == 'Windows'
         run: python .tethys-82a6/oracles/worker_qualification.py --host windows
-      - name: Setup Rust for native discovery qualification
-        uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@nextest
       - name: Install qualified Windows NuGet
         if: runner.os == 'Windows'
         uses: NuGet/setup-nuget@v2
@@ -344,8 +345,11 @@ jobs:
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
               for name, value in values.items():
                   output.write(f"{name}={value}\n")
+      - name: Diagnose native Windows path presentation
+        if: runner.os == 'Windows'
+        run: python .tethys-82a6/oracles/windows_path_probe.py
       - name: Qualify real discovery failures, currentness and cache
-        run: cargo nextest run --all-features --lib --test discovery_candidates --test discovery_failures --test discovery_cache --test discovery_runtime --run-ignored all --success-output immediate
+        run: cargo nextest run --all-features --lib --test discovery_candidates --test discovery_failures --test discovery_cache --test discovery_runtime --run-ignored all
       - name: Build actual CLI for discovery smoke
         if: runner.os != 'Windows'
         run: cargo build --lib --bin tethys

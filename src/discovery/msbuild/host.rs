@@ -164,8 +164,6 @@ fn installation_muxer(msbuild_path: &Path) -> io::Result<PathBuf> {
 }
 
 fn installed_fingerprint(paths: &[PathBuf], seed: &[u8]) -> io::Result<String> {
-    let started = Instant::now();
-    eprintln!("[DEBUG-82a6-fingerprint] start roots={}", paths.len());
     let mut hash = Sha256::new();
     hash.update(seed);
     for path in paths {
@@ -183,10 +181,6 @@ fn installed_fingerprint(paths: &[PathBuf], seed: &[u8]) -> io::Result<String> {
         hash.update(value.as_encoded_bytes());
         hash.update([0]);
     }
-    eprintln!(
-        "[DEBUG-82a6-fingerprint] complete seconds={:.3}",
-        started.elapsed().as_secs_f64()
-    );
     Ok(format!("{:x}", hash.finalize()))
 }
 

@@ -1,0 +1,7 @@
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.08s
+────────────
+ Nextest run ID 65b2db65-b2e0-493f-b64a-13e0b781de71 with nextest profile: default
+    Starting 1 test across 1 binary (8 tests skipped)
+        PASS [   5.826s] (1/1) tethys::discovery_cache cache_input_closure_matches_forced_and_invalidates_globs_content_context
+────────────
+     Summary [   5.827s] 1 test run: 1 passed, 8 skipped

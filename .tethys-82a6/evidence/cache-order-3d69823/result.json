@@ -1,0 +1,32 @@
+{
+  "source_commit": "3d698230aa130a23c7dd08bdc4b9b4e85fc15464",
+  "action_commit": "6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+  "cleanup_sha256": "abb66d223548b9f6a69a645e7fbdec3efb22e71898cb8c9bfc97750e5fc6c491",
+  "runtime": "1.4.2",
+  "host": "/home/dwalleck/.local-dotnet/sdk/8.0.417",
+  "command": "cargo nextest run --all-features --test discovery_cache --run-ignored all -E test(cache_input_closure_matches_forced_and_invalidates_globs_content_context)",
+  "mutation": "Execute the unchanged pinned cleanTargetDir(copiedTarget, [], true) after publishing the real packaged worker",
+  "observations": [
+    {
+      "case": "prepared-baseline",
+      "exit": 0,
+      "directory": true,
+      "dll": true
+    },
+    {
+      "case": "prepare-before-cache",
+      "exit": 100,
+      "directory": true,
+      "dll": false,
+      "reason": "ToolchainUnavailable",
+      "error": "No such file or directory"
+    },
+    {
+      "case": "cache-before-prepare",
+      "exit": 0,
+      "directory": true,
+      "dll": true
+    }
+  ],
+  "repair": "Restore Rust cache before publishing managed distribution; no production changes or assertion relaxation"
+}
