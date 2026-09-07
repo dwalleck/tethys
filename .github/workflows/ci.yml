@@ -345,9 +345,6 @@ jobs:
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
               for name, value in values.items():
                   output.write(f"{name}={value}\n")
-      - name: Diagnose native Windows path presentation
-        if: runner.os == 'Windows'
-        run: python .tethys-82a6/oracles/windows_path_probe.py
       - name: Qualify real discovery failures, currentness and cache
         run: cargo nextest run --all-features --lib --test discovery_candidates --test discovery_failures --test discovery_cache --test discovery_runtime --run-ignored all
       - name: Build actual CLI for discovery smoke

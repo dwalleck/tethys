@@ -1,0 +1,200 @@
+{
+  "source_commit": "4b037e1fc135910cc48943469a853894488b796e",
+  "ci_run": 34095788374,
+  "ci_job": 101659036681,
+  "oracle": "direct native MSBuild versus evaluation worker on identical authored literal/glob fixtures; no targets",
+  "observations": [
+    {
+      "host": "sdk",
+      "pattern": "src/First.cs",
+      "form": "ordinary",
+      "engine": "direct",
+      "success": true,
+      "sources": [
+        "src/First.cs"
+      ],
+      "physical_files": [
+        true
+      ]
+    },
+    {
+      "host": "sdk",
+      "pattern": "src/First.cs",
+      "form": "ordinary",
+      "engine": "worker",
+      "success": true,
+      "sources": [
+        "src/First.cs"
+      ],
+      "physical_files": [
+        true
+      ]
+    },
+    {
+      "host": "sdk",
+      "pattern": "src/First.cs",
+      "form": "verbatim",
+      "engine": "direct",
+      "success": true,
+      "sources": [
+        "src/First.cs"
+      ],
+      "physical_files": [
+        true
+      ]
+    },
+    {
+      "host": "sdk",
+      "pattern": "src/First.cs",
+      "form": "verbatim",
+      "engine": "worker",
+      "success": true,
+      "sources": [
+        "src/First.cs"
+      ],
+      "physical_files": [
+        true
+      ]
+    },
+    {
+      "host": "framework",
+      "pattern": "src/First.cs",
+      "form": "ordinary",
+      "engine": "direct",
+      "success": true,
+      "sources": [
+        "src/First.cs"
+      ],
+      "physical_files": [
+        true
+      ]
+    },
+    {
+      "host": "framework",
+      "pattern": "src/First.cs",
+      "form": "ordinary",
+      "engine": "worker",
+      "success": true,
+      "sources": [
+        "src/First.cs"
+      ],
+      "physical_files": [
+        true
+      ]
+    },
+    {
+      "host": "framework",
+      "pattern": "src/First.cs",
+      "form": "verbatim",
+      "engine": "direct",
+      "success": true,
+      "sources": [
+        "src/First.cs"
+      ],
+      "physical_files": [
+        true
+      ]
+    },
+    {
+      "host": "framework",
+      "pattern": "src/First.cs",
+      "form": "verbatim",
+      "engine": "worker",
+      "success": true,
+      "sources": [
+        "src/First.cs"
+      ],
+      "physical_files": [
+        true
+      ]
+    },
+    {
+      "host": "sdk",
+      "pattern": "src/*.cs",
+      "form": "ordinary",
+      "engine": "direct",
+      "success": true,
+      "sources": [
+        "src/First.cs"
+      ],
+      "physical_files": [
+        true
+      ]
+    },
+    {
+      "host": "sdk",
+      "pattern": "src/*.cs",
+      "form": "ordinary",
+      "engine": "worker",
+      "success": true,
+      "sources": [
+        "src/First.cs"
+      ],
+      "physical_files": [
+        true
+      ]
+    },
+    {
+      "host": "sdk",
+      "pattern": "src/*.cs",
+      "form": "verbatim",
+      "engine": "direct",
+      "success": true,
+      "sources": [],
+      "physical_files": []
+    },
+    {
+      "host": "sdk",
+      "pattern": "src/*.cs",
+      "form": "verbatim",
+      "engine": "worker",
+      "success": true,
+      "sources": [],
+      "physical_files": []
+    },
+    {
+      "host": "framework",
+      "pattern": "src/*.cs",
+      "form": "ordinary",
+      "engine": "direct",
+      "success": true,
+      "sources": [
+        "src/First.cs"
+      ],
+      "physical_files": [
+        true
+      ]
+    },
+    {
+      "host": "framework",
+      "pattern": "src/*.cs",
+      "form": "ordinary",
+      "engine": "worker",
+      "success": true,
+      "sources": [
+        "src/First.cs"
+      ],
+      "physical_files": [
+        true
+      ]
+    },
+    {
+      "host": "framework",
+      "pattern": "src/*.cs",
+      "form": "verbatim",
+      "engine": "direct",
+      "success": true,
+      "sources": [],
+      "physical_files": []
+    },
+    {
+      "host": "framework",
+      "pattern": "src/*.cs",
+      "form": "verbatim",
+      "engine": "worker",
+      "success": true,
+      "sources": [],
+      "physical_files": []
+    }
+  ]
+}

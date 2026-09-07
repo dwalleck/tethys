@@ -44,6 +44,7 @@ cargo_toml = "0.22"
 quick-xml = "0.41"
 sha2 = "0.10"
 command-group = { version = "5.0.1", default-features = false }
+dunce = "1.0.5"
 
 # CLI (for binary)
 clap = { version = "4.5", features = ["derive", "cargo"] }

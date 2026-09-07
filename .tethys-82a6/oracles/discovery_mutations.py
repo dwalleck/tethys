@@ -148,7 +148,7 @@ def run_fence(tree, evidence, env, fence, label, timeout, mutated):
                '-E', f'test(={fence.name})', '--no-tests', 'fail', '--no-fail-fast',
                '--retries', '0', '--test-threads', '1', '--status-level', 'all',
                '--final-status-level', 'all', '--failure-output', 'immediate-final']
-    record = {'command': command, 'cwd': str(tree), 'log': str(log), 'mutated': mutated}
+    record = {'command': command, 'cwd': str(tree), 'log': str(log), 'phase': label, 'mutated': mutated}
     with log.open('wb') as output:
         process = subprocess.Popen(command, cwd=tree, env=env, stdout=output,
                                    stderr=subprocess.STDOUT, start_new_session=True)
@@ -245,6 +245,9 @@ def main():
                         report['results'].append(run_fence(tree, evidence, env, fence, mutation.name, args.timeout, True))
                 finally:
                     path.write_bytes(original)
+                for fence in mutation.fences:
+                    report['results'].append(run_fence(
+                        tree, evidence, env, fence, mutation.name + '-restored', args.timeout, False))
             report['status'] = 'PASS'
     except Exception as error:
         report['error'] = str(error)

@@ -845,10 +845,12 @@ pub(super) fn evaluate(
             "MSBuild evaluation requires explicit trust",
         )));
     }
+    // MSBuild globbing needs native presentation; domain and cache identities stay canonical.
+    let native_project = dunce::simplified(project);
     let payload = serde_json::to_vec(&serde_json::json!({
-        "protocol_version": 1, "workspace_root": request.workspace_root, "project_path": project,
+        "protocol_version": 1, "workspace_root": dunce::simplified(&request.workspace_root), "project_path": native_project,
         "target_framework": target_framework, "global_properties": request.options.context.effective_globals(),
-        "msbuild_path": host.msbuild_path, "trust_granted": true
+        "msbuild_path": dunce::simplified(&host.msbuild_path), "trust_granted": true
     })).map_err(|error| crate::Error::Internal(error.to_string()))?;
     let mut command = Command::new(if host.kind == EvaluationHostKind::Sdk {
         &host.executable
@@ -858,11 +860,11 @@ pub(super) fn evaluate(
     if host.kind == EvaluationHostKind::Sdk {
         command.arg(&host.worker_path);
     }
-    command.current_dir(
+    command.current_dir(dunce::simplified(
         project
             .parent()
             .ok_or_else(|| crate::Error::Config("project has no directory".into()))?,
-    );
+    ));
     let output = match run(&mut command, payload, request.options.timeout) {
         Ok(output) => output,
         Err(ProcessFailure::Timeout) => {
@@ -884,7 +886,14 @@ pub(super) fn evaluate(
             ));
         }
     };
-    decode_evaluation(&output, host, project)
+    let mut response = decode_evaluation(&output, host, native_project)?;
+    if let Ok(response) = &mut response {
+        project.clone_into(&mut response.project_path);
+        if let Some(actual) = &mut response.host {
+            actual.path.clone_from(&host.msbuild_path);
+        }
+    }
+    Ok(response)
 }
 
 fn decode_evaluation(

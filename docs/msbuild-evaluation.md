@@ -38,7 +38,7 @@ Request fields:
 | Field | Meaning |
 |---|---|
 | `protocol_version` | `1` |
-| `workspace_root` | Canonical absolute workspace path |
+| `workspace_root` | Absolute workspace path in native-compatible form |
 | `project_path` | Absolute project-file path |
 | `target_framework` | Inner SDK framework selector, or `null` for outer/classic evaluation |
 | `global_properties` | Explicit caller property map |
@@ -70,6 +70,8 @@ The companion has no restore or target-execution mode. Restoring project assets 
 `tethys::discovery::discover_workspace` accepts a `DiscoveryRequest` and returns Cargo attribution plus C# projects, evaluation units, source memberships, diagnostics and opaque cache entries. `CargoDiscovery` reuses the existing Cargo discovery algorithms. This API is independently usable; CLI indexing does not yet invoke it.
 
 Candidate discovery reads `.sln`, `.slnx`, `.slnf`, and standalone `.csproj` files without executing project code. Filters resolve relative to their referenced solution and do not suppress unrelated standalone projects. Canonical path containment rejects outside-workspace declarations and source links. Automatic candidates exclude generated and internal directory identities; explicit solution declarations may name projects in generated directories. An empty workspace differs from malformed containers or failed enumeration.
+
+The Rust adapter keeps canonical workspace, project and host identities, but presents filesystem-equivalent ordinary Windows paths to MSBuild/NuGet when possible. SDK MSBuild and VS17.14 can silently omit globbed items for verbatim project paths (`tethys-82a6`). The adapter validates the exact presented response identity before restoring canonical project/host identity for domain records and cache receipts; authored global values and native item metadata are not rewritten.
 
 `DiscoveryOptions::trust_msbuild` is required before host probes or evaluation. `allow_restore` is a separate grant, not implied by trust. An explicit installed `msbuild_path` selects its own SDK muxer and cannot be overridden by ambient `DOTNET`; implicit SDK selection honors applicable `global.json` policy. Missing helpers and unsupported toolchains are reported, never installed on demand.
 

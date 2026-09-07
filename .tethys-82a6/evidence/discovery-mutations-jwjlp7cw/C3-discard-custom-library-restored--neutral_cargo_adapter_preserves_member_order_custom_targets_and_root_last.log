@@ -1,0 +1,49 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-k0xr_gwk)
+    Finished `test` profile [optimized + debuginfo] target(s) in 4.12s
+────────────
+ Nextest run ID 46bd167c-7740-41b6-af3a-3aefc4120fce with nextest profile: default
+    Starting 1 test across 1 binary (20 tests skipped)
+        SKIP [         ] tethys::cargo_discovery discover_crate_with_bin_name_defaults_to_package_name
+        SKIP [         ] tethys::cargo_discovery discover_crate_with_bin_without_explicit_path
+        SKIP [         ] tethys::cargo_discovery discover_crate_with_custom_lib_path
+        SKIP [         ] tethys::cargo_discovery discover_crate_with_explicit_bin_entries
+        SKIP [         ] tethys::cargo_discovery discover_handles_malformed_cargo_toml
+        SKIP [         ] tethys::cargo_discovery discover_handles_unsupported_glob_patterns_gracefully
+        SKIP [         ] tethys::cargo_discovery discover_returns_empty_for_non_rust_project
+        SKIP [         ] tethys::cargo_discovery discover_rivets_workspace
+        SKIP [         ] tethys::cargo_discovery discover_single_crate_with_default_binary
+        SKIP [         ] tethys::cargo_discovery discover_single_crate_with_default_lib
+        SKIP [         ] tethys::cargo_discovery discover_skips_invalid_workspace_members
+        SKIP [         ] tethys::cargo_discovery discover_virtual_workspace
+        SKIP [         ] tethys::cargo_discovery discover_workspace_with_glob_pattern
+        SKIP [         ] tethys::cargo_discovery discover_workspace_with_root_crate
+        SKIP [         ] tethys::cargo_discovery get_crate_for_file_finds_correct_crate
+        SKIP [         ] tethys::cargo_discovery get_crate_for_file_prefers_most_specific_match
+        SKIP [         ] tethys::cargo_discovery get_crate_for_file_returns_none_for_file_outside_workspace
+        SKIP [         ] tethys::cargo_discovery get_crate_root_for_file_returns_crate_path
+        SKIP [         ] tethys::cargo_discovery neutral_cargo_adapter_retains_non_cargo_and_malformed_manifest_empty_behavior
+        SKIP [         ] tethys::cargo_discovery tethys_crates_accessor_returns_discovered_crates
+        PASS [   0.003s] tethys::cargo_discovery neutral_cargo_adapter_preserves_member_order_custom_targets_and_root_last
+────────────
+     Summary [   0.004s] 1 test run: 1 passed, 20 skipped
+        PASS [   0.003s] tethys::cargo_discovery neutral_cargo_adapter_preserves_member_order_custom_targets_and_root_last
+        SKIP [         ] tethys::cargo_discovery discover_crate_with_bin_name_defaults_to_package_name
+        SKIP [         ] tethys::cargo_discovery discover_crate_with_bin_without_explicit_path
+        SKIP [         ] tethys::cargo_discovery discover_crate_with_custom_lib_path
+        SKIP [         ] tethys::cargo_discovery discover_crate_with_explicit_bin_entries
+        SKIP [         ] tethys::cargo_discovery discover_handles_malformed_cargo_toml
+        SKIP [         ] tethys::cargo_discovery discover_handles_unsupported_glob_patterns_gracefully
+        SKIP [         ] tethys::cargo_discovery discover_returns_empty_for_non_rust_project
+        SKIP [         ] tethys::cargo_discovery discover_rivets_workspace
+        SKIP [         ] tethys::cargo_discovery discover_single_crate_with_default_binary
+        SKIP [         ] tethys::cargo_discovery discover_single_crate_with_default_lib
+        SKIP [         ] tethys::cargo_discovery discover_skips_invalid_workspace_members
+        SKIP [         ] tethys::cargo_discovery discover_virtual_workspace
+        SKIP [         ] tethys::cargo_discovery discover_workspace_with_glob_pattern
+        SKIP [         ] tethys::cargo_discovery discover_workspace_with_root_crate
+        SKIP [         ] tethys::cargo_discovery get_crate_for_file_finds_correct_crate
+        SKIP [         ] tethys::cargo_discovery get_crate_for_file_prefers_most_specific_match
+        SKIP [         ] tethys::cargo_discovery get_crate_for_file_returns_none_for_file_outside_workspace
+        SKIP [         ] tethys::cargo_discovery get_crate_root_for_file_returns_crate_path
+        SKIP [         ] tethys::cargo_discovery neutral_cargo_adapter_retains_non_cargo_and_malformed_manifest_empty_behavior
+        SKIP [         ] tethys::cargo_discovery tethys_crates_accessor_returns_discovered_crates

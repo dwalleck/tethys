@@ -14,7 +14,8 @@ use super::super::{
 use super::candidates::WorkspaceInventory;
 use super::host::{EvaluatedProject, HostSelection};
 
-const RECIPE: u32 = 1;
+// Invalidate successful-but-empty glob results from verbatim Windows path presentation.
+const RECIPE: u32 = 2;
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct Stamp {

@@ -1,0 +1,72 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-k0xr_gwk)
+    Finished `test` profile [optimized + debuginfo] target(s) in 3.89s
+────────────
+ Nextest run ID 930d728a-bc28-4c5b-b2e6-6e70475efe96 with nextest profile: default
+    Starting 1 test across 1 binary (13 tests skipped)
+        SKIP [         ] tethys::discovery_failures containment_rejects_link_escape_but_keeps_inside_twin
+        SKIP [         ] tethys::discovery_failures deadline_child
+        SKIP [         ] tethys::discovery_failures evaluator_deadline_kills_silent_actor
+        SKIP [         ] tethys::discovery_failures explicit_host_child
+        SKIP [         ] tethys::discovery_failures explicit_host_ignores_ambient_dotnet
+        SKIP [         ] tethys::discovery_failures later_restore_does_not_excuse_an_earlier_glob_change
+        SKIP [         ] tethys::discovery_failures malformed_input_and_missing_toolchain_are_not_empty_success
+        SKIP [         ] tethys::discovery_failures packages_config_authority_and_host_support
+        SKIP [         ] tethys::discovery_failures partial_framework_failure_retains_selector_and_success
+        SKIP [         ] tethys::discovery_failures reason_matrix_native_failures_preserve_successful_siblings
+        SKIP [         ] tethys::discovery_failures restored_package_metadata_names_are_case_insensitive
+        SKIP [         ] tethys::discovery_failures separately_authorized_offline_restore_failure_is_explicit
+        SKIP [         ] tethys::discovery_failures trust_gate_precedes_host_and_restore
+        FAIL [   1.596s] tethys::discovery_failures authorized_restore_rechecks_metadata_before_confirmation
+  stdout ───
+
+    running 1 test
+    test authorized_restore_rechecks_metadata_before_confirmation ... FAILED
+
+    failures:
+
+    failures:
+        authorized_restore_rechecks_metadata_before_confirmation
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 13 filtered out; finished in 1.59s
+
+  stderr ───
+
+    thread 'authorized_restore_rechecks_metadata_before_confirmation' (2841865) panicked at tests/discovery_failures.rs:40:41:
+    expected explicit incomplete coverage
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   1.597s] 1 test run: 0 passed, 1 failed, 13 skipped
+        SKIP [         ] tethys::discovery_failures containment_rejects_link_escape_but_keeps_inside_twin
+        SKIP [         ] tethys::discovery_failures deadline_child
+        SKIP [         ] tethys::discovery_failures evaluator_deadline_kills_silent_actor
+        SKIP [         ] tethys::discovery_failures explicit_host_child
+        SKIP [         ] tethys::discovery_failures explicit_host_ignores_ambient_dotnet
+        SKIP [         ] tethys::discovery_failures later_restore_does_not_excuse_an_earlier_glob_change
+        SKIP [         ] tethys::discovery_failures malformed_input_and_missing_toolchain_are_not_empty_success
+        SKIP [         ] tethys::discovery_failures packages_config_authority_and_host_support
+        SKIP [         ] tethys::discovery_failures partial_framework_failure_retains_selector_and_success
+        SKIP [         ] tethys::discovery_failures reason_matrix_native_failures_preserve_successful_siblings
+        SKIP [         ] tethys::discovery_failures restored_package_metadata_names_are_case_insensitive
+        SKIP [         ] tethys::discovery_failures separately_authorized_offline_restore_failure_is_explicit
+        SKIP [         ] tethys::discovery_failures trust_gate_precedes_host_and_restore
+        FAIL [   1.596s] tethys::discovery_failures authorized_restore_rechecks_metadata_before_confirmation
+  stdout ───
+
+    running 1 test
+    test authorized_restore_rechecks_metadata_before_confirmation ... FAILED
+
+    failures:
+
+    failures:
+        authorized_restore_rechecks_metadata_before_confirmation
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 13 filtered out; finished in 1.59s
+
+  stderr ───
+
+    thread 'authorized_restore_rechecks_metadata_before_confirmation' (2841865) panicked at tests/discovery_failures.rs:40:41:
+    expected explicit incomplete coverage
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+error: test run failed

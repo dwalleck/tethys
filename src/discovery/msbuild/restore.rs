@@ -1154,6 +1154,7 @@ fn run_authorized_restore(
     style: Style,
     inputs: &ProjectInputs,
 ) -> crate::Result<Result<(), DiscoveryFailure>> {
+    let native_project = dunce::simplified(project);
     let mut command = if style == Style::PackagesConfig {
         if package_roots(project, inputs, None)?.is_empty() {
             return Ok(Err(failure(
@@ -1174,17 +1175,21 @@ fn run_authorized_restore(
         let mut command = std::process::Command::new(nuget);
         command
             .arg("restore")
-            .arg(project)
+            .arg(native_project)
             .arg("-NonInteractive")
             .arg("-MSBuildPath")
-            .arg(&host.msbuild_path);
+            .arg(dunce::simplified(&host.msbuild_path));
         if let Some(directory) = &inputs.solution_directory {
-            command.arg("-SolutionDirectory").arg(directory);
+            command
+                .arg("-SolutionDirectory")
+                .arg(dunce::simplified(directory));
         }
         command
     } else {
         let mut command = host::restore_command(host);
-        command.arg(project).args(["-target:Restore", "-nologo"]);
+        command
+            .arg(native_project)
+            .args(["-target:Restore", "-nologo"]);
         let mut globals = request.options.context.effective_globals();
         if let Some(framework) = target_framework
             && !globals
@@ -1211,11 +1216,11 @@ fn run_authorized_restore(
         }
         command
     };
-    command.current_dir(
+    command.current_dir(dunce::simplified(
         project
             .parent()
             .ok_or_else(|| crate::Error::Config("project has no directory".into()))?,
-    );
+    ));
     let output = match host::run(&mut command, Vec::new(), request.options.timeout) {
         Ok(output) => output,
         Err(ProcessFailure::Timeout) => {
