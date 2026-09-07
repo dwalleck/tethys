@@ -60,6 +60,9 @@ HOOK = Fence('discovery_runtime', 'startup_hook_external_reads_never_reuse_liter
              ('assertion `left == right` failed', 'HOOK_ONE', 'HOOK_TWO'))
 WRAPPER = Fence('discovery_runtime', 'forwarding_muxer_external_reads_never_reuse_literal_metadata', True,
                 HOOK.assertion, ('assertion `left == right` failed', 'WRAPPER_ONE', 'WRAPPER_TWO'))
+ALIAS = Fence('discovery_failures', 'existing_restore_requires_same_physical_project', True,
+              '    assert_eq!(\n        same_project.projects[0].standing,',
+              ('assertion `left == right` failed', 'RestoreRequired', 'Confirmed'))
 
 MUTATIONS = (
     Mutation('C3-discard-custom-library', 'src/cargo.rs',
@@ -96,6 +99,16 @@ MUTATIONS = (
     Mutation('C7-overwrite-restore-grant', 'src/discovery/types.rs',
              '    pub fn new(workspace_root: &Path, options: DiscoveryOptions) -> Result<Self> {\n        let workspace_root',
              '    pub fn new(workspace_root: &Path, mut options: DiscoveryOptions) -> Result<Self> {\n        options.allow_restore = true;\n        let workspace_root', (RESTORE,)),
+    Mutation('C7-lexical-project-identity', 'src/discovery/msbuild/restore.rs',
+             '        Ok(canonical) => Ok(canonical == project),',
+             '        Ok(_canonical) => Ok(path == project),', (ALIAS,)),
+    Mutation('C7-lexical-generated-identity', 'src/discovery/msbuild/restore.rs',
+             '''    let generated_identities = generated
+        .iter()
+        .map(|path| path.canonicalize())''',
+             '''    let generated_identities = generated
+        .iter()
+        .map(|path| Ok(path.clone()))''', (ALIAS,)),
     Mutation('C9-omit-inventory-glob-watch', 'src/discovery/msbuild/cache.rs',
              '        if receipt.recipe != RECIPE || receipt.key != key || receipt.inventory != self.inventory {',
              '        if receipt.recipe != RECIPE || receipt.key != key {', (GLOB,)),
@@ -254,7 +267,8 @@ def main():
         raise
     finally:
         (evidence / 'results.json').write_text(json.dumps(report, indent=2) + '\n')
-    print(f'PASS: 7 named mutations, 8 behavioral falsifiers; evidence {evidence}')
+    cases = sum(len(mutation.fences) for mutation in MUTATIONS)
+    print(f'PASS: {len(MUTATIONS)} named mutations, {cases} behavioral falsifier cases; evidence {evidence}')
 
 
 if __name__ == '__main__':

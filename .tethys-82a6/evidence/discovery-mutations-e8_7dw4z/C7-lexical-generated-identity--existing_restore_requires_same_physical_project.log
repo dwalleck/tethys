@@ -1,0 +1,78 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-b3pivp7r)
+    Finished `test` profile [optimized + debuginfo] target(s) in 2.95s
+────────────
+ Nextest run ID 392fa02e-341a-46d1-8dfe-a92bde3e01d6 with nextest profile: default
+    Starting 1 test across 1 binary (14 tests skipped)
+        SKIP [         ] tethys::discovery_failures authorized_restore_rechecks_metadata_before_confirmation
+        SKIP [         ] tethys::discovery_failures containment_rejects_link_escape_but_keeps_inside_twin
+        SKIP [         ] tethys::discovery_failures deadline_child
+        SKIP [         ] tethys::discovery_failures evaluator_deadline_kills_silent_actor
+        SKIP [         ] tethys::discovery_failures explicit_host_child
+        SKIP [         ] tethys::discovery_failures explicit_host_ignores_ambient_dotnet
+        SKIP [         ] tethys::discovery_failures later_restore_does_not_excuse_an_earlier_glob_change
+        SKIP [         ] tethys::discovery_failures malformed_input_and_missing_toolchain_are_not_empty_success
+        SKIP [         ] tethys::discovery_failures packages_config_authority_and_host_support
+        SKIP [         ] tethys::discovery_failures partial_framework_failure_retains_selector_and_success
+        SKIP [         ] tethys::discovery_failures reason_matrix_native_failures_preserve_successful_siblings
+        SKIP [         ] tethys::discovery_failures restored_package_metadata_names_are_case_insensitive
+        SKIP [         ] tethys::discovery_failures separately_authorized_offline_restore_failure_is_explicit
+        SKIP [         ] tethys::discovery_failures trust_gate_precedes_host_and_restore
+        FAIL [   1.208s] tethys::discovery_failures existing_restore_requires_same_physical_project
+  stdout ───
+
+    running 1 test
+    test existing_restore_requires_same_physical_project ... FAILED
+
+    failures:
+
+    failures:
+        existing_restore_requires_same_physical_project
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 1.21s
+
+  stderr ───
+
+    thread 'existing_restore_requires_same_physical_project' (3056240) panicked at tests/discovery_failures.rs:854:5:
+    assertion `left == right` failed: [ProjectDiscovery { key: ProjectKey("App.csproj"), containers: [], standing: Indeterminate(DiscoveryFailure { reason: RestoreRequired, diagnostics: [DiscoveryDiagnostic { code: None, exception_type: None, message: "current restore inputs are unavailable; grant ordinary repository restore separately", file: None, line: 0, column: 0, severity: Error }] }) }]
+      left: Indeterminate(DiscoveryFailure { reason: RestoreRequired, diagnostics: [DiscoveryDiagnostic { code: None, exception_type: None, message: "current restore inputs are unavailable; grant ordinary repository restore separately", file: None, line: 0, column: 0, severity: Error }] })
+     right: Confirmed
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   1.209s] 1 test run: 0 passed, 1 failed, 14 skipped
+        SKIP [         ] tethys::discovery_failures authorized_restore_rechecks_metadata_before_confirmation
+        SKIP [         ] tethys::discovery_failures containment_rejects_link_escape_but_keeps_inside_twin
+        SKIP [         ] tethys::discovery_failures deadline_child
+        SKIP [         ] tethys::discovery_failures evaluator_deadline_kills_silent_actor
+        SKIP [         ] tethys::discovery_failures explicit_host_child
+        SKIP [         ] tethys::discovery_failures explicit_host_ignores_ambient_dotnet
+        SKIP [         ] tethys::discovery_failures later_restore_does_not_excuse_an_earlier_glob_change
+        SKIP [         ] tethys::discovery_failures malformed_input_and_missing_toolchain_are_not_empty_success
+        SKIP [         ] tethys::discovery_failures packages_config_authority_and_host_support
+        SKIP [         ] tethys::discovery_failures partial_framework_failure_retains_selector_and_success
+        SKIP [         ] tethys::discovery_failures reason_matrix_native_failures_preserve_successful_siblings
+        SKIP [         ] tethys::discovery_failures restored_package_metadata_names_are_case_insensitive
+        SKIP [         ] tethys::discovery_failures separately_authorized_offline_restore_failure_is_explicit
+        SKIP [         ] tethys::discovery_failures trust_gate_precedes_host_and_restore
+        FAIL [   1.208s] tethys::discovery_failures existing_restore_requires_same_physical_project
+  stdout ───
+
+    running 1 test
+    test existing_restore_requires_same_physical_project ... FAILED
+
+    failures:
+
+    failures:
+        existing_restore_requires_same_physical_project
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 1.21s
+
+  stderr ───
+
+    thread 'existing_restore_requires_same_physical_project' (3056240) panicked at tests/discovery_failures.rs:854:5:
+    assertion `left == right` failed: [ProjectDiscovery { key: ProjectKey("App.csproj"), containers: [], standing: Indeterminate(DiscoveryFailure { reason: RestoreRequired, diagnostics: [DiscoveryDiagnostic { code: None, exception_type: None, message: "current restore inputs are unavailable; grant ordinary repository restore separately", file: None, line: 0, column: 0, severity: Error }] }) }]
+      left: Indeterminate(DiscoveryFailure { reason: RestoreRequired, diagnostics: [DiscoveryDiagnostic { code: None, exception_type: None, message: "current restore inputs are unavailable; grant ordinary repository restore separately", file: None, line: 0, column: 0, severity: Error }] })
+     right: Confirmed
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+error: test run failed

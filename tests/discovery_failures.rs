@@ -41,102 +41,6 @@ fn reason(standing: &DiscoveryStanding) -> DiscoveryFailureReason {
     }
 }
 
-fn debug_restore(root: &Path, snapshot: &DiscoverySnapshot) {
-    eprintln!(
-        "[DEBUG-82a6-restore] root={} canonical={:?} projects={:?}",
-        root.display(),
-        root.canonicalize(),
-        snapshot.projects
-    );
-    let output = root.join("obj");
-    eprintln!(
-        "[DEBUG-82a6-restore] obj={:?}",
-        fs::read_dir(&output).map(|entries| entries
-            .map(|entry| entry.map(|entry| entry.file_name()))
-            .collect::<Vec<_>>())
-    );
-    for name in [
-        "project.assets.json",
-        "App.csproj.nuget.dgspec.json",
-        "Z.csproj.nuget.dgspec.json",
-    ] {
-        match fs::read(output.join(name)) {
-            Ok(bytes) => match serde_json::from_slice::<serde_json::Value>(&bytes) {
-                Ok(value) => {
-                    eprintln!(
-                        "[DEBUG-82a6-restore] file={name} version={} restore={} project_keys={:?}",
-                        value["version"],
-                        value["project"]["restore"],
-                        value["projects"]
-                            .as_object()
-                            .map(|projects| projects.keys().collect::<Vec<_>>())
-                    );
-                    for field in ["projectPath", "projectUniqueName"] {
-                        if let Some(path) = value["project"]["restore"][field].as_str() {
-                            eprintln!(
-                                "[DEBUG-82a6-restore] field={field} raw={path:?} canonical={:?}",
-                                Path::new(path).canonicalize()
-                            );
-                        }
-                    }
-                }
-                Err(error) => eprintln!("[DEBUG-82a6-restore] file={name} json_error={error}"),
-            },
-            Err(error) => eprintln!("[DEBUG-82a6-restore] file={name} read_error={error}"),
-        }
-    }
-}
-
-#[cfg(windows)]
-fn debug_sdk_restore_paths() {
-    let root = TempDir::new().unwrap();
-    write(
-        root.path(),
-        "App.csproj",
-        "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>",
-    );
-    write(
-        root.path(),
-        "NuGet.Config",
-        "<configuration><packageSources><clear/></packageSources></configuration>",
-    );
-    let sdk = options().msbuild_path.unwrap().canonicalize().unwrap();
-    let dotnet = dunce::simplified(sdk.parent().unwrap().parent().unwrap()).join("dotnet.exe");
-    let assembly = sdk.join("MSBuild.dll");
-    let project = root.path().join("App.csproj").canonicalize().unwrap();
-    for verbatim in [true, false] {
-        let argument = if verbatim {
-            assembly.as_path()
-        } else {
-            dunce::simplified(&assembly)
-        };
-        let output = std::process::Command::new(&dotnet)
-            .arg(argument)
-            .arg(dunce::simplified(&project))
-            .args(["-target:Restore", "-nologo"])
-            .current_dir(dunce::simplified(project.parent().unwrap()))
-            .output()
-            .unwrap();
-        eprintln!(
-            "[DEBUG-82a6-sdk-restore] verbatim={verbatim} assembly={} project={} status={} stdout={:?} stderr={:?}",
-            argument.display(),
-            project.display(),
-            output.status,
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        eprintln!(
-            "[DEBUG-82a6-sdk-restore] verbatim={verbatim} assets={:?}",
-            fs::read(root.path().join("obj/project.assets.json"))
-                .map(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes)
-                    .map(|mut value| value["project"]["restore"].take()))
-        );
-        if root.path().join("obj").exists() {
-            fs::remove_dir_all(root.path().join("obj")).unwrap();
-        }
-    }
-}
-
 #[test]
 fn trust_gate_precedes_host_and_restore() {
     let root = TempDir::new().unwrap();
@@ -499,9 +403,6 @@ fn authorized_restore_rechecks_metadata_before_confirmation() {
             ..options()
         },
     );
-    debug_restore(root.path(), &snapshot);
-    #[cfg(windows)]
-    debug_sdk_restore_paths();
     assert_eq!(
         snapshot.projects[0].standing,
         DiscoveryStanding::Confirmed,
@@ -596,7 +497,6 @@ fn later_restore_does_not_excuse_an_earlier_glob_change() {
             ..options()
         },
     );
-    debug_restore(root.path(), &snapshot);
     let earlier = snapshot
         .projects
         .iter()
@@ -907,4 +807,68 @@ fn windows_filter_solution_default_restore_and_ambiguity() {
     );
     assert!(!root.path().join("other/packages").exists());
     assert!(!root.path().join("packages").exists());
+}
+
+#[cfg(unix)]
+#[test]
+#[ignore = "requires installed net8 targeting pack and packaged real worker"]
+fn existing_restore_requires_same_physical_project() {
+    let root = TempDir::new().unwrap();
+    let physical = root.path().join("physical");
+    let other = root.path().join("other");
+    for directory in [&physical, &other] {
+        fs::create_dir(directory).unwrap();
+        write(
+            directory,
+            "App.csproj",
+            "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>",
+        );
+        write(directory, "App.cs", "class App {}\n");
+        write(
+            directory,
+            "NuGet.Config",
+            "<configuration><packageSources><clear/></packageSources></configuration>",
+        );
+    }
+    let alias = root.path().join("alias");
+    std::os::unix::fs::symlink(&physical, &alias).unwrap();
+    let selected = options();
+    let dotnet = std::env::var_os("DOTNET").unwrap_or_else(|| "dotnet".into());
+    let msbuild = selected.msbuild_path.as_ref().unwrap().join("MSBuild.dll");
+    let restore = |project: &Path| {
+        let output = std::process::Command::new(&dotnet)
+            .arg(&msbuild)
+            .arg(project)
+            .args(["-target:Restore", "-nologo"])
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    restore(&alias.join("App.csproj"));
+    let same_project = discover(&physical, selected.clone());
+    assert_eq!(
+        same_project.projects[0].standing,
+        DiscoveryStanding::Confirmed,
+        "{:?}",
+        same_project.projects
+    );
+
+    // A real restore for a different same-named project must not establish
+    // currentness for this one, even when all referenced outputs still exist.
+    restore(&other.join("App.csproj"));
+    fs::copy(
+        other.join("obj/project.assets.json"),
+        physical.join("obj/project.assets.json"),
+    )
+    .unwrap();
+    let wrong_project = discover(&physical, selected);
+    assert_eq!(
+        reason(&wrong_project.projects[0].standing),
+        DiscoveryFailureReason::RestoreRequired
+    );
 }

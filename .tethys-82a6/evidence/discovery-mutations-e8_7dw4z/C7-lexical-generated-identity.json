@@ -1,0 +1,8 @@
+{
+  "path": "src/discovery/msbuild/restore.rs",
+  "before": "    let generated_identities = generated\n        .iter()\n        .map(|path| path.canonicalize())",
+  "after": "    let generated_identities = generated\n        .iter()\n        .map(|path| Ok(path.clone()))",
+  "tests": [
+    "existing_restore_requires_same_physical_project"
+  ]
+}

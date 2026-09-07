@@ -1,0 +1,13 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-b3pivp7r)
+    Finished `test` profile [optimized + debuginfo] target(s) in 3.95s
+────────────
+ Nextest run ID 1bab56ad-265a-49c1-96c0-5dc2e6d44b63 with nextest profile: default
+    Starting 1 test across 1 binary (2 tests skipped)
+        SKIP [         ] tethys::discovery_runtime forwarding_muxer_external_reads_never_reuse_literal_metadata
+        SKIP [         ] tethys::discovery_runtime runtime_extension_child
+        PASS [   3.661s] tethys::discovery_runtime startup_hook_external_reads_never_reuse_literal_metadata
+────────────
+     Summary [   3.661s] 1 test run: 1 passed, 2 skipped
+        PASS [   3.661s] tethys::discovery_runtime startup_hook_external_reads_never_reuse_literal_metadata
+        SKIP [         ] tethys::discovery_runtime forwarding_muxer_external_reads_never_reuse_literal_metadata
+        SKIP [         ] tethys::discovery_runtime runtime_extension_child

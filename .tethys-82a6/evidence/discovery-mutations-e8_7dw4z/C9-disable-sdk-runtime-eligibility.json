@@ -1,0 +1,9 @@
+{
+  "path": "src/discovery/msbuild/host.rs",
+  "before": "    pub(super) fn cache_ineligibility(&self) -> Option<&'static str> {\n        if self.kind == EvaluationHostKind::Framework {",
+  "after": "    pub(super) fn cache_ineligibility(&self) -> Option<&'static str> {\n        if self.kind == EvaluationHostKind::Sdk { return None; }\n        if self.kind == EvaluationHostKind::Framework {",
+  "tests": [
+    "startup_hook_external_reads_never_reuse_literal_metadata",
+    "forwarding_muxer_external_reads_never_reuse_literal_metadata"
+  ]
+}

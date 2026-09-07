@@ -818,7 +818,8 @@ pub(super) fn diagnostic_text(output: &ProcessOutput) -> String {
 pub(super) fn restore_command(host: &HostSelection) -> Command {
     let mut command = Command::new(&host.executable);
     if host.kind == EvaluationHostKind::Sdk {
-        command.arg(host.msbuild_path.join("MSBuild.dll"));
+        let assembly = host.msbuild_path.join("MSBuild.dll");
+        command.arg(dunce::simplified(&assembly));
     }
     command
 }

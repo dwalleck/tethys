@@ -1,0 +1,54 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-b3pivp7r)
+    Finished `test` profile [optimized + debuginfo] target(s) in 4.11s
+────────────
+ Nextest run ID ab587a49-6934-425d-a17e-97aae3abdd5c with nextest profile: default
+    Starting 1 test across 1 binary (2 tests skipped)
+        SKIP [         ] tethys::discovery_runtime forwarding_muxer_external_reads_never_reuse_literal_metadata
+        SKIP [         ] tethys::discovery_runtime runtime_extension_child
+        FAIL [   3.103s] tethys::discovery_runtime startup_hook_external_reads_never_reuse_literal_metadata
+  stdout ───
+
+    running 1 test
+    test startup_hook_external_reads_never_reuse_literal_metadata ... FAILED
+
+    failures:
+
+    failures:
+        startup_hook_external_reads_never_reuse_literal_metadata
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 3.10s
+
+  stderr ───
+
+    thread 'startup_hook_external_reads_never_reuse_literal_metadata' (3059123) panicked at tests/discovery_runtime.rs:73:5:
+    assertion `left == right` failed
+      left: String("HOOK_ONE")
+     right: "HOOK_TWO"
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   3.104s] 1 test run: 0 passed, 1 failed, 2 skipped
+        SKIP [         ] tethys::discovery_runtime forwarding_muxer_external_reads_never_reuse_literal_metadata
+        SKIP [         ] tethys::discovery_runtime runtime_extension_child
+        FAIL [   3.103s] tethys::discovery_runtime startup_hook_external_reads_never_reuse_literal_metadata
+  stdout ───
+
+    running 1 test
+    test startup_hook_external_reads_never_reuse_literal_metadata ... FAILED
+
+    failures:
+
+    failures:
+        startup_hook_external_reads_never_reuse_literal_metadata
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 3.10s
+
+  stderr ───
+
+    thread 'startup_hook_external_reads_never_reuse_literal_metadata' (3059123) panicked at tests/discovery_runtime.rs:73:5:
+    assertion `left == right` failed
+      left: String("HOOK_ONE")
+     right: "HOOK_TWO"
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+error: test run failed

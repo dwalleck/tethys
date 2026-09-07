@@ -789,6 +789,51 @@ fn asset_packages_present(assets: &Value) -> crate::Result<bool> {
     Ok(true)
 }
 
+fn native_project_matches(path: &str, project: &Path) -> io::Result<bool> {
+    let path = Path::new(path);
+    if !path.is_absolute() {
+        return Ok(false);
+    }
+    // Domain identity is canonical; native restore metadata may retain an alias.
+    if path.as_os_str() == project.as_os_str() {
+        return Ok(true);
+    }
+    match path.canonicalize() {
+        Ok(canonical) => Ok(canonical == project),
+        Err(error)
+            if matches!(
+                error.kind(),
+                io::ErrorKind::NotFound
+                    | io::ErrorKind::NotADirectory
+                    | io::ErrorKind::InvalidInput
+            ) =>
+        {
+            tracing::debug!(%error, path = %path.display(), "restore project identity unavailable");
+            Ok(false)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn append_restore_imports(
+    relevant: &mut Vec<PathBuf>,
+    imports: &[PathBuf],
+    generated: &[PathBuf],
+) -> io::Result<()> {
+    // Compare physical identities without changing the inventory's native paths.
+    let generated_identities = generated
+        .iter()
+        .map(|path| path.canonicalize())
+        .collect::<io::Result<Vec<_>>>()?;
+    for path in imports {
+        let identity = path.canonicalize()?;
+        if !generated_identities.contains(&identity) {
+            relevant.push(path.clone());
+        }
+    }
+    Ok(())
+}
+
 fn asset_inputs(
     _request: &DiscoveryRequest,
     project: &Path,
@@ -809,14 +854,19 @@ fn asset_inputs(
     let Some(assets) = read_assets(&assets_path)? else {
         return Ok(None);
     };
+    if assets["version"].as_u64() != Some(3) {
+        return Ok(None);
+    }
     let restore = &assets["project"]["restore"];
-    let matches_project = restore["projectPath"]
-        .as_str()
-        .is_some_and(|path| Path::new(path) == project)
-        && restore["projectUniqueName"]
-            .as_str()
-            .is_some_and(|path| Path::new(path) == project);
-    if !matches_project || assets["version"].as_u64() != Some(3) {
+    let (Some(project_path), Some(project_unique_name)) = (
+        restore["projectPath"].as_str(),
+        restore["projectUniqueName"].as_str(),
+    ) else {
+        return Ok(None);
+    };
+    if !native_project_matches(project_path, project)?
+        || !native_project_matches(project_unique_name, project)?
+    {
         return Ok(None);
     }
     let Some(output_path) = restore["outputPath"].as_str() else {
@@ -836,9 +886,10 @@ fn asset_inputs(
     let Some(spec) = read_assets(&generated[3])? else {
         return Ok(None);
     };
+    // The dgspec map retains the validated native spelling, not canonical identity.
     let Some(project_spec) = spec["projects"]
         .as_object()
-        .and_then(|projects| projects.get(&project.to_string_lossy().into_owned()))
+        .and_then(|projects| projects.get(project_unique_name))
     else {
         return Ok(None);
     };
@@ -852,13 +903,11 @@ fn asset_inputs(
     }
     let mut relevant = inputs.files.clone();
     if let Some(evaluated) = evaluated {
-        relevant.extend(
-            evaluated
-                .imports
-                .iter()
-                .filter(|path| !generated.contains(path))
-                .cloned(),
-        );
+        match append_restore_imports(&mut relevant, &evaluated.imports, &generated) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error.into()),
+        }
     }
     if let Some(configs) = restore["configFilePaths"].as_array() {
         for config in configs {
