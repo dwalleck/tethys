@@ -1347,89 +1347,41 @@ pub trait T {}
 }
 
 #[test]
-fn reindex_preserves_data_when_file_becomes_unreadable() {
-    // Test that a successful index followed by a failed re-index doesn't corrupt
-    // existing data. The index_file_atomic method uses a SQLite transaction, so
-    // if re-indexing fails, the original file and symbols should remain intact.
-    let (dir, mut tethys) = workspace_with_files(&[(
-        "src/lib.rs",
-        r"
-pub fn original_function() -> i32 {
-    42
-}
+fn reindex_reports_unreadable_source_without_publishing_stale_facts() {
+    let (dir, mut tethys) = workspace_with_files(&[
+        ("src/lib.rs", "pub fn original_function() {}\n"),
+        ("src/retained.rs", "pub fn retained_function() {}\n"),
+    ]);
+    tethys.index().expect("first index");
+    let original = dir.path().join("src/lib.rs");
+    assert!(tethys.get_file(&original).expect("initial file").is_some());
 
-pub struct OriginalStruct {
-    pub value: String,
-}
-",
-    )]);
-
-    // First index should succeed
-    let stats = tethys.index().expect("first index should succeed");
-    assert_eq!(stats.files_indexed, 1, "should index 1 file");
-    assert!(
-        stats.symbols_found >= 2,
-        "should find at least 2 symbols (function + struct)"
-    );
-
-    // Verify symbols are queryable
-    let symbols_before = tethys
-        .list_symbols(&dir.path().join("src/lib.rs"))
-        .expect("list_symbols should work after first index");
-    let names_before: Vec<&str> = symbols_before.iter().map(|s| s.name.as_str()).collect();
-    assert!(
-        names_before.contains(&"original_function"),
-        "should find original_function before re-index"
-    );
-    assert!(
-        names_before.contains(&"OriginalStruct"),
-        "should find OriginalStruct before re-index"
-    );
-
-    // Now corrupt the file with invalid UTF-8 so re-indexing fails
-    fs::write(
-        dir.path().join("src/lib.rs"),
-        [0xFF, 0xFE, 0x00, 0x01, 0x80, 0x81],
-    )
-    .expect("failed to write corrupt file");
-
-    // Re-index should complete (errors are collected, not propagated)
-    let stats2 = tethys
-        .index()
-        .expect("re-index should complete despite errors");
-    assert!(
-        !stats2.errors.is_empty(),
-        "re-index should report errors for corrupt file"
-    );
-
-    // The original symbols should still be queryable because the failed re-index
-    // should not have modified the database (transaction rollback).
-    // Note: index_file_atomic is only reached if UTF-8 parsing succeeds, so
-    // the file entry from the first index remains untouched.
-    let file = tethys
-        .get_file(&dir.path().join("src/lib.rs"))
-        .expect("get_file should not error");
-    assert!(
-        file.is_some(),
-        "file entry should still exist after failed re-index"
-    );
-
-    let symbols_after = tethys
-        .list_symbols(&dir.path().join("src/lib.rs"))
-        .expect("list_symbols should work after failed re-index");
-    let names_after: Vec<&str> = symbols_after.iter().map(|s| s.name.as_str()).collect();
-    assert!(
-        names_after.contains(&"original_function"),
-        "original_function should survive failed re-index, got: {names_after:?}"
-    );
-    assert!(
-        names_after.contains(&"OriginalStruct"),
-        "OriginalStruct should survive failed re-index, got: {names_after:?}"
-    );
+    fs::write(&original, [0xFF, 0xFE, 0x00, 0x01, 0x80, 0x81]).expect("make source unreadable");
+    let stats = tethys.index().expect("publish bounded source failure");
+    assert_eq!(stats.errors.len(), 1);
     assert_eq!(
-        symbols_before.len(),
-        symbols_after.len(),
-        "symbol count should be unchanged after failed re-index"
+        stats.errors[0].path,
+        original
+            .canonicalize()
+            .expect("canonical failed source path")
+    );
+    assert!(
+        tethys
+            .get_file(&original)
+            .expect("failed file lookup")
+            .is_none(),
+        "C1 unreadable source cannot retain stale facts in the new revision"
+    );
+    let retained = tethys
+        .list_symbols(&dir.path().join("src/retained.rs"))
+        .expect("unaffected file");
+    assert_eq!(
+        retained
+            .iter()
+            .map(|symbol| symbol.name.as_str())
+            .collect::<Vec<_>>(),
+        ["retained_function"],
+        "C1 successful source remains available in partial revision"
     );
 }
 

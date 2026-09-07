@@ -1,7 +1,36 @@
 //! Database schema definition for Tethys.
 
+/// Explicit cache schema identity; older layouts require a transactional rebuild.
+pub(crate) const SCHEMA_VERSION: i64 = 1;
+
+/// Child-first replacement keeps foreign-key enforcement enabled during rebuild.
+pub(crate) const DROP_SCHEMA: &str = r"
+DROP VIEW IF EXISTS arch_coupling;
+DROP VIEW IF EXISTS refs_banded;
+DROP VIEW IF EXISTS refs_named;
+DROP TABLE IF EXISTS arch_package_deps;
+DROP TABLE IF EXISTS arch_file_packages;
+DROP TABLE IF EXISTS arch_packages;
+DROP TABLE IF EXISTS attributes;
+DROP TABLE IF EXISTS call_edges;
+DROP TABLE IF EXISTS imports;
+DROP TABLE IF EXISTS file_deps;
+DROP TABLE IF EXISTS refs;
+DROP TABLE IF EXISTS symbols;
+DROP TABLE IF EXISTS files;
+DROP TABLE IF EXISTS index_revision;
+";
+
 /// Database schema definition.
 pub(crate) const SCHEMA: &str = r"
+CREATE TABLE IF NOT EXISTS index_revision (
+    singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+    schema_version INTEGER NOT NULL,
+    revision INTEGER NOT NULL CHECK(revision >= 0)
+);
+INSERT OR IGNORE INTO index_revision VALUES (1, 1, 0);
+PRAGMA user_version = 1;
+
 -- Indexed source files
 CREATE TABLE IF NOT EXISTS files (
     id INTEGER PRIMARY KEY,
@@ -343,37 +372,6 @@ mod schema_tests {
                 .expect("band readback");
             assert_eq!(got.as_deref(), *band, "band for {strategy:?}");
         }
-    }
-
-    /// tethys-9z7i B2 (design C7): a refs table surviving from a
-    /// pre-provenance schema must produce a CLEAR error naming
-    /// --rebuild — not a raw 'no such column' downstream. Three-way
-    /// guard fixture: old-shaped db errors; fresh db opens; a db whose
-    /// refs table doesn't exist yet (schema batch creates it) opens.
-    #[test]
-    fn outdated_schema_open_errors_clearly() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let path = dir.path().join("old.db");
-        {
-            let conn = Connection::open(&path).expect("create old db");
-            conn.execute_batch(
-                "CREATE TABLE refs (
-                     id INTEGER PRIMARY KEY, symbol_id INTEGER,
-                     file_id INTEGER NOT NULL, kind TEXT NOT NULL,
-                     line INTEGER NOT NULL, column INTEGER NOT NULL,
-                     end_line INTEGER, end_column INTEGER,
-                     in_symbol_id INTEGER, reference_name TEXT);",
-            )
-            .expect("old refs table");
-        }
-        let Err(err) = crate::db::Index::open(&path) else {
-            panic!("old schema must be rejected");
-        };
-        let msg = err.to_string();
-        assert!(
-            msg.contains("--rebuild") && msg.contains("strategy"),
-            "error must name the column and the remedy; got: {msg}"
-        );
     }
 
     /// C7/C8 fence half via the real open path (not just raw SCHEMA):

@@ -102,6 +102,9 @@ erDiagram
 
 ### Table notes
 
+- **index_revision** — singleton schema currency and published revision identity.
+  Updated with all source/resolution/architecture facts at publication; failed
+  runs leave the previous identity and facts visible (`db/revision.rs`, tethys-82a6).
 - **files** — one row per indexed source file. `mtime_ns` drives staleness
   detection during reindex; `content_hash` supports change detection.
 - **symbols** — definitions. `module_path` + `name` form `qualified_name`.

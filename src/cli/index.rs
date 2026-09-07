@@ -19,18 +19,6 @@ pub fn run(
 
     println!("{} {}...", "Indexing".cyan().bold(), workspace.display());
 
-    // A rebuild starts from nothing, so clear the db files BEFORE opening:
-    // Index::open refuses outdated schemas with advice to run --rebuild,
-    // and that advice must not be blocked by the very check that gave it.
-    // (rebuild_with_options will reset() the now-fresh db again — a
-    // harmless double-clear that keeps reset()'s lock-safe dance intact
-    // for its other callers.)
-    if rebuild {
-        Tethys::remove_index_files(workspace)?;
-    }
-
-    let mut tethys = Tethys::new(workspace)?;
-
     // Build options - with_lsp() reads TETHYS_LSP_TIMEOUT env var by default,
     // but CLI arg takes precedence if provided
     let options = if lsp {
@@ -45,9 +33,9 @@ pub fn run(
 
     let stats = if rebuild {
         println!("{}", "Rebuilding index from scratch".yellow());
-        tethys.rebuild_with_options(options)?
+        Tethys::rebuild_workspace(workspace, options)?
     } else {
-        tethys.index_with_options(options)?
+        Tethys::new(workspace)?.index_with_options(options)?
     };
 
     // Display results

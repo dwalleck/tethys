@@ -281,21 +281,17 @@ impl Tethys {
 
     /// Rebuild the entire index from scratch.
     ///
-    /// Deletes and recreates the database file, ensuring schema changes are
-    /// applied cleanly. Use this instead of manually deleting the database.
+    /// Replaces schema and facts together; a failed rebuild preserves the old index.
     pub fn rebuild(&mut self) -> Result<IndexStats> {
-        self.db.reset()?;
-        self.index()
+        self.rebuild_with_options(IndexOptions::default())
     }
 
     /// Rebuild the entire index from scratch with options.
     ///
-    /// Deletes and recreates the database file, ensuring schema changes are
-    /// applied cleanly. See [`index_with_options`](Self::index_with_options)
-    /// for details on options.
+    /// Replaces schema and facts in one revision. See
+    /// [`index_with_options`](Self::index_with_options) for details on options.
     pub fn rebuild_with_options(&mut self, options: IndexOptions) -> Result<IndexStats> {
-        self.db.reset()?;
-        self.index_with_options(options)
+        self.index_in_revision(options, true)
     }
 }
 

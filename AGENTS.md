@@ -105,11 +105,17 @@ For "what is X / how do I call X / how does process Y work", route via
 <!-- tags: database, schema -->
 
 - The index is a SQLite DB at **`.rivets/index/tethys.db`** under the workspace
-  root (created by `Tethys::new`). Schema is applied idempotently on open.
+  root (created by `Tethys::new`). Incompatible schemas are refused without
+  mutation; recover with `index --rebuild` (tethys-82a6).
 - Schema is the source of truth in `src/db/schema.rs`; the ER diagram and table
   semantics are documented in `.agents/summary/data_models.md`.
-- `--rebuild` clears the DB and its WAL/SHM sidecars before a full reindex
-  (files are removed BEFORE open, so it also recovers from outdated schemas).
+- **Publication is whole-run atomic** (`src/db/revision.rs`, tethys-82a6).
+  Batch and scoped streaming writers share one transaction; file writes use
+  savepoints. Infrastructure failures preserve the previous revision. Bounded
+  source-read/parse failures publish diagnostics without retaining stale file facts.
+- `--rebuild` replaces schema and facts inside the same publication transaction;
+  it preserves the previous schema and rows on failure rather than deleting files
+  or WAL/SHM sidecars before open.
 - `refs.strategy` records which resolution mechanism bound each ref
   (ADR-0003); the `refs_banded` view derives high/medium/speculative bands.
 

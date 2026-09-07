@@ -549,7 +549,7 @@ mod tests {
         use std::path::Path;
 
         let dir = tempfile::tempdir().expect("temp dir");
-        let mut index = Index::open(&dir.path().join("idx.db")).expect("open index");
+        let index = Index::open(&dir.path().join("idx.db")).expect("open index");
 
         let attr = |name: &str, args: Option<&str>, line: u32| {
             vec![ExtractedAttribute {

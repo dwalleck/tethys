@@ -194,7 +194,7 @@ impl Index {
             "Applying Pass 2 resolutions in one transaction"
         );
         let mut conn = self.connection()?;
-        let tx = conn.transaction()?;
+        let tx = conn.savepoint()?;
         {
             let mut stmt = tx.prepare_cached(RESOLVE_REFERENCE_SQL)?;
             for (ref_id, symbol_id, strategy) in resolutions {

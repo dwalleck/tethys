@@ -1,0 +1,30 @@
+{
+  "baseline": "0a2753d50dd8fb335660b247c00e0efa355a8fcc",
+  "protected": {
+    "src/lib.rs": {"growth": 100, "forbidden_functions": ["evaluate_msbuild", "parse_solution", "restore_project", "cache_key"]},
+    "src/indexing.rs": {"growth": 150, "forbidden_functions": ["evaluate_msbuild", "parse_solution", "restore_project", "cache_key"]},
+    "src/reindex.rs": {"growth": 100, "forbidden_functions": ["evaluate_msbuild", "parse_solution", "restore_project", "cache_key"]},
+    "src/resolve.rs": {"growth": 60, "forbidden_functions": ["evaluate_msbuild", "parse_solution", "restore_project", "cache_key"]},
+    "src/batch_writer.rs": {"growth": 100, "forbidden_functions": ["evaluate_msbuild", "parse_solution", "restore_project", "cache_key"]},
+    "src/main.rs": {"growth": 100, "forbidden_functions": ["evaluate_msbuild", "parse_solution", "restore_project", "cache_key"]}
+  },
+  "allowed_production": [
+    "src/lib.rs", "src/indexing.rs", "src/reindex.rs", "src/batch_writer.rs", "src/cargo.rs",
+    "src/languages/module_resolver.rs", "src/resolve.rs", "src/db/mod.rs", "src/db/revision.rs",
+    "src/db/files.rs", "src/db/references.rs", "src/db/call_edges.rs", "src/db/schema.rs", "src/db/discovery.rs",
+    "src/db/architecture.rs", "src/architecture.rs", "src/types.rs", "src/main.rs", "src/cli/index.rs",
+    "src/cli/coupling.rs", "src/cli/mod.rs", "src/error.rs", "src/discovery/mod.rs", "src/discovery/types.rs",
+    "src/discovery/msbuild/mod.rs", "src/discovery/msbuild/candidates.rs", "src/discovery/msbuild/host.rs",
+    "src/discovery/msbuild/cache.rs", "src/discovery/msbuild/restore.rs",
+    "tools/tethys-msbuild-evaluate/Program.cs", "tools/tethys-msbuild-evaluate/Evaluation.cs",
+    "tools/tethys-msbuild-evaluate/Contract.cs", "tools/tethys-msbuild-evaluate/Tethys.MSBuild.Evaluate.csproj"
+  ],
+  "required": {
+    "S1": ["src/db/revision.rs", "tests/revision_publication.rs"],
+    "S2": ["tools/tethys-msbuild-evaluate/Evaluation.cs"],
+    "S3": ["src/discovery/mod.rs", "src/discovery/types.rs", "src/discovery/msbuild/mod.rs"],
+    "S4": ["src/db/discovery.rs"],
+    "S5": ["src/architecture.rs", "tests/csharp_coupling.rs"],
+    "S6": []
+  }
+}

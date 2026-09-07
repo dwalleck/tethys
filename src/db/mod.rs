@@ -32,6 +32,7 @@ mod hierarchy;
 mod imports;
 mod panic_points;
 mod references;
+mod revision;
 mod schema;
 mod symbols;
 mod untested;
@@ -67,8 +68,9 @@ pub(crate) use helpers::parse_visibility;
 #[cfg(test)]
 pub(crate) use symbols::InsertSymbolParams;
 
-use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
@@ -105,64 +107,28 @@ pub struct SymbolData<'a> {
 
 /// `SQLite` database wrapper for Tethys index.
 ///
-/// The connection is wrapped in a `Mutex` to allow sharing across graph operations
-/// while maintaining thread safety. The database path is stored to support
-/// `reset()`, which deletes and recreates the database file.
+/// The shared connection lets an owned revision guard span scoped writer work
+/// without holding the mutex between database operations.
 pub struct Index {
-    conn: Mutex<Connection>,
-    path: PathBuf,
+    conn: Arc<Mutex<Connection>>,
+    invalid: Arc<AtomicBool>,
 }
 
 impl Index {
     /// Open or create the index database.
     pub fn open(path: &Path) -> Result<Self> {
-        // Ensure parent directory exists
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
+        let index = Self::open_unconfigured(path)?;
+        {
+            let mut conn = index.connection()?;
+            let initialize = revision::check_schema(&conn, path)?;
+            revision::configure_connection(&conn)?;
+            if initialize {
+                let tx = conn.savepoint()?;
+                tx.execute_batch(SCHEMA)?;
+                tx.commit()?;
+            }
         }
-
-        let conn = Connection::open(path)?;
-
-        // Wait up to 30s on a busy lock instead of erroring immediately. This
-        // helps any multi-process scenario that writes to the same workspace
-        // DB — most concretely the nextest process-per-test runner and the
-        // architecture phase's longer DELETE-cascade-rebuild transaction
-        // (rivets-byie), which is what made the need visible.
-        conn.busy_timeout(std::time::Duration::from_secs(30))?;
-
-        // Enable WAL mode and foreign keys
-        conn.pragma_update(None, "journal_mode", "WAL")?;
-        conn.pragma_update(None, "foreign_keys", "ON")?;
-
-        // Apply schema
-        conn.execute_batch(SCHEMA)?;
-
-        // Schema-currency guard (tethys-9z7i / closes tethys-xvlw AC3):
-        // CREATE TABLE IF NOT EXISTS cannot retrofit columns onto an
-        // existing table, so a refs table from before the provenance
-        // column would silently break every strategy read. Fires ONLY
-        // when refs survived from an older schema WITHOUT the column —
-        // a fresh or reset db just received the full schema above. The
-        // index is a disposable derived cache, so the remedy is a
-        // rebuild, not a migration (approved design decision;
-        // .tethys-9z7i/design-slice2.md).
-        let has_strategy: i64 = conn.query_row(
-            "SELECT COUNT(*) FROM pragma_table_info('refs') WHERE name = 'strategy'",
-            [],
-            |r| r.get(0),
-        )?;
-        if has_strategy == 0 {
-            return Err(Error::Config(format!(
-                "index schema is outdated (refs.strategy missing); the index is a \
-                 rebuildable cache — run `tethys index --rebuild` (db: {})",
-                path.display()
-            )));
-        }
-
-        Ok(Self {
-            conn: Mutex::new(conn),
-            path: path.to_path_buf(),
-        })
+        Ok(index)
     }
 
     /// Acquire the connection lock.
@@ -170,6 +136,12 @@ impl Index {
     /// Returns a `MutexGuard` providing exclusive access to the underlying connection.
     /// Used internally by all database operations.
     pub(crate) fn connection(&self) -> Result<MutexGuard<'_, Connection>> {
+        if self.invalid.load(Ordering::Acquire) {
+            return Err(Error::Internal(
+                "database connection invalid after failed revision rollback; reopen the index"
+                    .into(),
+            ));
+        }
         self.conn.lock().map_err(|e| {
             Error::Internal(format!(
                 "database connection mutex poisoned (a thread panicked while holding the lock): {e}"
@@ -197,56 +169,11 @@ impl Index {
             })
     }
 
-    /// Delete the database file and reopen with a fresh schema.
-    ///
-    /// This method handles schema changes by removing the file entirely and
-    /// recreating it, rather than just deleting rows (which would leave an
-    /// outdated schema in place). The old connection is replaced with an
-    /// in-memory placeholder before deletion to release `SQLite` file locks.
-    pub fn reset(&mut self) -> Result<()> {
-        tracing::info!(path = %self.path.display(), "Resetting database");
-
-        // Replace the file-backed connection with an in-memory placeholder
-        // to release SQLite file locks before deleting the database file.
-        // NOTE: `&mut self` is load-bearing here — it guarantees exclusive
-        // access so no other thread can use the connection between the swap
-        // and the file deletion.
-        let mut conn = self.connection()?;
-        *conn = Connection::open_in_memory()
-            .map_err(|e| Error::Internal(format!("failed to create temporary connection: {e}")))?;
-        drop(conn);
-
-        // Delete the database file and WAL/SHM sidecars.
-        // SQLite names sidecars by appending "-wal"/"-shm" to the full filename
-        // (e.g., "tethys.db-wal"), so we use OsString::push rather than
-        // Path::with_extension which would replace the extension.
-        Self::remove_db_files(&self.path)?;
-
-        // Reopen with fresh schema
-        match Self::open(&self.path) {
-            Ok(new) => {
-                *self = new;
-                tracing::debug!(path = %self.path.display(), "Database reset complete");
-                Ok(())
-            }
-            Err(e) => {
-                tracing::error!(
-                    path = %self.path.display(),
-                    error = %e,
-                    "Failed to reopen database after reset; \
-                     index holds an in-memory placeholder until next successful reset"
-                );
-                Err(e)
-            }
-        }
-    }
-
     /// Delete a database file and its `-wal`/`-shm` sidecars, ignoring
     /// missing files. `SQLite` names sidecars by appending to the FULL
     /// filename ("tethys.db-wal"), so this pushes onto the `OsString` rather
-    /// than using `Path::with_extension`. Shared by [`Self::reset`] and the
-    /// pre-open rebuild recovery (`Tethys::remove_index_files`) so the two
-    /// can never disagree about what "clear the index" means.
+    /// than using `Path::with_extension`. This is standalone deletion only;
+    /// rebuilds replace schema transactionally without removing files.
     pub(crate) fn remove_db_files(db_path: &Path) -> Result<()> {
         Self::remove_file_if_exists(db_path)?;
         for suffix in ["-wal", "-shm"] {
@@ -551,56 +478,7 @@ mod tests {
     }
 
     #[test]
-    fn reset_deletes_database_and_recreates_schema() {
-        let (_dir, path) = temp_db();
-        let mut index = Index::open(&path).expect("should open database");
-
-        // Insert some data
-        let file_id = index
-            .upsert_file(Path::new("src/lib.rs"), Language::Rust, 1000, 100, None)
-            .expect("should insert file");
-        index
-            .insert_symbol(&InsertSymbolParams {
-                file_id,
-                name: "foo",
-                module_path: "crate",
-                qualified_name: "foo",
-                kind: SymbolKind::Function,
-                line: 1,
-                column: 0,
-                span: None,
-                signature: None,
-                visibility: Visibility::Public,
-                parent_symbol_id: None,
-                is_test: false,
-            })
-            .expect("should insert symbol");
-
-        // Verify data exists
-        assert!(index.get_file(Path::new("src/lib.rs")).unwrap().is_some());
-
-        // Reset
-        index.reset().expect("reset should succeed");
-
-        // Data should be gone
-        assert!(
-            index.get_file(Path::new("src/lib.rs")).unwrap().is_none(),
-            "file should not exist after reset"
-        );
-        let symbols = index
-            .search_symbols("foo", 10)
-            .expect("search after reset should succeed");
-        assert!(symbols.is_empty(), "symbols should be cleared after reset");
-
-        // Schema should still work — can insert new data
-        let new_file_id = index
-            .upsert_file(Path::new("src/new.rs"), Language::Rust, 2000, 200, None)
-            .expect("should insert file after reset");
-        assert!(new_file_id.as_i64() > 0);
-    }
-
-    #[test]
-    fn reset_deletes_wal_and_shm_sidecars() {
+    fn standalone_removal_deletes_database_and_sidecars() {
         let (_dir, path) = temp_db();
 
         // Build sidecar paths using OsString::push (append) to match
@@ -622,26 +500,9 @@ mod tests {
         // With no active SQLite connection, we can safely write fake sidecar data.
         std::fs::write(&wal_path, b"stale wal data").expect("should create WAL file");
         std::fs::write(&shm_path, b"stale shm data").expect("should create SHM file");
-        assert!(wal_path.exists(), "WAL file should exist before reset");
-        assert!(shm_path.exists(), "SHM file should exist before reset");
-
-        // Reopen and reset — this should delete the stale sidecars.
-        let mut index = Index::open(&path).expect("should reopen database");
-        index
-            .reset()
-            .expect("reset should succeed with sidecar files");
-
-        // After reset the database should be usable and contain no stale data.
-        // We cannot assert !wal_path.exists() here because Index::open() enables
-        // WAL journal mode, which causes SQLite to immediately recreate sidecars.
-        assert!(path.exists(), "database file should be recreated");
-        assert!(
-            index.get_file(Path::new("src/lib.rs")).unwrap().is_none(),
-            "database should contain no stale data after reset"
-        );
-        let file_id = index
-            .upsert_file(Path::new("src/new.rs"), Language::Rust, 2000, 200, None)
-            .expect("should insert file after reset");
-        assert!(file_id.as_i64() > 0);
+        Index::remove_db_files(&path).expect("remove closed database");
+        assert!(!path.exists());
+        assert!(!wal_path.exists());
+        assert!(!shm_path.exists());
     }
 }

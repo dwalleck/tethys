@@ -181,7 +181,7 @@ impl Index {
         reason = "single transaction body; splitting would force the borrow of `tx` across functions"
     )]
     pub fn index_parsed_file_atomic(
-        &mut self,
+        &self,
         path: &Path,
         language: Language,
         mtime_ns: i64,
@@ -192,7 +192,7 @@ impl Index {
         imports: &[ImportStatement],
     ) -> Result<(FileId, Vec<SymbolId>, usize)> {
         let mut conn = self.connection()?;
-        let tx = conn.transaction()?;
+        let tx = conn.savepoint()?;
 
         let path_str = normalize_path(path);
         let lang_str = language.as_str();
@@ -559,12 +559,12 @@ impl Index {
     ///
     /// Used by the orphan-cleanup pass (`Tethys::purge_orphan_files`) to
     /// drop files that were deleted from disk since their last index.
-    pub fn delete_files(&mut self, ids: &[FileId]) -> Result<usize> {
+    pub fn delete_files(&self, ids: &[FileId]) -> Result<usize> {
         if ids.is_empty() {
             return Ok(0);
         }
         let mut conn = self.connection()?;
-        let tx = conn.transaction()?;
+        let tx = conn.savepoint()?;
         let mut deleted = 0;
         {
             let mut stmt = tx.prepare_cached("DELETE FROM files WHERE id = ?1")?;
@@ -649,7 +649,7 @@ mod index_parsed_file_atomic_tests {
         reason = "the fixture IS the test: every input shape asserted in one atomic write"
     )]
     fn shape_complete_file_writes_all_rows_with_expected_resolution() {
-        let (_dir, mut index) = temp_index();
+        let (_dir, index) = temp_index();
 
         let span_a = Span::new(1, 1, 5, 2).expect("span");
         let span_b = Span::new(10, 1, 15, 2).expect("span");
@@ -772,7 +772,7 @@ mod index_parsed_file_atomic_tests {
     /// refs via the standalone `insert_reference`) fails this immediately.
     #[test]
     fn one_commit_per_file_write() {
-        let (_dir, mut index) = temp_index();
+        let (_dir, index) = temp_index();
 
         let commits = Arc::new(AtomicUsize::new(0));
         {
@@ -831,7 +831,7 @@ mod index_parsed_file_atomic_tests {
     /// actually fences refs/imports/attributes atomicity.
     #[test]
     fn failed_file_write_leaves_no_rows() {
-        let (_dir, mut index) = temp_index();
+        let (_dir, index) = temp_index();
 
         let good = sym("good", 1, None);
         let mut bad = sym("bad", 2, None);
@@ -881,7 +881,7 @@ mod index_parsed_file_atomic_tests {
     /// originals on rollback).
     #[test]
     fn failed_reindex_preserves_prior_refs_imports_attributes() {
-        let (_dir, mut index) = temp_index();
+        let (_dir, index) = temp_index();
 
         let span = Span::new(1, 1, 2, 2).expect("span");
         let attrs = [ExtractedAttribute {
@@ -1144,7 +1144,7 @@ mod delete_files_tests {
     /// and `call_edges` via the deleted symbols.
     #[test]
     fn delete_files_cascades_to_all_dependent_tables() {
-        let (_dir, mut index) = temp_index();
+        let (_dir, index) = temp_index();
         let (gone, _kept) = seed_two_file_fixture(&index);
 
         let deleted = index.delete_files(&[gone]).expect("delete");
@@ -1175,7 +1175,7 @@ mod delete_files_tests {
     /// Deleting several files in one call works and reports the total.
     #[test]
     fn delete_files_removes_multiple_ids() {
-        let (_dir, mut index) = temp_index();
+        let (_dir, index) = temp_index();
         let (gone, kept) = seed_two_file_fixture(&index);
 
         let deleted = index.delete_files(&[gone, kept]).expect("delete");
@@ -1209,7 +1209,7 @@ mod delete_files_tests {
         use std::sync::Arc;
         use std::sync::atomic::{AtomicUsize, Ordering};
 
-        let (_dir, mut index) = temp_index();
+        let (_dir, index) = temp_index();
         let (gone, kept) = seed_two_file_fixture(&index);
 
         let commits = Arc::new(AtomicUsize::new(0));
