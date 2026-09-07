@@ -1,0 +1,8 @@
+{
+  "path": "src/discovery/msbuild/cache.rs",
+  "before": "        .flat_map(|(path, stamp)| [dunce::simplified(path), dunce::simplified(&stamp.canonical)])",
+  "after": "        .flat_map(|(path, _stamp)| [dunce::simplified(path), dunce::simplified(path)])",
+  "tests": [
+    "authorized_restore_preserves_aliased_artifact_identity"
+  ]
+}

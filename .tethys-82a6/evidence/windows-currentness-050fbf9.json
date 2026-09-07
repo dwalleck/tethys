@@ -1,0 +1,33 @@
+{
+  "commit": "050fbf945fda86759b2475e0a3a5b6533a853375",
+  "run": 34110500050,
+  "job": 101705353130,
+  "url": "https://github.com/dwalleck/tethys/actions/runs/34110500050/job/101705353130",
+  "source_log": "local://windows-restore-050fbf9.log",
+  "summary": "2026-09-07T10:25:48.3613829Z      Summary [ 270.770s] 645 tests run: 642 passed (4 slow), 3 failed, 0 skipped",
+  "failures": [
+    {
+      "test": "later_restore_does_not_excuse_an_earlier_glob_change",
+      "seconds": 10.958
+    },
+    {
+      "test": "authorized_restore_rechecks_metadata_before_confirmation",
+      "seconds": 13.11
+    },
+    {
+      "test": "restored_package_metadata_names_are_case_insensitive",
+      "seconds": 7.658
+    }
+  ],
+  "final_diagnostic": "Evaluation inputs changed during discovery; rerun with stable inputs",
+  "positive_controls": [
+    "2026-09-07T10:25:35.8252035Z         PASS [   7.766s] (643/645) tethys::discovery_failures windows_packages_config_restore_requires_grant_and_confirms_native_inputs",
+    "2026-09-07T10:25:36.0656465Z         PASS [  13.753s] (644/645) tethys::discovery_failures windows_filter_solution_default_restore_and_ambiguity"
+  ],
+  "local_reproduction": {
+    "command": "cargo nextest run --all-features --test discovery_failures --run-ignored all -E 'test(=authorized_restore_preserves_aliased_artifact_identity)'",
+    "result": "EvaluationFailed at final currentness after native restore through a filesystem-equivalent MSBuildProjectExtensionsPath",
+    "evidence": "artifact586",
+    "seconds": 1.698
+  }
+}

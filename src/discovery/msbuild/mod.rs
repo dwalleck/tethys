@@ -142,11 +142,14 @@ fn validate_snapshot(
         // changed glob in an earlier scope. Each scope must have fingerprinted
         // this exact input before its own authoritative evaluation.
         let inventory_changed = before.has_symlinks != after.has_symlinks
-            || changed_paths.iter().any(|path| {
-                !inputs.contains_key(path)
-                    || !restore_paths
-                        .get(project)
-                        .is_some_and(|paths| paths.contains(path))
+            || (!changed_paths.is_empty() && {
+                let captured_restore_paths = restore_paths
+                    .get(project)
+                    .map(|paths| cache::captured_restore_paths(inputs, paths))
+                    .unwrap_or_default();
+                changed_paths
+                    .iter()
+                    .any(|path| !captured_restore_paths.contains(dunce::simplified(path)))
             });
         if inventory_changed || host_changed || !cache::unchanged(inputs) {
             invalid.insert(project);

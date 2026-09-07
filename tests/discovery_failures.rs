@@ -872,3 +872,42 @@ fn existing_restore_requires_same_physical_project() {
         DiscoveryFailureReason::RestoreRequired
     );
 }
+
+#[cfg(unix)]
+#[test]
+#[ignore = "requires installed net8 targeting pack and packaged real worker"]
+fn authorized_restore_preserves_aliased_artifact_identity() {
+    let root = TempDir::new().unwrap();
+    let physical = root.path().join("physical");
+    fs::create_dir(&physical).unwrap();
+    let alias = root.path().join("alias");
+    std::os::unix::fs::symlink(&physical, &alias).unwrap();
+    write(
+        &physical,
+        "App.csproj",
+        "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>",
+    );
+    write(&physical, "App.cs", "class App {}\n");
+    write(
+        &physical,
+        "NuGet.Config",
+        "<configuration><packageSources><clear/></packageSources></configuration>",
+    );
+    let mut selected = options();
+    selected.allow_restore = true;
+    selected.context.global_properties.insert(
+        "MSBuildProjectExtensionsPath".into(),
+        format!("{}/obj/", alias.display()),
+    );
+    let aliased_restore = discover(&physical, selected);
+    assert_eq!(
+        aliased_restore.projects[0].standing,
+        DiscoveryStanding::Confirmed,
+        "{:?}",
+        aliased_restore.projects
+    );
+    assert_eq!(
+        aliased_restore.units[0].sources[0].path,
+        Path::new("App.cs")
+    );
+}

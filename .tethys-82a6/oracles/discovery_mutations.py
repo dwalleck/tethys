@@ -63,6 +63,9 @@ WRAPPER = Fence('discovery_runtime', 'forwarding_muxer_external_reads_never_reus
 ALIAS = Fence('discovery_failures', 'existing_restore_requires_same_physical_project', True,
               '    assert_eq!(\n        same_project.projects[0].standing,',
               ('assertion `left == right` failed', 'RestoreRequired', 'Confirmed'))
+CAPTURED_RESTORE = Fence('discovery_failures', 'authorized_restore_preserves_aliased_artifact_identity', True,
+                         '    assert_eq!(\n        aliased_restore.projects[0].standing,',
+                         ('assertion `left == right` failed', 'EvaluationFailed', 'Confirmed'))
 
 MUTATIONS = (
     Mutation('C3-discard-custom-library', 'src/cargo.rs',
@@ -109,6 +112,9 @@ MUTATIONS = (
              '''    let generated_identities = generated
         .iter()
         .map(|path| Ok(path.clone()))''', (ALIAS,)),
+    Mutation('C7-lexical-captured-restore', 'src/discovery/msbuild/cache.rs',
+             '        .flat_map(|(path, stamp)| [dunce::simplified(path), dunce::simplified(&stamp.canonical)])',
+             '        .flat_map(|(path, _stamp)| [dunce::simplified(path), dunce::simplified(path)])', (CAPTURED_RESTORE,)),
     Mutation('C9-omit-inventory-glob-watch', 'src/discovery/msbuild/cache.rs',
              '        if receipt.recipe != RECIPE || receipt.key != key || receipt.inventory != self.inventory {',
              '        if receipt.recipe != RECIPE || receipt.key != key {', (GLOB,)),
@@ -205,7 +211,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo', type=Path, required=True)
     parser.add_argument('--timeout', type=int, default=1800, help='seconds per nextest invocation, including compilation')
+    parser.add_argument('--mutation', action='append', choices=[mutation.name for mutation in MUTATIONS],
+                        help='run only named mutations; repeat to select several (default: all)')
     args = parser.parse_args()
+    mutations = tuple(mutation for mutation in MUTATIONS
+                      if not args.mutation or mutation.name in args.mutation)
     require(os.name == 'posix', 'POSIX process groups and forwarding-muxer fence are required')
     require(args.timeout > 0, '--timeout must be positive')
     repo = args.repo.resolve(strict=True)
@@ -222,7 +232,8 @@ def main():
     evidence = Path(tempfile.mkdtemp(prefix='discovery-mutations-', dir=evidence_parent))
     print(f'Evidence: {evidence}', flush=True)
     report = {'repo': str(repo), 'results': [], 'status': 'FAILED',
-              'sdk': env['TETHYS_SDK_MSBUILD_PATH'], 'worker': env['TETHYS_WORKER_DISTRIBUTION']}
+              'sdk': env['TETHYS_SDK_MSBUILD_PATH'], 'worker': env['TETHYS_WORKER_DISTRIBUTION'],
+              'mutations': [mutation.name for mutation in mutations]}
     try:
         with tempfile.TemporaryDirectory(prefix='tethys-discovery-mutations-') as disposable:
             tree = Path(disposable)
@@ -235,7 +246,7 @@ def main():
             env['CARGO_TERM_COLOR'] = 'never'
             env['NEXTEST_HIDE_PROGRESS_BAR'] = '1'
             originals = {}
-            for mutation in MUTATIONS:
+            for mutation in mutations:
                 original = (tree / mutation.path).read_bytes()
                 unique(original.decode(), mutation.before, mutation.name)
                 originals[mutation.path] = original
@@ -244,11 +255,11 @@ def main():
                     'tests': [f.name for f in mutation.fences]}, indent=2) + '\n')
             restore_source = (tree / 'tests/discovery_failures.rs').read_text()
             unique(restore_source, '    let ungranted = discover(root.path(), options());\n    assert_eq!(\n        reason(&ungranted.projects[0].standing),\n        DiscoveryFailureReason::RestoreRequired\n    );\n    assert!(!root.path().join("obj/project.assets.json").exists());', 'C7 native no-grant control')
-            fences = tuple(dict.fromkeys(f for m in MUTATIONS for f in m.fences))
+            fences = tuple(dict.fromkeys(f for m in mutations for f in m.fences))
             for fence in fences:
                 unique((tree / 'tests' / f'{fence.binary}.rs').read_text(), fence.assertion, fence.name)
                 report['results'].append(run_fence(tree, evidence, env, fence, 'baseline', args.timeout, False))
-            for mutation in MUTATIONS:
+            for mutation in mutations:
                 path = tree / mutation.path
                 original = originals[mutation.path]
                 require(path.read_bytes() == original, f'{mutation.name}: previous source was not restored')
@@ -267,8 +278,8 @@ def main():
         raise
     finally:
         (evidence / 'results.json').write_text(json.dumps(report, indent=2) + '\n')
-    cases = sum(len(mutation.fences) for mutation in MUTATIONS)
-    print(f'PASS: {len(MUTATIONS)} named mutations, {cases} behavioral falsifier cases; evidence {evidence}')
+    cases = sum(len(mutation.fences) for mutation in mutations)
+    print(f'PASS: {len(mutations)} named mutations, {cases} behavioral falsifier cases; evidence {evidence}')
 
 
 if __name__ == '__main__':

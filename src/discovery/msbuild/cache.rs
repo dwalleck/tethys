@@ -119,6 +119,17 @@ pub(super) fn unchanged(inputs: &Inputs) -> bool {
     })
 }
 
+pub(super) fn captured_restore_paths<'a>(
+    inputs: &'a Inputs,
+    restored: &BTreeSet<PathBuf>,
+) -> BTreeSet<&'a Path> {
+    restored
+        .iter()
+        .filter_map(|path| inputs.get_key_value(path))
+        .flat_map(|(path, stamp)| [dunce::simplified(path), dunce::simplified(&stamp.canonical)])
+        .collect()
+}
+
 pub(super) fn normalized_globals(request: &DiscoveryRequest) -> BTreeMap<String, String> {
     request
         .options
