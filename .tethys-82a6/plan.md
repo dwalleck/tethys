@@ -162,6 +162,27 @@ Issue-local oracles and test fixtures are non-production. Named test paths occur
 **PR increment:** repair in Evaluation companion PR45 before advancing S3.
 **Commands and expected results:** push correction; GitHub run_watch must discover a real run and mandatory managed Windows/SDK jobs must pass.
 
+## S2b: Make the managed lock graph portable
+
+**Claim IDs:** C14.
+**Expected behavior:** locked restore succeeds on Linux/macOS and Windows without weakening lock enforcement or changing Framework execution/output defaults.
+**Oracle:** Windows managed-worker CI plus local locked restore/license/package qualification.
+**Stress fixture:** net472 executable; SDK10 infers win-x86 only on Windows.
+**Regression fence:** explicit net472 RuntimeIdentifiers includes win-x86 in the lock graph on every build OS.
+**Named mutation:** remove the graph entry → Windows NU1004 observed in run34070722708/job101587441492.
+**Complexity/production scale:** build metadata only.
+**Wall budget/phase:** existing restore/build deadlines unchanged.
+**Module shape:** existing companion project/lock owners only.
+**Files:** tools/tethys-msbuild-evaluate/{Tethys.MSBuild.Evaluate.csproj,packages.lock.json}; this audit record.
+**Estimate:** one cross-platform dependency-graph correction.
+**Diff estimate:** 30 lines plus generated lock graph.
+**PR increment:** repair in Evaluation companion PR45 before S3.
+**Commands and expected results:** explicit development --force-evaluate refreshes the lock; normal --prepare still uses --locked-mode and license checks; both TFMs compile and SDK oracle passes; actual Windows job must restore and evaluate successfully.
+
+Root cause is native SDK RuntimeIdentifierInference.targets55–63: Windows Framework executables infer win-x86, while the Linux-generated lock had no RID graph. RuntimeIdentifiers requests that graph without forcing RuntimeIdentifier/PlatformTarget or changing the output directory. S2a successfully triggered all stacked-PR CI gates; this is the resulting platform failure, not missing CI.
+
+**Local repair proof:** locked restore succeeds both normally and with explicit RuntimeIdentifier=win-x86. NuGet records the RID graph for both target frameworks; existing package versions remain locked. --prepare revalidates all25 MIT dependencies, SDK clean-install C5/C14 passes, and both target frameworks compile with zero warnings/errors. Actual Windows qualification remains required.
+
 ## S3: Implement the neutral discovery adapters and freshness contract
 
 **Claim IDs:** C3, C4, C6, C7, C9.

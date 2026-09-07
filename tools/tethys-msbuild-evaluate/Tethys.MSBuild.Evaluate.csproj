@@ -11,6 +11,8 @@
     <RollForward>LatestMajor</RollForward>
     <UseAppHost>false</UseAppHost>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- Windows infers this RID for Framework executables; lock that graph on every build OS. -->
+    <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net472'">win-x86</RuntimeIdentifiers>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
   </PropertyGroup>
