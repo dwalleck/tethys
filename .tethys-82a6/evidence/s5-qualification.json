@@ -1,0 +1,54 @@
+{
+  "source_sha256": {
+    "src/architecture.rs": "a480493948085b29d16a25a2881affbbc2b2eb6c9dee18dd26bf51592d211977",
+    "src/cargo.rs": "82164c661bec1d1f763b7e43cc81d564d3060726cfbb11cb9eaee1fe7ad4bb39",
+    "src/cli/coupling.rs": "cede5e052f94391fd10c726c763cf5d0764c06f210b68672e7dca695fcebb059",
+    "src/db/architecture.rs": "d86bca360741bab66a893564206bbbc99300238d742c7634e872ee542a5ff4fc",
+    "src/db/schema.rs": "5d84d594b18fb989555a40f47192b768d20feab515a5003db5be3af6fc739516",
+    "src/discovery/mod.rs": "bb9d1d6db3d9b7b417cb99d322bb379b2545263f4938bd227a7b9b897cb64e86",
+    "src/discovery/msbuild/mod.rs": "fbd3605ad63bef38bddf390837b43d982b5d3eb66b4a1405b9377fa52ba0700f",
+    "src/indexing.rs": "7c1ae11672091fd17afb8ede865cb7d279251e808aa6cbe418ca332c1e15ed33",
+    "src/lib.rs": "9675c5efe3b97a2c12d359f028a05c596c24c865fdec3acbf6a5579053f98054",
+    "src/types.rs": "0fa087fa5f69f1c11f6fd332d88acff8be895720cae32768161f477c509a9432",
+    "tests/architecture.rs": "d618338f1b57963d1de353049224ad48db354a93ae7eb585af630b7f86900b79",
+    "tests/csharp_coupling.rs": "33a587356580aa85b85ff642e5d9ed6727683c4706951b18d6ce0e21e49fc0ce",
+    "tests/discovery_cli.rs": "bbf32950eb5aac4efa7693d480377388a8014d3f6a0ac9b607ff62720af94bfe",
+    "tests/idxperf_golden.rs": "ebfa7a406d3e86b29ef3ee4afed711f02faf6a2053fd8589b77ed3ea4409a2de",
+    ".tethys-82a6/oracles/module_shape.py": "022149bacca3233e695b55dc55202f26596c711166f1b11e993e0967c444485a",
+    ".tethys-82a6/oracles/ledger.json": "08d4dc64babd49eb5c54bf246cbb28f980ff4907890feb5d8393440c9fc1566c",
+    ".tethys-82a6/oracles/discovery_mutations.py": "7536b9d8257a107205d242cf9292decc4170dc8f7f1ce8725d25165c519d8451",
+    ".tethys-82a6/oracles/coupling_fixture.json": "dfa1e516b5561cb9a9a76ce76d30d2af0f312fa2a9ad1e16d309c466b5b7e9e1",
+    ".tethys-82a6/oracles/coupling_smoke.py": "3a2654f10fe15f20483ed7eb5660ee64ad940572cfb5bb4ee7acb236f275cd14",
+    ".github/workflows/ci.yml": "e8d800a9f35b9a9ae3ded695d5dc40bca4393a5053572c8e2bb8aeca275b6eb9"
+  },
+  "local_proof": {
+    "artifact": "artifact://905",
+    "fmt": "PASS",
+    "clippy": "all targets/all features, -D warnings: PASS",
+    "nextest": {
+      "passed": 1170,
+      "skipped": 41
+    },
+    "doctests": {
+      "passed": 18,
+      "ignored": 2
+    },
+    "native_query_fence": {
+      "passed": 1,
+      "nextest_id": "8f68d5eb-90d4-4d94-83db-8da03dfc7ff8"
+    },
+    "smoke": "s5-coupling-local.json",
+    "shape": "s5-shape-mutations.json",
+    "behavioral_mutations": "discovery-mutations-gv_yem9y/results.json"
+  },
+  "conformance": {
+    "reviewer": "S5ConformanceReview",
+    "method": "Production-only responsibility/interface reconstruction before design/plan disclosure, then independent comparison; F30 data-source amendment inspected afterward.",
+    "result": "PASS: no approval-required ownership/interface deviation or new correctness defect.",
+    "amendment": "Architecture assembly consumes current staged discovery units; DB query hydration remains snapshot-bound. One keyed metadata map moves records into metrics. Cargo attribution stays in cargo.rs."
+  },
+  "remaining": {
+    "native_platform_acceptance": "Required on committed S5; local Linux SDK proof does not establish Windows classic or macOS acceptance.",
+    "S6": "Pinned corpus, legacy and cache-hit qualification remains required."
+  }
+}

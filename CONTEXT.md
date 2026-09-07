@@ -344,8 +344,12 @@ The test symbols whose reachable set touches a set of changed files — the test
 worth running for those changes.
 
 **Coupling**:
-Per-crate afferent (Ca) and efferent (Ce) dependency counts, plus the derived
-instability metric `Ce / (Ca + Ce)`.
+Per-crate or per-evaluation-unit afferent (Ca) and efferent (Ce) workspace
+dependency counts, plus derived instability `Ce / (Ca + Ce)`. Counts are known
+or indeterminate: an unselected project reference withholds source Ce and
+candidate-unit Ca without becoming a selected edge. Independent,
+evidence-complete units can retain known zero (tethys-82a6).
+_Avoid_: treating indeterminate as zero, merging evaluation units by assembly name
 
 **Cycle**:
 A circular dependency among files, recorded as a directed sequence of

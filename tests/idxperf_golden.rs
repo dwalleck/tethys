@@ -361,8 +361,6 @@ const EXPECTED_BATCH: &[&str] = &[
     "file|cs/Use.cs|csharp|142",
     "file|src/lib.rs|rust|114",
     "file|src/util.rs|rust|41",
-    "fpkg|cs/Lib.cs|app",
-    "fpkg|cs/Use.cs|app",
     "fpkg|src/lib.rs|app",
     "fpkg|src/util.rs|app",
     "imp|cs/Use.cs|*|App.Cs|",

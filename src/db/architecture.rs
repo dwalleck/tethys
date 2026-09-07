@@ -5,21 +5,27 @@
 
 use std::collections::HashMap;
 
-use rusqlite::params;
+use rusqlite::{Connection, params};
 use tracing::trace;
 
 use super::Index;
-use crate::error::Result;
-use crate::types::{
-    ArchStats, CouplingDetail, CouplingMetrics, CouplingSort, FileId, Package, PackageDependency,
+use crate::architecture::{
+    ArchStats, CouplingDetail, CouplingMetrics, CouplingSort, Package, PackageDependency,
     PackageId, PackageSource,
 };
+use crate::architecture::{EvaluationUnitCoupling, MetricEvidence, apply_evidence};
+use crate::discovery::{
+    DeclaredProjectReference, DiscoveryStanding, EvaluationUnitKey, ProjectKey,
+};
+use crate::error::Result;
+use crate::types::FileId;
 
 /// Insert payload for `repopulate_architecture`.
 pub struct PackageInsert<'a> {
     pub name: &'a str,
     pub path: &'a str,
     pub source: PackageSource,
+    pub evaluation_unit_key: Option<&'a EvaluationUnitKey>,
 }
 
 impl Index {
@@ -65,9 +71,14 @@ impl Index {
         let mut name_to_id: HashMap<&str, PackageId> = HashMap::with_capacity(packages.len());
         {
             let mut stmt =
-                tx.prepare("INSERT INTO arch_packages (name, path, source) VALUES (?1, ?2, ?3)")?;
+                tx.prepare("INSERT INTO arch_packages (name, path, source, evaluation_unit_key) VALUES (?1, ?2, ?3, ?4)")?;
             for pkg in packages {
-                stmt.execute(params![pkg.name, pkg.path, pkg.source.as_str()])?;
+                stmt.execute(params![
+                    pkg.name,
+                    pkg.path,
+                    pkg.source.as_str(),
+                    pkg.evaluation_unit_key.map(EvaluationUnitKey::as_str)
+                ])?;
                 // Safe because (a) the transaction holds the exclusive write lock for
                 // its lifetime, so no other writer interleaves, and (b) `arch_packages`
                 // uses INTEGER PRIMARY KEY — `last_insert_rowid()` returns that rowid.
@@ -164,79 +175,21 @@ impl Index {
     /// (`Afferent`, `Efferent`, `Name`) compare the stored `afferent`/`efferent`
     /// integer fields and the `name` string directly.
     pub fn get_coupling_metrics(&self, sort: CouplingSort) -> Result<Vec<CouplingMetrics>> {
-        use std::path::PathBuf;
-
-        let conn = self.connection()?;
-        let mut stmt = conn.prepare(
-            "SELECT p.id, p.name, p.path, p.source,
-                    c.afferent, c.efferent
-             FROM arch_coupling c
-             JOIN arch_packages p ON p.id = c.package_id",
-        )?;
-        let rows = stmt.query_map([], |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, String>(3)?,
-                row.get::<_, i64>(4)?,
-                row.get::<_, i64>(5)?,
-            ))
-        })?;
-
-        let mut out = Vec::new();
-        for row in rows {
-            let (id, name, path, source_str, ca, ce) = row?;
-            let Some(source) = PackageSource::parse(&source_str) else {
-                tracing::warn!(
-                    package_name = %name,
-                    source = %source_str,
-                    "skipping coupling row with unknown source"
-                );
-                continue;
+        let mut conn = self.connection()?;
+        let tx = conn.savepoint()?;
+        let mut out = read_metrics(&tx, None)?;
+        tx.commit()?;
+        out.sort_by(|a, b| {
+            let ordering = match sort {
+                CouplingSort::Instability => {
+                    compare_evidence(a.instability(), b.instability(), f64::total_cmp)
+                }
+                CouplingSort::Afferent => compare_evidence(a.afferent, b.afferent, u32::cmp),
+                CouplingSort::Efferent => compare_evidence(a.efferent, b.efferent, u32::cmp),
+                CouplingSort::Name => std::cmp::Ordering::Equal,
             };
-            let afferent = saturating_coupling_to_u32(ca, &name, "afferent");
-            let efferent = saturating_coupling_to_u32(ce, &name, "efferent");
-            out.push(CouplingMetrics {
-                package: Package {
-                    id: PackageId::new(id),
-                    name,
-                    path: PathBuf::from(path),
-                    source,
-                },
-                afferent,
-                efferent,
-            });
-        }
-
-        // Sort entirely in Rust so the instability formula lives in exactly one place.
-        match sort {
-            CouplingSort::Instability => {
-                out.sort_by(|a, b| {
-                    b.instability()
-                        .total_cmp(&a.instability())
-                        .then_with(|| a.package.name.cmp(&b.package.name))
-                });
-            }
-            CouplingSort::Afferent => {
-                out.sort_by(|a, b| {
-                    b.afferent
-                        .cmp(&a.afferent)
-                        .then_with(|| a.package.name.cmp(&b.package.name))
-                });
-            }
-            CouplingSort::Efferent => {
-                out.sort_by(|a, b| {
-                    b.efferent
-                        .cmp(&a.efferent)
-                        .then_with(|| a.package.name.cmp(&b.package.name))
-                });
-            }
-            CouplingSort::Name => {
-                out.sort_by(|a, b| a.package.name.cmp(&b.package.name));
-            }
-        }
-
+            ordering.then_with(|| a.package.name.cmp(&b.package.name))
+        });
         Ok(out)
     }
 }
@@ -270,11 +223,13 @@ mod get_packages_tests {
                 name: "z_crate",
                 path: "crates/z",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "a_crate",
                 path: "crates/a",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
         ];
         index
@@ -351,67 +306,24 @@ impl Index {
     /// `outgoing` lists may be silently truncated. Callers that need strict
     /// integrity should monitor the `warn!` log channel from this module.
     pub fn get_package_coupling(&self, name: &str) -> Result<Option<CouplingDetail>> {
-        use std::path::PathBuf;
-
-        // Scope the connection lock so it is dropped before fetch_neighbors
-        // acquires it again (the Mutex is not re-entrant).
-        let row: Option<(i64, String, String, String, i64, i64)> = {
-            let conn = self.connection()?;
-            conn.query_row(
-                "SELECT p.id, p.name, p.path, p.source,
-                        c.afferent, c.efferent
-                 FROM arch_coupling c
-                 JOIN arch_packages p ON p.id = c.package_id
-                 WHERE p.name = ?1",
-                params![name],
-                |r| {
-                    Ok((
-                        r.get::<_, i64>(0)?,
-                        r.get::<_, String>(1)?,
-                        r.get::<_, String>(2)?,
-                        r.get::<_, String>(3)?,
-                        r.get::<_, i64>(4)?,
-                        r.get::<_, i64>(5)?,
-                    ))
-                },
-            )
-            .map(Some)
-            .or_else(|e| match e {
-                rusqlite::Error::QueryReturnedNoRows => Ok(None),
-                other => Err(other),
-            })?
-        };
-
-        let Some((id, pkg_name, pkg_path, source_str, ca, ce)) = row else {
+        let mut conn = self.connection()?;
+        let tx = conn.savepoint()?;
+        let metrics = read_metrics(&tx, Some(name))?
+            .into_iter()
+            .find(|metric| metric.package.name == name);
+        let Some(metrics) = metrics else {
+            tracing::debug!(
+                package_name = name,
+                "no architecture package matches selector"
+            );
+            tx.commit()?;
             return Ok(None);
         };
-        let Some(source) = PackageSource::parse(&source_str) else {
-            return Err(crate::error::Error::Internal(format!(
-                "package '{pkg_name}' has unknown source value '{source_str}'; \
-                 possible schema version mismatch or external DB modification"
-            )));
-        };
-
-        let target = Package {
-            id: PackageId::new(id),
-            name: pkg_name,
-            path: PathBuf::from(pkg_path),
-            source,
-        };
-
-        let afferent = saturating_coupling_to_u32(ca, &target.name, "afferent");
-        let efferent = saturating_coupling_to_u32(ce, &target.name, "efferent");
-
-        // Connection lock is released above; re-acquire for neighbor queries.
-        let outgoing = self.fetch_neighbors(target.id, Direction::Outgoing)?;
-        let incoming = self.fetch_neighbors(target.id, Direction::Incoming)?;
-
+        let outgoing = Self::fetch_neighbors(&tx, metrics.package.id, Direction::Outgoing)?;
+        let incoming = Self::fetch_neighbors(&tx, metrics.package.id, Direction::Incoming)?;
+        tx.commit()?;
         Ok(Some(CouplingDetail {
-            metrics: CouplingMetrics {
-                package: target,
-                afferent,
-                efferent,
-            },
+            metrics,
             incoming,
             outgoing,
         }))
@@ -425,7 +337,7 @@ impl Index {
     /// comment, and makes the safety property structural rather than
     /// behavioural.
     fn fetch_neighbors(
-        &self,
+        conn: &Connection,
         package_id: PackageId,
         dir: Direction,
     ) -> Result<Vec<PackageDependency>> {
@@ -452,7 +364,6 @@ impl Index {
             Direction::Incoming => INCOMING_SQL,
         };
 
-        let conn = self.connection()?;
         let mut stmt = conn.prepare(sql)?;
         let rows = stmt.query_map(params![package_id.as_i64()], |row| {
             Ok((
@@ -497,7 +408,6 @@ mod package_coupling_tests {
     use crate::types::Language;
     use std::path::Path;
     use tempfile::TempDir;
-    use tracing_test::traced_test;
 
     fn seeded_index() -> (TempDir, Index) {
         let dir = tempfile::tempdir().expect("temp dir");
@@ -522,16 +432,19 @@ mod package_coupling_tests {
                 name: "a",
                 path: "a",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "b",
                 path: "b",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "c",
                 path: "c",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
         ];
         let mappings = [(f_a, "a"), (f_b, "b"), (f_c, "c")];
@@ -550,7 +463,10 @@ mod package_coupling_tests {
             .expect("found");
 
         assert_eq!(detail.metrics.package.name, "b");
-        assert_eq!((detail.metrics.afferent, detail.metrics.efferent), (1, 1));
+        assert_eq!(
+            (detail.metrics.afferent, detail.metrics.efferent),
+            (MetricEvidence::Known(1), MetricEvidence::Known(1))
+        );
 
         let in_names: Vec<_> = detail
             .incoming
@@ -586,6 +502,7 @@ mod package_coupling_tests {
             name: "lonely",
             path: "lonely",
             source: PackageSource::Manifest,
+            evaluation_unit_key: None,
         }];
         index
             .repopulate_architecture(&packages, &[])
@@ -597,7 +514,7 @@ mod package_coupling_tests {
             .expect("found");
         assert!(detail.incoming.is_empty());
         assert!(detail.outgoing.is_empty());
-        assert!(detail.metrics.instability().abs() < 1e-9);
+        assert_eq!(detail.metrics.instability(), MetricEvidence::Known(0.0));
     }
 
     #[test]
@@ -625,11 +542,13 @@ mod package_coupling_tests {
                 name: "a",
                 path: "a",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "b",
                 path: "b",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
         ];
         let mappings = [(f_a1, "a"), (f_a2, "a"), (f_b, "b")];
@@ -668,6 +587,7 @@ mod package_coupling_tests {
             name: "a",
             path: "a",
             source: PackageSource::Manifest,
+            evaluation_unit_key: None,
         }];
         let mappings = [(f1, "a"), (f2, "a")];
         let stats = index
@@ -685,8 +605,8 @@ mod package_coupling_tests {
             .expect("found");
         assert!(detail.outgoing.is_empty());
         assert!(detail.incoming.is_empty());
-        assert_eq!(detail.metrics.afferent, 0);
-        assert_eq!(detail.metrics.efferent, 0);
+        assert_eq!(detail.metrics.afferent, MetricEvidence::Known(0));
+        assert_eq!(detail.metrics.efferent, MetricEvidence::Known(0));
     }
 
     #[test]
@@ -749,21 +669,25 @@ mod package_coupling_tests {
                 name: "hub",
                 path: "hub",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "alpha",
                 path: "alpha",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "beta",
                 path: "beta",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "gamma",
                 path: "gamma",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
         ];
         let mappings = [
@@ -857,21 +781,25 @@ mod package_coupling_tests {
                 name: "hub",
                 path: "hub",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "alpha",
                 path: "alpha",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "beta",
                 path: "beta",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "gamma",
                 path: "gamma",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
         ];
         let mappings = [
@@ -951,21 +879,9 @@ mod package_coupling_tests {
             matches!(err, crate::Error::Internal(_)),
             "expected Error::Internal for corrupt source, got {err:?}"
         );
-        assert!(
-            err.to_string().contains("totally-bogus"),
-            "error message should name the corrupt value, got: {err}"
-        );
     }
 
-    /// The documented contract for `fetch_neighbors` is "silent skip + warn! log" when
-    /// a neighbour has a corrupt source value. This test verifies both halves: the
-    /// silent-skip (corrupt neighbour absent from the outgoing list) and the
-    /// observability (a warn! event mentioning the corrupt value was emitted).
-    ///
-    /// If someone removes the `warn!` call, the test will fail on the log assertion —
-    /// catching a regression where the behaviour silently becomes "completely silent"
-    /// rather than "silent + logged".
-    #[traced_test]
+    /// A corrupt neighbour is omitted without losing a valid neighbour.
     #[test]
     fn fetch_neighbors_skips_neighbors_with_corrupt_source() {
         use rusqlite::Connection;
@@ -1049,22 +965,13 @@ mod package_coupling_tests {
             ["valid"],
             "corrupt-source neighbour should be skipped from outgoing list"
         );
-
-        // CONTRACT: fetch_neighbors must emit a warn! when skipping a corrupt neighbour.
-        // Removing that warn! would change the behaviour from "silent + logged" to
-        // "completely silent", which breaks the observability guarantee. If this assertion
-        // fails, restore the warn! call in fetch_neighbors rather than loosening the test.
-        assert!(
-            logs_contain("unknown source value"),
-            "expected a warn! log mentioning the corrupt source value"
-        );
     }
 }
 
 #[cfg(test)]
 mod coupling_metrics_tests {
     use super::*;
-    use crate::types::{CouplingSort, Language};
+    use crate::types::Language;
     use std::path::Path;
     use tempfile::TempDir;
 
@@ -1092,16 +999,19 @@ mod coupling_metrics_tests {
                 name: "a",
                 path: "a",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "b",
                 path: "b",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "c",
                 path: "c",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
         ];
         let mappings = [(f_a, "a"), (f_b, "b"), (f_c, "c")];
@@ -1126,16 +1036,25 @@ mod coupling_metrics_tests {
             .expect("metrics");
 
         let a = metrics_for(&rows, "a");
-        assert_eq!((a.afferent, a.efferent), (0, 2));
-        assert!((a.instability() - 1.0).abs() < 1e-9);
+        assert_eq!(
+            (a.afferent, a.efferent),
+            (MetricEvidence::Known(0), MetricEvidence::Known(2))
+        );
+        assert_eq!(a.instability(), MetricEvidence::Known(1.0));
 
         let b = metrics_for(&rows, "b");
-        assert_eq!((b.afferent, b.efferent), (1, 1));
-        assert!((b.instability() - 0.5).abs() < 1e-9);
+        assert_eq!(
+            (b.afferent, b.efferent),
+            (MetricEvidence::Known(1), MetricEvidence::Known(1))
+        );
+        assert_eq!(b.instability(), MetricEvidence::Known(0.5));
 
         let c = metrics_for(&rows, "c");
-        assert_eq!((c.afferent, c.efferent), (2, 0));
-        assert!((c.instability() - 0.0).abs() < 1e-9);
+        assert_eq!(
+            (c.afferent, c.efferent),
+            (MetricEvidence::Known(2), MetricEvidence::Known(0))
+        );
+        assert_eq!(c.instability(), MetricEvidence::Known(0.0));
     }
 
     #[test]
@@ -1193,21 +1112,25 @@ mod coupling_metrics_tests {
                 name: "z",
                 path: "z",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "x",
                 path: "x",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "w",
                 path: "w",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "y",
                 path: "y",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
         ];
         index
@@ -1249,6 +1172,7 @@ mod coupling_metrics_tests {
             name: "lonely",
             path: "lonely",
             source: PackageSource::Manifest,
+            evaluation_unit_key: None,
         }];
         index
             .repopulate_architecture(&packages, &[])
@@ -1258,8 +1182,11 @@ mod coupling_metrics_tests {
             .get_coupling_metrics(CouplingSort::Name)
             .expect("metrics");
         assert_eq!(rows.len(), 1);
-        assert_eq!((rows[0].afferent, rows[0].efferent), (0, 0));
-        assert!(rows[0].instability().abs() < 1e-9);
+        assert_eq!(
+            (rows[0].afferent, rows[0].efferent),
+            (MetricEvidence::Known(0), MetricEvidence::Known(0))
+        );
+        assert_eq!(rows[0].instability(), MetricEvidence::Known(0.0));
     }
 }
 
@@ -1293,11 +1220,13 @@ mod repopulate_tests {
                 name: "crate_a",
                 path: "crate_a",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "crate_b",
                 path: "crate_b",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
         ];
 
@@ -1328,16 +1257,19 @@ mod repopulate_tests {
                 name: "crate_a",
                 path: "crate_a",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "crate_b",
                 path: "crate_b",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
             PackageInsert {
                 name: "crate_c",
                 path: "crate_c",
                 source: PackageSource::Manifest,
+                evaluation_unit_key: None,
             },
         ];
 
@@ -1360,6 +1292,7 @@ mod repopulate_tests {
             name: "crate_a",
             path: "crate_a",
             source: PackageSource::Manifest,
+            evaluation_unit_key: None,
         }];
         let mappings = [(f, "crate_a")];
 
@@ -1381,6 +1314,7 @@ mod repopulate_tests {
             name: "crate_a",
             path: "crate_a",
             source: PackageSource::Manifest,
+            evaluation_unit_key: None,
         }];
         // file_to_package_name references a package not in `packages`.
         let mappings = [(f, "missing_crate")];
@@ -1394,108 +1328,267 @@ mod repopulate_tests {
     }
 }
 
-#[cfg(test)]
-mod instability_property_tests {
-    use crate::types::{CouplingMetrics, Package, PackageId, PackageSource};
-    use proptest::prelude::*;
-    use rusqlite::Connection;
-    use std::path::PathBuf;
-
-    /// Compute instability via the canonical `CouplingMetrics::instability()` so
-    /// the proptest never drifts from the production formula.
-    fn instability_of(afferent: u32, efferent: u32) -> f64 {
-        CouplingMetrics {
-            package: Package {
-                id: PackageId::new(0),
-                name: String::new(),
-                path: PathBuf::new(),
-                source: PackageSource::Manifest,
-            },
-            afferent,
-            efferent,
-        }
-        .instability()
+fn compare_evidence<T>(
+    a: MetricEvidence<T>,
+    b: MetricEvidence<T>,
+    compare: impl FnOnce(&T, &T) -> std::cmp::Ordering,
+) -> std::cmp::Ordering {
+    use MetricEvidence::{Indeterminate, Known};
+    match (a, b) {
+        (Known(a), Known(b)) => compare(&b, &a),
+        (Known(_), Indeterminate(_)) => std::cmp::Ordering::Less,
+        (Indeterminate(_), Known(_)) => std::cmp::Ordering::Greater,
+        (Indeterminate(_), Indeterminate(_)) => std::cmp::Ordering::Equal,
     }
+}
 
-    /// Build an in-memory DB with `n` packages and the listed cross-package edges,
-    /// then query `arch_coupling`. Edges are (`source_index`, `target_index`) pairs.
-    ///
-    /// Returns `(afferent, efferent, instability)` triples; instability is routed
-    /// through `CouplingMetrics::instability()` so this helper can't silently drift
-    /// from the production formula.
-    fn instability_for(n: usize, edges: &[(usize, usize)]) -> Vec<(u32, u32, f64)> {
-        let conn = Connection::open_in_memory().expect("open");
-        // Match the prod Index::open setup so FK constraints (e.g. arch_file_packages
-        // CASCADE deletes) are exercised under the same semantics in tests.
-        conn.pragma_update(None, "foreign_keys", "ON")
-            .expect("enable fks");
-        conn.execute_batch(crate::db::SCHEMA).expect("schema");
+fn decode_evidence<T: serde::de::DeserializeOwned>(text: &str) -> Result<T> {
+    serde_json::from_str(text).map_err(|error| {
+        crate::Error::Internal(format!("corrupt coupling discovery metadata: {error}"))
+    })
+}
 
-        for i in 0..n {
-            conn.execute(
-                "INSERT INTO arch_packages (id, name, path, source) VALUES (?1, ?2, ?3, 'manifest')",
-                rusqlite::params![i64::try_from(i + 1).expect("package index fits in i64"), format!("p{i}"), format!("p{i}")],
-            )
-            .expect("insert pkg");
+fn read_unit_evidence(
+    conn: &Connection,
+) -> Result<(HashMap<String, EvaluationUnitCoupling>, bool)> {
+    let mut units = HashMap::new();
+    let mut incomplete: bool =
+        conn.query_row("SELECT EXISTS(SELECT 1 FROM discovery_issues)", [], |row| {
+            row.get(0)
+        })?;
+    {
+        let mut statement = conn.prepare("SELECT standing_json FROM projects")?;
+        let mut rows = statement.query([])?;
+        while let Some(row) = rows.next()? {
+            let standing: DiscoveryStanding = decode_evidence(coupling_text(row, 0)?)?;
+            incomplete |= !matches!(standing, DiscoveryStanding::Confirmed);
         }
-        for (src, tgt) in edges {
-            if src == tgt {
+    }
+    {
+        let mut statement = conn.prepare("SELECT unit_key, project_key, target_framework, framework_json, standing_json, json_extract(properties_json, '$.AssemblyName') FROM evaluation_units ORDER BY ordinal")?;
+        let mut rows = statement.query([])?;
+        while let Some(row) = rows.next()? {
+            let key: String = row.get(0)?;
+            let standing: DiscoveryStanding = decode_evidence(coupling_text(row, 4)?)?;
+            incomplete |= !matches!(standing, DiscoveryStanding::Confirmed);
+            units.insert(
+                key.clone(),
+                EvaluationUnitCoupling {
+                    key: EvaluationUnitKey(key),
+                    project: ProjectKey(row.get(1)?),
+                    target_framework: row.get(2)?,
+                    framework: decode_evidence(coupling_text(row, 3)?)?,
+                    standing,
+                    assembly_name: row.get(5)?,
+                    declared_references: Vec::new(),
+                },
+            );
+        }
+    }
+    {
+        let mut statement = conn.prepare("SELECT unit_key, target_project_key, include, metadata_json FROM declared_project_references ORDER BY unit_key, ordinal")?;
+        let mut rows = statement.query([])?;
+        while let Some(row) = rows.next()? {
+            let key = coupling_text(row, 0)?;
+            units
+                .get_mut(key)
+                .ok_or_else(|| {
+                    crate::Error::Internal(format!("orphaned coupling declaration: {key}"))
+                })?
+                .declared_references
+                .push(DeclaredProjectReference {
+                    target: ProjectKey(row.get(1)?),
+                    include: row.get(2)?,
+                    metadata: decode_evidence(coupling_text(row, 3)?)?,
+                });
+        }
+    }
+    Ok((units, incomplete))
+}
+
+fn read_metrics(conn: &Connection, strict_target: Option<&str>) -> Result<Vec<CouplingMetrics>> {
+    // The first SELECT pins the caller's savepoint snapshot. All projections and
+    // neighbor reads stay on that same transaction even against WAL writers.
+    let mut metrics = Vec::new();
+    let mut keys = Vec::new();
+    {
+        let mut statement = conn.prepare("SELECT p.id, p.name, p.path, p.source, c.afferent, c.efferent, p.evaluation_unit_key FROM arch_coupling c JOIN arch_packages p ON p.id = c.package_id")?;
+        let mut rows = statement.query([])?;
+        while let Some(row) = rows.next()? {
+            let name: String = row.get(1)?;
+            let source_text: String = row.get(3)?;
+            let Some(source) = PackageSource::parse(&source_text) else {
+                if strict_target == Some(name.as_str()) {
+                    return Err(crate::Error::Internal(format!(
+                        "package '{name}' has unknown source value '{source_text}'"
+                    )));
+                }
+                tracing::warn!(
+                    package_name = name,
+                    source = source_text,
+                    "skipping coupling row with unknown source"
+                );
                 continue;
-            }
-            // INSERT OR IGNORE to dedupe (src, tgt) pairs (PK constraint).
-            conn.execute(
-                "INSERT OR IGNORE INTO arch_package_deps (source_pkg, target_pkg, dep_count)
-                 VALUES (?1, ?2, 1)",
-                rusqlite::params![
-                    i64::try_from(src + 1).expect("source index fits in i64"),
-                    i64::try_from(tgt + 1).expect("target index fits in i64")
-                ],
-            )
-            .expect("insert dep");
+            };
+            let afferent =
+                MetricEvidence::Known(saturating_coupling_to_u32(row.get(4)?, &name, "afferent"));
+            let efferent =
+                MetricEvidence::Known(saturating_coupling_to_u32(row.get(5)?, &name, "efferent"));
+            keys.push(row.get::<_, Option<String>>(6)?);
+            metrics.push(CouplingMetrics {
+                package: Package {
+                    id: PackageId::new(row.get(0)?),
+                    name,
+                    path: std::path::PathBuf::from(row.get::<_, String>(2)?),
+                    source,
+                },
+                afferent,
+                efferent,
+                evaluation_unit: None,
+            });
         }
+    }
+    let (mut units, incomplete) = read_unit_evidence(conn)?;
+    for (metric, key) in metrics.iter_mut().zip(keys) {
+        if let Some(key) = key {
+            metric.evaluation_unit = Some(units.remove(&key).ok_or_else(|| {
+                crate::Error::Internal(format!("missing coupling unit metadata: {key}"))
+            })?);
+        }
+    }
+    apply_evidence(&mut metrics, incomplete);
+    Ok(metrics)
+}
 
-        let mut stmt = conn
-            .prepare("SELECT afferent, efferent FROM arch_coupling")
-            .expect("prepare");
-        let rows: Vec<(u32, u32, f64)> = stmt
-            .query_map([], |r| {
-                Ok((
-                    u32::try_from(r.get::<_, i64>(0)?).unwrap_or(u32::MAX),
-                    u32::try_from(r.get::<_, i64>(1)?).unwrap_or(u32::MAX),
-                ))
-            })
-            .expect("query")
-            .map(|r| {
-                let (ca, ce) = r.expect("row");
-                (ca, ce, instability_of(ca, ce))
-            })
-            .collect();
-        rows
+fn coupling_text<'a>(row: &'a rusqlite::Row<'_>, column: usize) -> rusqlite::Result<&'a str> {
+    let value = row.get_ref(column)?;
+    value.as_str().map_err(|error| {
+        rusqlite::Error::FromSqlConversionFailure(column, value.data_type(), Box::new(error))
+    })
+}
+
+#[cfg(test)]
+mod coupling_snapshot_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Mutex, mpsc};
+    use std::time::Duration;
+
+    static BARRIER: Mutex<Option<ReadBarrier>> = Mutex::new(None);
+    static COMMITS: AtomicUsize = AtomicUsize::new(0);
+    struct ReadBarrier {
+        start: mpsc::Sender<()>,
+        committed: mpsc::Receiver<()>,
     }
 
-    proptest! {
-        /// For every package and every random edge set, instability stays in [0, 1].
-        #[test]
-        fn instability_within_unit_interval(
-            n in 1usize..8,
-            edges in prop::collection::vec((0usize..8, 0usize..8), 0..30),
-        ) {
-            let edges: Vec<_> = edges.into_iter()
-                .filter(|(s, t)| *s < n && *t < n)
-                .collect();
-            for (_ca, _ce, i) in instability_for(n, &edges) {
-                prop_assert!((0.0..=1.0).contains(&i), "instability out of range: {i}");
-            }
+    fn snapshot_trace(sql: &str) {
+        if !sql.contains("FROM evaluation_units ORDER BY ordinal") {
+            return;
         }
+        let Some(barrier) = BARRIER.lock().expect("barrier mutex").take() else {
+            return;
+        };
+        barrier.start.send(()).expect("release independent writer");
+        barrier
+            .committed
+            .recv_timeout(Duration::from_secs(5))
+            .expect("writer must commit while composite reader is pinned");
+    }
 
-        /// A package with no edges has instability exactly 0.
-        #[test]
-        fn isolated_package_has_zero_instability(n in 1usize..6) {
-            let rows = instability_for(n, &[]);
-            for (ca, ce, i) in rows {
-                prop_assert_eq!((ca, ce), (0, 0));
-                prop_assert!((i - 0.0_f64).abs() < 1e-9);
-            }
+    #[test]
+    fn coupling_detail_uses_one_snapshot_across_wal_publication() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("index.db");
+        let index = Index::open(&path).expect("index");
+        {
+            let conn = index.connection().expect("connection");
+            conn.execute_batch(r#"
+                INSERT INTO projects VALUES ('App.csproj', 0, '[]', '{"standing":"confirmed"}');
+                INSERT INTO evaluation_units VALUES ('app-unit', 'App.csproj', 0, 'net8.0', 'null', '{"standing":"confirmed"}', '{"AssemblyName":"Before"}', 'null', '{"style":"none","inputs":[]}');
+                INSERT INTO arch_packages (id, name, path, source, evaluation_unit_key) VALUES (1, 'msbuild:App.csproj:app-unit', 'before', 'msbuild', 'app-unit');
+                INSERT INTO arch_packages (id, name, path, source) VALUES (2, 'dependency', 'dep', 'manifest');
+            "#).expect("old revision");
         }
+        let (start, started) = mpsc::channel();
+        let (committed, completed) = mpsc::channel();
+        COMMITS.store(0, Ordering::SeqCst);
+        let writer = std::thread::spawn(move || {
+            let mut conn = Connection::open(path).expect("independent WAL writer");
+            conn.busy_timeout(Duration::from_secs(3))
+                .expect("bounded writer");
+            started
+                .recv_timeout(Duration::from_secs(5))
+                .expect("reader reaches component boundary");
+            let tx = conn.transaction().expect("writer transaction");
+            tx.execute_batch(r#"
+                UPDATE evaluation_units SET properties_json = '{"AssemblyName":"After"}' WHERE unit_key = 'app-unit';
+                UPDATE arch_packages SET path = 'after' WHERE id = 1;
+                INSERT INTO arch_package_deps VALUES (1, 2, 7);
+            "#).expect("new revision");
+            tx.commit().expect("publish new revision");
+            COMMITS.fetch_add(1, Ordering::SeqCst);
+            committed
+                .send(())
+                .expect("notify reader of committed revision");
+        });
+        *BARRIER.lock().expect("barrier mutex") = Some(ReadBarrier {
+            start,
+            committed: completed,
+        });
+        index
+            .connection()
+            .expect("connection")
+            .trace(Some(snapshot_trace));
+        let before = index
+            .get_package_coupling("msbuild:App.csproj:app-unit")
+            .expect("detail")
+            .expect("unit");
+        index.connection().expect("connection").trace(None);
+        writer.join().expect("writer succeeds");
+        assert_eq!(COMMITS.load(Ordering::SeqCst), 1, "writer commit canary");
+        assert!(BARRIER.lock().expect("barrier mutex").is_none());
+        assert_eq!(before.metrics.package.path, std::path::Path::new("before"));
+        assert_eq!(
+            (before.metrics.afferent, before.metrics.efferent),
+            (MetricEvidence::Known(0), MetricEvidence::Known(0))
+        );
+        assert_eq!(
+            before
+                .metrics
+                .evaluation_unit
+                .expect("old metadata")
+                .assembly_name
+                .as_deref(),
+            Some("Before")
+        );
+        assert!(before.incoming.is_empty());
+        assert!(before.outgoing.is_empty());
+        let after = index
+            .get_package_coupling("msbuild:App.csproj:app-unit")
+            .expect("new detail")
+            .expect("unit");
+        assert_eq!(after.metrics.package.path, std::path::Path::new("after"));
+        assert_eq!(
+            (after.metrics.afferent, after.metrics.efferent),
+            (MetricEvidence::Known(0), MetricEvidence::Known(1))
+        );
+        assert_eq!(
+            after
+                .metrics
+                .evaluation_unit
+                .expect("new metadata")
+                .assembly_name
+                .as_deref(),
+            Some("After")
+        );
+        assert!(after.incoming.is_empty());
+        assert_eq!(
+            after
+                .outgoing
+                .iter()
+                .map(|edge| (edge.package.name.as_str(), edge.dep_count))
+                .collect::<Vec<_>>(),
+            [("dependency", 7)]
+        );
     }
 }

@@ -17,7 +17,9 @@ use rayon::prelude::*;
 use tracing::{debug, info, trace, warn};
 
 use crate::Tethys;
+use crate::architecture::ArchPhaseResult;
 use crate::batch_writer::BatchWriter;
+use crate::cargo::CrateIndex;
 use crate::db::SymbolData;
 use crate::discovery::{DiscoveryRequest, DiscoverySnapshot, discover_workspace};
 use crate::error::{Error, IndexError, IndexErrorKind, Result};
@@ -28,9 +30,8 @@ use crate::languages::{self, common};
 use crate::lsp;
 use crate::parallel::{OwnedSymbolData, ParsedFileData};
 use crate::types::{
-    ArchPhaseResult, CrateInfo, FileId, Import, IndexOptions, IndexStats, Language, SymbolKind,
+    CrateInfo, FileId, Import, IndexOptions, IndexStats, Language, SymbolKind,
 };
-
 /// Keep the loaded context aligned with SQL rollback, including unwinding.
 struct DiscoveryRun<'a> {
     owner: &'a mut Tethys,
@@ -43,56 +44,6 @@ impl Drop for DiscoveryRun<'_> {
             self.owner.crates = crates;
             self.owner.discovery = publication.map_or_else(OnceLock::new, OnceLock::from);
         }
-    }
-}
-
-/// Pre-built file→crate assignment index for O(depth) ancestor-walk lookups.
-///
-/// Shared by [`Tethys::run_architecture_phase`] and
-/// [`Tethys::build_file_crate_map`] (idxperf claim C8): the alternative —
-/// `cargo::get_crate_for_file` — costs an O(crates) linear scan plus a
-/// `canonicalize()` syscall per file. Skipping the canonicalize here is safe
-/// because both `workspace_root` (canonicalized in `Tethys::new`) and each
-/// `CrateInfo::path` (canonicalized in crate discovery) are canonical at
-/// construction time.
-struct CrateIndex<'a> {
-    by_path: HashMap<&'a Path, &'a crate::types::CrateInfo>,
-}
-
-impl<'a> CrateIndex<'a> {
-    fn new(crates: &'a [crate::types::CrateInfo]) -> Self {
-        Self {
-            by_path: crates.iter().map(|c| (c.path.as_path(), c)).collect(),
-        }
-    }
-
-    /// Longest-prefix crate match for an absolute file path.
-    ///
-    /// `Path::ancestors()` yields the path itself first, then progressively
-    /// shorter parents, so the first hit IS the longest-prefix match —
-    /// matching `get_crate_for_file`'s nested-crate semantics (a file in
-    /// `foo-utils/` must map to `foo-utils`, never to a sibling `foo`).
-    fn crate_for(&self, abs: &Path) -> Option<&'a crate::types::CrateInfo> {
-        abs.ancestors().find_map(|p| self.by_path.get(p).copied())
-    }
-
-    /// Longest-prefix crate match for a stored file path.
-    ///
-    /// Resolves the (workspace-relative) `file_path` to absolute against
-    /// `workspace_root` before the ancestor walk, tolerating an
-    /// already-absolute stored path. Both callers store the identical
-    /// resolution rule here so it can never drift between them.
-    fn crate_for_file(
-        &self,
-        file_path: &Path,
-        workspace_root: &Path,
-    ) -> Option<&'a crate::types::CrateInfo> {
-        let abs = if file_path.is_absolute() {
-            file_path.to_path_buf()
-        } else {
-            workspace_root.join(file_path)
-        };
-        self.crate_for(&abs)
     }
 }
 
@@ -643,7 +594,7 @@ impl Tethys {
             .into_iter()
             .map(|file| {
                 let crate_name = crate_index
-                    .crate_for_file(&file.path, &self.workspace_root)
+                    .crate_for_file(&file, &self.workspace_root)
                     .map_or_else(
                         || {
                             let top = file
@@ -1370,58 +1321,6 @@ impl Tethys {
             _ => false,
         }
     }
-
-    /// Final indexing phase: rebuild `arch_*` tables from current files + `file_deps`.
-    /// Returns `ArchStats`, or propagates DB errors. Skips files outside any crate.
-    /// Returns `ArchStats::default()` (all zeros) when no Rust crates were discovered.
-    pub(crate) fn run_architecture_phase(&self) -> Result<crate::types::ArchStats> {
-        use crate::db::PackageInsert;
-        use crate::types::PackageSource;
-
-        // Non-Rust workspaces have no crates; succeed with all-zero stats.
-        // Real architecture failures abort the enclosing revision.
-        if self.crates().is_empty() {
-            return Ok(crate::types::ArchStats::default());
-        }
-
-        // Materialize the relative paths first so `PackageInsert<'_>` can borrow
-        // them as `&str` — `Cow::into_owned` drops the borrow that `PackageInsert`
-        // requires, so we need an owning backing vec that outlives `packages`.
-        let package_paths: Vec<String> = self
-            .crates()
-            .iter()
-            .map(|c| self.relative_path(&c.path).to_string_lossy().into_owned())
-            .collect();
-
-        let packages: Vec<PackageInsert<'_>> = self
-            .crates()
-            .iter()
-            .zip(package_paths.iter())
-            .map(|(c, p)| PackageInsert {
-                name: c.name.as_str(),
-                path: p.as_str(),
-                source: PackageSource::Manifest,
-            })
-            .collect();
-
-        // Map each file to its containing crate via the shared CrateIndex
-        // ancestor walk: O(files × depth), zero syscalls.
-        let crate_index = CrateIndex::new(self.crates());
-
-        let mut file_to_package: Vec<(crate::types::FileId, &str)> = Vec::new();
-        for file in self.db.list_all_files()? {
-            if let Some(info) = crate_index.crate_for_file(&file.path, &self.workspace_root) {
-                file_to_package.push((file.id, info.name.as_str()));
-            } else {
-                tracing::trace!(
-                    file = %file.path.display(),
-                    "file outside any crate, skipping from architecture phase"
-                );
-            }
-        }
-
-        self.db.repopulate_architecture(&packages, &file_to_package)
-    }
 }
 
 #[cfg(test)]
@@ -1857,7 +1756,7 @@ mod tests {
 #[cfg(test)]
 mod arch_phase_tests {
     use crate::Tethys;
-    use crate::types::ArchPhaseResult;
+    use crate::architecture::ArchPhaseResult;
     use std::fs;
     use tempfile::TempDir;
 

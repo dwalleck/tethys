@@ -1,0 +1,8 @@
+{
+  "path": "src/cli/coupling.rs",
+  "before": "    let tethys = Tethys::new(workspace)?;\n\n    if let Some(name) = package {",
+  "after": "    let mut tethys = Tethys::new(workspace)?;\n    let sdk = std::env::var_os(\"TETHYS_SDK_MSBUILD_PATH\")\n        .ok_or_else(|| tethys::Error::Config(\"mutation requires explicit SDK host\".into()))?;\n    tethys.index_with_options(tethys::IndexOptions::default().with_discovery(\n        tethys::discovery::DiscoveryOptions {\n            trust_msbuild: true,\n            msbuild_path: Some(std::path::PathBuf::from(sdk)),\n            ..tethys::discovery::DiscoveryOptions::default()\n        },\n    ))?;\n\n    if let Some(name) = package {",
+  "tests": [
+    "coupling_queries_read_published_units_without_launching_evaluation"
+  ]
+}

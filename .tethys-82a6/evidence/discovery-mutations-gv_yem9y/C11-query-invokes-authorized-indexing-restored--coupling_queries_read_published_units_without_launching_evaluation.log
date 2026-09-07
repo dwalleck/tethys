@@ -1,0 +1,19 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-l48_hyll)
+    Finished `test` profile [optimized + debuginfo] target(s) in 1.21s
+────────────
+ Nextest run ID d0471214-b5de-4e87-ac5b-37d6d3ff41e6 with nextest profile: default
+    Starting 1 test across 1 binary (5 tests skipped)
+        SKIP [         ] tethys::discovery_cli installed_companion
+        SKIP [         ] tethys::discovery_cli invalid_discovery_arguments_do_not_publish_an_index
+        SKIP [         ] tethys::discovery_cli missing_selected_host_publishes_toolchain_failure_even_on_rebuild
+        SKIP [         ] tethys::discovery_cli restore_permission_does_not_grant_evaluation_and_queries_use_published_sources
+        SKIP [         ] tethys::discovery_cli untrusted_index_publishes_source_only_with_nonzero_status
+        PASS [   2.173s] tethys::discovery_cli coupling_queries_read_published_units_without_launching_evaluation
+────────────
+     Summary [   2.175s] 1 test run: 1 passed, 5 skipped
+        PASS [   2.173s] tethys::discovery_cli coupling_queries_read_published_units_without_launching_evaluation
+        SKIP [         ] tethys::discovery_cli installed_companion
+        SKIP [         ] tethys::discovery_cli invalid_discovery_arguments_do_not_publish_an_index
+        SKIP [         ] tethys::discovery_cli missing_selected_host_publishes_toolchain_failure_even_on_rebuild
+        SKIP [         ] tethys::discovery_cli restore_permission_does_not_grant_evaluation_and_queries_use_published_sources
+        SKIP [         ] tethys::discovery_cli untrusted_index_publishes_source_only_with_nonzero_status

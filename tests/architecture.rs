@@ -5,7 +5,7 @@
 
 use std::fs;
 use tempfile::TempDir;
-use tethys::{CouplingSort, Tethys};
+use tethys::{CouplingSort, MetricEvidence, Tethys};
 
 /// Builds the canonical three-crate fixture in a temp dir, indexes it,
 /// and returns (dir, tethys). The dir must be kept alive.
@@ -98,16 +98,28 @@ fn coupling_metrics_match_expected_values() {
     };
 
     let a = by_name("crate_a");
-    assert_eq!((a.afferent, a.efferent), (0, 2), "crate_a Ca=0, Ce=2");
-    assert!((a.instability() - 1.0).abs() < 1e-9);
+    assert_eq!(
+        (a.afferent, a.efferent),
+        (MetricEvidence::Known(0), MetricEvidence::Known(2)),
+        "crate_a Ca=0, Ce=2"
+    );
+    assert_eq!(a.instability(), MetricEvidence::Known(1.0));
 
     let b = by_name("crate_b");
-    assert_eq!((b.afferent, b.efferent), (1, 1), "crate_b Ca=1, Ce=1");
-    assert!((b.instability() - 0.5).abs() < 1e-9);
+    assert_eq!(
+        (b.afferent, b.efferent),
+        (MetricEvidence::Known(1), MetricEvidence::Known(1)),
+        "crate_b Ca=1, Ce=1"
+    );
+    assert_eq!(b.instability(), MetricEvidence::Known(0.5));
 
     let c = by_name("crate_c");
-    assert_eq!((c.afferent, c.efferent), (2, 0), "crate_c Ca=2, Ce=0");
-    assert!((c.instability() - 0.0).abs() < 1e-9);
+    assert_eq!(
+        (c.afferent, c.efferent),
+        (MetricEvidence::Known(2), MetricEvidence::Known(0)),
+        "crate_c Ca=2, Ce=0"
+    );
+    assert_eq!(c.instability(), MetricEvidence::Known(0.0));
 }
 
 #[test]
@@ -122,17 +134,18 @@ fn coupling_sort_orders_match_spec() {
     // by very different keys. Assert the actual instability values too so a
     // regression that broke the sort but coincidentally still produced
     // alphabetical order would still fail.
-    let i_values: Vec<f64> = by_instability
+    let i_values: Vec<_> = by_instability
         .iter()
         .map(tethys::CouplingMetrics::instability)
         .collect();
-    assert_eq!(i_values.len(), 3);
-    assert!((i_values[0] - 1.0).abs() < 1e-9, "first by I should be 1.0");
-    assert!(
-        (i_values[1] - 0.5).abs() < 1e-9,
-        "second by I should be 0.5"
+    assert_eq!(
+        i_values,
+        [
+            MetricEvidence::Known(1.0),
+            MetricEvidence::Known(0.5),
+            MetricEvidence::Known(0.0)
+        ]
     );
-    assert!((i_values[2] - 0.0).abs() < 1e-9, "third by I should be 0.0");
     let names_i: Vec<_> = by_instability
         .iter()
         .map(|m| m.package.name.as_str())

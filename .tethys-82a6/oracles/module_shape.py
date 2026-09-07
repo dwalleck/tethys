@@ -151,9 +151,14 @@ def main():
                         )
             if path == "src/batch_writer.rs" and node.type == "scoped_identifier" and text == "Index::open":
                 failures.append(f"C13 {path}:{node.start_point.row+1}: independent writer connection")
-    identity = ledger["source_identity"]
-    if int(options.stage[1:]) >= int(identity["stage"][1:]):
-        expected = set(identity["symbols"])
+    ownership = {
+        name: rule
+        for rule in ledger["owned_symbols"]
+        if int(options.stage[1:]) >= int(rule["stage"][1:])
+        for name in rule["symbols"]
+    }
+    if ownership:
+        expected = set(ownership)
         spellings = tuple(name.encode() for name in expected)
         found = set()
         for path in sorted((root / "src").rglob("*.rs")):
@@ -165,7 +170,10 @@ def main():
                 continue
             relative = path.relative_to(root).as_posix()
             for node in source_nodes(parser, source, relative):
-                if node.type not in ("enum_item", "trait_item", "function_item", "function_signature_item"):
+                if node.type not in (
+                    "struct_item", "enum_item", "trait_item", "type_item", "associated_type",
+                    "function_item", "function_signature_item",
+                ):
                     continue
                 name_node = node.child_by_field_name("name")
                 if name_node is None:
@@ -173,16 +181,19 @@ def main():
                 name = source[name_node.start_byte:name_node.end_byte].decode().removeprefix("r#")
                 if name not in expected:
                     continue
-                found.add(name)
-                if relative != identity["owner"]:
-                    failures.append(f"C13 {relative}:{node.start_point.row+1}: forbidden owner of {name}; expected {identity['owner']}")
-                for child in node.named_children:
-                    if child.type == "visibility_modifier":
-                        visibility = source[child.start_byte:child.end_byte]
-                        if visibility != b"pub(crate)":
-                            failures.append(f"C13 {relative}:{node.start_point.row+1}: {name} must remain crate-private")
+                rule = ownership[name]
+                if relative != rule["owner"]:
+                    failures.append(f"C13 {relative}:{node.start_point.row+1}: forbidden owner of {name}; expected {rule['owner']}")
+                else:
+                    found.add(name)
+                if rule.get("crate_private", False):
+                    for child in node.named_children:
+                        if child.type == "visibility_modifier":
+                            visibility = source[child.start_byte:child.end_byte]
+                            if visibility != b"pub(crate)":
+                                failures.append(f"C13 {relative}:{node.start_point.row+1}: {name} must remain crate-private")
         for name in sorted(expected - found):
-            failures.append(f"C13 {identity['owner']}: required source-identity symbol {name} is absent")
+            failures.append(f"C13 {ownership[name]['owner']}: required owned symbol {name} is absent")
     for directory in (root / "src/discovery",):
         if directory.exists():
             for path in directory.rglob("*.rs"):

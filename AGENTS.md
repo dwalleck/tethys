@@ -48,6 +48,7 @@ For "what is X / how do I call X / how does process Y work", route via
 |------|--------------|
 | `src/lib.rs` | `Tethys` facade + public re-exports |
 | `src/indexing.rs` | Indexing pipeline orchestration (methods on `Tethys`) |
+| `src/architecture.rs` | Coupling records/evidence, formula and architecture phase; adapter-owned attribution (tethys-82a6) |
 | `src/reindex.rs` | Incremental reindex / staleness (mtime-based) |
 | `src/batch_writer.rs` | Streaming-mode batched DB writer thread |
 | `src/parallel.rs` | Owned `Send` parse data for rayon |
@@ -98,9 +99,11 @@ For "what is X / how do I call X / how does process Y work", route via
   supported only by speculative references; `CallerMode::LspRefined` augments
   all indexed callers and is direct-only. The CLI rejects `--lsp` with
   `--exclude-speculative` or `--transitive` rather than ignoring either flag.
-- **Coupling instability is computed in Rust, not SQL.** The `arch_coupling`
-  view yields only Ca/Ce; `CouplingMetrics::instability` owns the formula.
-  Keep it in one place.
+- **Coupling evidence belongs to `src/architecture.rs`.** The SQL view yields
+  indexed Ca/Ce; `CouplingMetrics::instability` owns the formula. Evaluated-unit
+  counts use `MetricEvidence`: unselected project declarations withhold source Ce
+  and candidate-unit Ca rather than creating edges. Details read one SQLite
+  snapshot; see `docs/msbuild-evaluation.md` (tethys-82a6).
 - **Two-pass deferred resolution.** Indexing tolerates forward/circular refs by
   queuing `PendingDependency` and retrying until no progress. Consequence:
   `refs.symbol_id` is **NULL until Pass 2 resolves it** — don't assume refs are
@@ -117,7 +120,7 @@ For "what is X / how do I call X / how does process Y work", route via
 - The index is a SQLite DB at **`.rivets/index/tethys.db`** under the workspace
   root (created by `Tethys::new`). Incompatible schemas are refused without
   mutation; recover with `index --rebuild` (tethys-82a6).
-- Schema **2** is the source of truth in `src/db/schema.rs`; the ER diagram and table
+- Schema **3** is the source of truth in `src/db/schema.rs`; the ER diagram and table
   semantics are documented in `.agents/summary/data_models.md`.
 - **Publication is whole-run atomic** (`src/db/revision.rs`, tethys-82a6).
   Batch and scoped streaming writers share one transaction, including discovery

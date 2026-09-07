@@ -1,0 +1,45 @@
+{
+  "prior_observation": "Before F31, adding a public CouplingMetrics declaration to src/types.rs returned C13 PASS S5 in this isolated workspace.",
+  "baseline": "C13 PASS S5: approved paths/ownership/dependencies; baseline=0a2753d50dd8fb335660b247c00e0efa355a8fcc; upstream=refs/remotes/origin/main\n",
+  "cases": [
+    {
+      "name": "architecture-dto-wrong-owner",
+      "red": "C13 src/types.rs:2588: forbidden owner of CouplingMetrics; expected src/architecture.rs\n",
+      "restored": "C13 PASS S5: approved paths/ownership/dependencies; baseline=0a2753d50dd8fb335660b247c00e0efa355a8fcc; upstream=refs/remotes/origin/main\n"
+    },
+    {
+      "name": "architecture-phase-wrong-owner",
+      "red": "C13 src/indexing.rs:1865: forbidden owner of run_architecture_phase; expected src/architecture.rs\nC13 src/architecture.rs: required owned symbol run_architecture_phase is absent\n",
+      "restored": "C13 PASS S5: approved paths/ownership/dependencies; baseline=0a2753d50dd8fb335660b247c00e0efa355a8fcc; upstream=refs/remotes/origin/main\n"
+    },
+    {
+      "name": "cargo-attribution-wrong-owner",
+      "red": "C13 src/types.rs:2588: forbidden owner of CrateIndex; expected src/cargo.rs\n",
+      "restored": "C13 PASS S5: approved paths/ownership/dependencies; baseline=0a2753d50dd8fb335660b247c00e0efa355a8fcc; upstream=refs/remotes/origin/main\n"
+    },
+    {
+      "name": "source-identity-wrong-owner",
+      "red": "C13 src/types.rs:2588: forbidden owner of SourcePathIdentity; expected src/languages/module_resolver.rs\n",
+      "restored": "C13 PASS S5: approved paths/ownership/dependencies; baseline=0a2753d50dd8fb335660b247c00e0efa355a8fcc; upstream=refs/remotes/origin/main\n"
+    },
+    {
+      "name": "source-identity-public",
+      "red": "C13 src/languages/module_resolver.rs:65: SourcePathIdentity must remain crate-private\n",
+      "restored": "C13 PASS S5: approved paths/ownership/dependencies; baseline=0a2753d50dd8fb335660b247c00e0efa355a8fcc; upstream=refs/remotes/origin/main\n"
+    },
+    {
+      "name": "neutral-driver-evaluation",
+      "red": "C13 src/indexing.rs:1863: forbidden function ownership\n",
+      "restored": "C13 PASS S5: approved paths/ownership/dependencies; baseline=0a2753d50dd8fb335660b247c00e0efa355a8fcc; upstream=refs/remotes/origin/main\n"
+    }
+  ],
+  "checker_sha256": "022149bacca3233e695b55dc55202f26596c711166f1b11e993e0967c444485a",
+  "ledger_sha256": "08d4dc64babd49eb5c54bf246cbb28f980ff4907890feb5d8393440c9fc1566c",
+  "production_sha256": {
+    "src/architecture.rs": "a480493948085b29d16a25a2881affbbc2b2eb6c9dee18dd26bf51592d211977",
+    "src/indexing.rs": "7c1ae11672091fd17afb8ede865cb7d279251e808aa6cbe418ca332c1e15ed33",
+    "src/types.rs": "0fa087fa5f69f1c11f6fd332d88acff8be895720cae32768161f477c509a9432",
+    "src/languages/module_resolver.rs": "6fc7d6d2d477589f28c196cf64f727171fd83a2b76a1b11912957d5f382dca9c",
+    "src/cargo.rs": "82164c661bec1d1f763b7e43cc81d564d3060726cfbb11cb9eaee1fe7ad4bb39"
+  }
+}

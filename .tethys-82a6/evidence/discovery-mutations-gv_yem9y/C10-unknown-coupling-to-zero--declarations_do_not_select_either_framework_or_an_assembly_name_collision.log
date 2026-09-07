@@ -1,0 +1,56 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-l48_hyll)
+    Finished `test` profile [optimized + debuginfo] target(s) in 3.20s
+────────────
+ Nextest run ID a3d457ef-4fd1-435f-a3a7-c11e79427c6f with nextest profile: default
+    Starting 1 test across 1 binary (3 tests skipped)
+        SKIP [         ] tethys::csharp_coupling incomplete_project_issue_and_failed_unit_each_withhold_csharp_incoming_only
+        SKIP [         ] tethys::csharp_coupling noncontributing_reference_is_retained_without_poisoning_either_count
+        SKIP [         ] tethys::csharp_coupling numeric_sorts_place_unknown_after_known_zero_with_name_ties
+        FAIL [   0.023s] tethys::csharp_coupling declarations_do_not_select_either_framework_or_an_assembly_name_collision
+  stdout ───
+
+    running 1 test
+    test declarations_do_not_select_either_framework_or_an_assembly_name_collision ... FAILED
+
+    failures:
+
+    failures:
+        declarations_do_not_select_either_framework_or_an_assembly_name_collision
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.02s
+
+  stderr ───
+
+    thread 'declarations_do_not_select_either_framework_or_an_assembly_name_collision' (2155564) panicked at tests/csharp_coupling.rs:84:9:
+    assertion `left == right` failed: msbuild:App/App.csproj:app-net8 outgoing
+      left: Known(0)
+     right: Indeterminate(UnselectedProjectReference)
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   0.023s] 1 test run: 0 passed, 1 failed, 3 skipped
+        SKIP [         ] tethys::csharp_coupling incomplete_project_issue_and_failed_unit_each_withhold_csharp_incoming_only
+        SKIP [         ] tethys::csharp_coupling noncontributing_reference_is_retained_without_poisoning_either_count
+        SKIP [         ] tethys::csharp_coupling numeric_sorts_place_unknown_after_known_zero_with_name_ties
+        FAIL [   0.023s] tethys::csharp_coupling declarations_do_not_select_either_framework_or_an_assembly_name_collision
+  stdout ───
+
+    running 1 test
+    test declarations_do_not_select_either_framework_or_an_assembly_name_collision ... FAILED
+
+    failures:
+
+    failures:
+        declarations_do_not_select_either_framework_or_an_assembly_name_collision
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.02s
+
+  stderr ───
+
+    thread 'declarations_do_not_select_either_framework_or_an_assembly_name_collision' (2155564) panicked at tests/csharp_coupling.rs:84:9:
+    assertion `left == right` failed: msbuild:App/App.csproj:app-net8 outgoing
+      left: Known(0)
+     right: Indeterminate(UnselectedProjectReference)
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+error: test run failed

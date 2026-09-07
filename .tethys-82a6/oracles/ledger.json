@@ -8,11 +8,29 @@
     "src/batch_writer.rs": {"growth": 100, "forbidden_functions": ["evaluate_msbuild", "parse_solution", "restore_project", "cache_key"]},
     "src/main.rs": {"growth": 100, "forbidden_functions": ["evaluate_msbuild", "parse_solution", "restore_project", "cache_key"]}
   },
-  "source_identity": {
-    "stage": "S4",
-    "owner": "src/languages/module_resolver.rs",
-    "symbols": ["ModuleResolver", "SourcePathIdentity", "source_path_identity"]
-  },
+  "owned_symbols": [
+    {
+      "stage": "S4",
+      "owner": "src/languages/module_resolver.rs",
+      "symbols": ["ModuleResolver", "SourcePathIdentity", "source_path_identity"],
+      "crate_private": true
+    },
+    {
+      "stage": "S5",
+      "owner": "src/architecture.rs",
+      "symbols": [
+        "MetricEvidence", "CouplingIndeterminacy", "EvaluationUnitCoupling",
+        "ArchPhaseResult", "PackageId", "PackageSource", "Package",
+        "CouplingMetrics", "CouplingSort", "PackageDependency", "CouplingDetail",
+        "ArchStats", "ArchitecturePackage", "run_architecture_phase", "apply_evidence"
+      ]
+    },
+    {
+      "stage": "S5",
+      "owner": "src/cargo.rs",
+      "symbols": ["CrateIndex", "architecture_inputs"]
+    }
+  ],
   "allowed_production": [
     "src/lib.rs", "src/indexing.rs", "src/reindex.rs", "src/batch_writer.rs", "src/cargo.rs",
     "src/languages/module_resolver.rs", "src/resolve.rs", "src/unused_imports.rs", "src/db/mod.rs", "src/db/revision.rs",

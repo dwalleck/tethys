@@ -1,0 +1,39 @@
+{
+  "claim": "C10",
+  "source": "pre-S5 accepted publication architecture",
+  "binary_sha256": "232ee411fef5c3885b95b6e92d97dbacce45f8769855df8631a664f27171a4c1",
+  "fixture_frameworks": [
+    "net8.0",
+    "netstandard2.1"
+  ],
+  "fixture_setup": "normal offline restore completed before the tested index invocation",
+  "index_exit": 0,
+  "independent_sql_units": [
+    [
+      "App/App.csproj",
+      1
+    ],
+    [
+      "Core/Core.csproj",
+      2
+    ],
+    [
+      "Isolated/Isolated.csproj",
+      1
+    ]
+  ],
+  "independent_sql_declarations": [
+    [
+      "App/App.csproj",
+      "Core/Core.csproj"
+    ]
+  ],
+  "expected_coupling_units": 4,
+  "coupling_exit": 0,
+  "observed": {
+    "count": 0,
+    "packages": [],
+    "sort": "instability"
+  },
+  "result": "RED: four persisted evaluated units and their declaration absent from coupling"
+}

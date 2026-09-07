@@ -46,16 +46,23 @@ queries, plus maintenance (`vacuum`, stats). Created with `Tethys::new`; LSP
 opt-in via `with_lsp`.
 
 ### `types` (`src/types.rs`)
-The domain model and the largest single source file. Defines the core records
+The core domain model. Defines records
 (`Symbol`, `Reference`, `Import`, `IndexedFile`, `Span`), strongly-typed IDs
-(`SymbolId`, `FileId`, `RefId`, `PackageId`), enums (`Language`, `SymbolKind`,
+(`SymbolId`, `FileId`, `RefId`), enums (`Language`, `SymbolKind`,
 `Visibility`, `ReferenceKind`, `PanicKind`, `ReachabilityDirection`,
-`CallEdgeSelection`, `CallerMode`, `CouplingSort`), signatures
+`CallEdgeSelection`, `CallerMode`), signatures
 (`FunctionSignature`, `Parameter`, `ParameterKind`), result/stat structures
 (`Caller`, `IndexStats`, `DatabaseStats`, `ReachabilityResult`, `Cycle`,
-`StalenessReport`, `IndexUpdate`), architecture types (`Package`,
-`CouplingMetrics`, `CouplingDetail`, `PackageDependency`, `ArchStats`), LSP
-outcome types, and `IndexOptions`/`CrateInfo`. See `data_models.md`.
+`StalenessReport`, `IndexUpdate`), LSP outcome types, and
+`IndexOptions`/`CrateInfo`. See `data_models.md`.
+
+### `architecture` (`src/architecture.rs`)
+Owns architecture records (`Package`, `PackageId`, `CouplingSort`,
+`CouplingMetrics`, `CouplingDetail`, `PackageDependency`, `ArchStats`,
+`ArchPhaseResult`), typed metric evidence and evaluated-unit metadata.
+It assembles the architecture phase through Cargo/MSBuild attribution adapters;
+SQLite projection and snapshot reads remain in `db/architecture.rs`.
+Public records are re-exported from the library root.
 
 ### `error` (`src/error.rs`)
 `Error` (top-level, re-exported), `IndexError`, and `IndexErrorKind`. Distinguishes

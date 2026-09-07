@@ -8,6 +8,7 @@ mod types;
 
 pub use crate::cargo::CargoDiscovery;
 pub use msbuild::MsBuildDiscovery;
+pub(crate) use msbuild::architecture_packages;
 pub use types::{
     DeclaredAssemblyReference, DeclaredProjectReference, DiscoveryCacheObservation,
     DiscoveryCachePolicy, DiscoveryDiagnostic, DiscoveryDiagnosticSeverity, DiscoveryFailure,
