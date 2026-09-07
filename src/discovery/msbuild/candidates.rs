@@ -68,6 +68,12 @@ pub(super) fn relative_path(
             let mut resolved = PathBuf::new();
             for component in absolute.components() {
                 match component {
+                    Component::Prefix(prefix) => {
+                        // A Windows prefix is not yet the rooted path: canonicalizing
+                        // it can fail or resolve a drive's current directory instead.
+                        // Accumulate it until RootDir before accessing the filesystem.
+                        resolved.push(prefix.as_os_str());
+                    }
                     Component::CurDir => {}
                     Component::ParentDir => {
                         resolved.pop();
@@ -378,8 +384,12 @@ fn slnx_paths(path: &Path, text: &str) -> Result<Vec<String>, DiscoveryFailure> 
                 for attribute in element.attributes() {
                     let attribute =
                         attribute.map_err(|error| malformed(path, error.to_string()))?;
-                    let value = attribute
-                        .decode_and_unescape_value(reader.decoder())
+                    // Native solution parsing preserves literal attribute whitespace.
+                    let decoded = reader
+                        .decoder()
+                        .decode(attribute.value.as_ref())
+                        .map_err(|error| malformed(path, error.to_string()))?;
+                    let value = quick_xml::escape::unescape(&decoded)
                         .map_err(|error| malformed(path, error.to_string()))?;
                     if attribute.key.as_ref() == b"Path" {
                         declared = Some(value.into_owned());

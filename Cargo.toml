@@ -41,7 +41,7 @@ percent-encoding = "2.3"
 cargo_toml = "0.22"
 
 # Evaluated discovery: XML candidates, stable cache fingerprints, bounded process groups
-quick-xml = "0.38"
+quick-xml = "0.41"
 sha2 = "0.10"
 command-group = { version = "5.0.1", default-features = false }
 

@@ -259,6 +259,64 @@ fn xml_escapes_decode_but_external_entities_and_broken_roots_are_rejected() {
     );
 }
 
+#[test]
+fn xml_attribute_whitespace_preserves_distinct_paths_and_character_references() {
+    let root = TempDir::new().unwrap();
+    put(root.path(), "A B.csproj", "<Project />");
+    // Tabs are valid Unix file names but invalid Windows file names.
+    #[cfg(unix)]
+    put(root.path(), "A\tB.csproj", "<Project />");
+    put(
+        root.path(),
+        "Distinct.slnx",
+        "<Solution><Project Path=\"A B.csproj\"/><Project Path=\"A\tB.csproj\"/></Solution>",
+    );
+    put(
+        root.path(),
+        "Reference.slnx",
+        "<Solution><Project Path=\"A&#x9;B.csproj\"/></Solution>",
+    );
+    let snapshot = discover(root.path());
+    let projects: Vec<_> = snapshot
+        .projects
+        .iter()
+        .map(|project| (project.key.as_str(), project.containers.clone()))
+        .collect();
+    let mut expected = vec![("A B.csproj", vec![PathBuf::from("Distinct.slnx")])];
+    if cfg!(unix) {
+        expected.insert(
+            0,
+            (
+                "A\tB.csproj",
+                vec![
+                    PathBuf::from("Distinct.slnx"),
+                    PathBuf::from("Reference.slnx"),
+                ],
+            ),
+        );
+    }
+    assert_eq!(projects, expected);
+    #[cfg(windows)]
+    assert_eq!(
+        snapshot
+            .issues
+            .iter()
+            .map(|issue| (&issue.path, issue.failure.reason))
+            .collect::<Vec<_>>(),
+        vec![
+            (
+                &PathBuf::from("Distinct.slnx"),
+                DiscoveryFailureReason::MalformedInput
+            ),
+            (
+                &PathBuf::from("Reference.slnx"),
+                DiscoveryFailureReason::MalformedInput
+            ),
+        ],
+        "invalid tab paths must not silently bind to the existing space-named project"
+    );
+}
+
 #[cfg(unix)]
 #[test]
 fn symlink_aliases_deduplicate_and_escapes_and_loops_do_not_get_followed() {

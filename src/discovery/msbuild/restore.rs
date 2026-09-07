@@ -367,8 +367,11 @@ fn parse_hints(
                     let attribute = attribute.map_err(|error| malformed(error.to_string()))?;
                     let name = String::from_utf8(attribute.key.as_ref().to_vec())
                         .map_err(|error| malformed(error.to_string()))?;
-                    let value = attribute
-                        .decode_and_unescape_value(reader.decoder())
+                    let decoded = reader
+                        .decoder()
+                        .decode(attribute.value.as_ref())
+                        .map_err(|error| malformed(error.to_string()))?;
+                    let value = quick_xml::escape::unescape(&decoded)
                         .map_err(|error| malformed(error.to_string()))?
                         .into_owned();
                     attrs.insert(name, value);
@@ -971,8 +974,11 @@ fn package_roots(
                     for attribute in element.attributes() {
                         let attribute =
                             attribute.map_err(|error| crate::Error::Config(error.to_string()))?;
-                        let decoded = attribute
-                            .decode_and_unescape_value(reader.decoder())
+                        let decoded_value = reader
+                            .decoder()
+                            .decode(attribute.value.as_ref())
+                            .map_err(|error| crate::Error::Config(error.to_string()))?;
+                        let decoded = quick_xml::escape::unescape(&decoded_value)
                             .map_err(|error| crate::Error::Config(error.to_string()))?
                             .into_owned();
                         match attribute.key.as_ref() {

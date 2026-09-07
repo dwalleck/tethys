@@ -58,7 +58,7 @@ Counts use design's physical-production footprint convention; all new paths star
 | src/discovery/mod.rs | 0 | 30–100 | adapter interface/coordinator | no SQL |
 | src/discovery/types.rs | 0 | 250–550 | canonical immutable metadata/options | no execution |
 | src/discovery/msbuild/mod.rs | 0 | 550–750 | trust/evaluation workflow | no SQL |
-| src/discovery/msbuild/candidates.rs | 0 | 440–550 | non-executing candidate/path parsing | no execution |
+| src/discovery/msbuild/candidates.rs | 0 | 440–570 | non-executing candidate/path parsing, rooted Windows prefixes and whitespace-preserving XML decoding | no execution |
 | src/discovery/msbuild/host.rs | 0 | 850–1100 | host/process/protocol deadline, runtime qualification and native wire lookup | no inferred grants |
 | src/discovery/msbuild/cache.rs | 0 | 300–450 | qualified recipe/input validation and opaque restore receipts | no universal purity claim |
 | src/discovery/msbuild/restore.rs | 0 | 1100–1400 | separately authorized restore, actual solution/config provenance and current-input corroboration | no feed/lock override |
@@ -243,6 +243,27 @@ Additional review fences: native_metadata_names_are_case_insensitive_without_rew
 **F8 placement review:** retaining actual solution context and applicable NuGet configuration adds197 production lines within the existing restore-policy owner after integration simplification. The restore tripwire is amended1200→1400; this is not a new responsibility or wider public seam. Source-only membership documentation now accurately distinguishes evaluated participation from successful syntax indexing. Final integrated Clippy passes and676 native tests pass with zero skipped (artifact392), including the previously red alias fence. Actual Windows NuGet success remains pending.
 
 **Final local checkpoint:** artifact397 records fmt,1,155 nextest passes (34 intentionally ignored native/platform fences),18 doctests (2 ignored), actual frozen Cargo CLI output and real public discovery smoke, and C13 S3 PASS. The separate native run executes676 tests with zero skipped. Final mutation replay passes all seven/eight named mutation/falsifier cases in102.28 seconds. Rust pre-commit checklist reviewed; no warning suppressions or compatibility shims were added. Evaluation/candidate/cache fixture deadlines hold; pinned corpus resource qualification belongs to S6/C12, not an invented local measurement. Final assembled integration is N/A — S4–S6 remain. Native Windows F8 negative/positive control is the mandatory next checkpoint before S4 advances.
+
+## S3a: Repair observed dependency and Windows platform failures
+
+**Claim IDs:** C4, C6, C7, C9, C13.
+**Expected behavior:** the discovery dependency graph passes security policy; missing inside/outside Windows paths retain correct identities/reasons; native elapsed time is attributed to its actual phase without assuming process timeouts.
+**Oracle:** actual Cargo Deny and Windows CI run34089180775; native filesystem/process behavior, existing authored metadata/reason manifests, and direct native `dotnet sln … list` for literal/character-reference whitespace.
+**Stress fixture:** bare drive/verbatim prefix during missing-path resolution, missing ProjectReference, inside/outside controls, normal worker exit versus silent worker timeout.
+**Regression fence:** existing cargo-deny CI, discovery_candidates missing/outside manifest and xml_attribute_whitespace_preserves_distinct_paths_and_character_references, discovery_cache native metadata/launch fences and discovery_failures timeout fences.
+**Named mutation:** downgrade quick-xml to0.38.4 → observed RUSTSEC-2026-0194/0195; canonicalize bare Windows prefix → observed Incorrect function/wrong reason; normalize literal attribute whitespace → exact project/container mismatch in artifact455. Process source review rules out a blocking job wait: no supervisor mutation or fix is justified.
+**Complexity/production scale:** path fallback O(components), security-fixed attribute checks O(attributes); existing bounded output/deadline/resource limits remain. No new per-item host probing or unbounded wait.
+**Wall budget/phase:** discovery always-on; preserve60-second per-process bound and require normal worker completion without waiting out that bound. Corpus30-minute/resource qualification remains S6.
+**Module shape:** existing candidates/host/dependency owners only; no new seam, grant or process policy. Existing S3 production tripwires and C13 remain applicable.
+**Files:** Cargo.toml, Cargo.lock, src/discovery/msbuild/{candidates.rs,host.rs,restore.rs}, tests/discovery_candidates.rs, .github/workflows/ci.yml; this plan and atomic existing guidance/fragment if behavior wording changes. Host edits are temporary tagged fingerprint timings only.
+**Estimate:** one evidence-routed platform repair checkpoint.
+**Diff estimate:** 200 lines.
+**PR increment:** repair in Neutral discovery PR46 before S4.
+**Commands and expected results:** `cargo deny --all-features check` → advisories/licenses/sources/bans pass; native discovery gate and smoke → exact metadata/reasons/timeout boundaries pass; C13 S3 passes; push and actual Windows/Cargo Deny CI must turn green. PR45's all17 green jobs at5237b91 prove only its unchanged S2 tree, not S3.
+
+**Diagnostic disposition:** command-group's Windows try_wait polls with zero timeout and returns the root process status; a held pipe at the deadline would produce Timeout, not the observed successful native metadata conversion. No supervisor fix is supported. Initial/final installation hashing each traverse the recorded installation inputs. The native gate preserves its original debug configuration and full fixture roster, adding only temporary `[DEBUG-82a6-fingerprint]` start/end timing and successful output capture. Release measurements cannot replace that regression gate. Remove tagged diagnostics after the native timing observation.
+
+**XML migration evidence:** Cargo Deny now passes with quick-xml0.41.0 (artifact458), without advisory exceptions. Its deprecated decode-and-unescape method cannot be replaced by whitespace normalization: actual native solution listing preserves literal tabs and numeric tab references, and lists space/tab paths distinctly. The new public candidate fence failed under normalization (artifact455), then passed after composing the dependency's decoder and unescape APIs at all three existing boundaries. The fence runs on every platform: Unix has distinct physical tab/space files; Windows requires invalid tab declarations to remain failures rather than bind to the space-named project. The candidate tripwire550→570 covers this decoding and rooted-prefix repair without moving responsibilities.
 
 ## S4: Persist and publish evaluated metadata during index and reindex
 
