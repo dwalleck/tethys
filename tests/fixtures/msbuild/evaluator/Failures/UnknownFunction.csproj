@@ -1,0 +1,1 @@
+<Project><PropertyGroup><Untracked>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)external.txt'))</Untracked></PropertyGroup></Project>

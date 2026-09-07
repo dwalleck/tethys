@@ -8,6 +8,8 @@ Baseline: repository upstream discovered as refs/remotes/origin/main. Integratio
 
 The managed evaluator uses protocol_version=1 and one JSON request on stdin / one JSON response on stdout; stderr is diagnostics only. Request: workspace_root (canonical absolute), project_path (absolute), target_framework (nullable SDK selector), global_properties (string map), msbuild_path (selected installation directory), trust_granted (bool). Host is registered before Microsoft.Build types load. Response: protocol_version, success, project_path, host {kind,path,version,runtime}, properties (string map), items (Compile/ProjectReference/Reference arrays of {include,full_path,metadata}), imports (absolute paths), glob_patterns (include/exclude/remove evidence), diagnostics ({code,message,file,line,column,severity}), cache_eligible and cache_ineligibility. Failure still returns diagnostics; no guessed target-unit binding. Native codes are data, never inferred from human substrings. SDK/Framework worker packaging supplies the correct runtime flavor. Contract adjustments inside the approved fields are coordinated before implementation, never inferred separately.
 
+Property projection returns required framework/identity/compiler/output/restore/toolchain fields plus explicit caller-global keys, not the ambient environment property bag. An ambient secret-shaped sentinel must not appear in returned properties. Companion build outputs under tools/tethys-msbuild-evaluate/bin and obj are ignored; generated lock metadata remains tracked.
+
 Neutral DiscoveryRequest/Snapshot types live only in src/discovery/types.rs; coordinator/mod owns adapter dispatch; Cargo adapter stays in src/cargo.rs. Library discovery can be exercised independently before index wiring. All integration callers consume the one canonical type, no duplicated wire/schema models outside managed serialization DTOs.
 
 Revision owner uses live BEGIN IMMEDIATE, nested savepoints and a scoped BatchWriter borrowing Index. The owner never holds its MutexGuard while the writer locks it. Fatal storage/channel/architecture errors roll back; bounded source/evaluation diagnostics remain distinct. Rebuild performs DDL under the transaction, not pre-delete. Work on the public facade is serialized through Main.
@@ -130,10 +132,18 @@ Issue-local oracles and test fixtures are non-production. Named test paths occur
 **Diff estimate:** 1600 lines.
 **PR increment:** Evaluation companion.
 **Commands and expected results:**
-- `dotnet build tools/tethys-msbuild-evaluate/Tethys.MSBuild.Evaluate.csproj --configuration Release` → runnable SDK and Framework distributions, dependency lock/license policy satisfied.
+- `python3 .tethys-82a6/oracles/worker_qualification.py --host sdk --prepare` (Windows: `--host windows --prepare`) → explicit locked restore, dependency-license verification and complete runtime-flavor distribution.
 - `python3 .tethys-82a6/oracles/worker_qualification.py --host sdk` → C5 exact fixture manifests; target sentinel negative+positive controls.
 - `python3 .tethys-82a6/oracles/worker_qualification.py --host windows` → C5/C14 actual VS17.14 classic profile/import/link metadata and clean-installed worker.
 - `python3 .tethys-82a6/oracles/module_shape.py --stage S2` → no target APIs and approved placement.
+
+**Local checkpoint evidence (Windows gate pending):** Both net8.0 and net472 compile with warnings treated as errors, zero warnings/errors. C5/C14 clean-install qualification passes with explicitly selected SDK8.0.417/MSBuild17.11.48.46605, SDK9.0.310/MSBuild17.14.37.60402 and SDK10.0.102/MSBuild18.0.7.61305, running the worker on .NET10.0.2. The initial host-version oracle compared the shorter MSBuildVersion; a direct native-property probe established MSBuildFileVersion as the full ProjectCollection.Version identity, and the oracle now compares that native property. No version string is fabricated. All 25 locked dependencies pass MIT/license-allowlist verification. C13 S2 passes; Program remains93 lines.
+
+**Mutation evidence:** Isolated disposable companion copies (never parent production files) dropped imported items → C5 Compile differs from MSBuild; selected SDK8 instead of requested SDK10, with the worker self-check deliberately neutralized to test the independent oracle → C14 selected host was substituted; removed the bundled companion DLL → missing artifact failure. Unmodified distribution then passed C5/C14 again; disposable mutation directory removed. Fresh-context WorkerReview found no concrete S2 blocker. Actual VS17.14 classic/packaging evidence must pass Windows CI before S3 advances. CONTEXT vocabulary and agent/deployment guidance are updated atomically with this slice.
+
+**Final local gates:** `cargo fmt`, all-target/all-feature clippy with `-D warnings`, nextest1131 passed/10 skipped, doctests18 passed/2 ignored. Explicit ignored-worker run: both msbuild_discovery and discovery_cli fences passed with the packaged real worker. Throwaway boundary probes rejected a valid JSON request padded to1MiB+1 and a64MiB item-metadata response; the latter returned one parseable594-byte failure response, not partial JSON. Probe files were removed. Rust pre-commit checklist reviewed. Platform CI remains the S2 acceptance gate.
+
+**Checkpoint size/upstream:** scoped staged increment1480 changed lines across54 files, within1600-line estimate. Fresh fetch leaves upstream main at the pinned0a2753d50dd8fb335660b247c00e0efa355a8fcc; no reconciliation needed. Only explicit S2 paths are staged; unrelated skills/notes/tracker edits remain outside the checkpoint.
 
 ## S3: Implement the neutral discovery adapters and freshness contract
 

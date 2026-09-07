@@ -60,6 +60,13 @@ Physical-file scope for syntax facts without established project-and-framework
 semantics, distinct from an evaluation unit.
 _Avoid_: orphan project, default target framework, inferred assembly
 
+**Project evaluation**:
+MSBuild's interpretation of a project's effective properties, items and imports
+under explicit globals and a selected toolchain. It does not invoke build targets
+or establish compiler bindings. Evaluation may execute property functions and SDK
+resolvers, so granting it is trust, not sandboxing (tethys-82a6).
+_Avoid_: build, restore, compilation, binding (when you mean evaluation)
+
 ### C# binding model (approved roadmap vocabulary, tethys-07eh)
 
 **Semantic symbol**:

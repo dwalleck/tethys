@@ -1,0 +1,18 @@
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <TargetFrameworkProfile></TargetFrameworkProfile>
+    <OutputType>Library</OutputType><AssemblyName>Collision</AssemblyName>
+    <DefineConstants>CLASSIC;QUALIFICATION</DefineConstants><LangVersion>7.3</LangVersion>
+  </PropertyGroup>
+  <Import Project="../shared/Imported.props" />
+  <ItemGroup>
+    <Compile Include="Local.cs" />
+    <Compile Include="Glob/**/*.cs" Exclude="Glob/Excluded.cs" />
+    <Compile Remove="Glob/Removed.cs" />
+    <Compile Include="Conditioned.cs" Condition="'$(Configuration)' == 'Qualification'" />
+    <Reference Include="Hand.Reference"><HintPath>../shared/Hand.Reference.dll</HintPath><Private>False</Private></Reference>
+    <ProjectReference Include="../Twin/Twin.csproj"><ReferenceOutputAssembly>False</ReferenceOutputAssembly><Name>Twin declaration</Name></ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)/Microsoft.CSharp.targets" />
+</Project>

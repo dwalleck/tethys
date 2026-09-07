@@ -2,6 +2,10 @@
 /target/
 **/target/
 
+# Managed evaluator build artifacts
+/tools/tethys-msbuild-evaluate/bin/
+/tools/tethys-msbuild-evaluate/obj/
+
 # Cargo.lock for libraries (keep for binaries)
 # We keep it since rivets is a binary application
 

@@ -278,11 +278,46 @@ jobs:
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
+  managed-worker:
+    name: Managed Worker (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-2022]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Restore locked dependencies, check licenses, package SDK companion
+        if: runner.os != 'Windows'
+        run: python .tethys-82a6/oracles/worker_qualification.py --host sdk --prepare
+      - name: Package SDK and Framework using actual VS 17.14
+        if: runner.os == 'Windows'
+        run: python .tethys-82a6/oracles/worker_qualification.py --host windows --prepare
+      - name: Qualify SDK metadata and clean installation
+        run: python .tethys-82a6/oracles/worker_qualification.py --host sdk
+      - name: Qualify classic metadata and clean VS installation
+        if: runner.os == 'Windows'
+        run: python .tethys-82a6/oracles/worker_qualification.py --host windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: managed-worker-${{ matrix.os }}
+          path: target/worker-dist/
+          if-no-files-found: error
+
   # Summary job that requires all other jobs to pass
   ci-success:
     name: CI Success
     if: always()
-    needs: [commitlint, changelog, format, lint, test, build, cargo-deny, coverage]
+    needs: [commitlint, changelog, format, lint, test, build, cargo-deny, coverage, managed-worker]
     runs-on: ubuntu-latest
     steps:
       - name: Check all jobs
@@ -304,6 +339,7 @@ jobs:
              [[ "${{ needs.test.result }}" != "success" ]] || \
              [[ "${{ needs.build.result }}" != "success" ]] || \
              [[ "${{ needs.cargo-deny.result }}" != "success" ]] || \
+             [[ "${{ needs.managed-worker.result }}" != "success" ]] || \
              [[ "${{ needs.coverage.result }}" != "success" ]]; then
             echo "One or more CI jobs failed"
             exit 1
