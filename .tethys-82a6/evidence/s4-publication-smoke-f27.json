@@ -1,0 +1,112 @@
+{
+  "claim": "C8",
+  "mode": "index",
+  "result": "PASS",
+  "runs": [
+    {
+      "command": [
+        "/home/dwalleck/.claude/tmp/tethys-index-discovery-o74hh3js/package/tethys",
+        "-w",
+        "/home/dwalleck/.claude/tmp/tethys-index-discovery-o74hh3js/workspace",
+        "index",
+        "--msbuild-path",
+        "/home/dwalleck/.local-dotnet/sdk/8.0.417"
+      ],
+      "exit": 1,
+      "wall_seconds": 0.049173799983691424,
+      "wait4_maxrss_native_units": 21540,
+      "wait4_status": "measured; KiB on Linux, bytes on macOS",
+      "process_tree_sampled_peak_rss_bytes": 3637248,
+      "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+      "index_and_sidecar_sampled_peak_bytes": 266240,
+      "index_and_sidecar_bytes": 266240,
+      "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+      "phase": "no-trust",
+      "native_worker_launches": 0
+    },
+    {
+      "command": [
+        "/home/dwalleck/.claude/tmp/tethys-index-discovery-o74hh3js/package/tethys",
+        "-w",
+        "/home/dwalleck/.claude/tmp/tethys-index-discovery-o74hh3js/workspace",
+        "index",
+        "--trust-msbuild",
+        "--msbuild-path",
+        "/home/dwalleck/.local-dotnet/sdk/8.0.417"
+      ],
+      "exit": 0,
+      "wall_seconds": 1.9570819140062667,
+      "wait4_maxrss_native_units": 75680,
+      "wait4_status": "measured; KiB on Linux, bytes on macOS",
+      "process_tree_sampled_peak_rss_bytes": 89272320,
+      "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+      "index_and_sidecar_sampled_peak_bytes": 299008,
+      "index_and_sidecar_bytes": 274432,
+      "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+      "phase": "trusted",
+      "native_worker_launches": 4
+    },
+    {
+      "command": [
+        "/home/dwalleck/.claude/tmp/tethys-index-discovery-o74hh3js/package/tethys",
+        "-w",
+        "/home/dwalleck/.claude/tmp/tethys-index-discovery-o74hh3js/workspace",
+        "index",
+        "--trust-msbuild",
+        "--msbuild-path",
+        "/home/dwalleck/.local-dotnet/sdk/8.0.417"
+      ],
+      "exit": 0,
+      "wall_seconds": 1.2613040269934572,
+      "wait4_maxrss_native_units": 76144,
+      "wait4_status": "measured; KiB on Linux, bytes on macOS",
+      "process_tree_sampled_peak_rss_bytes": 89608192,
+      "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+      "index_and_sidecar_sampled_peak_bytes": 307200,
+      "index_and_sidecar_bytes": 274432,
+      "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+      "phase": "metadata-only-replacement",
+      "native_worker_launches": 4
+    },
+    {
+      "command": [
+        "/home/dwalleck/.claude/tmp/tethys-index-discovery-o74hh3js/package/tethys",
+        "-w",
+        "/home/dwalleck/.claude/tmp/tethys-index-discovery-o74hh3js/workspace",
+        "search",
+        "Source"
+      ],
+      "exit": 0,
+      "wall_seconds": 0.007089486985933036,
+      "wait4_maxrss_native_units": 32976,
+      "wait4_status": "measured; KiB on Linux, bytes on macOS",
+      "process_tree_sampled_peak_rss_bytes": null,
+      "process_tree_rss_status": "unavailable: process exited before a positive RSS sample",
+      "index_and_sidecar_sampled_peak_bytes": 307200,
+      "index_and_sidecar_bytes": 274432,
+      "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+      "phase": "persisted-query-Source",
+      "native_worker_launches": 0
+    },
+    {
+      "command": [
+        "/home/dwalleck/.claude/tmp/tethys-index-discovery-o74hh3js/package/tethys",
+        "-w",
+        "/home/dwalleck/.claude/tmp/tethys-index-discovery-o74hh3js/workspace",
+        "search",
+        "Second"
+      ],
+      "exit": 0,
+      "wall_seconds": 0.006598378007765859,
+      "wait4_maxrss_native_units": 32976,
+      "wait4_status": "measured; KiB on Linux, bytes on macOS",
+      "process_tree_sampled_peak_rss_bytes": null,
+      "process_tree_rss_status": "unavailable: process exited before a positive RSS sample",
+      "index_and_sidecar_sampled_peak_bytes": 274432,
+      "index_and_sidecar_bytes": 274432,
+      "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+      "phase": "persisted-query-Second",
+      "native_worker_launches": 0
+    }
+  ]
+}

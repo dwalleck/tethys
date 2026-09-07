@@ -345,7 +345,8 @@ def authored_project(root, name, sources, define="FIRST"):
 
 
 def sql_manifest(db):
-    with sqlite3.connect(db.as_uri() + "?mode=ro", uri=True) as sql:
+    sql = sqlite3.connect(db.as_uri() + "?mode=ro", uri=True)
+    try:
         def rows(query):
             return sql.execute(query).fetchall()
         return {
@@ -362,6 +363,8 @@ def sql_manifest(db):
             "issues": rows("SELECT path,failure_json FROM discovery_issues ORDER BY ordinal"),
             "diagnostics": rows("SELECT path,error_json,directory_reason FROM source_diagnostics ORDER BY ordinal"),
         }
+    finally:
+        sql.close()
 
 def assert_authored(actual, sources, projects, membership, trusted=True):
     require(actual["files"] == [(path,) for path in sorted(sources)], f"C8 physical source manifest: {actual}")
