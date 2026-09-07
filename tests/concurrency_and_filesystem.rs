@@ -265,6 +265,8 @@ fn unreadable_directory_is_skipped_gracefully() {
     fs::create_dir_all(&restricted).expect("should create restricted dir");
     fs::write(restricted.join("secret.rs"), "pub fn hidden() {}\n")
         .expect("should write secret file");
+    let expected_restricted =
+        fs::canonicalize(&restricted).expect("should canonicalize restricted directory");
 
     let mut tethys = Tethys::new(dir.path()).expect("should create Tethys");
     let permissions = fs::metadata(&restricted).unwrap().permissions();
@@ -307,12 +309,12 @@ fn unreadable_directory_is_skipped_gracefully() {
             .iter()
             .map(|(path, _)| path.as_path())
             .collect::<Vec<_>>(),
-        [restricted.as_path()]
+        [expected_restricted.as_path()]
     );
     assert!(!stats.discovery.is_complete());
     assert_eq!(stats.discovery.issues.len(), 1);
     let issue = &stats.discovery.issues[0];
-    assert_eq!(issue.path, fs::canonicalize(&restricted).unwrap());
+    assert_eq!(issue.path, expected_restricted);
     assert_eq!(
         issue.failure.reason,
         tethys::discovery::DiscoveryFailureReason::EvaluationFailed
