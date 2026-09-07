@@ -432,7 +432,9 @@ fn authorized_restore_rechecks_metadata_before_confirmation() {
         "App.csproj",
         "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework><DefineConstants>AFTER_NOOP_RESTORE</DefineConstants></PropertyGroup></Project>",
     );
-    fs::File::open(root.path().join("App.csproj"))
+    fs::File::options()
+        .write(true)
+        .open(root.path().join("App.csproj"))
         .unwrap()
         .set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(2))
         .unwrap();

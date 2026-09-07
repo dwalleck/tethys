@@ -1,0 +1,21 @@
+{
+  "commit": "6ca1b9214d6cbab706bbd30a1b7d328f2341a913",
+  "run": 34114305610,
+  "job": 101717448377,
+  "url": "https://github.com/dwalleck/tethys/actions/runs/34114305610/job/101717448377",
+  "source_log": "local://windows-currentness-6ca1b92.log",
+  "summary": "2026-09-07T11:11:52.1846898Z      Summary [ 324.883s] 645 tests run: 644 passed (4 slow), 1 failed, 0 skipped",
+  "failure": "2026-09-07T11:11:22.6754155Z         FAIL [  14.785s] (637/645) tethys::discovery_failures authorized_restore_rechecks_metadata_before_confirmation",
+  "error": "2026-09-07T11:11:22.6947393Z     called `Result::unwrap()` on an `Err` value: Os { code: 5, kind: PermissionDenied, message: \"Access is denied.\" }",
+  "location": "tests/discovery_failures.rs:438",
+  "phase": "fixture timestamp setup after initial discovery assertions",
+  "source_operation": "File::open(...).unwrap().set_modified(...).unwrap()",
+  "required_access": "FILE_WRITE_ATTRIBUTES",
+  "primary_source": "https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfiletime",
+  "positive_controls": [
+    "2026-09-07T11:11:20.5830365Z         PASS [  12.157s] (635/645) tethys::discovery_failures later_restore_does_not_excuse_an_earlier_glob_change",
+    "2026-09-07T11:11:35.6559952Z         PASS [  15.075s] (642/645) tethys::discovery_failures restored_package_metadata_names_are_case_insensitive",
+    "2026-09-07T11:11:37.4339294Z         PASS [   9.131s] (643/645) tethys::discovery_failures windows_packages_config_restore_requires_grant_and_confirms_native_inputs",
+    "2026-09-07T11:11:38.1639505Z         PASS [  15.477s] (644/645) tethys::discovery_failures windows_filter_solution_default_restore_and_ambiguity"
+  ]
+}
