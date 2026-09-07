@@ -155,6 +155,14 @@ def native_and_scale(binary, companion, sdk, classic_host, environment):
             require(os.name == "nt", "Classic qualification requires actual Windows MSBuild")
             for name in ("Classic48", "shared", "Twin"):
                 shutil.copytree(ROOT / "tests/fixtures/msbuild/evaluator" / name, root / name)
+            # The worker's Twin is deliberately a raw item-only project. This
+            # index fixture needs a complete classic framework identity.
+            (root / "Twin/Twin.csproj").write_text(
+                '<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">'
+                '<PropertyGroup><TargetFrameworkVersion>v4.8</TargetFrameworkVersion>'
+                '<OutputType>Library</OutputType><AssemblyName>Collision</AssemblyName></PropertyGroup>'
+                '<ItemGroup><Compile Include="Twin.cs" /></ItemGroup>'
+                '<Import Project="$(MSBuildToolsPath)/Microsoft.CSharp.targets" /></Project>')
         host = classic_host or sdk
         indexed = command(cli, root, ["index", "--trust-msbuild", "--msbuild-path", str(host)], environment)
         require(indexed["exit"] == 0, f"Native indexing failed: {indexed}")
