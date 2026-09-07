@@ -23,7 +23,7 @@ start there (especially `index.md`) for anything this file does not cover.
 <!-- tags: entry-points, overview -->
 
 - **Library API**: `src/lib.rs` — `Tethys` is the indexing/query facade;
-  standalone workspace discovery is in `src/discovery/mod.rs`.
+  `src/discovery/mod.rs` serves indexing and standalone workspace discovery.
 - **CLI**: `src/main.rs` defines clap commands and dispatches to `src/cli/<cmd>.rs`.
   Commands: `index`, `search`, `callers`, `impact`, `coupling`, `cycles`,
   `stats`, `reachable`, `affected-tests`, `panic-points`, `deprecated-callers`,
@@ -72,6 +72,9 @@ For "what is X / how do I call X / how does process Y work", route via
 - **The resolution "seam" is enforced by a test.** `src/resolve.rs` and
   `src/indexing.rs` must stay language-neutral; all language-specific module
   semantics belong behind `ModuleResolver` (`src/languages/module_resolver.rs`).
+  Its private `source_path_identity` policy also owns Rust logical versus C#
+  physical source identity; selection, freshness and query callers remain neutral
+  (tethys-82a6; see `.agents/summary/architecture.md`).
   `tests/seam_lint.rs` fails the build if language-specific logic leaks into the
   drivers, or if `ModuleResolver` impls touch the database. Respect this when
   editing resolution code.
@@ -102,9 +105,9 @@ For "what is X / how do I call X / how does process Y work", route via
   `refs.symbol_id` is **NULL until Pass 2 resolves it** — don't assume refs are
   resolved mid-pipeline.
 - **Discovery owns execution and freshness** (tethys-82a6), separately from
-  syntax extraction and reference resolution. Before changing host selection,
-  restore grants, cache eligibility, or companion packaging, read
-  [`docs/msbuild-evaluation.md`](docs/msbuild-evaluation.md).
+  syntax extraction and reference resolution. Before changing index discovery
+  flags, host selection, grants, cache reuse, persisted query context, or companion
+  packaging, read [`docs/msbuild-evaluation.md`](docs/msbuild-evaluation.md).
 
 ## Data & Persistence
 
@@ -113,12 +116,16 @@ For "what is X / how do I call X / how does process Y work", route via
 - The index is a SQLite DB at **`.rivets/index/tethys.db`** under the workspace
   root (created by `Tethys::new`). Incompatible schemas are refused without
   mutation; recover with `index --rebuild` (tethys-82a6).
-- Schema is the source of truth in `src/db/schema.rs`; the ER diagram and table
+- Schema **2** is the source of truth in `src/db/schema.rs`; the ER diagram and table
   semantics are documented in `.agents/summary/data_models.md`.
 - **Publication is whole-run atomic** (`src/db/revision.rs`, tethys-82a6).
-  Batch and scoped streaming writers share one transaction; file writes use
-  savepoints. Infrastructure failures preserve the previous revision. Bounded
-  source-read/parse failures publish diagnostics without retaining stale file facts.
+  Batch and scoped streaming writers share one transaction, including discovery
+  metadata, grants, input scopes and diagnostics; file writes use savepoints.
+  Infrastructure failures preserve the previous revision and immutable in-memory
+  discovery context. Bounded source-read/parse failures publish diagnostics without
+  retaining stale file facts. Metadata withdrawal does not erase independent syntax.
+  Queries hydrate published discovery without MSBuild; every index/update needs
+  fresh grants, even for validated cache reuse.
 - `--rebuild` replaces schema and facts inside the same publication transaction;
   it preserves the previous schema and rows on failure rather than deleting files
   or WAL/SHM sidecars before open.

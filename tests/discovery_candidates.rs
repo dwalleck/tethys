@@ -683,3 +683,46 @@ fn aliases_cannot_make_generated_or_internal_projects_automatic() {
         vec!["obj/Allowed.csproj", "src/Visible.csproj"]
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn unreadable_directory_retains_readable_candidates_and_typed_issue() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = TempDir::new().unwrap();
+    put(root.path(), "visible/App.csproj", "<Project />");
+    put(root.path(), "hidden/Hidden.csproj", "<Project />");
+    let hidden = root.path().join("hidden");
+    let permissions = fs::metadata(&hidden).unwrap().permissions();
+    fs::set_permissions(&hidden, fs::Permissions::from_mode(0o000)).unwrap();
+    let Err(error) = fs::read_dir(&hidden) else {
+        fs::set_permissions(&hidden, permissions).unwrap();
+        return; // Elevated users cannot exercise a directory-permission boundary.
+    };
+    let result = discover_workspace(
+        &DiscoveryRequest::new(root.path(), DiscoveryOptions::default()).unwrap(),
+    );
+    fs::set_permissions(&hidden, permissions).unwrap();
+    let snapshot = result.unwrap();
+    assert_eq!(
+        snapshot
+            .projects
+            .iter()
+            .map(|project| project.key.as_str())
+            .collect::<Vec<_>>(),
+        vec!["visible/App.csproj"]
+    );
+    assert!(!snapshot.is_complete());
+    assert_eq!(snapshot.issues.len(), 1);
+    let issue = &snapshot.issues[0];
+    assert_eq!(issue.path, fs::canonicalize(&hidden).unwrap());
+    assert_eq!(
+        issue.failure.reason,
+        DiscoveryFailureReason::EvaluationFailed
+    );
+    assert_eq!(
+        issue.failure.diagnostics[0].file.as_ref(),
+        Some(&issue.path)
+    );
+    assert_eq!(issue.failure.diagnostics[0].message, error.to_string());
+}

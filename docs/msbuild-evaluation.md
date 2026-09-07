@@ -2,6 +2,85 @@
 
 The companion evaluates C# project metadata through the selected MSBuild installation. It does not compile source, execute targets, restore project dependencies, or acquire compiler bindings. Evaluation can execute MSBuild property functions and SDK-resolver code: the evaluation grant is trust, not a sandbox.
 
+## Indexing and querying
+
+Every `tethys index` invocation discovers the workspace before indexing source,
+including runs with no source changes. Evaluation authority is explicit and
+invocation-local:
+
+```sh
+tethys -w /path/to/workspace index --trust-msbuild
+tethys -w /path/to/workspace index --trust-msbuild --allow-restore
+```
+
+Grant trust only to repositories whose MSBuild code you permit to execute.
+`--allow-restore` separately permits the repository's normal restore policy; it
+does not imply evaluation trust. Repeat the required grants on each invocation:
+recorded grants describe the published run and never authorize a later run.
+Without trust, C# candidates remain indeterminate and no MSBuild host probe,
+evaluation, or restore is launched. Available source can still be indexed.
+
+Index-only discovery options:
+
+| Flag | Meaning |
+|---|---|
+| `--trust-msbuild` | Permit project evaluation, including repository code |
+| `--allow-restore` | Separately permit restore when current restore evidence is missing |
+| `--configuration VALUE` | Request `Configuration` |
+| `--platform VALUE` | Request `Platform` |
+| `--runtime-identifier VALUE` | Request `RuntimeIdentifier` |
+| `--property NAME=VALUE` | Set an explicit global property; repeat for multiple properties; empty values are accepted |
+| `--msbuild-path PATH` | Select an installed MSBuild directory, not an installer or companion path |
+| `--import-profile strict` | Default: missing imports remain errors |
+| `--import-profile blank-vs-tools-path` | Request the approved `VSToolsPath=""` import-tolerance profile |
+| `--no-discovery-cache` | Force evaluation instead of validated evaluation-cache reuse |
+
+Explicit `--property` values take precedence over the context shorthand and
+import profile. The companion must already be packaged beside tethys as described
+below; indexing never builds or downloads it.
+
+Incomplete discovery publishes the available source revision, prints candidate,
+project, and unit diagnostics to stderr, and exits with status **1**. Successful
+sibling units remain available alongside failed framework selectors. This is
+incomplete coverage, not proof of an empty project. Infrastructure/publication
+failures instead leave the preceding revision intact.
+
+### Published metadata and source independence
+
+The index stores one active discovery result together with syntax, resolution,
+and architecture facts in a whole-run transaction. It includes the requested
+context, recorded grants, captured input scopes, projects, evaluation units,
+many-to-many source memberships, declared references, cache evidence and
+diagnostics. A replacement removes stale metadata rather than accumulating old
+memberships. Failed publication rolls back both database facts and the facade's
+immutable discovery context.
+
+Source facts are independent of evaluated membership. Indexing merges walked
+sources, retained indexed sources still on disk, and current evaluated sources.
+C# source selection and query paths canonicalize to physical identities within
+the workspace and deduplicate aliases. Rust retains logical path identities:
+aliases remain distinct and links to external targets remain available.
+Withdrawing trust or removing membership does not erase otherwise available
+syntax; linked or multi-target C# source is not parsed once per evaluation unit.
+Missing or unreadable source is diagnosed separately from metadata standing.
+An incomplete discovery directory inventory records `evaluation-failed` and
+cannot reuse or emit evaluation-cache entries.
+
+Query construction loads the published discovery context from the index and
+does not probe MSBuild, reevaluate projects, restore, or require the companion.
+It observes the published revision, not current project-file edits; run `index`
+with fresh grants to refresh that evidence. Before the first publication, the
+library exposes only its Cargo-discovery fallback. Evaluation metadata does not
+add C# compiler bindings or evaluation-unit coupling analysis.
+
+### Schema compatibility and recovery
+
+The active index schema is **2**. Opening an incompatible index refuses it
+without mutation; recover with `tethys index --rebuild`, adding the evaluation
+and restore grants required for that run. Rebuild replaces schema and facts
+inside the publication transaction rather than deleting the database or its
+WAL/SHM sidecars first. A failed rebuild preserves the preceding schema and rows.
+
 ## Distribution and development
 
 Release archives place the SDK companion in `msbuild-evaluate/sdk/`. Windows archives also contain `msbuild-evaluate/framework/` for Visual Studio MSBuild. Keep each directory intact: its runtime configuration and supporting assemblies are part of the distribution. Microsoft.Build itself comes from the explicitly selected installed toolchain, not a copied runtime assembly in the companion directory.
@@ -67,7 +146,7 @@ The companion has no restore or target-execution mode. Restoring project assets 
 
 ## Standalone discovery
 
-`tethys::discovery::discover_workspace` accepts a `DiscoveryRequest` and returns Cargo attribution plus C# projects, evaluation units, source memberships, diagnostics and opaque cache entries. `CargoDiscovery` reuses the existing Cargo discovery algorithms. This API is independently usable; CLI indexing does not yet invoke it.
+`tethys::discovery::discover_workspace` accepts a `DiscoveryRequest` and returns Cargo attribution plus C# projects, evaluation units, source memberships, diagnostics and opaque cache entries. `CargoDiscovery` reuses the existing Cargo discovery algorithms. This API is independently usable; library indexing and incremental updates also invoke it with `IndexOptions::with_discovery`.
 
 Candidate discovery reads `.sln`, `.slnx`, `.slnf`, and standalone `.csproj` files without executing project code. Filters resolve relative to their referenced solution and do not suppress unrelated standalone projects. Canonical path containment rejects outside-workspace declarations and source links. Automatic candidates exclude generated and internal directory identities; explicit solution declarations may name projects in generated directories. An empty workspace differs from malformed containers or failed enumeration.
 
@@ -98,7 +177,7 @@ Legacy restore retains the actual solution behind a solution filter and supplies
 
 ## Freshness and reuse
 
-Every discovery invocation validates current inputs. Pass previous opaque entries through `DiscoveryRequest::with_cache`; `DiscoveryCachePolicy::Disabled` forces evaluation while still allowing existing restore evidence to be checked. Cache entries are acceleration data, not an authority for project standing.
+Every discovery invocation validates current inputs. Indexing loads the previous published cache automatically; standalone callers pass previous opaque entries through `DiscoveryRequest::with_cache`. `DiscoveryCachePolicy::Disabled` (CLI `--no-discovery-cache`) forces evaluation while still allowing existing restore evidence to be checked. Cache entries are acceleration data, not an authority for project standing, and a hit still requires fresh evaluation trust. Captured input scopes record what was observed; their presence alone establishes neither currentness nor cache eligibility.
 
 Disabled caching emits no reusable entries, including restore receipts. Existing
 receipts can still establish a legitimate no-op restore whose outputs are older

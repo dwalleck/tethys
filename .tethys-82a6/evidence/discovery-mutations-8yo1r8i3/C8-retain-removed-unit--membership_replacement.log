@@ -1,0 +1,58 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-yka0qbjm)
+    Finished `test` profile [optimized + debuginfo] target(s) in 4.39s
+────────────
+ Nextest run ID 0df1f6a0-cbe3-408c-94e8-241841f2184e with nextest profile: default
+    Starting 1 test across 1 binary (4 tests skipped)
+        SKIP [         ] tethys::msbuild_discovery bounded_failures_replace_confirmed_units
+        SKIP [         ] tethys::msbuild_discovery evaluated_only_sources_share_publication_and_freshness_identity
+        SKIP [         ] tethys::msbuild_discovery sdk_classic_metadata
+        SKIP [         ] tethys::msbuild_discovery untrusted_publication_retains_source_only_facts
+        FAIL [   2.587s] tethys::msbuild_discovery membership_replacement
+  stdout ───
+
+    running 1 test
+    test membership_replacement ... FAILED
+
+    failures:
+
+    failures:
+        membership_replacement
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 2.58s
+
+  stderr ───
+
+    thread 'membership_replacement' (3559919) panicked at tests/msbuild_discovery.rs:221:5:
+    assertion `left == right` failed: removed project/unit identities must not survive replacement
+      left: ["A.csproj", "B.csproj", "Moved.csproj"]
+     right: ["A.csproj", "Moved.csproj"]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   2.588s] 1 test run: 0 passed, 1 failed, 4 skipped
+        SKIP [         ] tethys::msbuild_discovery bounded_failures_replace_confirmed_units
+        SKIP [         ] tethys::msbuild_discovery evaluated_only_sources_share_publication_and_freshness_identity
+        SKIP [         ] tethys::msbuild_discovery sdk_classic_metadata
+        SKIP [         ] tethys::msbuild_discovery untrusted_publication_retains_source_only_facts
+        FAIL [   2.587s] tethys::msbuild_discovery membership_replacement
+  stdout ───
+
+    running 1 test
+    test membership_replacement ... FAILED
+
+    failures:
+
+    failures:
+        membership_replacement
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 2.58s
+
+  stderr ───
+
+    thread 'membership_replacement' (3559919) panicked at tests/msbuild_discovery.rs:221:5:
+    assertion `left == right` failed: removed project/unit identities must not survive replacement
+      left: ["A.csproj", "B.csproj", "Moved.csproj"]
+     right: ["A.csproj", "Moved.csproj"]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+error: test run failed

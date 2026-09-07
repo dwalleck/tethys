@@ -1,0 +1,16 @@
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.04s
+────────────
+ Nextest run ID fc733483-8e5b-4d64-91ab-dbb84320e14d with nextest profile: default
+    Starting 1 test across 1 binary (4 tests skipped)
+        SKIP [         ] tethys::msbuild_discovery bounded_failures_replace_confirmed_units
+        SKIP [         ] tethys::msbuild_discovery evaluated_only_sources_share_publication_and_freshness_identity
+        SKIP [         ] tethys::msbuild_discovery sdk_classic_metadata
+        SKIP [         ] tethys::msbuild_discovery untrusted_publication_retains_source_only_facts
+        PASS [   3.701s] tethys::msbuild_discovery membership_replacement
+────────────
+     Summary [   3.701s] 1 test run: 1 passed, 4 skipped
+        PASS [   3.701s] tethys::msbuild_discovery membership_replacement
+        SKIP [         ] tethys::msbuild_discovery bounded_failures_replace_confirmed_units
+        SKIP [         ] tethys::msbuild_discovery evaluated_only_sources_share_publication_and_freshness_identity
+        SKIP [         ] tethys::msbuild_discovery sdk_classic_metadata
+        SKIP [         ] tethys::msbuild_discovery untrusted_publication_retains_source_only_facts

@@ -1,0 +1,75 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-gyg6ubqc)
+warning: variant `Logical` is never constructed
+  --> src/languages/module_resolver.rs:67:5
+   |
+65 | pub(crate) enum SourcePathIdentity {
+   |                 ------------------ variant in this enum
+66 |     /// Preserve workspace-relative aliases, including external symlink targets.
+67 |     Logical,
+   |     ^^^^^^^
+   |
+   = note: `SourcePathIdentity` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tethys` (lib) generated 1 warning
+    Finished `test` profile [optimized + debuginfo] target(s) in 3.04s
+────────────
+ Nextest run ID 40facac1-27e0-423c-bd59-8cd29dd775b2 with nextest profile: default
+    Starting 1 test across 1 binary (6 tests skipped)
+        SKIP [         ] tethys::symlink_boundary circular_symlink_does_not_cause_infinite_loop
+        SKIP [         ] tethys::symlink_boundary dangling_symlink_does_not_cause_error
+        SKIP [         ] tethys::symlink_boundary mutual_circular_symlinks_do_not_cause_infinite_loop
+        SKIP [         ] tethys::symlink_boundary nested_symlink_chain_is_followed
+        SKIP [         ] tethys::symlink_boundary symlink_to_directory_outside_workspace_is_traversed
+        SKIP [         ] tethys::symlink_boundary symlink_within_workspace_indexes_through_link_path
+        FAIL [   0.016s] tethys::symlink_boundary symlink_to_file_outside_workspace_is_indexed_through_logical_path
+  stdout ───
+
+    running 1 test
+    test symlink_to_file_outside_workspace_is_indexed_through_logical_path ... FAILED
+
+    failures:
+
+    failures:
+        symlink_to_file_outside_workspace_is_indexed_through_logical_path
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.01s
+
+  stderr ───
+
+    thread 'symlink_to_file_outside_workspace_is_indexed_through_logical_path' (33402) panicked at tests/symlink_boundary.rs:54:5:
+    assertion `left == right` failed: symlinked file outside workspace is currently indexed via logical path
+      left: 0
+     right: 1
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   0.017s] 1 test run: 0 passed, 1 failed, 6 skipped
+        SKIP [         ] tethys::symlink_boundary circular_symlink_does_not_cause_infinite_loop
+        SKIP [         ] tethys::symlink_boundary dangling_symlink_does_not_cause_error
+        SKIP [         ] tethys::symlink_boundary mutual_circular_symlinks_do_not_cause_infinite_loop
+        SKIP [         ] tethys::symlink_boundary nested_symlink_chain_is_followed
+        SKIP [         ] tethys::symlink_boundary symlink_to_directory_outside_workspace_is_traversed
+        SKIP [         ] tethys::symlink_boundary symlink_within_workspace_indexes_through_link_path
+        FAIL [   0.016s] tethys::symlink_boundary symlink_to_file_outside_workspace_is_indexed_through_logical_path
+  stdout ───
+
+    running 1 test
+    test symlink_to_file_outside_workspace_is_indexed_through_logical_path ... FAILED
+
+    failures:
+
+    failures:
+        symlink_to_file_outside_workspace_is_indexed_through_logical_path
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.01s
+
+  stderr ───
+
+    thread 'symlink_to_file_outside_workspace_is_indexed_through_logical_path' (33402) panicked at tests/symlink_boundary.rs:54:5:
+    assertion `left == right` failed: symlinked file outside workspace is currently indexed via logical path
+      left: 0
+     right: 1
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+error: test run failed

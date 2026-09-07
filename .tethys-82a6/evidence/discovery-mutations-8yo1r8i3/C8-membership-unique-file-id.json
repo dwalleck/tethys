@@ -1,0 +1,8 @@
+{
+  "path": "src/db/discovery.rs",
+  "before": "                sources.execute(params![\n                    key,",
+  "after": "                conn.execute(\"DELETE FROM file_participation WHERE file_id = ?1\", params![file_ids.get(&path)])?;\n                sources.execute(params![\n                    key,",
+  "tests": [
+    "membership_replacement"
+  ]
+}

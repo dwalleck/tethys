@@ -9,10 +9,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     DeclaredAssemblyReference, DeclaredProjectReference, DiscoveryCacheObservation,
-    DiscoveryDiagnostic, DiscoveryFailure, DiscoveryFailureReason, DiscoveryRequest,
-    DiscoverySnapshot, DiscoveryStanding, EvaluationUnit, EvaluationUnitKey, FrameworkIdentity,
-    HostProvenance, ProjectDiscovery, ProjectKey, RestoreProvenance, SourceMembership,
-    WorkspaceDiscovery,
+    DiscoveryDiagnostic, DiscoveryFailure, DiscoveryFailureReason, DiscoveryGrants,
+    DiscoveryRequest, DiscoverySnapshot, DiscoveryStanding, EvaluationUnit, EvaluationUnitKey,
+    FrameworkIdentity, HostProvenance, ProjectDiscovery, ProjectKey, RestoreProvenance,
+    SourceMembership, WorkspaceDiscovery,
 };
 use cache::Inputs;
 use candidates::Candidate;
@@ -38,9 +38,16 @@ impl WorkspaceDiscovery for MsBuildDiscovery {
         let found = candidates::discover(&request.workspace_root)?;
         let mut snapshot = DiscoverySnapshot {
             context: request.options.context.clone(),
+            grants: DiscoveryGrants {
+                trust_msbuild: request.options.trust_msbuild,
+                allow_restore: request.options.allow_restore,
+            },
             issues: found.issues,
             ..DiscoverySnapshot::default()
         };
+        if found.projects.is_empty() {
+            return Ok(snapshot);
+        }
         let cache = cache::Cache::new(request, &found.inventory)?;
         let mut selector = HostSelector::new(request);
         let mut validations = Vec::new();
@@ -81,6 +88,10 @@ impl WorkspaceDiscovery for MsBuildDiscovery {
             &hosts,
             &mut snapshot,
         )?;
+        snapshot.inputs = validations
+            .into_iter()
+            .map(|(project, inputs)| cache::input_scope(project, inputs))
+            .collect();
         Ok(snapshot)
     }
 }
@@ -137,12 +148,30 @@ fn validate_snapshot(
         .symmetric_difference(&after_paths)
         .map(|path| request.workspace_root.join(path))
         .collect();
+    let uncertainty_changed = before.issues != after.issues;
+    // Both inventories order traversal issues by path. Merge observations
+    // without rescanning every earlier diagnostic for each final failure.
+    let mut earlier = before.issues.iter().peekable();
+    for issue in &after.issues {
+        while earlier.peek().is_some_and(|old| old.path < issue.path) {
+            earlier.next();
+        }
+        let duplicate = earlier.peek().is_some_and(|old| old.path == issue.path)
+            && earlier.next() == Some(issue);
+        if !duplicate {
+            snapshot.issues.push(issue.clone());
+        }
+    }
+    if !before.issues.is_empty() || !after.issues.is_empty() {
+        snapshot.cache.clear();
+    }
     let mut invalid = BTreeSet::new();
     for (project, inputs) in validations {
         // An artifact observed by a later project's restore cannot excuse a
         // changed glob in an earlier scope. Each scope must have fingerprinted
         // this exact input before its own authoritative evaluation.
         let inventory_changed = before.has_symlinks != after.has_symlinks
+            || uncertainty_changed
             || (!changed_paths.is_empty() && {
                 let captured_restore_paths = restore_paths
                     .get(project)

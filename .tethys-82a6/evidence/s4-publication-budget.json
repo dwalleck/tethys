@@ -1,0 +1,32 @@
+{
+  "claim": "C8",
+  "source_state": "S4 through F22; build artifact711, before proposed F23 identity amendment",
+  "measurement": ".tethys-82a6/evidence/s4-publication-scale.json",
+  "workload": {
+    "units": 802,
+    "physical_files": 15124,
+    "memberships": 15925
+  },
+  "checks": [
+    {
+      "metric": "wall_seconds",
+      "observed": 461.99742847602465,
+      "limit": 1800,
+      "result": "PASS"
+    },
+    {
+      "metric": "sampled_process_tree_rss_bytes",
+      "observed": 180297728,
+      "limit": 6442450944,
+      "result": "PASS"
+    },
+    {
+      "metric": "sampled_database_and_sidecars_bytes",
+      "observed": 111104976,
+      "limit": 10737418240,
+      "result": "PASS"
+    }
+  ],
+  "sampling": "10ms sampling, not exact high-water marks",
+  "scope": "Current C# stress fixture only; not full S4 acceptance or a waiver for failed Rust compatibility."
+}

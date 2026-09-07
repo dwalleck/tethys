@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::super::{
-    DiscoveryCachePolicy, DiscoveryRequest, EvaluationCacheEntry, RestoreProvenance,
+    DiscoveryCachePolicy, DiscoveryInputScope, DiscoveryRequest, EvaluationCacheEntry,
+    EvaluationInput, ProjectKey, RestoreProvenance,
 };
 use super::candidates::WorkspaceInventory;
 use super::host::{EvaluatedProject, HostSelection};
@@ -53,6 +54,23 @@ impl EpochOffset {
 
 pub(super) type Inputs = BTreeMap<PathBuf, Stamp>;
 
+/// Consume already captured stamps without rereading inputs or interpreting receipts.
+pub(super) fn input_scope(project: ProjectKey, inputs: Inputs) -> DiscoveryInputScope {
+    DiscoveryInputScope {
+        project,
+        inputs: inputs
+            .into_iter()
+            .map(|(path, stamp)| EvaluationInput {
+                path,
+                canonical_path: stamp.canonical,
+                length: stamp.length,
+                modified: stamp.modified,
+                digest: stamp.digest,
+            })
+            .collect(),
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Receipt {
@@ -79,6 +97,7 @@ pub(super) struct Cache<'a> {
     entries: BTreeMap<&'a str, &'a EvaluationCacheEntry>,
     inventory: String,
     symlinks: bool,
+    incomplete_inventory: bool,
     environment: String,
 }
 
@@ -190,6 +209,7 @@ impl<'a> Cache<'a> {
                 crate::Error::Internal(format!("discovery evidence serialization failed: {error}"))
             })?),
             symlinks: inventory.has_symlinks,
+            incomplete_inventory: !inventory.issues.is_empty(),
             environment: format!("{:x}", hash.finalize()),
         })
     }
@@ -223,6 +243,9 @@ impl<'a> Cache<'a> {
         project: &Path,
         host: &HostSelection,
     ) -> std::result::Result<(EvaluatedProject, RestoreProvenance, Inputs), String> {
+        if self.incomplete_inventory {
+            return Err("incomplete_workspace_inventory".into());
+        }
         if self.request.options.cache_policy == DiscoveryCachePolicy::Disabled {
             return Err("cache_disabled".into());
         }
@@ -284,6 +307,9 @@ impl<'a> Cache<'a> {
         host: &HostSelection,
     ) -> Vec<String> {
         let mut reasons = evaluation.cache_ineligibility.clone();
+        if self.incomplete_inventory {
+            reasons.push("incomplete_workspace_inventory".into());
+        }
         if let Some(reason) = host.cache_ineligibility(&self.request.options.environment) {
             reasons.push(reason.into());
         }

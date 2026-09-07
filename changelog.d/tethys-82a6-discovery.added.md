@@ -3,3 +3,8 @@
 - Native C# project paths preserve globbed sources and accept valid restore artifacts across canonical Windows spelling and filesystem aliases.
 - Eligible discovery cache hits validate current inputs; unqualified evaluation recipes and runtime configurations are reevaluated. Existing CLI indexing behavior is unchanged.
 - Multi-target restore preserves sibling assets and recognizes equivalent framework aliases and package versions; malformed configuration stays scoped, and disabled caching emits no reusable restore entries.
+- `tethys index` now records evaluated C# projects, multi-target and classic framework metadata, and shared source membership alongside source symbols.
+- Use `--trust-msbuild` on each index run to permit project evaluation, and separately `--allow-restore` when restore is needed. Context, global-property, installed-toolchain and import-profile flags control evaluation; incomplete discovery reports reasons and exits 1 after publishing available source.
+- Eligible discovery cache hits validate current inputs; use `--no-discovery-cache` to force evaluation. Queries read published metadata without launching MSBuild or requiring its companion.
+- Source symbols remain available when evaluated membership is withdrawn. C# filesystem aliases share a contained physical source identity; Rust retains distinct logical aliases and external targets. Canonical Windows paths and aliases preserve valid restore artifacts.
+- Older index schemas require `tethys index --rebuild`; schema and facts are replaced atomically, preserving the previous index if publication fails.

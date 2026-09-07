@@ -68,7 +68,7 @@ pub enum Error {
 ///
 /// These errors are collected during indexing but don't halt the operation.
 /// The indexer continues with remaining files and reports all errors at the end.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct IndexError {
     /// Path to the file that failed
     pub path: PathBuf,
@@ -97,7 +97,7 @@ impl std::error::Error for IndexError {}
 /// Uses a 4xx/5xx style pattern:
 /// - Input problems are issues with the source files (user can fix)
 /// - Internal problems are issues with Tethys itself (we need to fix)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum IndexErrorKind {
     // === Input Problems (analogous to HTTP 4xx) ===
     /// Source file has syntax errors that prevent parsing

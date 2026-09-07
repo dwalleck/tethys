@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 
@@ -274,6 +274,15 @@ pub enum DiscoveryCachePolicy {
     Enabled,
     /// Force evaluation and do not emit reusable cache entries.
     Disabled,
+}
+
+/// Explicit authority granted for this discovery invocation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiscoveryGrants {
+    /// Permission to execute project evaluation code.
+    pub trust_msbuild: bool,
+    /// Separate permission to use the repository's normal restore policy.
+    pub allow_restore: bool,
 }
 
 /// Authority, context and installed-tool selection for discovery.
@@ -598,13 +607,41 @@ pub struct DiscoveryCacheObservation {
     pub bypass_reasons: Vec<String>,
 }
 
+/// A captured evaluation input, not evidence of cache eligibility or currentness.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EvaluationInput {
+    /// Original path spelling captured by the evaluation scope.
+    pub path: PathBuf,
+    /// Canonical absolute identity observed when the input was captured.
+    pub canonical_path: PathBuf,
+    /// Observed byte length.
+    pub length: u64,
+    /// Observed filesystem modification time.
+    pub modified: SystemTime,
+    /// Digest of the bytes observed by the existing input fingerprint.
+    pub digest: String,
+}
+
+/// One captured evaluation scope, retained even if later validation invalidates it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiscoveryInputScope {
+    /// Owning project identity.
+    pub project: ProjectKey,
+    /// Captured observations; distinct outer and inner scopes remain separate.
+    pub inputs: Vec<EvaluationInput>,
+}
+
 /// Owned discovery output; publication belongs to the index revision owner.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiscoverySnapshot {
     /// Cargo attribution in its existing order, with unchanged Cargo semantics.
     pub crates: Vec<CrateInfo>,
     /// One requested context; actual host/restore provenance belongs to its unit outcomes.
     pub context: EvaluationContext,
+    /// Explicit evaluation and restore authority for this invocation.
+    pub grants: DiscoveryGrants,
+    /// Captured input scopes, independent of cache eligibility and final standing.
+    pub inputs: Vec<DiscoveryInputScope>,
     /// Project candidates and aggregate outcomes.
     pub projects: Vec<ProjectDiscovery>,
     /// Successful and explicitly failed framework outcomes.
@@ -667,5 +704,23 @@ mod tests {
         assert!(!rendered.contains("s3cret"), "{rendered}");
         assert!(!rendered.contains("TOKEN"), "{rendered}");
         assert!(rendered.contains('1'), "{rendered}");
+    }
+}
+impl DiscoverySnapshot {
+    /// Whether all discovered coverage has confirmed standing and no top-level issues.
+    ///
+    /// This checks only observed projects and units; it does not invent coverage
+    /// for projects that were not discovered.
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.issues.is_empty()
+            && self
+                .projects
+                .iter()
+                .all(|project| project.standing == DiscoveryStanding::Confirmed)
+            && self
+                .units
+                .iter()
+                .all(|unit| unit.standing == DiscoveryStanding::Confirmed)
     }
 }

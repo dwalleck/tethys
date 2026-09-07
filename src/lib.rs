@@ -72,8 +72,11 @@ pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use db::Index;
+use discovery::DiscoverySnapshot;
+use languages::module_resolver::{SourcePathIdentity, get_module_resolver};
 use tracing::{debug, trace, warn};
 
 /// Code intelligence cache and query interface.
@@ -86,7 +89,7 @@ pub struct Tethys {
     workspace_root: PathBuf,
     db_path: PathBuf,
     db: Index,
-    crates: Vec<CrateInfo>,
+    discovery: Arc<DiscoverySnapshot>,
 }
 
 /// The canonical on-disk location of a workspace's index:
@@ -191,11 +194,20 @@ impl Tethys {
             Index::open(&db_path)?
         };
 
-        let crates = cargo::discover_crates(&workspace_root);
+        let discovery = if rebuild {
+            None
+        } else {
+            db.discovery_snapshot()?
+        }
+        .unwrap_or_else(|| DiscoverySnapshot {
+            crates: cargo::discover_crates(&workspace_root),
+            ..DiscoverySnapshot::default()
+        });
 
         debug_assert!(
             {
-                let mut sorted: Vec<&str> = crates.iter().map(|c| c.name.as_str()).collect();
+                let mut sorted: Vec<&str> =
+                    discovery.crates.iter().map(|c| c.name.as_str()).collect();
                 sorted.sort_unstable();
                 sorted.windows(2).all(|w| w[0] != w[1])
             },
@@ -206,7 +218,7 @@ impl Tethys {
             workspace_root,
             db_path,
             db,
-            crates,
+            discovery: Arc::new(discovery),
         })
     }
 
@@ -246,10 +258,10 @@ impl Tethys {
             }
         };
 
-        let Some(crate_info) = cargo::get_crate_for_file(&canonical, &self.crates) else {
+        let Some(crate_info) = cargo::get_crate_for_file(&canonical, self.crates()) else {
             debug!(
                 file = %canonical.display(),
-                crate_count = self.crates.len(),
+                crate_count = self.crates().len(),
                 "File not within any known crate"
             );
             return String::new();
@@ -275,26 +287,49 @@ impl Tethys {
 
     /// Get the path relative to the workspace root.
     ///
-    /// Handles symlink differences (e.g., `/var` -> `/private/var` on macOS) by
-    /// attempting canonicalization when the initial `strip_prefix` fails on
-    /// absolute paths. Relative inputs are the documented "relative to
-    /// workspace root" form: they are lexically normalized (`./` dropped,
-    /// intra-path `..` resolved) so every spelling of the same file matches
-    /// the same DB row (tethys-xetb), and they never warn (tethys-vk3z).
-    /// Returns `Cow::Borrowed` for the common fast path, `Cow::Owned` only
-    /// when canonicalization or normalization rewrote the path.
+    /// Logical sources retain aliases; physical sources resolve to the canonical
+    /// contained identity used by publication. Missing inputs retain lexical
+    /// lookup so deleted files remain queryable.
+    /// Relative paths are interpreted against the workspace, not the process cwd.
     pub(crate) fn relative_path<'a>(&self, path: &'a Path) -> Cow<'a, Path> {
+        let physical = path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .and_then(Language::from_extension)
+            .is_some_and(|language| {
+                get_module_resolver(language).source_path_identity() == SourcePathIdentity::Physical
+            });
+        if !physical {
+            if let Ok(relative) = path.strip_prefix(&self.workspace_root) {
+                return lexically_normalize(relative);
+            }
+            if !path.is_absolute() {
+                return lexically_normalize(path);
+            }
+            // Preserve the absolute-root spelling fallback (e.g. /var versus
+            // /private/var on macOS) when the workspace prefix does not match.
+        }
+        let absolute = if path.is_absolute() {
+            Cow::Borrowed(path)
+        } else {
+            Cow::Owned(self.workspace_root.join(path))
+        };
+        if let Ok(canonical) = absolute.canonicalize()
+            && let Ok(relative) = canonical.strip_prefix(&self.workspace_root)
+        {
+            let original = path.strip_prefix(&self.workspace_root).unwrap_or(path);
+            return if original.as_os_str() == relative.as_os_str() {
+                Cow::Borrowed(original)
+            } else {
+                Cow::Owned(relative.to_path_buf())
+            };
+        }
+
         if let Ok(relative) = path.strip_prefix(&self.workspace_root) {
-            return Cow::Borrowed(relative);
+            return lexically_normalize(relative);
         }
 
         if path.is_absolute() {
-            // Try canonicalizing to resolve symlinks
-            if let Ok(canonical) = path.canonicalize()
-                && let Ok(relative) = canonical.strip_prefix(&self.workspace_root)
-            {
-                return Cow::Owned(relative.to_path_buf());
-            }
             // An unindexable input, not an anomaly: query standing reports
             // these as `unindexed` rather than a log line shouting about it.
             debug!(
@@ -640,7 +675,16 @@ impl Tethys {
     /// Get all discovered crates in this workspace.
     #[must_use]
     pub fn crates(&self) -> &[CrateInfo] {
-        &self.crates
+        &self.discovery.crates
+    }
+
+    /// Immutable discovery context loaded from the index or published by this instance.
+    ///
+    /// Opening never evaluates `MSBuild`. Before a fresh index's first publication,
+    /// this contains only the existing Cargo discovery fallback.
+    #[must_use]
+    pub fn discovery_snapshot(&self) -> &DiscoverySnapshot {
+        &self.discovery
     }
 
     /// Find the crate that contains a given file path.
@@ -665,7 +709,7 @@ impl Tethys {
             }
         };
 
-        self.crates
+        self.crates()
             .iter()
             .filter(|c| file_path.starts_with(&c.path))
             .max_by_key(|c| c.path.components().count())

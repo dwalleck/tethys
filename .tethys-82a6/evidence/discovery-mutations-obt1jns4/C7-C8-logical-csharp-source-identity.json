@@ -1,0 +1,9 @@
+{
+  "path": "src/languages/module_resolver.rs",
+  "before": "    fn source_path_identity(&self) -> SourcePathIdentity {\n        SourcePathIdentity::Physical\n    }",
+  "after": "    fn source_path_identity(&self) -> SourcePathIdentity {\n        SourcePathIdentity::Logical\n    }",
+  "tests": [
+    "canonical_publication_resolves_relative_and_absolute_file_aliases",
+    "csharp_external_file_and_directory_aliases_are_not_published"
+  ]
+}

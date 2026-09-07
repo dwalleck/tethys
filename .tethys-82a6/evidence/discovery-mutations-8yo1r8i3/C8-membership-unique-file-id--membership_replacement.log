@@ -1,0 +1,58 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-yka0qbjm)
+    Finished `test` profile [optimized + debuginfo] target(s) in 2.82s
+────────────
+ Nextest run ID 07165955-176b-4b5f-aad4-7d17ee3f3221 with nextest profile: default
+    Starting 1 test across 1 binary (4 tests skipped)
+        SKIP [         ] tethys::msbuild_discovery bounded_failures_replace_confirmed_units
+        SKIP [         ] tethys::msbuild_discovery evaluated_only_sources_share_publication_and_freshness_identity
+        SKIP [         ] tethys::msbuild_discovery sdk_classic_metadata
+        SKIP [         ] tethys::msbuild_discovery untrusted_publication_retains_source_only_facts
+        FAIL [   1.248s] tethys::msbuild_discovery membership_replacement
+  stdout ───
+
+    running 1 test
+    test membership_replacement ... FAILED
+
+    failures:
+
+    failures:
+        membership_replacement
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 1.25s
+
+  stderr ───
+
+    thread 'membership_replacement' (3557192) panicked at tests/msbuild_discovery.rs:129:5:
+    assertion `left == right` failed
+      left: [("A.csproj", "Second.cs", Some("Second.cs")), ("B.csproj", "Shared.cs", Some("Shared.cs"))]
+     right: [("A.csproj", "Second.cs", Some("Second.cs")), ("A.csproj", "Shared.cs", Some("Shared.cs")), ("B.csproj", "Shared.cs", Some("Shared.cs"))]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   1.249s] 1 test run: 0 passed, 1 failed, 4 skipped
+        SKIP [         ] tethys::msbuild_discovery bounded_failures_replace_confirmed_units
+        SKIP [         ] tethys::msbuild_discovery evaluated_only_sources_share_publication_and_freshness_identity
+        SKIP [         ] tethys::msbuild_discovery sdk_classic_metadata
+        SKIP [         ] tethys::msbuild_discovery untrusted_publication_retains_source_only_facts
+        FAIL [   1.248s] tethys::msbuild_discovery membership_replacement
+  stdout ───
+
+    running 1 test
+    test membership_replacement ... FAILED
+
+    failures:
+
+    failures:
+        membership_replacement
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 1.25s
+
+  stderr ───
+
+    thread 'membership_replacement' (3557192) panicked at tests/msbuild_discovery.rs:129:5:
+    assertion `left == right` failed
+      left: [("A.csproj", "Second.cs", Some("Second.cs")), ("B.csproj", "Shared.cs", Some("Shared.cs"))]
+     right: [("A.csproj", "Second.cs", Some("Second.cs")), ("A.csproj", "Shared.cs", Some("Shared.cs")), ("B.csproj", "Shared.cs", Some("Shared.cs"))]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+error: test run failed

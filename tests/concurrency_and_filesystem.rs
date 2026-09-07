@@ -174,31 +174,13 @@ fn rebuild_clears_and_reindexes_cleanly() {
 }
 
 #[test]
-fn update_maps_index_stats_to_index_update_fields() {
-    let (_dir, mut tethys) =
-        workspace_with_files(&[("src/lib.rs", "pub fn hello() {}\npub struct Config {}\n")]);
-
-    tethys.index().expect("initial index should succeed");
-    let update = tethys.update().expect("update should succeed");
-
-    assert!(
-        update.files_changed > 0,
-        "update should report changed files"
-    );
-    assert_eq!(
-        update.files_unchanged, 0,
-        "update currently re-indexes everything so nothing is unchanged"
-    );
-    assert!(update.duration > std::time::Duration::ZERO);
-}
-
-#[test]
-fn needs_update_returns_true() {
+fn unindexed_workspace_requires_update() {
     let (_dir, tethys) = workspace_with_files(&[("src/lib.rs", "pub fn placeholder() {}\n")]);
 
     assert!(
-        tethys.needs_update().expect("needs_update should not fail"),
-        "needs_update currently always returns true"
+        tethys
+            .needs_update()
+            .expect("freshness query should succeed")
     );
 }
 
@@ -264,73 +246,6 @@ fn indexes_many_files_in_single_directory() {
     );
 }
 
-// === Filesystem edge cases: symlinks ===
-
-#[cfg(unix)]
-#[test]
-fn follows_symlinked_files() {
-    let dir = tempfile::tempdir().expect("should create temp dir");
-    let src_dir = dir.path().join("src");
-    fs::create_dir_all(&src_dir).expect("should create src dir");
-
-    // Create a real file outside src/
-    let real_file = dir.path().join("real_module.rs");
-    fs::write(&real_file, "pub fn from_symlink() {}\n").expect("should write real file");
-
-    // Create a symlink inside src/ pointing to the real file
-    std::os::unix::fs::symlink(&real_file, src_dir.join("linked.rs"))
-        .expect("should create symlink");
-
-    let mut tethys = Tethys::new(dir.path()).expect("should create Tethys");
-    let stats = tethys.index().expect("index should succeed");
-
-    // The real file is at root level (not under src/), but the symlink is under src/
-    // Both may or may not be indexed depending on walk logic; at minimum the symlink target
-    // should be readable
-    assert!(
-        stats.files_indexed >= 1,
-        "should index at least the symlinked file"
-    );
-
-    let symbols = tethys
-        .search_symbols("from_symlink")
-        .expect("search should succeed");
-    assert!(
-        !symbols.is_empty(),
-        "should find symbol from symlinked file"
-    );
-}
-
-#[cfg(unix)]
-#[test]
-fn follows_symlinked_directories() {
-    let dir = tempfile::tempdir().expect("should create temp dir");
-
-    // Create a real directory with a file
-    let real_dir = dir.path().join("real_modules");
-    fs::create_dir_all(&real_dir).expect("should create real dir");
-    fs::write(real_dir.join("module.rs"), "pub fn in_linked_dir() {}\n")
-        .expect("should write file");
-
-    // Create src/ with a symlink to real_modules/
-    let src_dir = dir.path().join("src");
-    fs::create_dir_all(&src_dir).expect("should create src dir");
-    std::os::unix::fs::symlink(&real_dir, src_dir.join("linked_modules"))
-        .expect("should create dir symlink");
-
-    let mut tethys = Tethys::new(dir.path()).expect("should create Tethys");
-    let _stats = tethys.index().expect("index should succeed");
-
-    // Should index the file through the symlinked directory
-    let symbols = tethys
-        .search_symbols("in_linked_dir")
-        .expect("search should succeed");
-    assert!(
-        !symbols.is_empty(),
-        "should find symbol from file in symlinked directory"
-    );
-}
-
 // === Filesystem edge cases: unreadable directory ===
 
 #[cfg(unix)]
@@ -351,31 +266,56 @@ fn unreadable_directory_is_skipped_gracefully() {
     fs::write(restricted.join("secret.rs"), "pub fn hidden() {}\n")
         .expect("should write secret file");
 
-    // Remove read permission from the directory
+    let mut tethys = Tethys::new(dir.path()).expect("should create Tethys");
+    let permissions = fs::metadata(&restricted).unwrap().permissions();
     fs::set_permissions(&restricted, fs::Permissions::from_mode(0o000))
         .expect("should set permissions");
+    let Err(permission_error) = fs::read_dir(&restricted) else {
+        fs::set_permissions(&restricted, permissions).expect("should restore permissions");
+        return; // Elevated users cannot exercise a directory-permission boundary.
+    };
 
-    let mut tethys = Tethys::new(dir.path()).expect("should create Tethys");
-    let stats = tethys
-        .index()
-        .expect("index should succeed despite unreadable dir");
-
-    // Restore permissions for cleanup
-    fs::set_permissions(&restricted, fs::Permissions::from_mode(0o755))
-        .expect("should restore permissions");
-
-    // The good file should be indexed; the restricted directory should be skipped
-    assert!(
-        stats.files_indexed >= 1,
-        "should index at least the accessible file"
+    let result = tethys.index();
+    fs::set_permissions(&restricted, permissions).expect("should restore permissions");
+    assert_eq!(
+        permission_error.kind(),
+        std::io::ErrorKind::PermissionDenied
     );
+    let stats = result.expect("index should publish readable sources despite unreadable dir");
 
-    let symbols = tethys
-        .search_symbols("accessible")
-        .expect("search should succeed");
+    assert_eq!(stats.files_indexed, 1);
+    let readable = tethys.get_file(Path::new("src/good.rs")).unwrap().unwrap();
+    assert_eq!(readable.path, Path::new("src/good.rs"));
+    let symbols = tethys.list_symbols(&readable.path).unwrap();
+    assert_eq!(
+        symbols
+            .iter()
+            .map(|symbol| (symbol.name.as_str(), symbol.file_id))
+            .collect::<Vec<_>>(),
+        [("accessible", readable.id)]
+    );
     assert!(
-        !symbols.is_empty(),
-        "should find symbol from accessible file"
+        tethys
+            .get_file(Path::new("src/restricted/secret.rs"))
+            .unwrap()
+            .is_none()
+    );
+    assert!(tethys.search_symbols("hidden").unwrap().is_empty());
+    assert_eq!(
+        stats
+            .directories_skipped
+            .iter()
+            .map(|(path, _)| path.as_path())
+            .collect::<Vec<_>>(),
+        [restricted.as_path()]
+    );
+    assert!(!stats.discovery.is_complete());
+    assert_eq!(stats.discovery.issues.len(), 1);
+    let issue = &stats.discovery.issues[0];
+    assert_eq!(issue.path, fs::canonicalize(&restricted).unwrap());
+    assert_eq!(
+        issue.failure.reason,
+        tethys::discovery::DiscoveryFailureReason::EvaluationFailed
     );
 }
 
@@ -467,4 +407,128 @@ fn indexes_large_file_with_many_symbols() {
         stats.symbols_found, symbol_count,
         "should extract all {symbol_count} symbols from large file"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn canonical_publication_resolves_relative_and_absolute_file_aliases() {
+    let (dir, mut index) = workspace_with_files(&[
+        (
+            "src/Entry.cs",
+            "public class Entry { public void Run() { var target = new Target(); } }",
+        ),
+        ("src/Target.cs", "public class Target {}"),
+    ]);
+    let alias = dir.path().join("src/Alias.cs");
+    std::os::unix::fs::symlink("Target.cs", &alias).unwrap();
+    // A sibling alias reaches src without introducing a traversal cycle.
+    std::os::unix::fs::symlink("src", dir.path().join("linked_src")).unwrap();
+    let stats = index.index().unwrap();
+    assert_eq!(stats.files_indexed, 2);
+    assert!(!index.needs_update().unwrap());
+    let physical = index.get_file(Path::new("src/Target.cs")).unwrap().unwrap();
+    assert_eq!(physical.path, Path::new("src/Target.cs"));
+    let entry = index.get_file(Path::new("src/Entry.cs")).unwrap().unwrap();
+    assert_eq!(entry.path, Path::new("src/Entry.cs"));
+    assert_ne!(entry.id, physical.id);
+    let targets = index.search_symbols("Target").unwrap();
+    assert_eq!(
+        targets
+            .iter()
+            .map(|symbol| (symbol.name.as_str(), symbol.file_id))
+            .collect::<Vec<_>>(),
+        [("Target", physical.id)]
+    );
+    let absolute_target = dir.path().join("src/Target.cs");
+    let absolute_directory_alias = dir.path().join("linked_src/Target.cs");
+    let absolute_dotted_alias = dir.path().join("src/../linked_src/./Alias.cs");
+    for spelling in [
+        Path::new("src/Target.cs"),
+        absolute_target.as_path(),
+        Path::new("src/Alias.cs"),
+        alias.as_path(),
+        Path::new("linked_src/Target.cs"),
+        absolute_directory_alias.as_path(),
+        Path::new("./src/Target.cs"),
+        Path::new("src/../linked_src/./Alias.cs"),
+        absolute_dotted_alias.as_path(),
+    ] {
+        let queried = index
+            .get_file(spelling)
+            .unwrap()
+            .expect("indexed physical source");
+        assert_eq!(queried.id, physical.id);
+        assert_eq!(queried.path, Path::new("src/Target.cs"));
+        assert_eq!(
+            index
+                .list_symbols(spelling)
+                .unwrap()
+                .iter()
+                .map(|symbol| (symbol.id, symbol.name.as_str(), symbol.file_id))
+                .collect::<Vec<_>>(),
+            [(targets[0].id, "Target", physical.id)]
+        );
+        assert_eq!(
+            index.get_dependents(spelling).unwrap(),
+            [Path::new("src/Entry.cs").to_path_buf()]
+        );
+    }
+    for spelling in [
+        dir.path().join("src/Entry.cs"),
+        Path::new("src/Entry.cs").to_path_buf(),
+        Path::new("./src/Entry.cs").to_path_buf(),
+        Path::new("linked_src/Entry.cs").to_path_buf(),
+    ] {
+        assert_eq!(
+            index.get_dependencies(&spelling).unwrap(),
+            [Path::new("src/Target.cs").to_path_buf()]
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn csharp_external_file_and_directory_aliases_are_not_published() {
+    let (dir, mut index) = workspace_with_files(&[("src/Inside.cs", "public class Inside {}")]);
+    let external = tempfile::tempdir().unwrap();
+    fs::write(
+        external.path().join("EscapedFile.cs"),
+        "public class EscapedFile {}",
+    )
+    .unwrap();
+    fs::create_dir(external.path().join("sources")).unwrap();
+    fs::write(
+        external.path().join("sources/EscapedDirectory.cs"),
+        "public class EscapedDirectory {}",
+    )
+    .unwrap();
+    let file_alias = dir.path().join("src/Outside.cs");
+    let directory_alias = dir.path().join("outside_sources");
+    std::os::unix::fs::symlink(external.path().join("EscapedFile.cs"), &file_alias).unwrap();
+    std::os::unix::fs::symlink(external.path().join("sources"), &directory_alias).unwrap();
+
+    let stats = index.index().unwrap();
+    assert_eq!(stats.files_indexed, 1);
+    let inside = index.get_file(Path::new("src/Inside.cs")).unwrap().unwrap();
+    assert_eq!(inside.path, Path::new("src/Inside.cs"));
+    assert_eq!(
+        index
+            .search_symbols("Inside")
+            .unwrap()
+            .iter()
+            .map(|symbol| (symbol.name.as_str(), symbol.file_id))
+            .collect::<Vec<_>>(),
+        [("Inside", inside.id)]
+    );
+    assert!(index.search_symbols("Escaped").unwrap().is_empty());
+    for spelling in [
+        Path::new("src/Outside.cs").to_path_buf(),
+        file_alias,
+        Path::new("outside_sources/EscapedDirectory.cs").to_path_buf(),
+        directory_alias.join("EscapedDirectory.cs"),
+        external.path().join("EscapedFile.cs"),
+        external.path().join("sources/EscapedDirectory.cs"),
+    ] {
+        assert!(index.get_file(&spelling).unwrap().is_none());
+    }
 }

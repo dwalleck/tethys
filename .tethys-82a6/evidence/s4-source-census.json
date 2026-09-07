@@ -1,0 +1,72 @@
+{
+  "baseline": "0a2753d50dd8fb335660b247c00e0efa355a8fcc",
+  "definition": "physical Rust lines excluding cfg(test) nodes, C13 production_lines",
+  "files": [
+    {
+      "path": "src/unused_imports.rs",
+      "baseline": 350,
+      "current": 351,
+      "delta": 1
+    },
+    {
+      "path": "src/indexing.rs",
+      "baseline": 1313,
+      "current": 1405,
+      "delta": 92
+    },
+    {
+      "path": "src/lib.rs",
+      "baseline": 1143,
+      "current": 1201,
+      "delta": 58
+    },
+    {
+      "path": "src/reindex.rs",
+      "baseline": 372,
+      "current": 379,
+      "delta": 7
+    },
+    {
+      "path": "src/resolve.rs",
+      "baseline": 1343,
+      "current": 1343,
+      "delta": 0
+    },
+    {
+      "path": "src/discovery/types.rs",
+      "baseline": 0,
+      "current": 498,
+      "delta": 498
+    },
+    {
+      "path": "src/discovery/msbuild/candidates.rs",
+      "baseline": 0,
+      "current": 609,
+      "delta": 609
+    },
+    {
+      "path": "src/discovery/msbuild/mod.rs",
+      "baseline": 0,
+      "current": 772,
+      "delta": 772
+    },
+    {
+      "path": "src/discovery/msbuild/cache.rs",
+      "baseline": 0,
+      "current": 419,
+      "delta": 419
+    },
+    {
+      "path": "src/db/discovery.rs",
+      "baseline": 0,
+      "current": 345,
+      "delta": 345
+    },
+    {
+      "path": "src/languages/module_resolver.rs",
+      "baseline": 412,
+      "current": 436,
+      "delta": 24
+    }
+  ]
+}

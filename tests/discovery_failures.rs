@@ -63,6 +63,15 @@ fn trust_gate_precedes_host_and_restore() {
         DiscoveryFailureReason::TrustRequired
     );
     assert!(snapshot.units.is_empty());
+    assert_eq!(
+        snapshot.grants,
+        DiscoveryGrants {
+            trust_msbuild: false,
+            allow_restore: true,
+        }
+    );
+    assert!(!snapshot.is_complete());
+    assert!(snapshot.inputs.is_empty());
     assert!(!root.path().join("obj").exists());
 }
 
@@ -165,7 +174,7 @@ fn partial_framework_failure_retains_selector_and_success() {
             "<PropertyGroup><TargetFrameworks>good;broken</TargetFrameworks></PropertyGroup><ItemGroup><Compile Include=\"Shared.cs\"><Link>Linked.cs</Link></Compile></ItemGroup><Import Project=\"absent.targets\" Condition=\"'$(TargetFramework)' == 'broken'\" />",
         ),
     );
-    let snapshot = discover(root.path(), options());
+    let mut snapshot = discover(root.path(), options());
     assert_eq!(
         reason(&snapshot.projects[0].standing),
         DiscoveryFailureReason::PartialTargetFrameworks
@@ -189,6 +198,21 @@ fn partial_framework_failure_retains_selector_and_success() {
         DiscoveryFailureReason::EvaluationFailed
     );
     assert_ne!(good.key, broken.key);
+    assert_eq!(
+        snapshot
+            .inputs
+            .iter()
+            .filter(|scope| scope.project.as_str() == "Multi.csproj")
+            .count(),
+        2,
+        "outer and successful inner captures must remain separate"
+    );
+    assert!(!snapshot.is_complete());
+    snapshot.projects[0].standing = DiscoveryStanding::Confirmed;
+    assert!(
+        !snapshot.is_complete(),
+        "a failed unit cannot be hidden by a malformed confirmed project aggregate"
+    );
 }
 
 #[test]
@@ -937,6 +961,19 @@ fn later_restore_does_not_excuse_an_earlier_glob_change() {
         .find(|project| project.key.as_str() == "Z.csproj")
         .unwrap();
     assert_eq!(later.standing, DiscoveryStanding::Confirmed);
+    let earlier_inputs = snapshot
+        .inputs
+        .iter()
+        .find(|scope| scope.project == earlier.key)
+        .unwrap();
+    assert!(
+        earlier_inputs
+            .inputs
+            .iter()
+            .any(|input| input.canonical_path
+                == fs::canonicalize(root.path().join("A.csproj")).unwrap()),
+        "final invalidation must retain the earlier scope's known observations"
+    );
 }
 
 #[test]

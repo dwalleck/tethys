@@ -24,6 +24,7 @@ mod architecture;
 mod call_edges;
 pub(crate) mod dead_code;
 mod deprecated;
+mod discovery;
 mod file_deps;
 mod files;
 mod graph;

@@ -11,9 +11,9 @@ pub use msbuild::MsBuildDiscovery;
 pub use types::{
     DeclaredAssemblyReference, DeclaredProjectReference, DiscoveryCacheObservation,
     DiscoveryCachePolicy, DiscoveryDiagnostic, DiscoveryDiagnosticSeverity, DiscoveryFailure,
-    DiscoveryFailureReason, DiscoveryIssue, DiscoveryOptions, DiscoveryRequest,
-    DiscoveryRestoreStyle, DiscoverySnapshot, DiscoveryStanding, EvaluationCacheEntry,
-    EvaluationContext, EvaluationEnvironment, EvaluationHostKind, EvaluationUnit,
+    DiscoveryFailureReason, DiscoveryGrants, DiscoveryInputScope, DiscoveryIssue, DiscoveryOptions,
+    DiscoveryRequest, DiscoveryRestoreStyle, DiscoverySnapshot, DiscoveryStanding,
+    EvaluationCacheEntry, EvaluationContext, EvaluationEnvironment, EvaluationHostKind, EvaluationInput, EvaluationUnit,
     EvaluationUnitKey, FrameworkIdentity, HostProvenance, ImportToleranceProfile, ProjectDiscovery,
     ProjectKey, RestoreProvenance, SourceMembership,
 };

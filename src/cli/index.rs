@@ -2,19 +2,34 @@
 
 use std::io::{self, Write};
 use std::path::Path;
+use std::process::ExitCode;
 
 use colored::Colorize;
+use tethys::discovery::{
+    DiscoveryCachePolicy, DiscoveryFailure, DiscoveryOptions, DiscoverySnapshot, DiscoveryStanding,
+    EvaluationContext, ImportToleranceProfile,
+};
 use tethys::{ArchPhaseResult, IndexOptions, Tethys};
 
 use super::ensure_lsp_if_requested;
 
+/// Parse an explicit global property without losing empty values or embedded `=`.
+pub(crate) fn parse_property(value: &str) -> Result<(String, String), String> {
+    let (name, value) = value
+        .split_once('=')
+        .filter(|(name, _)| !name.trim().is_empty() && !name.contains('\0'))
+        .ok_or_else(|| "expected NAME=VALUE with a nonempty property name".to_owned())?;
+    Ok((name.to_owned(), value.to_owned()))
+}
+
 /// Run the index command.
-pub fn run(
+pub(crate) fn run(
     workspace: &Path,
     rebuild: bool,
     lsp: bool,
     lsp_timeout: Option<u64>,
-) -> Result<(), tethys::Error> {
+    discovery: crate::DiscoveryArgs,
+) -> Result<ExitCode, tethys::Error> {
     ensure_lsp_if_requested(lsp)?;
 
     println!("{} {}...", "Indexing".cyan().bold(), workspace.display());
@@ -29,7 +44,28 @@ pub fn run(
         opts
     } else {
         IndexOptions::default()
-    };
+    }
+    .with_discovery(DiscoveryOptions {
+        trust_msbuild: discovery.trust_msbuild,
+        allow_restore: discovery.allow_restore,
+        context: EvaluationContext {
+            configuration: discovery.configuration,
+            platform: discovery.platform,
+            runtime_identifier: discovery.runtime_identifier,
+            global_properties: discovery.property.into_iter().collect(),
+            import_profile: match discovery.import_profile {
+                crate::ImportProfile::Strict => ImportToleranceProfile::Strict,
+                crate::ImportProfile::BlankVsToolsPath => ImportToleranceProfile::BlankVsToolsPath,
+            },
+        },
+        msbuild_path: discovery.msbuild_path,
+        cache_policy: if discovery.no_discovery_cache {
+            DiscoveryCachePolicy::Disabled
+        } else {
+            DiscoveryCachePolicy::Enabled
+        },
+        ..DiscoveryOptions::default()
+    });
 
     let stats = if rebuild {
         println!("{}", "Rebuilding index from scratch".yellow());
@@ -103,7 +139,51 @@ pub fn run(
         .map_err(tethys::Error::Io)?;
     print_lsp_session_errors(&stats.lsp_sessions);
 
-    Ok(())
+    print_discovery_failures(&stats.discovery);
+    Ok(if stats.discovery.is_complete() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    })
+}
+
+/// Render typed incomplete coverage only after the source revision is published.
+fn print_discovery_failures(snapshot: &DiscoverySnapshot) {
+    for issue in &snapshot.issues {
+        print_discovery_failure("candidate", &issue.path.display(), &issue.failure);
+    }
+    for project in &snapshot.projects {
+        if let DiscoveryStanding::Indeterminate(failure) = &project.standing {
+            print_discovery_failure("project", &project.key.as_str(), failure);
+        }
+    }
+    for unit in &snapshot.units {
+        if let DiscoveryStanding::Indeterminate(failure) = &unit.standing {
+            print_discovery_failure("unit", &unit.key.as_str(), failure);
+        }
+    }
+}
+
+fn print_discovery_failure(
+    kind: &str,
+    identity: &dyn std::fmt::Display,
+    failure: &DiscoveryFailure,
+) {
+    eprintln!("discovery {kind} {identity}: {:?}", failure.reason);
+    for diagnostic in &failure.diagnostics {
+        eprintln!("  {:?}: {}", diagnostic.severity, diagnostic.message);
+        if let Some(code) = &diagnostic.code {
+            eprintln!("    code: {code}");
+        }
+        if let Some(file) = &diagnostic.file {
+            eprintln!(
+                "    {}:{}:{}",
+                file.display(),
+                diagnostic.line,
+                diagnostic.column
+            );
+        }
+    }
 }
 
 /// Print architecture-phase outcome to `out`, if any. Success path is silent.

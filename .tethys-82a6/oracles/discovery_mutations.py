@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""S3 named falsifiers, run only against a disposable bounded source copy.
+"""S3/S4 named falsifiers, run only against a disposable bounded source copy.
 
 Usage: discovery_mutations.py --repo /path/to/current/tethys
 Requires cargo-nextest, TETHYS_SDK_MSBUILD_PATH and TETHYS_WORKER_DISTRIBUTION.
@@ -66,6 +66,52 @@ ALIAS = Fence('discovery_failures', 'existing_restore_requires_same_physical_pro
 CAPTURED_RESTORE = Fence('discovery_failures', 'authorized_restore_preserves_aliased_artifact_identity', True,
                          '    assert_eq!(\n        aliased_restore.projects[0].standing,',
                          ('assertion `left == right` failed', 'EvaluationFailed', 'Confirmed'))
+MEMBERSHIP = Fence('msbuild_discovery', 'membership_replacement', True,
+                   '    assert_eq!(\n        membership(sql),\n        [\n            (\n                "A.csproj".into(),\n                "Second.cs".into(),\n                Some("Second.cs".into())\n            ),\n            (\n                "A.csproj".into(),',
+                   ('assertion `left == right` failed', 'A.csproj', 'B.csproj', 'Shared.cs', 'Second.cs'))
+REMOVED_UNIT = Fence('msbuild_discovery', 'membership_replacement', True,
+                    '    assert_eq!(\n        strings(\n            &sql,\n            "SELECT project_key FROM evaluation_units ORDER BY project_key"',
+                    ('assertion `left == right` failed', 'removed project/unit identities must not survive replacement',
+                     'A.csproj', 'B.csproj', 'Moved.csproj'))
+RUST_SOURCE_IDENTITY = Fence(
+    'symlink_boundary',
+    'symlink_to_file_outside_workspace_is_indexed_through_logical_path', False,
+    '    assert_eq!(\n        stats.files_indexed, 1,\n        "symlinked file outside workspace is currently indexed via logical path"',
+    ('assertion `left == right` failed', 'left: 0', 'right: 1'))
+CSHARP_SOURCE_IDENTITY = Fence(
+    'concurrency_and_filesystem',
+    'canonical_publication_resolves_relative_and_absolute_file_aliases', False,
+    '    assert_eq!(stats.files_indexed, 2);',
+    ('assertion `left == right` failed', 'left: 6', 'right: 2'))
+CSHARP_SOURCE_CONTAINMENT = Fence(
+    'concurrency_and_filesystem',
+    'csharp_external_file_and_directory_aliases_are_not_published', False,
+    '    assert_eq!(stats.files_indexed, 1);\n    let inside = index.get_file(Path::new("src/Inside.cs")).unwrap().unwrap();',
+    ('assertion `left == right` failed', 'left: 3', 'right: 1'))
+
+# Keep the replacement compilable and transactional: only old, removed projects
+# survive. Shift ordinals into a disjoint range before inserting current rows;
+# deleting each current project cascades its old children, avoiding key failures.
+REPLACE_PREFIX = '''        tx.execute_batch("DELETE FROM projects; DELETE FROM evaluation_context; DELETE FROM evaluation_cache; DELETE FROM discovery_issues; DELETE FROM source_diagnostics;")?;
+        tx.execute(
+            "INSERT INTO evaluation_context VALUES (1, ?1, ?2, ?3, ?4)",
+            params![
+                encode(&snapshot.crates)?,
+                encode(&snapshot.context)?,
+                encode(&snapshot.grants)?,
+                encode(&snapshot.cache_observations)?,
+            ],
+        )?;
+        {
+            let mut statement = tx.prepare("INSERT INTO projects VALUES (?1, ?2, ?3, ?4)")?;
+            for (ordinal, project) in snapshot.projects.iter().enumerate() {'''
+RETAIN_REMOVED = REPLACE_PREFIX.replace(
+    'DELETE FROM projects;',
+    'UPDATE projects SET ordinal = ordinal + 1000000; '
+    'UPDATE evaluation_units SET ordinal = ordinal + 1000000; '
+    'UPDATE evaluation_inputs SET ordinal = ordinal + 1000000;'
+) + '''
+                tx.execute("DELETE FROM projects WHERE project_key = ?1", params![project.key.as_str()])?;'''
 
 MUTATIONS = (
     Mutation('C3-discard-custom-library', 'src/cargo.rs',
@@ -121,6 +167,23 @@ MUTATIONS = (
     Mutation('C9-disable-sdk-runtime-eligibility', 'src/discovery/msbuild/host.rs',
              "    pub(super) fn cache_ineligibility(&self) -> Option<&'static str> {\n        if self.kind == EvaluationHostKind::Framework {",
              "    pub(super) fn cache_ineligibility(&self) -> Option<&'static str> {\n        if self.kind == EvaluationHostKind::Sdk { return None; }\n        if self.kind == EvaluationHostKind::Framework {", (HOOK, WRAPPER)),
+    # Model a last-writer-wins file_id uniqueness policy without provoking a
+    # constraint error: the distinct Second.cs control survives, shared A loses.
+    Mutation('C8-membership-unique-file-id', 'src/db/discovery.rs',
+             '                sources.execute(params![\n                    key,',
+             '''                conn.execute("DELETE FROM file_participation WHERE file_id = ?1", params![file_ids.get(&path)])?;
+                sources.execute(params![
+                    key,''', (MEMBERSHIP,)),
+    Mutation('C8-retain-removed-unit', 'src/db/discovery.rs',
+             REPLACE_PREFIX, RETAIN_REMOVED, (REMOVED_UNIT,)),
+    Mutation('C3-physical-rust-source-identity', 'src/languages/module_resolver.rs',
+             '    fn source_path_identity(&self) -> SourcePathIdentity {\n        SourcePathIdentity::Logical\n    }',
+             '    fn source_path_identity(&self) -> SourcePathIdentity {\n        SourcePathIdentity::Physical\n    }',
+             (RUST_SOURCE_IDENTITY,)),
+    Mutation('C7-C8-logical-csharp-source-identity', 'src/languages/module_resolver.rs',
+             '    fn source_path_identity(&self) -> SourcePathIdentity {\n        SourcePathIdentity::Physical\n    }',
+             '    fn source_path_identity(&self) -> SourcePathIdentity {\n        SourcePathIdentity::Logical\n    }',
+             (CSHARP_SOURCE_IDENTITY, CSHARP_SOURCE_CONTAINMENT)),
 )
 
 
@@ -202,7 +265,7 @@ def run_fence(tree, evidence, env, fence, label, timeout, mutated):
                     f'{label}: runtime failure was not stale ONE versus current TWO; {log}')
         record['assertion'] = f'tests/{fence.binary}.rs:{line}'
         record['evidence'] = fence.evidence
-    record['result'] = 'FALSIFIED' if mutated else 'BASELINE_PASS'
+    record['result'] = 'FALSIFIED' if mutated else ('RESTORED_PASS' if label.endswith('-restored') else 'BASELINE_PASS')
     print(f'{label}: {record["result"]}: {fence.name}', flush=True)
     return record
 
@@ -239,6 +302,9 @@ def main():
             tree = Path(disposable)
             report['disposable_root'] = str(tree)
             report['source_sha256'] = bounded_copy(repo, tree)
+            if any(m.name.startswith('C8-') for m in mutations):
+                require('src/db/discovery.rs' in report['source_sha256'],
+                        'C8 requires the current uncommitted S4 persistence source')
             # Prevent a caller's target override or repository hook installer from
             # touching the original checkout. Native test environment is inherited.
             env['CARGO_TARGET_DIR'] = str(tree / 'target')
@@ -258,20 +324,39 @@ def main():
             fences = tuple(dict.fromkeys(f for m in mutations for f in m.fences))
             for fence in fences:
                 unique((tree / 'tests' / f'{fence.binary}.rs').read_text(), fence.assertion, fence.name)
-                report['results'].append(run_fence(tree, evidence, env, fence, 'baseline', args.timeout, False))
+                # Assertion identity distinguishes obligations sharing one nextest
+                # selector, independent of selection order or selected mutations.
+                case_key = hashlib.sha256(fence.assertion.encode()).hexdigest()
+                baseline_label = f'baseline-{fence.binary}-{case_key}'
+                report['results'].append(run_fence(
+                    tree, evidence, env, fence, baseline_label, args.timeout, False))
             for mutation in mutations:
                 path = tree / mutation.path
                 original = originals[mutation.path]
                 require(path.read_bytes() == original, f'{mutation.name}: previous source was not restored')
                 try:
                     path.write_bytes(original.replace(mutation.before.encode(), mutation.after.encode(), 1))
+                    mutant_hash = hashlib.sha256(path.read_bytes()).hexdigest()
                     for fence in mutation.fences:
-                        report['results'].append(run_fence(tree, evidence, env, fence, mutation.name, args.timeout, True))
+                        result = run_fence(tree, evidence, env, fence, mutation.name, args.timeout, True)
+                        result['mutated_source_sha256'] = mutant_hash
+                        report['results'].append(result)
                 finally:
                     path.write_bytes(original)
+                    require(path.read_bytes() == original, f'{mutation.name}: explicit restoration failed')
+                    report.setdefault('restorations', []).append({
+                        'mutation': mutation.name, 'path': mutation.path,
+                        'restored_source_sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
+                    })
                 for fence in mutation.fences:
                     report['results'].append(run_fence(
                         tree, evidence, env, fence, mutation.name + '-restored', args.timeout, False))
+            report['final_source_sha256'] = {
+                relative: hashlib.sha256((tree / relative).read_bytes()).hexdigest()
+                for relative in report['source_sha256']
+            }
+            require(report['final_source_sha256'] == report['source_sha256'],
+                    'disposable source differs from the fresh baseline after explicit restoration')
             report['status'] = 'PASS'
     except Exception as error:
         report['error'] = str(error)

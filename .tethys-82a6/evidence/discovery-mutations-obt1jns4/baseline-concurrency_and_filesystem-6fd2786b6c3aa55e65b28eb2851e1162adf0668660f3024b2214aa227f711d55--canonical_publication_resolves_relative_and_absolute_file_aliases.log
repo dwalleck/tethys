@@ -1,0 +1,37 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-gyg6ubqc)
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.89s
+────────────
+ Nextest run ID 72bf49d9-bd30-4fa5-bf61-d69459983cdc with nextest profile: default
+    Starting 1 test across 1 binary (14 tests skipped)
+        SKIP [         ] tethys::concurrency_and_filesystem concurrent_searches_after_indexing_return_consistent_results
+        SKIP [         ] tethys::concurrency_and_filesystem concurrent_symbol_and_file_queries_after_indexing
+        SKIP [         ] tethys::concurrency_and_filesystem csharp_external_file_and_directory_aliases_are_not_published
+        SKIP [         ] tethys::concurrency_and_filesystem empty_subdirectories_do_not_cause_errors
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_files_in_deeply_nested_directories
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_files_with_spaces_in_path
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_files_with_unicode_in_path
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_large_file_with_many_symbols
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_many_files_in_single_directory
+        SKIP [         ] tethys::concurrency_and_filesystem needs_update_returns_true
+        SKIP [         ] tethys::concurrency_and_filesystem rebuild_clears_and_reindexes_cleanly
+        SKIP [         ] tethys::concurrency_and_filesystem reindex_produces_same_symbol_count
+        SKIP [         ] tethys::concurrency_and_filesystem unreadable_directory_is_skipped_gracefully
+        SKIP [         ] tethys::concurrency_and_filesystem update_maps_index_stats_to_index_update_fields
+        PASS [   0.020s] tethys::concurrency_and_filesystem canonical_publication_resolves_relative_and_absolute_file_aliases
+────────────
+     Summary [   0.021s] 1 test run: 1 passed, 14 skipped
+        PASS [   0.020s] tethys::concurrency_and_filesystem canonical_publication_resolves_relative_and_absolute_file_aliases
+        SKIP [         ] tethys::concurrency_and_filesystem concurrent_searches_after_indexing_return_consistent_results
+        SKIP [         ] tethys::concurrency_and_filesystem concurrent_symbol_and_file_queries_after_indexing
+        SKIP [         ] tethys::concurrency_and_filesystem csharp_external_file_and_directory_aliases_are_not_published
+        SKIP [         ] tethys::concurrency_and_filesystem empty_subdirectories_do_not_cause_errors
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_files_in_deeply_nested_directories
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_files_with_spaces_in_path
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_files_with_unicode_in_path
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_large_file_with_many_symbols
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_many_files_in_single_directory
+        SKIP [         ] tethys::concurrency_and_filesystem needs_update_returns_true
+        SKIP [         ] tethys::concurrency_and_filesystem rebuild_clears_and_reindexes_cleanly
+        SKIP [         ] tethys::concurrency_and_filesystem reindex_produces_same_symbol_count
+        SKIP [         ] tethys::concurrency_and_filesystem unreadable_directory_is_skipped_gracefully
+        SKIP [         ] tethys::concurrency_and_filesystem update_maps_index_stats_to_index_update_fields

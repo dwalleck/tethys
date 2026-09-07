@@ -16,10 +16,12 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::discovery::{DiscoveryOptions, DiscoverySnapshot};
 use crate::error::IndexError;
 
 /// A strongly-typed symbol ID to prevent mixing with file IDs.
@@ -169,7 +171,7 @@ impl Language {
 /// `lib_path` / `bin_paths.first()` fallback chain. That open-coding is
 /// the design-tax pattern fixed by `rivets-i8qn` — duplicated chains
 /// drift independently when one site is updated and the others aren't.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CrateInfo {
     /// Crate name from `[package].name`
     pub name: String,
@@ -905,7 +907,7 @@ pub struct FileAnalysis {
 pub const DEFAULT_LSP_TIMEOUT_SECS: u64 = 60;
 
 /// Options for configuring the indexing process.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct IndexOptions {
     /// Enable LSP-based resolution for references that tree-sitter cannot resolve.
     ///
@@ -941,6 +943,8 @@ pub struct IndexOptions {
     ///
     /// Default: 100
     streaming_batch_size: usize,
+    /// Owned evaluation context and explicit execution grants.
+    pub(crate) discovery: DiscoveryOptions,
 }
 
 impl IndexOptions {
@@ -972,6 +976,7 @@ impl IndexOptions {
             lsp_timeout_secs: timeout,
             use_streaming: false,
             streaming_batch_size: 100,
+            discovery: DiscoveryOptions::default(),
         }
     }
 
@@ -983,6 +988,7 @@ impl IndexOptions {
             lsp_timeout_secs: DEFAULT_LSP_TIMEOUT_SECS,
             use_streaming: true,
             streaming_batch_size: 100,
+            discovery: DiscoveryOptions::default(),
         }
     }
 
@@ -994,6 +1000,7 @@ impl IndexOptions {
             lsp_timeout_secs: DEFAULT_LSP_TIMEOUT_SECS,
             use_streaming: true,
             streaming_batch_size: batch_size,
+            discovery: DiscoveryOptions::default(),
         }
     }
 
@@ -1009,6 +1016,19 @@ impl IndexOptions {
     pub fn lsp_timeout(mut self, seconds: u64) -> Self {
         self.lsp_timeout_secs = seconds;
         self
+    }
+
+    /// Set discovery context, execution grants and cache policy for this invocation.
+    #[must_use]
+    pub fn with_discovery(mut self, options: DiscoveryOptions) -> Self {
+        self.discovery = options;
+        self
+    }
+
+    /// Get the requested discovery policy; indexing validates it before execution.
+    #[must_use]
+    pub fn discovery_options(&self) -> &DiscoveryOptions {
+        &self.discovery
     }
 
     /// Check if LSP-based resolution is enabled.
@@ -1043,6 +1063,7 @@ impl Default for IndexOptions {
             lsp_timeout_secs: DEFAULT_LSP_TIMEOUT_SECS,
             use_streaming: false,
             streaming_batch_size: 100,
+            discovery: DiscoveryOptions::default(),
         }
     }
 }
@@ -1095,6 +1116,8 @@ pub struct IndexStats {
     /// `Some(ArchPhaseResult::Failed(err))` means the phase errored — index
     /// data is otherwise valid.
     pub arch_phase: Option<ArchPhaseResult>,
+    /// Published project/unit outcomes, including bounded discovery failures.
+    pub discovery: Arc<DiscoverySnapshot>,
 }
 
 impl IndexStats {
@@ -1208,6 +1231,8 @@ pub struct IndexUpdate {
     pub duration: Duration,
     /// Errors encountered
     pub errors: Vec<IndexError>,
+    /// Discovery outcomes published by this update, independent of source errors.
+    pub discovery: Arc<DiscoverySnapshot>,
 }
 
 /// Result of comparing the index against the filesystem.
@@ -2411,6 +2436,7 @@ mod tests {
             references_found: 100,
             duration: Duration::from_secs(1),
             arch_phase: None,
+            discovery: Arc::default(),
             files_skipped: 0,
             directories_skipped: vec![],
             errors: vec![],
@@ -2442,6 +2468,7 @@ mod tests {
             unresolved_dependencies: vec![],
             lsp_sessions: vec![],
             arch_phase: None,
+            discovery: Arc::default(),
         };
         assert_eq!(stats.total_lsp_resolved(), 0);
         assert!(!stats.has_lsp_errors());

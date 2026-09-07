@@ -44,6 +44,7 @@ impl Tethys {
             files_unchanged: 0, // Always 0 until incremental change detection is implemented
             duration: stats.duration,
             errors: stats.errors,
+            discovery: stats.discovery,
         })
     }
 
@@ -68,9 +69,14 @@ impl Tethys {
         // discover_files already emits warn! for each skipped directory; this
         // sink Vec is required by the API but its contents are unused.
         let mut skipped_dirs = Vec::new();
-        let disk_files = self.discover_files(&mut skipped_dirs)?;
+        let mut source_errors = Vec::new();
+        let (disk_files, _) = self.discover_files(
+            indexed_map.keys().map(Path::new),
+            &mut skipped_dirs,
+            &mut source_errors,
+        )?;
 
-        for file_path in disk_files {
+        for (file_path, _) in disk_files {
             let lookup = self.lookup_key(&file_path);
             match indexed_map.remove(&lookup) {
                 None => return Ok(true),
@@ -113,9 +119,14 @@ impl Tethys {
         // discover_files already emits warn! for each skipped directory; this
         // sink Vec is required by the API but its contents are unused.
         let mut skipped_dirs = Vec::new();
-        let disk_files = self.discover_files(&mut skipped_dirs)?;
+        let mut source_errors = Vec::new();
+        let (disk_files, _) = self.discover_files(
+            indexed_map.keys().map(Path::new),
+            &mut skipped_dirs,
+            &mut source_errors,
+        )?;
 
-        for file_path in disk_files {
+        for (file_path, _) in disk_files {
             let lookup = self.lookup_key(&file_path);
 
             if let Some((indexed_mtime, indexed_size)) = indexed_map.remove(&lookup) {
