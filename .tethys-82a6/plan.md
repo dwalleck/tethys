@@ -145,6 +145,23 @@ Issue-local oracles and test fixtures are non-production. Named test paths occur
 
 **Checkpoint size/upstream:** scoped staged increment1480 changed lines across54 files, within1600-line estimate. Fresh fetch leaves upstream main at the pinned0a2753d50dd8fb335660b247c00e0efa355a8fcc; no reconciliation needed. Only explicit S2 paths are staged; unrelated skills/notes/tracker edits remain outside the checkpoint.
 
+## S2a: Enable required CI for stacked PR bases
+
+**Claim IDs:** C5, C14 (platform gate execution).
+**Expected behavior:** every pull-request base runs existing CI, including managed Windows qualification; push CI remains main-only.
+**Oracle:** actual GitHub Actions run attached to stacked PR45.
+**Stress fixture:** PR45 targets feat/tethys-82a6-evaluation, not main.
+**Regression fence:** native pull_request trigger has no base-branch restriction.
+**Named mutation:** restore branches:[main] → observed no workflow run after93 seconds/21 polls.
+**Complexity/production scale:** workflow trigger configuration only; no runtime changes.
+**Wall budget/phase:** existing CI job timeouts unchanged.
+**Module shape:** no product owner changes.
+**Files:** .github/workflows/ci.yml; this audit record.
+**Estimate:** one trigger correction.
+**Diff estimate:** 25 lines.
+**PR increment:** repair in Evaluation companion PR45 before advancing S3.
+**Commands and expected results:** push correction; GitHub run_watch must discover a real run and mandatory managed Windows/SDK jobs must pass.
+
 ## S3: Implement the neutral discovery adapters and freshness contract
 
 **Claim IDs:** C3, C4, C6, C7, C9.
