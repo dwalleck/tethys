@@ -1,0 +1,66 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-rl8e2fb2)
+    Finished `test` profile [optimized + debuginfo] target(s) in 4.04s
+────────────
+ Nextest run ID d2ca43eb-3ff4-4a7c-9d74-870facf34115 with nextest profile: default
+    Starting 1 test across 1 binary (8 tests skipped)
+        SKIP [         ] tethys::discovery_cache cache_launch_child
+        SKIP [         ] tethys::discovery_cache corrupt_unknown_and_import_recipes_never_reuse_success
+        SKIP [         ] tethys::discovery_cache eligible_hit_launches_zero_evaluators
+        SKIP [         ] tethys::discovery_cache environment_change_invalidates_eligible_receipt
+        SKIP [         ] tethys::discovery_cache environment_child
+        SKIP [         ] tethys::discovery_cache native_metadata_names_are_case_insensitive_without_rewriting_spelling
+        SKIP [         ] tethys::discovery_cache restore_and_missing_host_cannot_republish_cached_success
+        SKIP [         ] tethys::discovery_cache shared_physical_memberships_and_case_insensitive_global_precedence
+        FAIL [   2.714s] tethys::discovery_cache cache_input_closure_matches_forced_and_invalidates_globs_content_context
+  stdout ───
+
+    running 1 test
+    test cache_input_closure_matches_forced_and_invalidates_globs_content_context ... FAILED
+
+    failures:
+
+    failures:
+        cache_input_closure_matches_forced_and_invalidates_globs_content_context
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8 filtered out; finished in 2.71s
+
+  stderr ───
+
+    thread 'cache_input_closure_matches_forced_and_invalidates_globs_content_context' (2377657) panicked at tests/discovery_cache.rs:69:5:
+    assertion `left == right` failed
+      left: ["src/First.cs"]
+     right: ["src/First.cs", "src/Second.cs"]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   2.714s] 1 test run: 0 passed, 1 failed, 8 skipped
+        SKIP [         ] tethys::discovery_cache cache_launch_child
+        SKIP [         ] tethys::discovery_cache corrupt_unknown_and_import_recipes_never_reuse_success
+        SKIP [         ] tethys::discovery_cache eligible_hit_launches_zero_evaluators
+        SKIP [         ] tethys::discovery_cache environment_change_invalidates_eligible_receipt
+        SKIP [         ] tethys::discovery_cache environment_child
+        SKIP [         ] tethys::discovery_cache native_metadata_names_are_case_insensitive_without_rewriting_spelling
+        SKIP [         ] tethys::discovery_cache restore_and_missing_host_cannot_republish_cached_success
+        SKIP [         ] tethys::discovery_cache shared_physical_memberships_and_case_insensitive_global_precedence
+        FAIL [   2.714s] tethys::discovery_cache cache_input_closure_matches_forced_and_invalidates_globs_content_context
+  stdout ───
+
+    running 1 test
+    test cache_input_closure_matches_forced_and_invalidates_globs_content_context ... FAILED
+
+    failures:
+
+    failures:
+        cache_input_closure_matches_forced_and_invalidates_globs_content_context
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8 filtered out; finished in 2.71s
+
+  stderr ───
+
+    thread 'cache_input_closure_matches_forced_and_invalidates_globs_content_context' (2377657) panicked at tests/discovery_cache.rs:69:5:
+    assertion `left == right` failed
+      left: ["src/First.cs"]
+     right: ["src/First.cs", "src/Second.cs"]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+error: test run failed

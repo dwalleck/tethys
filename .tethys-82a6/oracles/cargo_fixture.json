@@ -1,0 +1,16 @@
+{
+  "files": {
+    "Cargo.toml": "[package]\nname = \"root-adapter\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[workspace]\nmembers = [\"second\", \"first\"]\n[lib]\npath = \"rootcode/root.rs\"\n[[bin]]\nname = \"root-command\"\npath = \"executables/main.rs\"\n",
+    "rootcode/root.rs": "pub mod child;\npub fn entry() -> usize { child::value() }\n",
+    "rootcode/child.rs": "pub fn value() -> usize { 7 }\n",
+    "executables/main.rs": "fn main() { let _ = root_adapter::entry(); }\n",
+    "second/Cargo.toml": "[package]\nname = \"second-crate\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[lib]\npath = \"custom/lib.rs\"\n[[bin]]\nname = \"second-command\"\npath = \"entry/app.rs\"\n",
+    "second/custom/lib.rs": "pub mod support;\npub fn library_entry() -> usize { support::answer() }\n",
+    "second/custom/support.rs": "pub fn answer() -> usize { 41 }\n",
+    "second/entry/app.rs": "fn main() { let _ = second_crate::library_entry(); }\n",
+    "first/Cargo.toml": "[package]\nname = \"first\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+    "first/src/main.rs": "mod helper;\nfn main() { let _ = helper::answer(); }\n",
+    "first/src/helper.rs": "pub fn answer() -> usize { 42 }\n"
+  },
+  "expected_crate_order": ["second-crate", "first", "root-adapter"]
+}

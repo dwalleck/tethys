@@ -11,6 +11,23 @@ use tracing::{debug, warn};
 
 use crate::CrateInfo;
 
+/// Cargo attribution through the language-neutral discovery seam.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CargoDiscovery;
+
+impl crate::discovery::WorkspaceDiscovery for CargoDiscovery {
+    fn discover(
+        &self,
+        request: &crate::discovery::DiscoveryRequest,
+    ) -> crate::Result<crate::discovery::DiscoverySnapshot> {
+        Ok(crate::discovery::DiscoverySnapshot {
+            crates: discover_crates(&request.workspace_root),
+            context: request.options.context.clone(),
+            ..crate::discovery::DiscoverySnapshot::default()
+        })
+    }
+}
+
 /// Discover all crates in a workspace by parsing Cargo.toml files.
 ///
 /// Handles three cases:

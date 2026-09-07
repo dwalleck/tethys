@@ -6,7 +6,7 @@ Baseline: repository upstream discovered as refs/remotes/origin/main. Integratio
 
 ## Fixed cross-slice contracts
 
-The managed evaluator uses protocol_version=1 and one JSON request on stdin / one JSON response on stdout; stderr is diagnostics only. Request: workspace_root (canonical absolute), project_path (absolute), target_framework (nullable SDK selector), global_properties (string map), msbuild_path (selected installation directory), trust_granted (bool). Host is registered before Microsoft.Build types load. Response: protocol_version, success, project_path, host {kind,path,version,runtime}, properties (string map), items (Compile/ProjectReference/Reference arrays of {include,full_path,metadata}), imports (absolute paths), glob_patterns (include/exclude/remove evidence), diagnostics ({code,message,file,line,column,severity}), cache_eligible and cache_ineligibility. Failure still returns diagnostics; no guessed target-unit binding. Native codes are data, never inferred from human substrings. SDK/Framework worker packaging supplies the correct runtime flavor. Contract adjustments inside the approved fields are coordinated before implementation, never inferred separately.
+The managed evaluator uses protocol_version=1 and one JSON request on stdin / one JSON response on stdout; stderr is diagnostics only. Request: workspace_root (canonical absolute), project_path (absolute), target_framework (nullable SDK selector), global_properties (string map), msbuild_path (selected installation directory), trust_granted (bool). Host is registered before Microsoft.Build types load. Response: protocol_version, success, project_path, host {kind,path,version,runtime}, properties (string map), items (Compile/ProjectReference/Reference/PackageReference/PackageVersion/PackageDownload arrays of {include,full_path,metadata}), imports (absolute paths), glob_patterns (include/exclude/remove evidence), diagnostics ({code,exception_type,message,file,line,column,severity}), cache_eligible and cache_ineligibility. Failure still returns diagnostics; no guessed target-unit binding. Native codes are data, never inferred from human substrings. SDK/Framework worker packaging supplies the correct runtime flavor. Contract adjustments inside the approved fields are coordinated before implementation, never inferred separately.
 
 Property projection returns required framework/identity/compiler/output/restore/toolchain fields plus explicit caller-global keys, not the ambient environment property bag. An ambient secret-shaped sentinel must not appear in returned properties. Companion build outputs under tools/tethys-msbuild-evaluate/bin and obj are ignored; generated lock metadata remains tracked.
 
@@ -20,12 +20,12 @@ Revision owner uses live BEGIN IMMEDIATE, nested savepoints and a scoped BatchWr
 |---|---|---:|---|
 | Atomic index revisions | S1 | 1400 | Existing Rust/C# syntax indexing uses atomic batch/stream/rebuild publication; old/new SQL manifests prove it without discovery code |
 | Evaluation companion | S2 | 1600 | Real packaged SDK/Framework worker evaluates fixture metadata against direct-MSBuild/hand manifests; no Rust consumer needed |
-| Neutral discovery | S3 | 2200 | Cargo/MSBuild discovery interface returns complete metadata/failures/cache evidence under grants, independently exercised through its public seam |
+| Neutral discovery | S3 | 9700 | Cargo/MSBuild discovery interface returns complete metadata/failures/cache evidence under grants, independently exercised through its public seam |
 | Persisted evaluated discovery | S4 | 1600 | Index/reindex store and publish contexts/projects/units/membership and return typed partial coverage; snapshots readable without coupling |
 | Evidence-aware coupling | S5 | 1400 | CLI/library coupling reports units/declarations/unknown metrics from persisted snapshot; all queries remain evaluation-free |
 | Corpus qualification | S6 | 800 | Reproducible pinned qualification/measurement tooling and records, requiring all earlier behavior; no product placeholder |
 
-Sum: 9,000 changed lines (implementation+tests+fixtures/docs). Churn margin: 25%=2,250, for managed host packaging and schema/fixture integration; total 11,250 > 4,000. Each increment has its own observable seam and no dependence on later increments. Actual overruns with unchanged placement return to this plan; ownership changes return to design approval. This partition is not permission to close the issue before S6.
+Sum: 16,500 changed lines (implementation+tests+fixtures/docs/evidence). Churn margin: 25%=4,125, for managed host packaging and schema/fixture integration; total20,625 >4,000. Each increment has its own observable seam and no dependence on later increments. S3's final scoped checkpoint contains9,611 changed lines across55 files, including committed raw mutation/provenance evidence; the estimate is revised to9,700. The approved candidate/host/restore/cache owners remain distinct, and every production footprint is within its reviewed range. This is not a reason to create unused or placeholder modules. Ownership changes still return to design approval. This partition is not permission to close the issue before S6.
 
 ## Module growth ledger
 
@@ -55,13 +55,13 @@ Counts use design's physical-production footprint convention; all new paths star
 | src/cli/coupling.rs | 358 | 380–550 | typed evidence rendering | no aggregation logic |
 | src/cli/mod.rs | 121 | 121–150 | shared CLI presentation if needed | no evaluator |
 | src/error.rs | 211 | 211–240 | fatal typed cause if required | no standing policy |
-| src/discovery/mod.rs | 0 | 80–220 | adapter interface/coordinator | no SQL |
+| src/discovery/mod.rs | 0 | 30–100 | adapter interface/coordinator | no SQL |
 | src/discovery/types.rs | 0 | 250–550 | canonical immutable metadata/options | no execution |
-| src/discovery/msbuild/mod.rs | 0 | 200–450 | trust/evaluation workflow | no SQL |
-| src/discovery/msbuild/candidates.rs | 0 | 200–450 | non-executing candidate/path parsing | no execution |
-| src/discovery/msbuild/host.rs | 0 | 180–400 | host/process/protocol deadline | no inferred grants |
-| src/discovery/msbuild/cache.rs | 0 | 150–350 | qualified recipe/input validation | no universal purity claim |
-| src/discovery/msbuild/restore.rs | 0 | 100–250 | separately authorized restore | no feed/lock override |
+| src/discovery/msbuild/mod.rs | 0 | 550–750 | trust/evaluation workflow | no SQL |
+| src/discovery/msbuild/candidates.rs | 0 | 440–550 | non-executing candidate/path parsing | no execution |
+| src/discovery/msbuild/host.rs | 0 | 850–1100 | host/process/protocol deadline, runtime qualification and native wire lookup | no inferred grants |
+| src/discovery/msbuild/cache.rs | 0 | 300–450 | qualified recipe/input validation and opaque restore receipts | no universal purity claim |
+| src/discovery/msbuild/restore.rs | 0 | 1100–1400 | separately authorized restore, actual solution/config provenance and current-input corroboration | no feed/lock override |
 | tools/tethys-msbuild-evaluate/Program.cs | 0 | 40–100 | host registration/protocol dispatch | no evaluation bodies |
 | tools/tethys-msbuild-evaluate/Evaluation.cs | 0 | 250–500 | evaluated items/properties/imports/diagnostics | no target APIs |
 | tools/tethys-msbuild-evaluate/Contract.cs | 0 | 80–180 | JSON DTOs | data only |
@@ -204,25 +204,45 @@ S2b now passes actual Windows locked restore, licensing, both runtime-flavor pac
 
 **Observed cause and repair:** run34071402251/job101589359326 reports worker MSBuildBinPath=Current/Bin/amd64 versus direct oracle=Current/Bin. This is a real toolset mismatch, not lexical spelling. Primary MSBuild BuildEnvironmentHelper source routes an externally hosted AnyCPU/x64 process to the VS amd64 toolset; Locator1.7.8 does not pin it for VS17.14, and MSBUILD_EXE_PATH is architecture-normalized. Pin net472 PlatformTarget=x86 to match the already-qualified root MSBuild.exe authority. Do not change the oracle or manufacture a Toolset. Existing RuntimeIdentifiers remains a restore-graph setting, not process architecture. Deployment guidance is updated atomically.
 
+**S2 platform acceptance:** commit10d156aabfa176850eea8fdd96c5b26198ed4f74 passes all17 CI jobs in https://github.com/dwalleck/tethys/actions/runs/34072027967. Actual VS17.14/MSBuild17.14.51.32402 evaluates Client40, Classic472 and Classic48 with exact native properties/items and target negative/positive controls from clean packages; Windows SDK10.0.400/MSBuild18.9.6.38015 also passes. Linux/macOS managed jobs and every Rust gate pass. PR45 remains draft, stacked on PR44; S3 can now advance.
+
 ## S3: Implement the neutral discovery adapters and freshness contract
 
 **Claim IDs:** C3, C4, C6, C7, C9.
+**Review-fix purpose (F2–F8):** preserve native case-insensitive metadata; honor explicit SDK selection; exclude physical generated/internal identities through case variants and arbitrary aliases; reject unqualified runtime cache reuse; preserve actual solution context for normal legacy NuGet restore. These repair C4/C6/C7/C9 within existing owners. Metadata and alias regressions are red, host precedence and runtime staleness are independently reproduced, and native NuGet destination semantics establish the legacy gap. Public DTOs and ownership remain unchanged.
 **Expected behavior:** public discovery seam returns unchanged Cargo attribution plus candidate/project/unit metadata or typed failures; missing trust cannot launch, restore is separate, paths contained, reusable eligible hits equal forced evaluation.
 **Oracle:** frozen Rust dumps/Cargo expectations; handwritten candidate/reason/exit manifests; direct worker/MSBuild metadata; independent filesystem/process-start log and forced fresh evaluation.
 **Stress fixture:** every S1–S8/S11 variant in design; every 11 reason reachable; two valid/failed TFMs; no-candidate versus failed enumeration; link escape and inside twin; missing packages.config on Linux/Windows; changed project/import/glob/context/restore/host and unknown function. Eligible unchanged fixture avoids launch, mutation forces launch and expected changed metadata.
-**Regression fence:** tests/cargo_discovery.rs, tests/module_path_integration.rs, tests/discovery_candidates.rs, tests/discovery_failures.rs, tests/discovery_cache.rs; relevant Rust golden projection.
+**Regression fence:** tests/cargo_discovery.rs, tests/module_path_integration.rs, tests/discovery_candidates.rs, tests/discovery_failures.rs, tests/discovery_cache.rs, tests/discovery_runtime.rs; relevant Rust golden projection.
+Additional review fences: native_metadata_names_are_case_insensitive_without_rewriting_spelling; restored_package_metadata_names_are_case_insensitive; explicit-host precedence and filesystem directory-case public fixtures. Runtime hooks and forwarding muxers change same-path external inputs and require changed native DefineConstants; native host tracing, not a forwarding wrapper or cache flag, proves zero evaluator launches on eligible hits.
 **Named mutation:** discard custom Cargo lib path; bypass trust; failed unit→empty confirmed; string-prefix containment; restore grant bypass; omit glob/negative-import watch set or accept unknown recipe. Exact C3/C4/C6/C7/C9 fence red.
 **Complexity/production scale:** candidate walk O(paths+solution entries), dedup using keyed sets; 480 projects/802 units. Cache validation O(watched paths+input bytes), key no host work per file. No project×all-files repeated scans: one workspace membership inventory per invocation. Maximum accepted process-tree RSS6GiB/storage10GiB, corpus30min; perunit60s. Cache hit must execute zero evaluations for eligible unchanged requests, an exact deterministic bound.
 **Wall budget/phase:** discovery/cache validation always-on per invocation; fit corpus30min total; evaluation misses follow60s/unit. Measured evaluation/cache overhead recorded separately against 11.9s/72-project observation; it is a comparison, not an invented ratio baseline.
 **Module shape:** src/discovery/* owns canonical DTOs/coordinator/MSBuild; Cargo stays src/cargo.rs. No facade/indexing integration body until S4. `python3 .tethys-82a6/oracles/module_shape.py --stage S3` → C13 PASS.
-**Files:** src/discovery/mod.rs, types.rs, msbuild/{mod.rs,candidates.rs,host.rs,cache.rs,restore.rs}; src/cargo.rs; lib.rs module/reexports; Cargo.toml/Cargo.lock; named discovery/Cargo tests; atomic docs/fragment.
+**Files:** src/discovery/mod.rs, types.rs, msbuild/{mod.rs,candidates.rs,host.rs,cache.rs,restore.rs}; src/cargo.rs; lib.rs module/reexports; Cargo.toml/Cargo.lock; named discovery/Cargo/runtime tests; tools/tethys-msbuild-evaluate/{Contract.cs,Evaluation.cs} and existing worker oracle/fixture for native package metadata; issue-local discovery/Cargo/mutation oracles; .github/workflows/ci.yml native qualification; atomic docs/fragment.
 **Estimate:** one substantial discovery correctness increment.
-**Diff estimate:** 2200 lines.
+**Diff estimate:** 9700 lines, revised against the final scoped checkpoint including committed mutation/provenance evidence.
 **PR increment:** Neutral discovery.
 **Commands and expected results:**
-- `cargo nextest run --test discovery_candidates --test discovery_failures --test discovery_cache --test cargo_discovery --test module_path_integration` → exact reason/path/metadata and unchanged Rust manifests, positive controls reached.
+- `cargo nextest run --all-features --lib --test discovery_candidates --test discovery_failures --test discovery_cache --test discovery_runtime --test cargo_discovery --test module_path_integration --run-ignored all` → exact reason/path/metadata and unchanged Rust manifests, positive controls reached.
 - `python3 .tethys-82a6/oracles/discovery_smoke.py` → real discovery under no trust/trust/changed/eligible-hit/forced modes matches authored manifests; zero unauthorized execution.
 - `python3 .tethys-82a6/oracles/module_shape.py --stage S3` → canonical records and no forbidden owner.
+- Native real-worker fences run explicitly with `--run-ignored all` and selected SDK/packaged companion environment; default ignored status is not qualification.
+- `python3 .tethys-82a6/oracles/discovery_mutations.py --repo <checkout>` → baseline fences pass; named mutants fail at their behavioral assertions, not compilation/setup; disposable sources are restored and removed.
+
+**Integrated local proof:** artifact357 records all-target/all-feature Clippy with -D warnings,674 native nextest tests (0 skipped),18 doctests, actual C3 Cargo output comparison, native C6/C7/C9 public smoke and C13 S3 PASS. Runtime fences now check changed native metadata before confirming absence of reusable receipts, without pinning internal reason wording; the offline restore fixture explicitly proves the no-grant→grant transition before existing currentness checks. Final gate reruns those refinements.
+
+**Quality and footprint review:** host selection, protocol decoding and process supervision were factored into private responsibilities rather than suppressing Clippy's function-size warnings. Evaluation uses nested typed Results, matching restore and avoiding a boxed success; hashing uses16KiB stack buffers. Final production footprints excluding cfg(test): candidates542, host1,067 and restore1,342 lines. Runtime eligibility/bounded supervision and legacy solution/config currentness explain the amended tripwires; owners and protected parents are unchanged.
+
+**Mutation proof:** `.tethys-82a6/evidence/discovery-mutations-2o13m48p/results.json` records eight successful unmutated controls and seven named mutants caught by eight behavioral assertions against final source hashes. Compiler/setup errors and timeouts are rejected as evidence. The runtime mutants specifically returned stale ONE metadata after the external value became TWO. The disposable source/build tree was removed; parent production files were never mutated.
+
+**Final-review repairs:** S3TransportReview found no concrete transport/cache blocker. S3RestoreReview found generated/internal aliases bypassing exclusions (native public fence red, artifact376) and NuGet project restore missing default solution destination (primary CLI/source evidence). Candidate now privately retains actual solution paths separately from discovery containers; filters preserve referenced solution origin. Restore inspection consumes those paths, honors established context/config precedence and declines ambiguous defaults. SDK restore behavior remains unchanged. Windows proof includes the old destination-less command as a negative control before successful granted discovery.
+
+**Impact evidence:** Fresh self-index indexed163 files/3,526 symbols/30,277 references; both caller tiers found only the same-file inspect caller. Narrow source search recovered all four actual callsites (orchestrator, host unit fence and two restore unit fences). LSP's stale reference positions were reported to the tool issue channel; caller migration uses current source plus the integrated compiler gate.
+
+**F8 placement review:** retaining actual solution context and applicable NuGet configuration adds197 production lines within the existing restore-policy owner after integration simplification. The restore tripwire is amended1200→1400; this is not a new responsibility or wider public seam. Source-only membership documentation now accurately distinguishes evaluated participation from successful syntax indexing. Final integrated Clippy passes and676 native tests pass with zero skipped (artifact392), including the previously red alias fence. Actual Windows NuGet success remains pending.
+
+**Final local checkpoint:** artifact397 records fmt,1,155 nextest passes (34 intentionally ignored native/platform fences),18 doctests (2 ignored), actual frozen Cargo CLI output and real public discovery smoke, and C13 S3 PASS. The separate native run executes676 tests with zero skipped. Final mutation replay passes all seven/eight named mutation/falsifier cases in102.28 seconds. Rust pre-commit checklist reviewed; no warning suppressions or compatibility shims were added. Evaluation/candidate/cache fixture deadlines hold; pinned corpus resource qualification belongs to S6/C12, not an invented local measurement. Final assembled integration is N/A — S4–S6 remain. Native Windows F8 negative/positive control is the mandatory next checkpoint before S4 advances.
 
 ## S4: Persist and publish evaluated metadata during index and reindex
 

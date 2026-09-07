@@ -24,7 +24,8 @@ internal sealed class Response
     public Dictionary<string, string> properties { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, List<Item>> items { get; set; } = new()
     {
-        ["Compile"] = new(), ["ProjectReference"] = new(), ["Reference"] = new()
+        ["Compile"] = new(), ["ProjectReference"] = new(), ["Reference"] = new(),
+        ["PackageReference"] = new(), ["PackageDownload"] = new(), ["PackageVersion"] = new()
     };
     public List<string> imports { get; set; } = new();
     public List<GlobPattern> glob_patterns { get; set; } = new();
