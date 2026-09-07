@@ -87,6 +87,56 @@ fn debug_restore(root: &Path, snapshot: &DiscoverySnapshot) {
     }
 }
 
+#[cfg(windows)]
+fn debug_sdk_restore_paths() {
+    let root = TempDir::new().unwrap();
+    write(
+        root.path(),
+        "App.csproj",
+        "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>",
+    );
+    write(
+        root.path(),
+        "NuGet.Config",
+        "<configuration><packageSources><clear/></packageSources></configuration>",
+    );
+    let sdk = options().msbuild_path.unwrap().canonicalize().unwrap();
+    let dotnet = dunce::simplified(sdk.parent().unwrap().parent().unwrap()).join("dotnet.exe");
+    let assembly = sdk.join("MSBuild.dll");
+    let project = root.path().join("App.csproj").canonicalize().unwrap();
+    for verbatim in [true, false] {
+        let argument = if verbatim {
+            assembly.as_path()
+        } else {
+            dunce::simplified(&assembly)
+        };
+        let output = std::process::Command::new(&dotnet)
+            .arg(argument)
+            .arg(dunce::simplified(&project))
+            .args(["-target:Restore", "-nologo"])
+            .current_dir(dunce::simplified(project.parent().unwrap()))
+            .output()
+            .unwrap();
+        eprintln!(
+            "[DEBUG-82a6-sdk-restore] verbatim={verbatim} assembly={} project={} status={} stdout={:?} stderr={:?}",
+            argument.display(),
+            project.display(),
+            output.status,
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        eprintln!(
+            "[DEBUG-82a6-sdk-restore] verbatim={verbatim} assets={:?}",
+            fs::read(root.path().join("obj/project.assets.json"))
+                .map(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes)
+                    .map(|mut value| value["project"]["restore"].take()))
+        );
+        if root.path().join("obj").exists() {
+            fs::remove_dir_all(root.path().join("obj")).unwrap();
+        }
+    }
+}
+
 #[test]
 fn trust_gate_precedes_host_and_restore() {
     let root = TempDir::new().unwrap();
@@ -450,6 +500,8 @@ fn authorized_restore_rechecks_metadata_before_confirmation() {
         },
     );
     debug_restore(root.path(), &snapshot);
+    #[cfg(windows)]
+    debug_sdk_restore_paths();
     assert_eq!(
         snapshot.projects[0].standing,
         DiscoveryStanding::Confirmed,
