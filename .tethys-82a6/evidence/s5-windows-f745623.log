@@ -1,0 +1,47 @@
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	﻿2026-09-07T23:35:18.4540677Z ##[group]Run import os, subprocess, sys
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4541174Z ^[[36;1mimport os, subprocess, sys^[[0m
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4541605Z ^[[36;1margs = [sys.executable, ".tethys-82a6/oracles/coupling_smoke.py",^[[0m
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4542118Z ^[[36;1m        "--output", "target/worker-dist/coupling-evidence.json"]^[[0m
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4542544Z ^[[36;1mif os.name == "nt":^[[0m
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4542920Z ^[[36;1m    args += ["--classic-host", os.environ["TETHYS_VS_MSBUILD_PATH"]]^[[0m
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4543565Z ^[[36;1msubprocess.run(args, check=True)^[[0m
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4547231Z shell: C:\hostedtoolcache\windows\Python\3.12.10\x64\python.EXE {0}
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4547640Z env:
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4547870Z   CARGO_TERM_COLOR: always
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4548140Z   RUST_BACKTRACE: 1
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4548406Z   CARGO_PROFILE_DEV_OPT_LEVEL: 1
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4548734Z   DOTNET_ROOT: C:\Program Files\dotnet
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4549128Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4549729Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4550247Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4550705Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4551159Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4551555Z   CARGO_HOME: C:\Users\runneradmin\.cargo
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4551861Z   CARGO_INCREMENTAL: 0
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4552120Z   CACHE_ON_FAILURE: false
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4552450Z   NUGET: C:\hostedtoolcache\windows\nuget.exe\6.14.0\x64/nuget.exe
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4552853Z   DOTNET: C:\Program Files\dotnet\dotnet.exe
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4553277Z   TETHYS_SDK_MSBUILD_PATH: C:\Program Files\dotnet\sdk\8.0.424
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4553790Z   TETHYS_WORKER_DISTRIBUTION: D:\a\tethys\tethys\target\worker-dist\msbuild-evaluate
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4554455Z   TETHYS_VS_MSBUILD_PATH: C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4555145Z   TETHYS_NUGET_FIXTURE_SOURCE: C:\Users\runneradmin\.nuget\packages\newtonsoft.json\13.0.3
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4555633Z   NUGET_CERT_REVOCATION_MODE: offline
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:18.4555928Z ##[endgroup]
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:35.9907968Z Traceback (most recent call last):
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:35.9917122Z   File "D:\a\tethys\tethys\.tethys-82a6\oracles\coupling_smoke.py", line 227, in <module>
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:35.9917892Z     main()
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:35.9954543Z   File "D:\a\tethys\tethys\.tethys-82a6\oracles\coupling_smoke.py", line 217, in main
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:35.9956848Z     "units": native_and_scale(binary, args.companion.resolve(strict=True),
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:35.9960792Z              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:35.9961639Z   File "D:\a\tethys\tethys\.tethys-82a6\oracles\coupling_smoke.py", line 160, in native_and_scale
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:35.9963354Z     require(indexed["exit"] == 0, f"Native indexing failed: {indexed}")
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:35.9964313Z   File "D:\a\tethys\tethys\.tethys-82a6\oracles\discovery_smoke.py", line 79, in require
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:35.9965897Z     raise RuntimeError(message)
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:35.9969669Z RuntimeError: Native indexing failed: {'arguments': ['index', '--trust-msbuild', '--msbuild-path', 'C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\MSBuild\\Current\\Bin'], 'exit': 1, 'stdout': 'Indexing C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tethys-coupling-native-xcw33p0e\\workspace...\n\nIndexed 12 files, found 8 symbols, 0 references\nDuration: 14.56s\n', 'stderr': 'discovery project Twin/Twin.csproj: MalformedInput\n  Error: Evaluation did not establish a complete framework identity\ndiscovery unit eb223bbeecae827c175dd9425f09c40e9bdf74949de3ce4c498c5bf3b445bb07: MalformedInput\n  Error: Evaluation did not establish a complete framework identity\n'}
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:36.0085686Z Traceback (most recent call last):
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:36.0089930Z   File "D:\a\_temp\6ec7d315-6603-41cf-a004-69e31b7ece04.py", line 6, in <module>
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:36.0090723Z     subprocess.run(args, check=True)
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:36.0091545Z   File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\subprocess.py", line 571, in run
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:36.0182223Z     raise CalledProcessError(retcode, process.args,
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:36.0184815Z subprocess.CalledProcessError: Command '['C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\python.EXE', '.tethys-82a6/oracles/coupling_smoke.py', '--output', 'target/worker-dist/coupling-evidence.json', '--classic-host', 'C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\MSBuild\\Current\\Bin']' returned non-zero exit status 1.
+Managed Worker (windows-2022)	Prove unit coupling and frozen Rust output	2026-09-07T23:35:36.0257081Z ##[error]Process completed with exit code 1.
