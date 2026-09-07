@@ -1,6 +1,6 @@
 # Review decisions
 
-**Current S4 status: local checkpoint PASS; committed native platform acceptance pending.** F19–F23 are repaired, including the approved language-specific source identity amendment. S3/S3a remains accepted at d9119ff with all17 CI jobs passed. Earlier pending/failure notes below are historical checkpoints. No S5 advancement until S4 native acceptance; S5, S6 and final assembled qualification remain required.
+**Current S4 status: local and native checkpoint PASS at d04d7a1; diagnostic-free final CI pending.** F19–F29 are repaired and all17 native CI jobs pass. The native mutation archive is retained before temporary diagnostic cleanup. S3/S3a remains accepted at d9119ff. Earlier pending/failure notes below are historical checkpoints. S5, S6 and final assembled qualification remain required.
 
 | finding-id | finding | reviewer | evidence-state | evidence | decision | fix | note |
 |---|---|---|---|---|---|---|---|
@@ -397,3 +397,11 @@ The follow-up workflow commit deleted the Build step boundary and omitted
 The step boundary and both Darwin runners are now repaired, and the edited
 workflow passes YAML parsing. Child-only cleanup cannot fix in-process tests;
 runner cleanup is required there.
+## S4 accepted native proof and diagnostic cleanup — F24–F29
+
+- **Native checkpoint:** run34156691733 at d04d7a19eaea827d6f238dac002e0084b1ae41aa passes all17 jobs. evidence/platform-d04d7a1.json retains job URLs, native log hashes, exact summaries, smoke JSON and step timings. Native Linux/macOS each pass674 tests; Windows passes661. Two cases are excluded from that roster because the separate companion installation/metadata steps qualify them.
+- **Process lifecycle:** macOS passes100/100 overflow invocations and the ordinary1167-test roster. evidence/discovery-mutations-wnrdt_oa retains the actual baseline PASS, guard-removal failure at the named zombie-group assertion (exit100/PermissionDenied), and restored PASS. The uploaded artifact was downloaded and its result/exit sequence verified before cleanup. Persistent permission denial is not whitelisted, and process bounds remain unchanged.
+- **Windows observer:** the original packaged publication smoke completes with strict TemporaryDirectory cleanup, including denied trust, native publication, metadata replacement and evaluator-free persisted queries. F27's explicit connection ownership removes the lifetime dependence; no Windows cleanup exception is suppressed.
+- **Bounded qualification:** macOS public discovery smoke completes in2m01s instead of14m28s; publication smoke completes in34s. The entire managed job finishes in15m07s under its unchanged25-minute cap. CARGO_PROFILE_DEV_OPT_LEVEL=1 affects qualification binaries only; the frozen Cargo and independently authored discovery/publication checks still pass. Product performance budgets and subprocess deadlines are unchanged.
+- **Cleanup/retention:** remove test-only DEBUG-f26 output, the100-run CI diagnostic and the one-off CI mutation/upload steps after retaining their evidence. Keep the actual exited-group regression, useful failure variants, portable evidence basenames and native-only mutation selector. The termination algorithm and named mutant are unchanged by cleanup; retained native falsification remains applicable despite shifted line numbers.
+- **Clean local proof:** artifact838 passes fmt, all-target/all-feature clippy with -D warnings,1167 ordinary tests,18 doctests and C13 after diagnostic removal. AGENTS.md/CONTEXT.md and user-facing discovery/changelog descriptions remain accurate; this cleanup does not change their contracts. Final diagnostic-free native CI remains required before the next slice.

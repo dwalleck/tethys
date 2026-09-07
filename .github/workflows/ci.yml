@@ -181,14 +181,6 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
 
-      - name: Diagnose native overflow outcome
-        if: runner.os == 'macOS'
-        run: |
-          for iteration in {1..100}; do
-            echo "Native overflow iteration ${iteration}/100"
-            cargo nextest run --all-features --lib --no-fail-fast -E 'test(=discovery::msbuild::host::tests::overflowing_stderr_terminates_process_group)' || exit "$?"
-          done
-
       - name: Run tests
         run: cargo nextest run --all-features --no-fail-fast
 
@@ -360,16 +352,6 @@ jobs:
         # No runner-level loader cleanup: each fixture states the environment it
         # evaluates under, so harness settings cannot disqualify a receipt.
         run: cargo nextest run --all-features --lib --test discovery_candidates --test discovery_failures --test discovery_cache --test discovery_runtime --run-ignored all --no-fail-fast
-      - name: Qualify native zombie-group mutation
-        if: runner.os == 'macOS'
-        run: python .tethys-82a6/oracles/discovery_mutations.py --repo . --mutation C6-reject-zombie-group-reaping
-      - name: Retain native cleanup mutation evidence
-        if: always() && runner.os == 'macOS'
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-cleanup-mutations
-          path: .tethys-82a6/evidence/discovery-mutations-*/
-          include-hidden-files: true
       - name: Build actual CLI for discovery smoke
         run: cargo build --lib --bin tethys
       - name: Prove native cache launches and frozen Cargo output

@@ -1,0 +1,8 @@
+{
+  "path": "src/discovery/msbuild/host.rs",
+  "before": "if cfg!(target_os = \"macos\")",
+  "after": "if false",
+  "tests": [
+    "discovery::msbuild::host::tests::already_exited_process_group_is_reaped"
+  ]
+}
