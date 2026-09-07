@@ -142,7 +142,7 @@ the published context from SQLite without probing MSBuild or running evaluation.
 One revision transaction publishes discovery metadata, memberships, input scopes,
 cache evidence and diagnostics with source, resolution and architecture facts.
 Failure restores both the previous database revision and in-memory context.
-Schema 2 rebuild uses that same transaction, preserving the previous schema on
+Schema 3 rebuild uses that same transaction, preserving the previous schema on
 failure rather than deleting the index before opening it.
 
 Source selection merges walked sources, retained indexed sources still on disk,
@@ -152,7 +152,7 @@ and deduplicates physical files within the workspace. Many C# evaluation units
 can share one syntax file; metadata withdrawal does not remove independent
 syntax. Candidate/project/unit failures publish explicit incomplete coverage
 alongside available source; the CLI exits 1 after that publication. Discovery
-metadata is not C# compiler binding or evaluation-unit coupling.
+metadata is not C# compiler binding or proof of a selected-unit dependency.
 
 ### Two-pass deferred dependency resolution
 
@@ -168,11 +168,17 @@ graph LR
 
 ### Architecture metrics (Robert C. Martin's coupling)
 
-`db/architecture.rs` rolls file-level dependencies up to package level and
-computes afferent coupling (Ca), efferent coupling (Ce), and instability
-(I = Ce / (Ca + Ce)). The `arch_coupling` SQL view computes Ca/Ce; instability
-is deliberately computed once in Rust (`CouplingMetrics::instability`) rather
-than in SQL to keep the formula in a single place.
+`src/architecture.rs` owns coupling records, evidence propagation, the instability
+formula, and architecture-phase assembly. Cargo and MSBuild adapters own their
+attribution rules; C# physical files are not assigned to Cargo nodes.
+`db/architecture.rs` stores one node per crate or evaluation unit and rolls
+Rust file-level dependencies into indexed Ca/Ce. Its list/detail queries read
+one SQLite snapshot, including unit metadata and declaration evidence.
+
+Unselected project references withhold source Ce and candidate-unit Ca rather
+than manufacturing edges. Confirmed isolated units retain known zero; incomplete
+discovery withholds potentially affected incoming counts. Instability is derived
+only when both counts are known. See the [coupling contract](../../docs/msbuild-evaluation.md#evidence-aware-coupling).
 
 ### Batch vs. streaming write modes
 

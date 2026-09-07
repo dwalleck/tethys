@@ -85,11 +85,39 @@ does not probe MSBuild, reevaluate projects, restore, or require the companion.
 It observes the published revision, not current project-file edits; run `index`
 with fresh grants to refresh that evidence. Before the first publication, the
 library exposes only its Cargo-discovery fallback. Evaluation metadata does not
-add C# compiler bindings or evaluation-unit coupling analysis.
+add C# compiler bindings or prove selected-unit dependencies.
+
+### Evidence-aware coupling
+
+`tethys coupling` includes one row per recorded evaluation unit alongside Cargo
+crates. Rust-only output is unchanged. Evaluated rows expose project and unit
+identity, framework, discovery standing, assembly metadata and separate declared
+project references. Assembly names are metadata, not lookup keys.
+
+Use the exact row `name` with `coupling --package NAME`; evaluated-unit names
+have the form `msbuild:<project-key>:<unit-key>`. This preserves distinct
+frameworks and projects even when their assembly names match.
+
+An unselected compiler-contributing project reference makes source Ce and every
+candidate target-project unit's Ca indeterminate. It creates no selected edge.
+`ReferenceOutputAssembly=false` remains visible as a declaration without
+contributing to those counts. Failed units have unavailable counts; incomplete
+discovery also withholds potentially affected C# incoming counts. Confirmed,
+independent units retain known zero. Instability is unavailable when either
+required count is unavailable.
+
+JSON retains the existing `packages` container and numeric field names.
+Evaluated rows add `evaluation_unit` and `metric_evidence`; unavailable numbers
+are `null`, with `incomplete_discovery` or `unselected_project_reference`
+reasons. Human output says `indeterminate`. Numeric sorts (`--sort ca`, `ce`,
+or `instability`) put unavailable values after known values.
+
+Coupling reads persisted evidence without evaluation, and each table/detail
+query pins one SQLite snapshot across counts, metadata and neighbors.
 
 ### Schema compatibility and recovery
 
-The active index schema is **2**. Opening an incompatible index refuses it
+The active index schema is **3**. Opening an incompatible index refuses it
 without mutation; recover with `tethys index --rebuild`, adding the evaluation
 and restore grants required for that run. Rebuild replaces schema and facts
 inside the publication transaction rather than deleting the database or its

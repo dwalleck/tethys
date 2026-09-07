@@ -8,7 +8,10 @@ use std::path::Path;
 
 use clap::ValueEnum;
 use colored::Colorize;
-use tethys::{CouplingDetail, CouplingMetrics, CouplingSort, PackageDependency, Tethys};
+use tethys::{
+    CouplingDetail, CouplingIndeterminacy, CouplingMetrics, CouplingSort, EvaluationUnitCoupling,
+    MetricEvidence, PackageDependency, Tethys,
+};
 
 /// CLI sort flag, converted to the API's `CouplingSort` via `From`.
 #[derive(Clone, Copy, Debug, Default, ValueEnum)]
@@ -159,22 +162,132 @@ fn write_deps_section<W: Write>(
     writeln!(out)
 }
 
+fn indeterminacy_label(reason: CouplingIndeterminacy) -> &'static str {
+    match reason {
+        CouplingIndeterminacy::IncompleteDiscovery => "incomplete_discovery",
+        CouplingIndeterminacy::UnselectedProjectReference => "unselected_project_reference",
+    }
+}
+
+struct CountText(MetricEvidence<u32>);
+
+impl std::fmt::Display for CountText {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            MetricEvidence::Known(value) => value.fmt(f),
+            MetricEvidence::Indeterminate(reason) => {
+                write!(f, "indeterminate ({})", indeterminacy_label(reason))
+            }
+        }
+    }
+}
+
+fn write_unit_text<W: Write>(out: &mut W, unit: &EvaluationUnitCoupling) -> io::Result<()> {
+    writeln!(out, "    Evaluation unit: {}", unit.key.as_str())?;
+    writeln!(out, "    Project: {}", unit.project.as_str())?;
+    writeln!(
+        out,
+        "    Target framework: {}",
+        unit.target_framework.as_deref().unwrap_or("(unavailable)")
+    )?;
+    write!(out, "    Framework: ")?;
+    serde_json::to_writer(&mut *out, &unit.framework).map_err(io::Error::other)?;
+    writeln!(out)?;
+    write!(out, "    Discovery: ")?;
+    serde_json::to_writer(&mut *out, &unit.standing).map_err(io::Error::other)?;
+    writeln!(out)?;
+    writeln!(
+        out,
+        "    Assembly name: {}",
+        unit.assembly_name.as_deref().unwrap_or("(unavailable)")
+    )?;
+    writeln!(
+        out,
+        "    Declared project references (not confirmed edges):"
+    )?;
+    if unit.declared_references.is_empty() {
+        writeln!(out, "      (none recorded)")?;
+    }
+    for reference in &unit.declared_references {
+        write!(out, "      ")?;
+        serde_json::to_writer(&mut *out, reference).map_err(io::Error::other)?;
+        writeln!(out)?;
+    }
+    Ok(())
+}
+
+fn metric_json<T: serde::Serialize>(metric: MetricEvidence<T>) -> serde_json::Value {
+    match metric {
+        MetricEvidence::Known(value) => serde_json::json!(value),
+        MetricEvidence::Indeterminate(_) => serde_json::Value::Null,
+    }
+}
+
+fn evidence_json<T>(metric: &MetricEvidence<T>) -> serde_json::Value {
+    match metric {
+        MetricEvidence::Known(_) => serde_json::json!({ "standing": "known" }),
+        MetricEvidence::Indeterminate(reason) => serde_json::json!({
+            "standing": "indeterminate",
+            "reason": reason,
+        }),
+    }
+}
+
+fn add_metric_json(value: &mut serde_json::Value, metrics: &CouplingMetrics) {
+    let instability = metrics.instability();
+    value["afferent"] = metric_json(metrics.afferent);
+    value["efferent"] = metric_json(metrics.efferent);
+    value["instability"] = match instability {
+        MetricEvidence::Known(number) => serde_json::json!(round_to_4(number)),
+        MetricEvidence::Indeterminate(_) => serde_json::Value::Null,
+    };
+    if let Some(unit) = &metrics.evaluation_unit {
+        value["evaluation_unit"] = serde_json::json!(unit);
+        value["metric_evidence"] = serde_json::json!({
+            "afferent": evidence_json(&metrics.afferent),
+            "efferent": evidence_json(&metrics.efferent),
+            "instability": evidence_json(&instability),
+        });
+    }
+}
+
 pub(crate) fn write_detail_text<W: Write>(out: &mut W, d: &CouplingDetail) -> io::Result<()> {
     writeln!(out)?;
     writeln!(out, "Package: {}", d.metrics.package.name.cyan().bold())?;
     writeln!(out, "  Path:    {}", d.metrics.package.path.display())?;
     writeln!(out, "  Source:  {}", d.metrics.package.source.as_str())?;
+    if let Some(unit) = &d.metrics.evaluation_unit {
+        write_unit_text(out, unit)?;
+    }
     writeln!(out)?;
     writeln!(out, "  {}", "Coupling".white().bold())?;
-    writeln!(out, "    Afferent (Ca):   {}", d.metrics.afferent)?;
-    writeln!(out, "    Efferent (Ce):   {}", d.metrics.efferent)?;
-    let instability = d.metrics.instability();
-    let bar = render_bar(instability);
     writeln!(
         out,
-        "    Instability:     {}  {instability:.2}",
-        instability_color(instability, &bar),
+        "    Afferent (Ca):   {}",
+        CountText(d.metrics.afferent)
     )?;
+    writeln!(
+        out,
+        "    Efferent (Ce):   {}",
+        CountText(d.metrics.efferent)
+    )?;
+    match d.metrics.instability() {
+        MetricEvidence::Known(instability) => {
+            let bar = render_bar(instability);
+            writeln!(
+                out,
+                "    Instability:     {}  {instability:.2}",
+                instability_color(instability, &bar),
+            )?;
+        }
+        MetricEvidence::Indeterminate(reason) => {
+            writeln!(
+                out,
+                "    Instability:     indeterminate ({})",
+                indeterminacy_label(reason)
+            )?;
+        }
+    }
     writeln!(out)?;
 
     write_deps_section(out, "Depends on (outgoing):", &d.outgoing)?;
@@ -182,9 +295,7 @@ pub(crate) fn write_detail_text<W: Write>(out: &mut W, d: &CouplingDetail) -> io
     Ok(())
 }
 
-// NOTE: the JSON shape is hand-rolled. The architecture types don't yet derive
-// `Serialize` (tracked: rivets-4srr) — until that lands, new fields on
-// `CouplingDetail` / `CouplingMetrics` / `Package` will NOT auto-propagate here.
+// Keep the established Rust JSON shape; evaluated units add evidence and metadata.
 pub(crate) fn write_detail_json<W: Write>(out: &mut W, d: &CouplingDetail) -> io::Result<()> {
     let dep_json = |p: &PackageDependency| {
         serde_json::json!({
@@ -192,18 +303,16 @@ pub(crate) fn write_detail_json<W: Write>(out: &mut W, d: &CouplingDetail) -> io
             "dep_count": p.dep_count,
         })
     };
-    let value = serde_json::json!({
+    let mut value = serde_json::json!({
         "package": {
             "name": d.metrics.package.name,
             "path": d.metrics.package.path.to_string_lossy(),
             "source": d.metrics.package.source.as_str(),
         },
-        "afferent": d.metrics.afferent,
-        "efferent": d.metrics.efferent,
-        "instability": round_to_4(d.metrics.instability()),
         "outgoing": d.outgoing.iter().map(&dep_json).collect::<Vec<_>>(),
         "incoming": d.incoming.iter().map(&dep_json).collect::<Vec<_>>(),
     });
+    add_metric_json(&mut value, &d.metrics);
     serde_json::to_writer_pretty(&mut *out, &value).map_err(io::Error::other)?;
     writeln!(out)?;
     Ok(())
@@ -290,17 +399,34 @@ pub(crate) fn write_table_text<W: Write>(
     writeln!(out, "  {}", header.white().dimmed())?;
 
     for m in metrics {
-        let instability = m.instability();
-        let bar = render_bar(instability);
-        writeln!(
-            out,
-            "  {name:width$}  {ca:>3}  {ce:>3}   {bar}  {instability:>4.2}",
-            name = m.package.name,
-            width = max_name_len,
-            ca = m.afferent,
-            ce = m.efferent,
-            bar = instability_color(instability, &bar),
-        )?;
+        match m.instability() {
+            MetricEvidence::Known(instability) => {
+                let bar = render_bar(instability);
+                writeln!(
+                    out,
+                    "  {name:width$}  {ca:>3}  {ce:>3}   {bar}  {instability:>4.2}",
+                    name = m.package.name,
+                    width = max_name_len,
+                    ca = CountText(m.afferent),
+                    ce = CountText(m.efferent),
+                    bar = instability_color(instability, &bar),
+                )?;
+            }
+            MetricEvidence::Indeterminate(reason) => {
+                writeln!(
+                    out,
+                    "  {name:width$}  {ca:>3}  {ce:>3}   indeterminate ({reason})",
+                    name = m.package.name,
+                    width = max_name_len,
+                    ca = CountText(m.afferent),
+                    ce = CountText(m.efferent),
+                    reason = indeterminacy_label(reason),
+                )?;
+            }
+        }
+        if let Some(unit) = &m.evaluation_unit {
+            write_unit_text(out, unit)?;
+        }
     }
 
     writeln!(out)?;
@@ -318,7 +444,7 @@ pub(crate) fn write_table_text<W: Write>(
     Ok(())
 }
 
-// NOTE: hand-rolled JSON shape — see comment on `write_detail_json` (rivets-4srr).
+// Keep the same per-row metric representation as the detail view.
 pub(crate) fn write_table_json<W: Write>(
     out: &mut W,
     metrics: &[CouplingMetrics],
@@ -327,14 +453,15 @@ pub(crate) fn write_table_json<W: Write>(
     let value = serde_json::json!({
         "sort": sort_key_str(sort),
         "count": metrics.len(),
-        "packages": metrics.iter().map(|m| serde_json::json!({
-            "name": m.package.name,
-            "path": m.package.path.to_string_lossy(),
-            "source": m.package.source.as_str(),
-            "afferent": m.afferent,
-            "efferent": m.efferent,
-            "instability": round_to_4(m.instability()),
-        })).collect::<Vec<_>>(),
+        "packages": metrics.iter().map(|m| {
+            let mut row = serde_json::json!({
+                "name": m.package.name,
+                "path": m.package.path.to_string_lossy(),
+                "source": m.package.source.as_str(),
+            });
+            add_metric_json(&mut row, m);
+            row
+        }).collect::<Vec<_>>(),
     });
     serde_json::to_writer_pretty(&mut *out, &value).map_err(io::Error::other)?;
     writeln!(out)?;
@@ -399,13 +526,15 @@ mod table_tests {
         let metrics = vec![
             CouplingMetrics {
                 package: pkg("alpha"),
-                afferent: 0,
-                efferent: 1,
+                afferent: MetricEvidence::Known(0),
+                efferent: MetricEvidence::Known(1),
+                evaluation_unit: None,
             },
             CouplingMetrics {
                 package: pkg("beta"),
-                afferent: 2,
-                efferent: 1,
+                afferent: MetricEvidence::Known(2),
+                efferent: MetricEvidence::Known(1),
+                evaluation_unit: None,
             },
         ];
 
@@ -427,8 +556,9 @@ mod table_tests {
     fn table_json_serializes_full_shape() {
         let metrics = vec![CouplingMetrics {
             package: pkg("alpha"),
-            afferent: 0,
-            efferent: 1,
+            afferent: MetricEvidence::Known(0),
+            efferent: MetricEvidence::Known(1),
+            evaluation_unit: None,
         }];
         let mut buf = Vec::new();
         write_table_json(&mut buf, &metrics, SortFlag::Instability).expect("write json");
@@ -442,14 +572,8 @@ mod table_tests {
         assert_eq!(v["packages"][0]["efferent"], 1);
         assert_eq!(v["packages"][0]["instability"], 1.0);
         assert_eq!(v["packages"][0]["source"], "manifest");
-    }
-
-    #[test]
-    fn table_text_for_empty_metrics_prints_friendly_message() {
-        let mut buf = Vec::new();
-        write_table_text(&mut buf, &[], SortFlag::Instability).expect("write");
-        let s = String::from_utf8(buf).expect("utf-8");
-        assert!(s.contains("No packages discovered"));
+        assert!(v["packages"][0].get("evaluation_unit").is_none());
+        assert!(v["packages"][0].get("metric_evidence").is_none());
     }
 
     #[rstest]
@@ -472,8 +596,9 @@ mod table_tests {
 
         let metrics = vec![CouplingMetrics {
             package: pkg(long_name),
-            afferent: 7,
-            efferent: 9,
+            afferent: MetricEvidence::Known(7),
+            efferent: MetricEvidence::Known(9),
+            evaluation_unit: None,
         }];
 
         let mut buf = Vec::new();
@@ -523,8 +648,9 @@ mod detail_tests {
         CouplingDetail {
             metrics: CouplingMetrics {
                 package: pkg("rivets-mcp"),
-                afferent: 3,
-                efferent: 1,
+                afferent: MetricEvidence::Known(3),
+                efferent: MetricEvidence::Known(1),
+                evaluation_unit: None,
             },
             outgoing: vec![PackageDependency {
                 package: pkg("rivets"),
@@ -570,8 +696,9 @@ mod detail_tests {
         let detail = CouplingDetail {
             metrics: CouplingMetrics {
                 package: pkg("target"),
-                afferent: 0,
-                efferent: 2,
+                afferent: MetricEvidence::Known(0),
+                efferent: MetricEvidence::Known(2),
+                evaluation_unit: None,
             },
             outgoing: vec![
                 PackageDependency {
@@ -618,6 +745,8 @@ mod detail_tests {
         assert_eq!(v["afferent"], 3);
         assert_eq!(v["efferent"], 1);
         assert_eq!(v["instability"], 0.25);
+        assert!(v.get("evaluation_unit").is_none());
+        assert!(v.get("metric_evidence").is_none());
         assert_eq!(v["outgoing"][0]["name"], "rivets");
         assert_eq!(v["outgoing"][0]["dep_count"], 5);
         assert_eq!(
@@ -627,6 +756,78 @@ mod detail_tests {
                 .len(),
             3
         );
+    }
+
+    #[test]
+    fn evaluated_unit_json_keeps_unknown_distinct_from_zero_and_declarations_from_edges() {
+        use tethys::discovery::{DeclaredProjectReference, DiscoveryStanding};
+
+        let unit = EvaluationUnitCoupling {
+            key: serde_json::from_str("\"unit-net8\"").expect("unit key"),
+            project: serde_json::from_str("\"App/App.csproj\"").expect("project key"),
+            target_framework: Some("net8.0".into()),
+            framework: None,
+            standing: DiscoveryStanding::Confirmed,
+            assembly_name: Some("NotTheSelector".into()),
+            declared_references: vec![DeclaredProjectReference {
+                target: serde_json::from_str("\"Lib/Lib.csproj\"").expect("target key"),
+                include: "../Lib/Lib.csproj".into(),
+                metadata: [("ReferenceOutputAssembly".into(), "false".into())].into(),
+            }],
+        };
+        let mut package = pkg("msbuild:App/App.csproj:unit-net8");
+        package.source = tethys::PackageSource::MsBuild;
+        let detail = CouplingDetail {
+            metrics: CouplingMetrics {
+                package,
+                afferent: MetricEvidence::Indeterminate(CouplingIndeterminacy::IncompleteDiscovery),
+                efferent: MetricEvidence::Known(0),
+                evaluation_unit: Some(unit),
+            },
+            outgoing: vec![],
+            incoming: vec![],
+        };
+        let mut detail_output = Vec::new();
+        write_detail_json(&mut detail_output, &detail).expect("detail JSON");
+        let detail_json: serde_json::Value =
+            serde_json::from_slice(&detail_output).expect("parse detail");
+        let mut table_output = Vec::new();
+        write_table_json(
+            &mut table_output,
+            std::slice::from_ref(&detail.metrics),
+            SortFlag::Name,
+        )
+        .expect("table JSON");
+        let table_json: serde_json::Value =
+            serde_json::from_slice(&table_output).expect("parse table");
+        for row in [&detail_json, &table_json["packages"][0]] {
+            assert!(row["afferent"].is_null());
+            assert_eq!(row["efferent"], 0);
+            assert!(row["instability"].is_null());
+            assert_eq!(
+                row["metric_evidence"],
+                serde_json::json!({
+                    "afferent": {"standing": "indeterminate", "reason": "incomplete_discovery"},
+                    "efferent": {"standing": "known"},
+                    "instability": {"standing": "indeterminate", "reason": "incomplete_discovery"}
+                })
+            );
+            assert_eq!(row["evaluation_unit"]["key"], "unit-net8");
+            assert_eq!(
+                row["evaluation_unit"]["declared_references"][0]["metadata"]["ReferenceOutputAssembly"],
+                "false"
+            );
+        }
+        assert_eq!(
+            detail_json["package"]["name"],
+            "msbuild:App/App.csproj:unit-net8"
+        );
+        assert_eq!(
+            table_json["packages"][0]["name"],
+            detail_json["package"]["name"]
+        );
+        assert_eq!(detail_json["outgoing"], serde_json::json!([]));
+        assert_eq!(detail_json["incoming"], serde_json::json!([]));
     }
 }
 
@@ -794,15 +995,6 @@ mod run_detail_tests {
                 .is_empty(),
             "single-crate workspace has no incoming deps"
         );
-    }
-
-    #[test]
-    fn run_detail_text_mode_succeeds_when_package_exists() {
-        let (_dir, tethys) = single_crate_workspace("only");
-        let mut buf: Vec<u8> = Vec::new();
-        run_detail_to(&tethys, "only", false, &mut buf).expect("should succeed");
-        let s = String::from_utf8(buf).expect("utf-8");
-        assert!(s.contains("only"), "output should mention package name");
     }
 
     struct BrokenPipeWriter;

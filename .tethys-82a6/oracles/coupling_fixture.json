@@ -1,0 +1,199 @@
+{
+  "source_revision": "89ea3d1",
+  "files": {
+    "Cargo.toml": "[workspace]\nmembers = [\"app\", \"middle\", \"leaf\"]\nresolver = \"3\"\n",
+    "app/Cargo.toml": "[package]\nname = \"app_lib\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[dependencies]\nmiddle_lib = { path = \"../middle\" }\nleaf_lib = { path = \"../leaf\" }\n",
+    "app/src/lib.rs": "use middle_lib::middle;\nuse leaf_lib::leaf;\npub fn app() -> usize { middle() + leaf() }\n",
+    "middle/Cargo.toml": "[package]\nname = \"middle_lib\"\nversion = \"0.0.0\"\nedition = \"2024\"\n[dependencies]\nleaf_lib = { path = \"../leaf\" }\n",
+    "middle/src/lib.rs": "use leaf_lib::leaf;\npub fn middle() -> usize { leaf() }\n",
+    "leaf/Cargo.toml": "[package]\nname = \"leaf_lib\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+    "leaf/src/lib.rs": "pub fn leaf() -> usize { 7 }\n"
+  },
+  "expected_metrics": {
+    "app_lib": [
+      0,
+      2,
+      1.0
+    ],
+    "middle_lib": [
+      1,
+      1,
+      0.5
+    ],
+    "leaf_lib": [
+      2,
+      0,
+      0.0
+    ]
+  },
+  "queries": [
+    {
+      "arguments": [
+        "coupling",
+        "--sort",
+        "instability"
+      ],
+      "exit": 0,
+      "stdout": "\nTethys Coupling Metrics\n\n  PACKAGE                Ca   Ce   INSTABILITY\n  app_lib                 0    2   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  1.00\n  middle_lib              1    1   \u2588\u2588\u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591  0.50\n  leaf_lib                2    0   \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591  0.00\n\n  3 packages \u2014 sorted by instability (descending)\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--sort",
+        "instability",
+        "--json"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"count\": 3,\n  \"packages\": [\n    {\n      \"afferent\": 0,\n      \"efferent\": 2,\n      \"instability\": 1.0,\n      \"name\": \"app_lib\",\n      \"path\": \"app\",\n      \"source\": \"manifest\"\n    },\n    {\n      \"afferent\": 1,\n      \"efferent\": 1,\n      \"instability\": 0.5,\n      \"name\": \"middle_lib\",\n      \"path\": \"middle\",\n      \"source\": \"manifest\"\n    },\n    {\n      \"afferent\": 2,\n      \"efferent\": 0,\n      \"instability\": 0.0,\n      \"name\": \"leaf_lib\",\n      \"path\": \"leaf\",\n      \"source\": \"manifest\"\n    }\n  ],\n  \"sort\": \"instability\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--sort",
+        "ca"
+      ],
+      "exit": 0,
+      "stdout": "\nTethys Coupling Metrics\n\n  PACKAGE                Ca   Ce   INSTABILITY\n  leaf_lib                2    0   \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591  0.00\n  middle_lib              1    1   \u2588\u2588\u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591  0.50\n  app_lib                 0    2   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  1.00\n\n  3 packages \u2014 sorted by Ca (descending)\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--sort",
+        "ca",
+        "--json"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"count\": 3,\n  \"packages\": [\n    {\n      \"afferent\": 2,\n      \"efferent\": 0,\n      \"instability\": 0.0,\n      \"name\": \"leaf_lib\",\n      \"path\": \"leaf\",\n      \"source\": \"manifest\"\n    },\n    {\n      \"afferent\": 1,\n      \"efferent\": 1,\n      \"instability\": 0.5,\n      \"name\": \"middle_lib\",\n      \"path\": \"middle\",\n      \"source\": \"manifest\"\n    },\n    {\n      \"afferent\": 0,\n      \"efferent\": 2,\n      \"instability\": 1.0,\n      \"name\": \"app_lib\",\n      \"path\": \"app\",\n      \"source\": \"manifest\"\n    }\n  ],\n  \"sort\": \"ca\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--sort",
+        "ce"
+      ],
+      "exit": 0,
+      "stdout": "\nTethys Coupling Metrics\n\n  PACKAGE                Ca   Ce   INSTABILITY\n  app_lib                 0    2   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  1.00\n  middle_lib              1    1   \u2588\u2588\u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591  0.50\n  leaf_lib                2    0   \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591  0.00\n\n  3 packages \u2014 sorted by Ce (descending)\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--sort",
+        "ce",
+        "--json"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"count\": 3,\n  \"packages\": [\n    {\n      \"afferent\": 0,\n      \"efferent\": 2,\n      \"instability\": 1.0,\n      \"name\": \"app_lib\",\n      \"path\": \"app\",\n      \"source\": \"manifest\"\n    },\n    {\n      \"afferent\": 1,\n      \"efferent\": 1,\n      \"instability\": 0.5,\n      \"name\": \"middle_lib\",\n      \"path\": \"middle\",\n      \"source\": \"manifest\"\n    },\n    {\n      \"afferent\": 2,\n      \"efferent\": 0,\n      \"instability\": 0.0,\n      \"name\": \"leaf_lib\",\n      \"path\": \"leaf\",\n      \"source\": \"manifest\"\n    }\n  ],\n  \"sort\": \"ce\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--sort",
+        "name"
+      ],
+      "exit": 0,
+      "stdout": "\nTethys Coupling Metrics\n\n  PACKAGE                Ca   Ce   INSTABILITY\n  app_lib                 0    2   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  1.00\n  leaf_lib                2    0   \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591  0.00\n  middle_lib              1    1   \u2588\u2588\u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591  0.50\n\n  3 packages \u2014 sorted by name (ascending)\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--sort",
+        "name",
+        "--json"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"count\": 3,\n  \"packages\": [\n    {\n      \"afferent\": 0,\n      \"efferent\": 2,\n      \"instability\": 1.0,\n      \"name\": \"app_lib\",\n      \"path\": \"app\",\n      \"source\": \"manifest\"\n    },\n    {\n      \"afferent\": 2,\n      \"efferent\": 0,\n      \"instability\": 0.0,\n      \"name\": \"leaf_lib\",\n      \"path\": \"leaf\",\n      \"source\": \"manifest\"\n    },\n    {\n      \"afferent\": 1,\n      \"efferent\": 1,\n      \"instability\": 0.5,\n      \"name\": \"middle_lib\",\n      \"path\": \"middle\",\n      \"source\": \"manifest\"\n    }\n  ],\n  \"sort\": \"name\"\n}\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--package",
+        "app_lib"
+      ],
+      "exit": 0,
+      "stdout": "\nPackage: app_lib\n  Path:    app\n  Source:  manifest\n\n  Coupling\n    Afferent (Ca):   0\n    Efferent (Ce):   2\n    Instability:     \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  1.00\n\n  Depends on (outgoing):\n    leaf_lib             1 edge\n    middle_lib           1 edge\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--package",
+        "app_lib",
+        "--json"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"afferent\": 0,\n  \"efferent\": 2,\n  \"incoming\": [],\n  \"instability\": 1.0,\n  \"outgoing\": [\n    {\n      \"dep_count\": 1,\n      \"name\": \"leaf_lib\"\n    },\n    {\n      \"dep_count\": 1,\n      \"name\": \"middle_lib\"\n    }\n  ],\n  \"package\": {\n    \"name\": \"app_lib\",\n    \"path\": \"app\",\n    \"source\": \"manifest\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--package",
+        "middle_lib"
+      ],
+      "exit": 0,
+      "stdout": "\nPackage: middle_lib\n  Path:    middle\n  Source:  manifest\n\n  Coupling\n    Afferent (Ca):   1\n    Efferent (Ce):   1\n    Instability:     \u2588\u2588\u2588\u2588\u2588\u2591\u2591\u2591\u2591\u2591  0.50\n\n  Depends on (outgoing):\n    leaf_lib             1 edge\n\n  Depended on by (incoming):\n    app_lib              1 edge\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--package",
+        "middle_lib",
+        "--json"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"afferent\": 1,\n  \"efferent\": 1,\n  \"incoming\": [\n    {\n      \"dep_count\": 1,\n      \"name\": \"app_lib\"\n    }\n  ],\n  \"instability\": 0.5,\n  \"outgoing\": [\n    {\n      \"dep_count\": 1,\n      \"name\": \"leaf_lib\"\n    }\n  ],\n  \"package\": {\n    \"name\": \"middle_lib\",\n    \"path\": \"middle\",\n    \"source\": \"manifest\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--package",
+        "leaf_lib"
+      ],
+      "exit": 0,
+      "stdout": "\nPackage: leaf_lib\n  Path:    leaf\n  Source:  manifest\n\n  Coupling\n    Afferent (Ca):   2\n    Efferent (Ce):   0\n    Instability:     \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591  0.00\n\n  Depended on by (incoming):\n    app_lib              1 edge\n    middle_lib           1 edge\n\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--package",
+        "leaf_lib",
+        "--json"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"afferent\": 2,\n  \"efferent\": 0,\n  \"incoming\": [\n    {\n      \"dep_count\": 1,\n      \"name\": \"app_lib\"\n    },\n    {\n      \"dep_count\": 1,\n      \"name\": \"middle_lib\"\n    }\n  ],\n  \"instability\": 0.0,\n  \"outgoing\": [],\n  \"package\": {\n    \"name\": \"leaf_lib\",\n    \"path\": \"leaf\",\n    \"source\": \"manifest\"\n  }\n}\n",
+      "stderr": ""
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--package",
+        "missing"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "error: not found: package 'missing'\n"
+    },
+    {
+      "arguments": [
+        "coupling",
+        "--package",
+        "missing",
+        "--json"
+      ],
+      "exit": 1,
+      "stdout": "null\n",
+      "stderr": "error: not found: package 'missing'\n"
+    }
+  ]
+}

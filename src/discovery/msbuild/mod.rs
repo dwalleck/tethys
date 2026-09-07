@@ -788,3 +788,22 @@ fn semantic_metadata(metadata: &BTreeMap<String, String>) -> BTreeMap<String, St
         .map(|(name, value)| (name.clone(), value.clone()))
         .collect()
 }
+
+/// One node per recorded outcome; `AssemblyName` never supplies identity.
+pub(crate) fn architecture_packages(
+    units: &[crate::discovery::EvaluationUnit],
+) -> Vec<crate::architecture::ArchitecturePackage> {
+    units
+        .iter()
+        .map(|unit| crate::architecture::ArchitecturePackage {
+            name: format!("msbuild:{}:{}", unit.project.as_str(), unit.key.as_str()),
+            path: std::path::Path::new(unit.project.as_str())
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new(""))
+                .to_string_lossy()
+                .into_owned(),
+            source: crate::PackageSource::MsBuild,
+            evaluation_unit_key: Some(unit.key.clone()),
+        })
+        .collect()
+}

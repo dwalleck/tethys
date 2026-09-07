@@ -333,19 +333,21 @@ Additional review fences: native_metadata_names_are_case_insensitive_without_rew
 **Expected behavior:** pure-C# coupling lists units and declarations; affected Ca/Ce/instability indeterminate for unselected target; independent complete zero metrics retained. Rust-only JSON/human output unchanged. All query commands read persisted snapshots and launch no evaluator.
 **Oracle:** handwritten unit/declaration/proven-edge graph with exact known/unknown values and output/exit manifest; independent writer barrier and process marker.
 **Stress fixture:** App/net8→Core with two frameworks and no selected unit; Core same AssemblyName as independent project; isolated complete unit; incoming uncertainty; duplicate references; query during publication. Expected no guessed selected edges, AppCe and applicable CoreCa unknown, isolated zero stable. Known-edge control has exact counts.
-**Regression fence:** tests/csharp_coupling.rs, tests/discovery_cli.rs::queries_are_read_only, existing tests/architecture.rs and CLI coupling tests.
+**Regression fence:** tests/csharp_coupling.rs, tests/discovery_cli.rs::coupling_queries_read_published_units_without_launching_evaluation, db::architecture::coupling_snapshot_tests::coupling_detail_uses_one_snapshot_across_wal_publication, existing tests/architecture.rs and CLI coupling tests.
 **Named mutation:** equal-TFM selection/unknown→0; query invokes discovery or composite SQL loses read snapshot. Expected C10 false-known value/C11 launch or mixed revision.
 **Complexity/production scale:** one snapshot/adjacency of O(units+declared edges), no all-to-all target expansion; 802 units; sort O(units log units). Query p95≤1s/max2s at pinned corpus qualification; known instability formula retained. Memory O(units+edges) under6GiB whole-process cap.
 **Wall budget/phase:** query always-on per invocation; p95≤1s/max2s inherited umjq gate; no external process/evaluation. Architecture rebuild part of index30min cap.
 **Module shape:** move architecture records+phase to src/architecture.rs; db/architecture existing SQL owner; CLI renders, no second aggregator. Protected indexing loses architecture body; types shrinks by moved records; lib wiring only. `python3 .tethys-82a6/oracles/module_shape.py --stage S5` → C13 PASS.
-**Files:** src/architecture.rs, db/architecture.rs, db/schema.rs, types.rs, lib.rs, indexing.rs, cli/coupling.rs, main.rs; all LSP-located architecture consumers; tests/csharp_coupling.rs, discovery_cli.rs, architecture.rs; atomic docs/fragment.
+**Files:** src/architecture.rs, cargo.rs, db/architecture.rs, db/schema.rs, types.rs, lib.rs, indexing.rs, discovery/{mod.rs,msbuild/mod.rs}, cli/coupling.rs; migrated architecture consumers; tests/{csharp_coupling,discovery_cli,architecture,idxperf_golden}.rs; issue-local coupling/mutation/shape oracles and evidence; existing native CI; atomic docs/fragment.
 **Estimate:** one query contract increment.
-**Diff estimate:** 1400 lines.
+**Diff estimate:** 9000 lines after assembled proof/repair retention: the pre-record staged increment is8978 lines across46 files, comprising1982 production,518 tests,5743 evidence and735 docs/oracles/CI. This amends review-size accounting only; approved responsibilities, interfaces, protected growth caps and the separate S5 PR boundary are unchanged.
 **PR increment:** Evidence-aware coupling.
 **Commands and expected results:**
 - `cargo nextest run --test csharp_coupling --test discovery_cli --test architecture` → C10 exact known/unknown graph and C11 no-launch/read-snapshot manifest.
 - Actual CLI `coupling --json` on isolated mixed-SDK/classic fixture → explicit unknown metric evidence/declarations, no fabricated edge; Rust comparison byte-identical.
 - `python3 .tethys-82a6/oracles/module_shape.py --stage S5` → moved phase/records in approved owner only.
+
+**Local checkpoint:** all nine local gates and F30–F32 dispositions are recorded in review-decisions.md; evidence/s5-qualification.json pins the exercised source/fixture/oracle/workflow hashes.1170 ordinary tests,18 doctests, actual native query control and16 frozen Rust outputs pass. The802-unit authored read fixture gives p95=0.075411s/max=0.086201s. Three behavioral and six structural mutations fail as intended and restore green. Current platform acceptance still requires committed native CI, including the Windows classic fixture; this record does not advance S6 or claim full corpus qualification.
 
 ## S6: Qualify corpus, legacy and cache-hit performance
 

@@ -1,0 +1,4 @@
+- `tethys coupling` reports C# evaluation units separately, including framework identity, discovery standing, and declared project references without inventing selected dependencies.
+- Unavailable coupling counts and instability appear as `indeterminate` in text and `null` with explicit reasons in JSON. Use an evaluated row's exact `name` with `--package` to inspect it.
+- Coupling counts, metadata, and neighbors share one published snapshot without invoking MSBuild. Rust-only coupling output remains unchanged.
+- Existing indexes require `tethys index --rebuild` for the new schema; supply the evaluation and restore grants needed for that run.
