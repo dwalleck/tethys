@@ -181,6 +181,10 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
 
+      - name: Diagnose native overflow outcome
+        if: runner.os == 'macOS'
+        run: cargo nextest run --all-features --lib --no-fail-fast --stress-count 100 -E 'test(=discovery::msbuild::host::tests::overflowing_stderr_terminates_process_group)'
+
       - name: Run tests
         run: cargo nextest run --all-features --no-fail-fast
 

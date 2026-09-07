@@ -285,7 +285,12 @@ pub(super) fn run(
         }),
     ];
     let result = supervise(&mut child, &receiver, deadline);
-    terminate_and_reap(&mut child)?;
+    #[cfg(test)]
+    eprintln!("[DEBUG-f26] supervision: {:?}", result.as_ref().map(|_| ()));
+    let cleanup = terminate_and_reap(&mut child);
+    #[cfg(test)]
+    eprintln!("[DEBUG-f26] cleanup: {cleanup:?}");
+    cleanup?;
     for worker in workers {
         // A process that escapes its group is outside the trust contract, but cannot stall this caller.
         if worker.is_finished() && worker.join().is_err() {
@@ -1304,10 +1309,16 @@ mod tests {
             Duration::from_secs(5),
             &transport_environment(),
         );
-        match result {
+        match &result {
             Err(ProcessFailure::Overflow) => {}
-            Err(error) => panic!("expected Overflow, got {error:?}"),
-            Ok(output) => panic!("expected Overflow, process exited {}", output.status),
+            Err(error) => panic!("[DEBUG-f26] expected Overflow, got {error:?}"),
+            Ok(output) => panic!(
+                "[DEBUG-f26] expected Overflow, got status={}, stdout_bytes={}, stderr_bytes={}, stderr_prefix={:?}",
+                output.status,
+                output.stdout.len(),
+                output.stderr.len(),
+                String::from_utf8_lossy(&output.stderr[..output.stderr.len().min(512)]),
+            ),
         }
         assert!(start.elapsed() < Duration::from_secs(3));
     }
