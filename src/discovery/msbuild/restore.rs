@@ -449,11 +449,15 @@ fn property<'a>(evaluated: Option<&'a EvaluatedProject>, name: &str) -> Option<&
 
 fn native_path(project: &Path, value: &str) -> PathBuf {
     let path = Path::new(value);
-    if path.is_absolute() {
+    let path = if path.is_absolute() {
         path.to_owned()
     } else {
         project.parent().unwrap_or(Path::new(".")).join(path)
-    }
+    };
+    // One identity per file: a relative value joined to the verbatim canonical project
+    // and an absolute value reported by MSBuild must not differ only in `\\?\` spelling,
+    // or the same input hashes differently between restore and revalidation.
+    dunce::simplified(&path).to_owned()
 }
 
 /// Name a restore artifact the same way however its location was learned.
@@ -1977,6 +1981,16 @@ mod tests {
             Some("All"),
         )]);
         assert!(dependencies_match(&assets, &explicit, Some("net461"), true));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn native_path_normalizes_verbatim_and_ordinary_spellings() {
+        let project = Path::new(r"\\?\C:\work\App.csproj");
+        let relative = native_path(project, "obj/project.assets.json");
+        let absolute = native_path(project, r"C:\work\obj\project.assets.json");
+        assert_eq!(relative, absolute);
+        assert!(!relative.to_string_lossy().starts_with(r"\\?\"));
     }
 
     #[test]
