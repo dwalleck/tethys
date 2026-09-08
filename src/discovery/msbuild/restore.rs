@@ -1980,6 +1980,89 @@ mod tests {
     }
 
     #[test]
+    fn implicit_package_dependencies_require_target_evidence_without_relaxing_explicit_versions() {
+        let assets = serde_json::json!({
+            "project": {"frameworks": {"net461": {"dependencies": {
+                "Microsoft.NETFramework.ReferenceAssemblies": {
+                    "target": "Package", "version": "[1.0.3, )",
+                    "suppressParent": "All", "autoReferenced": true
+                }
+            }}}}
+        });
+        let evaluated = |packages: &[(&str, &str, Option<&str>)]| EvaluatedProject {
+            protocol_version: 1,
+            success: true,
+            project_path: PathBuf::from("App.csproj"),
+            host: None,
+            properties: BTreeMap::new(),
+            items: BTreeMap::from([(
+                "PackageReference".to_owned(),
+                packages
+                    .iter()
+                    .map(|(name, version, private)| host::EvaluatedItem {
+                        include: (*name).to_owned(),
+                        full_path: PathBuf::new(),
+                        metadata: BTreeMap::from([("Version".to_owned(), (*version).to_owned())])
+                            .into_iter()
+                            .chain(
+                                private.map(|value| ("PrivateAssets".to_owned(), value.to_owned())),
+                            )
+                            .collect(),
+                    })
+                    .collect(),
+            )]),
+            imports: Vec::new(),
+            glob_patterns: Vec::new(),
+            diagnostics: Vec::new(),
+            cache_eligible: false,
+            cache_ineligibility: Vec::new(),
+        };
+        // An implicit dependency exists only in the assets and the native graph.
+        let implicit_only = evaluated(&[]);
+        assert!(dependencies_match(
+            &assets,
+            &implicit_only,
+            Some("net461"),
+            true
+        ));
+        assert!(!dependencies_match(
+            &assets,
+            &implicit_only,
+            Some("net461"),
+            false
+        ));
+        // An explicit reference still has to agree with the recorded version and asset flags.
+        let wrong_version = evaluated(&[(
+            "Microsoft.NETFramework.ReferenceAssemblies",
+            "9.9.9",
+            Some("All"),
+        )]);
+        assert!(!dependencies_match(
+            &assets,
+            &wrong_version,
+            Some("net461"),
+            true
+        ));
+        let wrong_flags = evaluated(&[(
+            "Microsoft.NETFramework.ReferenceAssemblies",
+            "1.0.3",
+            Some("None"),
+        )]);
+        assert!(!dependencies_match(
+            &assets,
+            &wrong_flags,
+            Some("net461"),
+            true
+        ));
+        let explicit = evaluated(&[(
+            "Microsoft.NETFramework.ReferenceAssemblies",
+            "1.0.3",
+            Some("All"),
+        )]);
+        assert!(dependencies_match(&assets, &explicit, Some("net461"), true));
+    }
+
+    #[test]
     fn legacy_destination_uses_solution_context_and_config_precedence_without_ancestor_guesses() {
         let root = tempfile::tempdir().unwrap();
         let root = root.path().canonicalize().unwrap();
