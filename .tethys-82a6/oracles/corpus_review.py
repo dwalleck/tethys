@@ -152,12 +152,15 @@ def main():
                 })
 
         confirmed_units = sum(1 for row in units if row["standing"] == "confirmed")
+        # The invoked qualification driver exits nonzero only on a fatal discovery failure
+        # (qualification_driver.rs::main), never on typed partial coverage; the CLI's
+        # nonzero partial-coverage status is qualified by the CLI fences, not here.
         proposed = {
             "schema": 1, "id": entry["id"], "sha": entry["sha"],
             "capture_path": expected["capture_path"], "capture_digest": expected["capture_digest"],
             "review": {"status": "proposed-awaiting-signoff", "reviewer": None, "rationale": None},
             "expected_projects": projects, "expected_units": units,
-            "expected_exit": 0 if confirmed_units == len(units) and units else 1,
+            "expected_exit": 0,
         }
         target = args.output / f"{entry['id']}.{sys.platform}.{args.host_kind}.expected.proposed.json"
         target.write_text(json.dumps(proposed, indent=2, sort_keys=True) + "\n", encoding="utf-8")
