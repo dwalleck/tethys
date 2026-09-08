@@ -1,10 +1,12 @@
 //! S2 worker-only fences. No native discovery/index integration is implied.
 
+mod common;
+
 #[test]
 #[ignore = "requires explicitly packaged companion and installed MSBuild; CI runs the authoritative runner"]
 fn sdk_classic_metadata() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-    let python = std::env::var_os("PYTHON").unwrap_or_else(|| "python3".into());
+    let python = common::qualification_python();
     let host = std::env::var("TETHYS_QUALIFICATION_HOST").unwrap_or_else(|_| "sdk".into());
     let output = std::process::Command::new(python)
         .current_dir(root)

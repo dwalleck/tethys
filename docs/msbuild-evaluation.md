@@ -38,21 +38,21 @@ Request fields:
 | Field | Meaning |
 |---|---|
 | `protocol_version` | `1` |
-| `workspace_root` | Absolute workspace path in native-compatible form |
+| `workspace_root` | Absolute workspace path in native-compatible form; `project_path` must lie inside it |
 | `project_path` | Absolute project-file path |
 | `target_framework` | Inner SDK framework selector, or `null` for outer/classic evaluation |
 | `global_properties` | Explicit caller property map |
 | `msbuild_path` | Selected installed MSBuild directory |
 | `trust_granted` | Explicit permission to evaluate project code |
 
-The selected host is registered before Microsoft.Build types load. An absent trust grant cannot evaluate a project. An inner request evaluates with its selected `TargetFramework`; a conflicting explicit `TargetFramework` global is rejected, not overwritten. Outer multi-target values are not a substitute for inner metadata. Classic projects may have empty `TargetFramework` and `TargetFrameworks`: their identifier, version, profile and platform remain meaningful framework identity.
+The selected host is registered before Microsoft.Build types load. An absent trust grant cannot evaluate a project. An inner request evaluates with its selected `TargetFramework`; a conflicting explicit `TargetFramework` global is rejected, not overwritten. Outer multi-target values are not a substitute for inner metadata. Classic projects may have empty `TargetFramework` and `TargetFrameworks`: their identifier, version, profile and platform remain meaningful framework identity. After loading, the worker also refuses to certify a response whose effective `MSBuildBinPath` is not the selected installation, because an externally hosted process can be routed to a different toolset of the same installation.
 
 Response fields:
 
 - `protocol_version`, `success`, and `project_path` identify the result.
 - `host` records actual runtime kind, loaded toolchain path, full MSBuild file version and runtime; failures before loading may have no host.
 - `properties` contains evaluated framework, assembly, compiler-option, output, restore-location and toolchain metadata, plus explicitly requested global-property keys. It is not a dump of ambient environment variables.
-- `items` has `Compile`, `ProjectReference`, `Reference`, `PackageReference`, `PackageVersion`, and `PackageDownload` arrays. Each item contains `include`, `full_path`, and evaluated `metadata`. Authored metadata spelling is retained; known names such as `Link`, `HintPath`, and package versions are interpreted case-insensitively, as MSBuild does.
+- `items` has `Compile`, `ProjectReference`, `Reference`, `PackageReference`, `PackageVersion`, and `PackageDownload` arrays. Each item contains `include`, `full_path`, and evaluated `metadata`. Authored metadata spelling is retained; known names such as `Link`, `HintPath`, and package versions are interpreted case-insensitively, as MSBuild does. Filesystem timestamps (`ModifiedTime`, `CreatedTime`, `AccessedTime`) are excluded so an unchanged project produces an identical response.
 - `imports` lists imported project paths. `glob_patterns` records defining project, item type and include/exclude/remove expressions.
 - `diagnostics` carries severity, native code, exception type, message, file and source position where available. Human message substrings are not failure categories.
 - `cache_eligible` and `cache_ineligibility` report whether a qualified evaluation recipe can account for its input closure. They are evidence, not permission to reuse a result without validating its inputs.

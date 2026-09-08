@@ -24,7 +24,7 @@ internal static class Evaluation
         "VSToolsPath UsingMicrosoftNETSdk MSBuildToolsVersion MSBuildVersion MSBuildFileVersion NETCoreSdkVersion MSBuildRuntimeType MSBuildBinPath"
     ).Split(' ');
     private static readonly string[] BuiltInMetadata = (
-        "FullPath RootDir Filename Extension RelativeDir Directory RecursiveDir Identity ModifiedTime CreatedTime AccessedTime " +
+        "FullPath RootDir Filename Extension RelativeDir Directory RecursiveDir Identity " +
         "DefiningProjectFullPath DefiningProjectDirectory DefiningProjectName DefiningProjectExtension"
     ).Split(' ');
 
@@ -73,6 +73,14 @@ internal static class Evaluation
             var project = collection.LoadProject(request.project_path);
             foreach (var name in PropertyNames.Concat(globals.Keys).Distinct(StringComparer.OrdinalIgnoreCase))
                 response.properties[name] = project.GetPropertyValue(name);
+            // The pre-load check proves which assembly was loaded, not which toolset it
+            // resolves: an externally hosted AnyCPU/x64 process can be routed to an amd64
+            // sibling (plan.md:206). Refuse to certify metadata from another toolset.
+            var toolset = project.GetPropertyValue("MSBuildBinPath");
+            if (string.IsNullOrWhiteSpace(toolset)
+                || !string.Equals(Path.GetFullPath(toolset).TrimEnd(Path.DirectorySeparatorChar),
+                    Path.GetFullPath(request.msbuild_path).TrimEnd(Path.DirectorySeparatorChar), comparison))
+                throw new InvalidOperationException("Effective MSBuild toolset is not the selected installation.");
             foreach (var kind in response.items.Keys)
             {
                 foreach (var evaluated in project.GetItems(kind))

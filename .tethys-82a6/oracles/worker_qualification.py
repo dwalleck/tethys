@@ -11,6 +11,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -44,10 +45,38 @@ def require(condition, message):
         raise RuntimeError(message)
 
 
+def terminate_tree(process):
+    """Kill the whole process tree; a lingering MSBuild node otherwise holds the pipes."""
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], capture_output=True)
+    else:
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            process.kill()
+    process.wait()
+
+
+def feed_stdin(process, payload):
+    try:
+        process.stdin.write(payload)
+        process.stdin.close()
+    except OSError:
+        pass
+
+
 def run(command, cwd, payload=None, allow_failure=False, timeout=60):
-    """Drain both pipes concurrently with independent caps; kill on overflow/deadline."""
+    """Drain both pipes concurrently with independent caps; kill on overflow/deadline.
+
+    Every stage is bounded: the request write runs on its own thread, the wait honours the
+    deadline, the tree is killed as a group, and the drain threads are daemons joined with a
+    timeout, so a child that stops reading stdin or a grandchild that keeps the pipes open
+    cannot hang the caller past its own contract.
+    """
     process = subprocess.Popen([str(x) for x in command], cwd=cwd, stdin=subprocess.PIPE,
-                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                               start_new_session=os.name != "nt",
+                               creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
     buffers = [bytearray(), bytearray()]
     overflow = []
 
@@ -55,32 +84,50 @@ def run(command, cwd, payload=None, allow_failure=False, timeout=60):
         while chunk := stream.read(65536):
             if len(buffers[index]) + len(chunk) > cap:
                 overflow.append(index)
-                process.kill()
+                terminate_tree(process)
                 break
             buffers[index].extend(chunk)
         stream.close()
 
-    threads = [threading.Thread(target=drain, args=(process.stdout, 0, 64 * 1024 * 1024)),
-               threading.Thread(target=drain, args=(process.stderr, 1, 1024 * 1024))]
+    threads = [threading.Thread(target=drain, args=(process.stdout, 0, 64 * 1024 * 1024), daemon=True),
+               threading.Thread(target=drain, args=(process.stderr, 1, 1024 * 1024), daemon=True)]
     for thread in threads:
         thread.start()
     try:
-        if payload is not None:
-            process.stdin.write(payload)
-        process.stdin.close()
+        if payload is None:
+            process.stdin.close()
+        else:
+            writer = threading.Thread(target=feed_stdin, args=(process, payload), daemon=True)
+            writer.start()
+            writer.join(timeout=timeout)
+            if writer.is_alive():
+                terminate_tree(process)
+                raise RuntimeError(f"qualification subprocess did not consume its request: {command}")
         process.wait(timeout=timeout)
     except BaseException:
-        process.kill()
-        process.wait()
+        terminate_tree(process)
         raise
     finally:
         for thread in threads:
-            thread.join()
+            thread.join(timeout=30)
     require(not overflow, f"qualification subprocess output overflow: {command}")
     stdout, stderr = [bytes(value).decode("utf-8-sig") for value in buffers]
     require(allow_failure or process.returncode == 0,
             f"command failed ({process.returncode}): {command}\n{stdout}\n{stderr}")
     return process.returncode, stdout, stderr
+
+
+def sdk_rank(version):
+    """Total, intentional order: a release outranks its own prerelease, then prerelease text.
+
+    `Path` ordering would otherwise decide ties by directory spelling, which silently
+    prefers a preview over the stable SDK installed beside it.
+    """
+    core, separator, prerelease = version.partition("-")
+    numbers = tuple(int(x) for x in core.split("."))
+    # A release outranks its own prerelease, so the release flag is 1 when there is no
+    # prerelease suffix.
+    return (numbers, 0 if separator else 1, prerelease)
 
 
 def selected_sdk():
@@ -95,25 +142,33 @@ def selected_sdk():
         entries = []
         for line in text.splitlines():
             version, directory = line.split(" [", 1)
-            entries.append((tuple(int(x) for x in version.split("-")[0].split(".")),
-                            Path(directory.rstrip("]")) / version))
+            entries.append((sdk_rank(version), Path(directory.rstrip("]")) / version))
         require(entries, "No installed .NET SDK; qualification cannot be skipped")
         path = max(entries)[1].resolve(strict=True)
     require((path / "MSBuild.dll").is_file(), f"Selected SDK lacks MSBuild.dll: {path}")
     return dotnet, path
 
 
-def selected_windows():
+def selected_windows(strict=True):
+    """Select the VS MSBuild host.
+
+    Qualification requires the qualified 17.14 band exactly (the x86/amd64 host contract
+    this slice established); packaging only needs a working MSBuild, so it selects the
+    latest installation instead of blocking a release on the runner image's VS version.
+    """
     require(os.name == "nt", "--host windows requires actual Windows/Visual Studio")
     vswhere = Path(os.environ["ProgramFiles(x86)"]) / "Microsoft Visual Studio/Installer/vswhere.exe"
-    _, text, _ = run([vswhere, "-products", "*", "-version", "[17.14,17.15)",
-                      "-requires", "Microsoft.Component.MSBuild", "-format", "json", "-utf8"], ROOT)
+    query = [vswhere, "-products", "*", "-requires", "Microsoft.Component.MSBuild",
+             "-format", "json", "-utf8"]
+    query += ["-version", "[17.14,17.15)"] if strict else ["-latest"]
+    _, text, _ = run(query, ROOT)
     installations = json.loads(text)
-    require(installations, "Visual Studio 17.14 MSBuild is required; no fallback to another host")
+    require(installations, "Visual Studio 17.14 MSBuild is required; no fallback to another host"
+            if strict else "No Visual Studio MSBuild installation is available for packaging")
     installation = max(installations, key=lambda x: tuple(map(int, x["installationVersion"].split("."))))
     path = (Path(installation["installationPath"]) / "MSBuild/Current/Bin").resolve(strict=True)
     require((path / "MSBuild.exe").is_file(), f"VS installation lacks MSBuild.exe: {path}")
-    print("VS qualification host:", json.dumps(installation, ensure_ascii=False))
+    print("VS host:", json.dumps(installation, ensure_ascii=False))
     return path
 
 
@@ -152,18 +207,48 @@ def check_licenses():
 
 def prepare(destination, host):
     dotnet, _ = selected_sdk()
+    # Package hermetically: neither `dotnet publish -o` nor `-t:Build -p:OutputPath`
+    # removes unknown files, so a previous prepare's stale artifacts would otherwise ship.
+    shutil.rmtree(destination / "msbuild-evaluate", ignore_errors=True)
     run([dotnet, "restore", PROJECT, "--locked-mode"], ROOT, timeout=300)
     check_licenses()
     sdk = destination / "msbuild-evaluate/sdk"
     run([dotnet, "publish", PROJECT, "--no-restore", "-c", "Release", "-f", "net8.0",
          "-o", sdk], ROOT, timeout=300)
     if host == "windows":
-        selected = selected_windows()
+        selected = selected_windows(strict=False)
         run([selected / "MSBuild.exe", PROJECT, "-nologo", "-t:Build", "-p:Configuration=Release",
              "-p:TargetFramework=net472", "-p:OutputPath=" + str(destination / "msbuild-evaluate/framework") + os.sep,
              "-p:AppendTargetFrameworkToOutputPath=false"], ROOT, timeout=300)
     check_distribution(destination, host)
     print("Prepared distribution:", destination)
+
+
+def msbuild_runtime_closure():
+    """Assembly names that must never sit app-local beside the companion.
+
+    Derived from the locked dependency graph so a new transitive Microsoft.Build
+    dependency is covered automatically, unioned with the explicit names that graph does
+    not list at this version.
+    """
+    locks = json.loads(PROJECT.with_name("packages.lock.json").read_text())["dependencies"]
+    graph = {}
+    for framework in locks.values():
+        for name, info in framework.items():
+            graph.setdefault(name.lower(), set()).update(
+                dependency.lower() for dependency in (info.get("dependencies") or {}))
+    seen, pending = set(), ["microsoft.build", "microsoft.build.framework"]
+    while pending:
+        package = pending.pop()
+        if package in seen:
+            continue
+        seen.add(package)
+        pending.extend(graph.get(package, ()))
+    # Microsoft.Build.Locator is the hosting shim and is intentionally bundled.
+    seen.discard("microsoft.build.locator")
+    return {package + ".dll" for package in seen} | {
+        "microsoft.build.dll", "microsoft.build.framework.dll",
+        "microsoft.build.utilities.core.dll", "microsoft.build.tasks.core.dll"}
 
 
 def check_distribution(destination, host):
@@ -175,8 +260,7 @@ def check_distribution(destination, host):
     if host == "windows":
         require((destination / "msbuild-evaluate/framework" / (ASSEMBLY + ".exe")).is_file(),
                 "Missing Framework companion executable")
-    forbidden = {"microsoft.build.dll", "microsoft.build.framework.dll", "microsoft.build.utilities.core.dll",
-                 "microsoft.build.tasks.core.dll"}
+    forbidden = msbuild_runtime_closure()
     for path in (destination / "msbuild-evaluate").rglob("*"):
         require(path.name.lower() not in forbidden, f"Bundled MSBuild runtime is forbidden: {path}")
 
@@ -207,7 +291,10 @@ def qualify(destination, host, installed_only):
             return value
 
         def worker(value, success=True):
-            status, text, _ = run(command, clean, json.dumps(value).encode("utf-8"), allow_failure=True)
+            # A worker launch loads the whole SDK import closure; 60s is a probe budget,
+            # not a cold-runner evaluation budget.
+            status, text, _ = run(command, clean, json.dumps(value).encode("utf-8"),
+                                  allow_failure=True, timeout=300)
             result = json.loads(text)
             require(result["protocol_version"] == 1, "C14 incompatible response protocol")
             require(secret_name not in result["properties"], "Ambient credential copied into properties")
@@ -215,6 +302,7 @@ def qualify(destination, host, installed_only):
             require(not success or status == 0, f"C5 successful response with failure exit: {status}")
             if not success:
                 require(result["diagnostics"] and not result["cache_eligible"], "Failure lost diagnostics/cache exclusion")
+                require(status != 0, f"C5 failure response with success exit: {status}")
             return result
 
         secret_name = "TETHYS_QUALIFICATION_SECRET"
@@ -223,13 +311,13 @@ def qualify(destination, host, installed_only):
             globals_ = dict(GLOBALS)
             if tfm is not None:
                 globals_["TargetFramework"] = tfm
-            args = direct + [project, "-nologo", "-verbosity:quiet"]
+            args = direct + [project, "-nologo", "-verbosity:quiet", "-nodeReuse:false"]
             args += [f"-p:{key}={value}" for key, value in globals_.items()]
             if target:
-                run(args + ["-t:" + target], clean)
+                run(args + ["-t:" + target], clean, timeout=300)
                 return None
             _, text, _ = run(args + ["-getProperty:" + ",".join(PROPERTIES),
-                                     "-getItem:" + ",".join(ITEMS)], clean)
+                                     "-getItem:" + ",".join(ITEMS)], clean, timeout=300)
             return json.loads(text)
 
         def identity(result, oracle):
@@ -252,8 +340,11 @@ def qualify(destination, host, installed_only):
                 by_identity = {x["Identity"]: x for x in reference}
                 for item in actual:
                     for key, value in by_identity[item["include"]].items():
-                        if key != "Identity":
-                            require(item["metadata"].get(key) == value, f"C5 {kind} metadata mismatch: {key}")
+                        # Filesystem timestamps are not contract metadata and would make
+                        # both the response and this comparison non-reproducible.
+                        if key in {"Identity", "ModifiedTime", "CreatedTime", "AccessedTime"}:
+                            continue
+                        require(item["metadata"].get(key) == value, f"C5 {kind} metadata mismatch: {key}")
 
         literal = workspace / "Literal/Literal.csproj"
         result = worker(request(literal))
@@ -271,6 +362,9 @@ def qualify(destination, host, installed_only):
         require([normalize(x["full_path"]) for x in result["items"]["Compile"]] == [normalize(literal.parent / "Keep.cs")],
                 "Literal fixture membership mismatch")
         require(result["cache_eligible"] and not result["cache_ineligibility"], "Qualified literal recipe must be eligible")
+        require(not ({"ModifiedTime", "CreatedTime", "AccessedTime"}
+                     & set(result["items"]["Compile"][0]["metadata"])),
+                "Filesystem timestamps are not contract metadata and break response reproducibility")
         patterns = {(x["include"], x["exclude"], x["remove"]) for x in result["glob_patterns"]
                     if x["item_type"] == "Compile" and normalize(x["project_path"]) == normalize(literal)}
         require(patterns == {("*.cs", "Excluded.cs", ""), ("", "", "Removed.cs")},
@@ -279,6 +373,9 @@ def qualify(destination, host, installed_only):
         untrusted = worker(request(workspace / "Failures/MissingImport.csproj", trust_granted=False), success=False)
         require(untrusted["host"] is None and not untrusted["imports"], "Untrusted input loaded MSBuild/project")
         worker(request(literal, msbuild_path=str(clean / "missing-host")), success=False)
+        outside = worker(request(literal, project_path=str(ROOT / "Cargo.toml")), success=False)
+        require(any("workspace_root" in (x["message"] or "") for x in outside["diagnostics"]),
+                "A project outside workspace_root was not refused")
         failure = worker(request(workspace / "Failures/MissingImport.csproj"), success=False)
         require(any(x["code"] == "MSB4019" and x["exception_type"] == "Microsoft.Build.Exceptions.InvalidProjectFileException"
                     for x in failure["diagnostics"]), "Native missing-import code/type lost")
