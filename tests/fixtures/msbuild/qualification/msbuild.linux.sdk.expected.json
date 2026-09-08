@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "msbuild",
+  "sha": "ce25c01082c9c46cd02ad1ff3ff8f16fe5cc2f44",
+  "capture_path": "msbuild.linux.sdk.capture.json.gz",
+  "capture_digest": "49305d11923e9d082f222f80ec04f66f7dd8b97c2a5af809dc70ea8bfce2052f",
+  "review": {
+    "status": "unreviewed",
+    "reviewer": null,
+    "rationale": null
+  },
+  "expected_projects": null,
+  "expected_units": null,
+  "expected_exit": null
+}

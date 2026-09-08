@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "avalonia",
+  "sha": "0834dbbbb9252406b08f2e74e8f328cc5ba502ee",
+  "capture_path": "avalonia.linux.sdk.capture.json.gz",
+  "capture_digest": "e31e0b57cfb24f43caaf191f0dc38668cf0bf83eb8de3e93de0b5d157baffe98",
+  "review": {
+    "status": "unreviewed",
+    "reviewer": null,
+    "rationale": null
+  },
+  "expected_projects": null,
+  "expected_units": null,
+  "expected_exit": null
+}

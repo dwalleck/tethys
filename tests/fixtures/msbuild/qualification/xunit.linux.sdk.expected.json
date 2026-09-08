@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "xunit",
+  "sha": "728c1dce012cd82193035dddfeaba184baaa88c6",
+  "capture_path": "xunit.linux.sdk.capture.json.gz",
+  "capture_digest": "64a38f0496a2cbac417b6bffdc07326a80d8b687452176b35404991423703cac",
+  "review": {
+    "status": "unreviewed",
+    "reviewer": null,
+    "rationale": null
+  },
+  "expected_projects": null,
+  "expected_units": null,
+  "expected_exit": null
+}

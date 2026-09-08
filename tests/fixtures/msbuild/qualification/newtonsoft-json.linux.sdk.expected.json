@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "newtonsoft-json",
+  "sha": "4e13299d4b0ec96bd4df9954ef646bd2d1b5bf2a",
+  "capture_path": "newtonsoft-json.linux.sdk.capture.json.gz",
+  "capture_digest": "5f34b56a749460329d3d5a6cb2ca4fd1781b7edc49f35e84dbf7d6f2339c8242",
+  "review": {
+    "status": "unreviewed",
+    "reviewer": null,
+    "rationale": null
+  },
+  "expected_projects": null,
+  "expected_units": null,
+  "expected_exit": null
+}
