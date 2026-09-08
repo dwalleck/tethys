@@ -347,7 +347,7 @@ Additional review fences: native_metadata_names_are_case_insensitive_without_rew
 - Actual CLI `coupling --json` on isolated mixed-SDK/classic fixture → explicit unknown metric evidence/declarations, no fabricated edge; Rust comparison byte-identical.
 - `python3 .tethys-82a6/oracles/module_shape.py --stage S5` → moved phase/records in approved owner only.
 
-**Local checkpoint:** all nine local gates and F30–F32 dispositions are recorded in review-decisions.md; evidence/s5-qualification.json pins the exercised source/fixture/oracle/workflow hashes.1170 ordinary tests,18 doctests, actual native query control and16 frozen Rust outputs pass. The802-unit authored read fixture gives p95=0.075411s/max=0.086201s. Three behavioral and six structural mutations fail as intended and restore green. Current platform acceptance still requires committed native CI, including the Windows classic fixture; this record does not advance S6 or claim full corpus qualification.
+**Checkpoint reference:** `evidence/s5-qualification.json` is the authoritative S5 evidence record, including native acceptance and retained-evidence applicability. `review-decisions.md` owns F30–F33 dispositions and the checkpoint judgment. S6 corpus/legacy/cache qualification is a separate remaining obligation.
 
 ## S6: Qualify corpus, legacy and cache-hit performance
 
