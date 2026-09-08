@@ -568,6 +568,14 @@ fn authorized_restore_corroborates_target_downloads_and_rejects_changed_imports(
 </Project>"#,
     );
     write(root.path(), "App.cs", "class App {}\n");
+    // Central package management needs a declared PackageVersion for VersionOverride to
+    // resolve identically on every supported SDK band; without it SDK 8 ignores the
+    // override and restores an older cached package, which fails NU1605.
+    write(
+        root.path(),
+        "Directory.Packages.props",
+        "<Project><ItemGroup><PackageVersion Include=\"Newtonsoft.Json\" Version=\"13.0.3\" /></ItemGroup></Project>",
+    );
     write(
         root.path(),
         "Restore.config",
