@@ -647,14 +647,6 @@
   ],
   "expected_units": [
     {
-      "evidence": "authorized native Restore exit 1; codes ['NU1301', 'NU1605']; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-brwh544k/msbuild/eng/common/internal/Tools.csproj : error NU1301:   Response status code does not indicate success: 401 (Unauthorized).",
-      "project": "eng/common/internal/Tools.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net472"
-    },
-    {
       "project": "eng/dependabot/dependabot.csproj",
       "rationale": "Direct selected-host evaluation exit 0; framework identity ; 0 Compile items.",
       "standing": "confirmed",
@@ -727,22 +719,6 @@
       "target_framework": "net10.0"
     },
     {
-      "evidence": "authorized native Restore exit 1; codes ['NU1008', 'NU1507', 'NU1603', 'NU1605', 'NU5105', 'NU5131']; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-brwh544k/msbuild/src/BuildCheck.UnitTests/TestAssets/CheckCandidate/CheckCandidate.csproj : error NU1008: The following PackageReference items cannot define a value ",
-      "project": "src/BuildCheck.UnitTests/TestAssets/CheckCandidate/CheckCandidate.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NU1008', 'NU1507', 'NU1603', 'NU1605', 'NU5105', 'NU5131']; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-brwh544k/msbuild/src/BuildCheck.UnitTests/TestAssets/CheckCandidateWithMultipleChecksInjected/CheckCandidateWithMultipleChecksInjected.csproj : error NU1008: The fol",
-      "project": "src/BuildCheck.UnitTests/TestAssets/CheckCandidateWithMultipleChecksInjected/CheckCandidateWithMultipleChecksInjected.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0"
-    },
-    {
       "project": "src/BuildCheck.UnitTests/TestAssets/CustomCheck/CustomCheck.csproj",
       "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 2 Compile items.",
       "standing": "confirmed",
@@ -753,14 +729,6 @@
       "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 1 Compile items.",
       "standing": "confirmed",
       "target_framework": "netstandard2.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['MSB4067']; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-brwh544k/msbuild/src/BuildCheck.UnitTests/TestAssets/EmbeddedResourceTest/ReferencedProject/ReferencedProject.csproj(15,3): error MSB4067: The element <#text> beneat",
-      "project": "src/BuildCheck.UnitTests/TestAssets/EmbeddedResourceTest/EntryProject/EntryProject.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net10.0"
     },
     {
       "project": "src/BuildCheck.UnitTests/TestAssets/ErrorCustomCheck/ErrorCustomCheck.csproj",
@@ -875,22 +843,6 @@
       "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 14 Compile items.",
       "standing": "confirmed",
       "target_framework": "net10.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NU1008', 'NU1507', 'NU1603', 'NU1605', 'NU5105', 'NU5131']; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-brwh544k/msbuild/src/MSBuild.UnitTests/TestAssets/MemberAccessException/LoggerProject/CustomLogger.csproj : error NU1008: The following PackageReference items cannot",
-      "project": "src/MSBuild.UnitTests/TestAssets/MemberAccessException/LoggerProject/CustomLogger.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "netstandard2.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NU1008', 'NU1507', 'NU1603', 'NU1605', 'NU5105', 'NU5131']; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-brwh544k/msbuild/src/MSBuild.UnitTests/TestAssets/TargetInvocationException/LoggerProject/FaultyLogger.csproj : error NU1008: The following PackageReference items ca",
-      "project": "src/MSBuild.UnitTests/TestAssets/TargetInvocationException/LoggerProject/FaultyLogger.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "netstandard2.0"
     },
     {
       "project": "src/MSBuild/MSBuild.csproj",

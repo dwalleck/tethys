@@ -102,14 +102,11 @@ def main():
                 row = inner.get(key) or outer.get(project)
                 codes = list(row.get("native_codes") or [])
                 if restore_failed:
-                    units.append({
-                        "project": key[0], "target_framework": key[1], "standing": "indeterminate",
-                        "reason": "restore-failed",
-                        "evidence": f"authorized native Restore exit {restore_row['exit_code']}; "
-                                    f"codes {restore_row.get('native_codes')}; {excerpt(restore_row)}",
-                        "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-                    })
-                elif row["exit_code"] == 0:
+                    # A project-level Restore failure is an indeterminate project; only an
+                    # inner (per-framework) failure retains its selector as a unit
+                    # (docs/msbuild-evaluation.md). Do not invent units here.
+                    continue
+                if row["exit_code"] == 0:
                     props = row["metadata"]["Properties"]
                     units.append({
                         "project": key[0], "target_framework": key[1], "standing": "confirmed",

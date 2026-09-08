@@ -825,22 +825,6 @@
       "target_framework": "net8.0"
     },
     {
-      "evidence": "authorized native Restore exit 1; codes ['NU1605']; /home/dwalleck/.local-dotnet/sdk/10.0.102/NuGet.targets(196,5): error : 'XUNIT_ANALYZERS_VERSION' is not a valid version string. [/home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-qfim6q68/xunit/src/xunit.v3.templat",
-      "project": "src/xunit.v3.templates/templates/project/xunit3-extension/cs/ExtensionProject.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "netstandard2.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NU1605']; /home/dwalleck/.local-dotnet/sdk/10.0.102/NuGet.targets(196,5): error : 'MICROSOFT_NET_TEST_SDK_VERSION' is not a valid version string. [/home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-qfim6q68/xunit/src/xunit.v3.",
-      "project": "src/xunit.v3.templates/templates/project/xunit3/cs/TestProject.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0"
-    },
-    {
       "project": "src/xunit.v3.templates/xunit.v3.templates.csproj",
       "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 1 Compile items.",
       "standing": "confirmed",

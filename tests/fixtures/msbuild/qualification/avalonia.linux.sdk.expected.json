@@ -802,30 +802,6 @@
       "target_framework": "net8.0"
     },
     {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "samples/ControlCatalog.Android/ControlCatalog.Android.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-android34.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "samples/ControlCatalog.Browser.Blazor/ControlCatalog.Browser.Blazor.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-browser"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "samples/ControlCatalog.Browser/ControlCatalog.Browser.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-browser"
-    },
-    {
       "project": "samples/ControlCatalog.Desktop/ControlCatalog.Desktop.csproj",
       "rationale": "Direct selected-host evaluation exit 0; framework identity net461; 3 Compile items.",
       "standing": "confirmed",
@@ -842,14 +818,6 @@
       "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0-tizen; 2 Compile items.",
       "standing": "confirmed",
       "target_framework": "net8.0-tizen"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "samples/ControlCatalog.iOS/ControlCatalog.iOS.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-ios17.0"
     },
     {
       "project": "samples/ControlCatalog/ControlCatalog.csproj",
@@ -918,26 +886,10 @@
       "target_framework": "net8.0"
     },
     {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "samples/SafeAreaDemo.Android/SafeAreaDemo.Android.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-android34.0"
-    },
-    {
       "project": "samples/SafeAreaDemo.Desktop/SafeAreaDemo.Desktop.csproj",
       "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 1 Compile items.",
       "standing": "confirmed",
       "target_framework": "net8.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "samples/SafeAreaDemo.iOS/SafeAreaDemo.iOS.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-ios17.0"
     },
     {
       "project": "samples/SafeAreaDemo/SafeAreaDemo.csproj",
@@ -956,30 +908,6 @@
       "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 4 Compile items.",
       "standing": "confirmed",
       "target_framework": "net8.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "samples/SingleProjectSandbox/SingleProjectSandbox.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "samples/SingleProjectSandbox/SingleProjectSandbox.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-android34.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "samples/SingleProjectSandbox/SingleProjectSandbox.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-browser"
     },
     {
       "project": "samples/UnloadableAssemblyLoadContext/UnloadableAssemblyLoadContext/UnloadableAssemblyLoadContext.csproj",
@@ -1016,14 +944,6 @@
       "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0-windows; 5 Compile items.",
       "standing": "confirmed",
       "target_framework": "net8.0-windows"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "src/Android/Avalonia.Android/Avalonia.Android.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-android34.0"
     },
     {
       "project": "src/Avalonia.Base/Avalonia.Base.csproj",
@@ -1620,22 +1540,6 @@
       "target_framework": "netstandard2.0"
     },
     {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "src/iOS/Avalonia.iOS/Avalonia.iOS.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-ios17.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "src/iOS/Avalonia.iOS/Avalonia.iOS.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-tvos17.0"
-    },
-    {
       "project": "src/tools/Avalonia.Analyzers/Avalonia.Analyzers.csproj",
       "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 6 Compile items.",
       "standing": "confirmed",
@@ -1802,62 +1706,6 @@
       "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 27 Compile items.",
       "standing": "confirmed",
       "target_framework": "netstandard2.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "tests/BuildTests/BuildTests.Android/BuildTests.Android.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-android"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes []; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-f7b2txe5/avalonia/tests/BuildTests/IncludeBuildTestsAvaloniaItems.props(32,5): error : Please set the AvaloniaVersion property on build (using -p:AvaloniaVersion=x.y",
-      "project": "tests/BuildTests/BuildTests.Browser/BuildTests.Browser.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-browser"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes []; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-f7b2txe5/avalonia/tests/BuildTests/IncludeBuildTestsAvaloniaItems.props(32,5): error : Please set the AvaloniaVersion property on build (using -p:AvaloniaVersion=x.y",
-      "project": "tests/BuildTests/BuildTests.Desktop/BuildTests.Desktop.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes []; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-f7b2txe5/avalonia/tests/BuildTests/IncludeBuildTestsAvaloniaItems.props(32,5): error : Please set the AvaloniaVersion property on build (using -p:AvaloniaVersion=x.y",
-      "project": "tests/BuildTests/BuildTests.NativeAot/BuildTests.NativeAot.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1100']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(120,5): error NETSDK1100: To build a project targeting Windows on this operating system, set the EnableWindowsTa",
-      "project": "tests/BuildTests/BuildTests.WpfHybrid/BuildTests.WpfHybrid.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-windows"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
-      "project": "tests/BuildTests/BuildTests.iOS/BuildTests.iOS.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0-ios"
-    },
-    {
-      "evidence": "authorized native Restore exit 1; codes []; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-f7b2txe5/avalonia/tests/BuildTests/IncludeBuildTestsAvaloniaItems.props(32,5): error : Please set the AvaloniaVersion property on build (using -p:AvaloniaVersion=x.y",
-      "project": "tests/BuildTests/BuildTests/BuildTests.csproj",
-      "rationale": "Framework metadata was evaluated, but the authorized Restore failed for this project.",
-      "reason": "restore-failed",
-      "standing": "indeterminate",
-      "target_framework": "net8.0"
     },
     {
       "project": "tests/TestFiles/BuildTasks/PInvoke/PInvoke.csproj",
