@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "authority": "Authored S6 shape arithmetic; project i owns files whose ordinal modulo project_count equals i, plus shared Source00000.cs; first (unit_count-project_count) projects select two native SDK TFMs.",
+  "frameworks": ["net8.0", "net9.0"],
+  "shapes": {
+    "baseline": {"files": 7562, "projects": 240, "units": 401},
+    "density-2x": {"files": 7562, "projects": 240, "units": 401, "density_multiplier": 2},
+    "stress": {"files": 15124, "projects": 480, "units": 802},
+    "largest": {"files": 7142, "projects": 208, "units": 356},
+    "eighteen-tfms": {"files": 18, "projects": 1, "units": 18, "frameworks": ["netstandard1.0", "netstandard1.1", "netstandard1.2", "netstandard1.3", "netstandard1.4", "netstandard1.5", "netstandard1.6", "netstandard2.0", "netstandard2.1", "netcoreapp1.0", "netcoreapp1.1", "netcoreapp2.0", "netcoreapp2.1", "netcoreapp2.2", "netcoreapp3.0", "netcoreapp3.1", "net8.0", "net9.0"]}
+  },
+  "source_formula": {
+    "version": 3,
+    "classes_per_file": "density_multiplier (default 1)",
+    "methods_per_file": "2 * density_multiplier",
+    "call_expressions_per_file": "2 * density_multiplier",
+    "class_name": "Node",
+    "method_names": ["Value", "Step"],
+    "namespace": "Q{file_ordinal:05d}D{density_copy}",
+    "assembly_collision_group_size": 8,
+    "declared_project_references_per_unit": "0 for last project (leaf), 1 to leaf for all others",
+    "call_targets": "shared Source00000 Node.Value plus same-file Value, both compiled into every participating project",
+    "preparation": "One selected native SDK MSBuild solution Restore with static graph; distinct per-project obj/assets; command/status/time recorded outside measured product invocation"
+  },
+  "density_baseline": {
+    "status": "capture-required",
+    "authority": null,
+    "values": null,
+    "policy": "capture_density(runtime, root) executes baseline and density-2x with exact authored declaration/collision checks and >=2x observed retained symbols/refs/call_edges checks. Explicit review_density_capture(capture, reviewer=..., review_reference=...) returns authority to persist here. Normal run_fixtures rejects absent review, provenance drift, baseline drift and retained density below 2x. This is retained syntax graph density, not compiler-selected semantic binding authority."
+  }
+}
