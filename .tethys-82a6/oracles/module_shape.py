@@ -127,6 +127,24 @@ def main():
             for path in paths:
                 if not (root / path).is_file():
                     failures.append(f"C13 {path}: required by {stage}")
+    for rule in ledger.get("module_limits", []):
+        if int(rule["stage"][1:]) > int(options.stage[1:]):
+            continue
+        path = rule["path"]
+        if not (root / path).is_file():
+            failures.append(f"C13 {path}: required bounded owner is absent")
+            continue
+        source = (root / path).read_bytes()
+        count = len(production_lines(parser, source))
+        if count > rule["max_production_lines"]:
+            failures.append(f"C13 {path}: production footprint {count} exceeds {rule['max_production_lines']}")
+        forbidden = set(rule.get("forbidden_identifiers", []))
+        if forbidden:
+            for node in source_nodes(parser, source, path):
+                if node.type in ("identifier", "type_identifier"):
+                    name = source[node.start_byte:node.end_byte].decode()
+                    if name in forbidden:
+                        failures.append(f"C13 {path}:{node.start_point.row+1}: forbidden responsibility identifier {name}")
     for path, rule in ledger["protected"].items():
         source = (root / path).read_bytes()
         baseline = subprocess.check_output(["git", "-C", str(root), "show", f"{base}:{path}"])
@@ -178,6 +196,14 @@ def main():
                 continue
             relative = path.relative_to(root).as_posix()
             for node in source_nodes(parser, source, relative):
+                if node.type == "impl_item":
+                    type_node = node.child_by_field_name("type")
+                    if type_node is not None:
+                        name = source[type_node.start_byte:type_node.end_byte].decode().rsplit("::", 1)[-1]
+                        rule = ownership.get(name)
+                        if rule and rule.get("impl_owner") and relative != rule["owner"]:
+                            failures.append(f"C13 {relative}:{node.start_point.row+1}: forbidden implementation owner of {name}; expected {rule['owner']}")
+                    continue
                 if node.type not in (
                     "struct_item", "enum_item", "trait_item", "type_item", "associated_type",
                     "function_item", "function_signature_item",
@@ -194,6 +220,14 @@ def main():
                     failures.append(f"C13 {relative}:{node.start_point.row+1}: forbidden owner of {name}; expected {rule['owner']}")
                 else:
                     found.add(name)
+                if "visibility" in rule:
+                    visibility = next(
+                        (source[child.start_byte:child.end_byte].decode()
+                         for child in node.named_children if child.type == "visibility_modifier"),
+                        "",
+                    )
+                    if visibility != rule["visibility"]:
+                        failures.append(f"C13 {relative}:{node.start_point.row+1}: {name} must remain {rule['visibility']}")
                 if rule.get("crate_private", False):
                     for child in node.named_children:
                         if child.type == "visibility_modifier":

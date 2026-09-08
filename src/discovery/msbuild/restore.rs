@@ -708,6 +708,33 @@ fn asset_metadata_matches(dependency: &Value, metadata: [Option<&str>; 3]) -> bo
     true
 }
 
+fn asset_metadata_matches(dependency: &Value, metadata: [Option<&str>; 3]) -> bool {
+    let normalize = |value: &str| {
+        let mut names: Vec<_> = value
+            .split([';', ','])
+            .map(|part| part.trim().to_ascii_lowercase())
+            .collect();
+        names.sort();
+        names.dedup();
+        names
+    };
+    for ((field, default), value) in [
+        ("include", "all"),
+        ("exclude", "none"),
+        ("suppressParent", "contentfiles;analyzers;build"),
+    ]
+    .into_iter()
+    .zip(metadata)
+    {
+        if let Some(value) = value.filter(|value| !value.is_empty())
+            && normalize(value) != normalize(dependency[field].as_str().unwrap_or(default))
+        {
+            return false;
+        }
+    }
+    true
+}
+
 fn dependencies_match(
     assets: &Value,
     evaluated: &EvaluatedProject,
