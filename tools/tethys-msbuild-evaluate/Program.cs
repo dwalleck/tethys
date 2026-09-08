@@ -37,6 +37,15 @@ internal static class Program
                 if (string.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path) || Path.GetFullPath(path) != path)
                     throw new ArgumentException("Request paths must be normalized absolute paths.");
             if (!Directory.Exists(request.workspace_root)) throw new DirectoryNotFoundException(request.workspace_root);
+            // The protocol advertises a workspace boundary; enforce it instead of shipping
+            // a required field with no effect. Paths are already normalized absolute.
+            var workspace = Path.GetFullPath(request.workspace_root)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var project = Path.GetFullPath(request.project_path);
+            var containment = Path.DirectorySeparatorChar == '\\' ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (!string.Equals(project, workspace, containment)
+                && !project.StartsWith(workspace + Path.DirectorySeparatorChar, containment))
+                throw new ArgumentException("project_path must lie inside workspace_root.");
             if (!File.Exists(Path.Combine(request.msbuild_path, "Microsoft.Build.dll")))
                 throw new FileNotFoundException("Selected MSBuild installation is unavailable.", request.msbuild_path);
             MSBuildLocator.RegisterMSBuildPath(request.msbuild_path);
