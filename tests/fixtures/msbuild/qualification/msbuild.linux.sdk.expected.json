@@ -1,7 +1,7 @@
 {
   "capture_digest": "49305d11923e9d082f222f80ec04f66f7dd8b97c2a5af809dc70ea8bfce2052f",
   "capture_path": "msbuild.linux.sdk.capture.json.gz",
-  "expected_exit": 1,
+  "expected_exit": 0,
   "expected_projects": [
     {
       "evidence": "authorized native Restore exit 1; codes ['NU1301', 'NU1605']; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-brwh544k/msbuild/eng/common/internal/Tools.csproj : error NU1301:   Response status code does not indicate success: 401 (Unauthorized).",
@@ -1177,7 +1177,7 @@
   ],
   "id": "msbuild",
   "review": {
-    "rationale": "Reviewed 2026-09-08 from the committed native capture. Per-unit standing comes from direct selected-host evaluation exit codes; enumeration failures map MSB4236/MSB4242/NETSDK1045 to sdk-unresolved, NETSDK1147/NETSDK1080 to toolchain-unavailable and other native codes to evaluation-failed; authorized Restore exit!=0 maps the project and its units to restore-failed; confirmed projects require every enumerated framework slot with exit 0 and either Restore exit 0 with unchanged final inputs (current) or no Restore requirement. Observed: 85 projects, 86 units, 80 confirmed, 6 indeterminate; expected exit 1.",
+    "rationale": "Reviewed 2026-09-08 from the committed native capture. Per-unit standing comes from direct selected-host evaluation exit codes; enumeration failures map MSB4236/MSB4242/NETSDK1045 to sdk-unresolved, NETSDK1147/NETSDK1080 to toolchain-unavailable and other native codes to evaluation-failed; authorized Restore exit!=0 maps the project and its units to restore-failed; confirmed projects require every enumerated framework slot with exit 0 and either Restore exit 0 with unchanged final inputs (current) or no Restore requirement. Observed: 85 projects, 86 units, 80 confirmed, 6 indeterminate; expected exit 0 (the invoked qualification driver exits nonzero only on fatal discovery failure, not on typed partial coverage).",
     "reviewer": "Daryl Walleck",
     "status": "reviewed"
   },

@@ -1,7 +1,7 @@
 {
   "capture_digest": "64a38f0496a2cbac417b6bffdc07326a80d8b687452176b35404991423703cac",
   "capture_path": "xunit.linux.sdk.capture.json.gz",
-  "expected_exit": 1,
+  "expected_exit": 0,
   "expected_projects": [
     {
       "project": "src/xunit.v1.tests/xunit.v1.tests.csproj",
@@ -855,7 +855,7 @@
   ],
   "id": "xunit",
   "review": {
-    "rationale": "Reviewed 2026-09-08 from the committed native capture. Per-unit standing comes from direct selected-host evaluation exit codes; enumeration failures map MSB4236/MSB4242/NETSDK1045 to sdk-unresolved, NETSDK1147/NETSDK1080 to toolchain-unavailable and other native codes to evaluation-failed; authorized Restore exit!=0 maps the project and its units to restore-failed; confirmed projects require every enumerated framework slot with exit 0 and either Restore exit 0 with unchanged final inputs (current) or no Restore requirement. Observed: 47 projects, 85 units, 83 confirmed, 2 indeterminate; expected exit 1.",
+    "rationale": "Reviewed 2026-09-08 from the committed native capture. Per-unit standing comes from direct selected-host evaluation exit codes; enumeration failures map MSB4236/MSB4242/NETSDK1045 to sdk-unresolved, NETSDK1147/NETSDK1080 to toolchain-unavailable and other native codes to evaluation-failed; authorized Restore exit!=0 maps the project and its units to restore-failed; confirmed projects require every enumerated framework slot with exit 0 and either Restore exit 0 with unchanged final inputs (current) or no Restore requirement. Observed: 47 projects, 85 units, 83 confirmed, 2 indeterminate; expected exit 0 (the invoked qualification driver exits nonzero only on fatal discovery failure, not on typed partial coverage).",
     "reviewer": "Daryl Walleck",
     "status": "reviewed"
   },
