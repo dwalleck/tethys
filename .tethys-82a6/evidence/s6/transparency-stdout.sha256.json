@@ -1,0 +1,13 @@
+{
+  "control.stdout": {
+    "bytes": 20218897,
+    "sha256": "b781764664449e334031cd415a3c289ee139bf9201dafab97ed7188e49cf7b42"
+  },
+  "instrumented.stdout": {
+    "bytes": 20218897,
+    "sha256": "b781764664449e334031cd415a3c289ee139bf9201dafab97ed7188e49cf7b42"
+  },
+  "label": "corpus-avalonia-stream-1",
+  "reports_identical": true,
+  "scope": "tethys-et80 transparency failure; both runs used one shared root in the lane"
+}

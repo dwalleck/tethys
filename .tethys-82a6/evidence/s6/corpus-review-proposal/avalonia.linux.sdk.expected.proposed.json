@@ -1,0 +1,1731 @@
+{
+  "capture_digest": "e31e0b57cfb24f43caaf191f0dc38668cf0bf83eb8de3e93de0b5d157baffe98",
+  "capture_path": "avalonia.linux.sdk.capture.json.gz",
+  "expected_exit": 0,
+  "expected_projects": [
+    {
+      "project": "nukebuild/_build.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "packages/Avalonia/Avalonia.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/AppWithoutLifetime/AppWithoutLifetime.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/BindingDemo/BindingDemo.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
+      "project": "samples/ControlCatalog.Android/ControlCatalog.Android.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NETSDK1147']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
+      "project": "samples/ControlCatalog.Browser.Blazor/ControlCatalog.Browser.Blazor.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NETSDK1147']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
+      "project": "samples/ControlCatalog.Browser/ControlCatalog.Browser.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NETSDK1147']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "samples/ControlCatalog.Desktop/ControlCatalog.Desktop.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/ControlCatalog.NetCore/ControlCatalog.NetCore.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/ControlCatalog.Tizen/ControlCatalog.Tizen.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
+      "project": "samples/ControlCatalog.iOS/ControlCatalog.iOS.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NETSDK1147']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "samples/ControlCatalog/ControlCatalog.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/Generators.Sandbox/Generators.Sandbox.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/GpuInterop/GpuInterop.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/IntegrationTestApp/IntegrationTestApp.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/MiniMvvm/MiniMvvm.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/PlatformSanityChecks/PlatformSanityChecks.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/Previewer/Previewer.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/ReactiveUIDemo/ReactiveUIDemo.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/RemoteDemo/RemoteDemo.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/RenderDemo/RenderDemo.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
+      "project": "samples/SafeAreaDemo.Android/SafeAreaDemo.Android.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NETSDK1147']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "samples/SafeAreaDemo.Desktop/SafeAreaDemo.Desktop.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
+      "project": "samples/SafeAreaDemo.iOS/SafeAreaDemo.iOS.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NETSDK1147']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "samples/SafeAreaDemo/SafeAreaDemo.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/SampleControls/ControlSamples.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/Sandbox/Sandbox.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
+      "project": "samples/SingleProjectSandbox/SingleProjectSandbox.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NETSDK1147']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "samples/UnloadableAssemblyLoadContext/UnloadableAssemblyLoadContext/UnloadableAssemblyLoadContext.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/UnloadableAssemblyLoadContext/UnloadableAssemblyLoadContextPlug/UnloadableAssemblyLoadContextPlug.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/VirtualizationDemo/VirtualizationDemo.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/XEmbedSample/XEmbedSample.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "samples/interop/WindowsInteropTest/WindowsInteropTest.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
+      "project": "src/Android/Avalonia.Android/Avalonia.Android.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NETSDK1147']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "src/Avalonia.Base/Avalonia.Base.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.Build.Tasks/Avalonia.Build.Tasks.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.Controls.ColorPicker/Avalonia.Controls.ColorPicker.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.Controls/Avalonia.Controls.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.DesignerSupport/Avalonia.DesignerSupport.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.Desktop/Avalonia.Desktop.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.Diagnostics/Avalonia.Diagnostics.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.Dialogs/Avalonia.Dialogs.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.Fonts.Inter/Avalonia.Fonts.Inter.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.FreeDesktop/Avalonia.FreeDesktop.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.Metal/Avalonia.Metal.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.MicroCom/Avalonia.MicroCom.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.Native/Avalonia.Native.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.OpenGL/Avalonia.OpenGL.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.ReactiveUI/Avalonia.ReactiveUI.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.Remote.Protocol/Avalonia.Remote.Protocol.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.Themes.Fluent/Avalonia.Themes.Fluent.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.Themes.Simple/Avalonia.Themes.Simple.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.Vulkan/Avalonia.Vulkan.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Avalonia.X11/Avalonia.X11.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Browser/Avalonia.Browser.Blazor/Avalonia.Browser.Blazor.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Browser/Avalonia.Browser/Avalonia.Browser.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless.NUnit/Avalonia.Headless.NUnit.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless.Vnc/Avalonia.Headless.Vnc.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless.XUnit/Avalonia.Headless.XUnit.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless/Avalonia.Headless.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Linux/Avalonia.LinuxFramebuffer/Avalonia.LinuxFramebuffer.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Markup/Avalonia.Markup.Xaml.Loader/Avalonia.Markup.Xaml.Loader.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Markup/Avalonia.Markup.Xaml/Avalonia.Markup.Xaml.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Markup/Avalonia.Markup/Avalonia.Markup.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Skia/Avalonia.Skia/Avalonia.Skia.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Tizen/Avalonia.Tizen/Avalonia.Tizen.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Windows/Avalonia.Direct2D1/Avalonia.Direct2D1.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Windows/Avalonia.Win32.Automation/Avalonia.Win32.Automation.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Windows/Avalonia.Win32.Interoperability/Avalonia.Win32.Interoperability.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Windows/Avalonia.Win32/Avalonia.Win32.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
+      "project": "src/iOS/Avalonia.iOS/Avalonia.iOS.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NETSDK1147']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "src/tools/Avalonia.Analyzers/Avalonia.Analyzers.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/tools/Avalonia.Designer.HostApp/Avalonia.Designer.HostApp.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/tools/Avalonia.Generators/Avalonia.Generators.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/tools/DevAnalyzers/DevAnalyzers.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/tools/DevGenerators/DevGenerators.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.Base.UnitTests/Avalonia.Base.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.Benchmarks/Avalonia.Benchmarks.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.Build.Tasks.UnitTest/Avalonia.Build.Tasks.UnitTest.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.Controls.UnitTests/Avalonia.Controls.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.DesignerSupport.TestApp/Avalonia.DesignerSupport.TestApp.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.DesignerSupport.Tests/Avalonia.DesignerSupport.Tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.Direct2D1.RenderTests/Avalonia.Direct2D1.RenderTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.Direct2D1.UnitTests/Avalonia.Direct2D1.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.Generators.Tests/Avalonia.Generators.Tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.Headless.NUnit.UnitTests/Avalonia.Headless.NUnit.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.Headless.XUnit.UnitTests/Avalonia.Headless.XUnit.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.IntegrationTests.Appium/Avalonia.IntegrationTests.Appium.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.LeakTests/Avalonia.LeakTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.Markup.UnitTests/Avalonia.Markup.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.Markup.Xaml.UnitTests/Avalonia.Markup.Xaml.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.ReactiveUI.UnitTests/Avalonia.ReactiveUI.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.RenderTests.WpfCompare/Avalonia.RenderTests.WpfCompare.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.Skia.RenderTests/Avalonia.Skia.RenderTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.Skia.UnitTests/Avalonia.Skia.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tests/Avalonia.UnitTests/Avalonia.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
+      "project": "tests/BuildTests/BuildTests.Android/BuildTests.Android.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NETSDK1147']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes []; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-f7b2txe5/avalonia/tests/BuildTests/IncludeBuildTestsAvaloniaItems.props(32,5): error : Please set the AvaloniaVersion property on build (using -p:AvaloniaVersion=x.y",
+      "project": "tests/BuildTests/BuildTests.Browser/BuildTests.Browser.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes []",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes []; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-f7b2txe5/avalonia/tests/BuildTests/IncludeBuildTestsAvaloniaItems.props(32,5): error : Please set the AvaloniaVersion property on build (using -p:AvaloniaVersion=x.y",
+      "project": "tests/BuildTests/BuildTests.Desktop/BuildTests.Desktop.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes []",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes []; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-f7b2txe5/avalonia/tests/BuildTests/IncludeBuildTestsAvaloniaItems.props(32,5): error : Please set the AvaloniaVersion property on build (using -p:AvaloniaVersion=x.y",
+      "project": "tests/BuildTests/BuildTests.NativeAot/BuildTests.NativeAot.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes []",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NETSDK1100']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.FrameworkReferenceResolution.targets(120,5): error NETSDK1100: To build a project targeting Windows on this operating system, set the EnableWindowsTa",
+      "project": "tests/BuildTests/BuildTests.WpfHybrid/BuildTests.WpfHybrid.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NETSDK1100']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NETSDK1147']; /home/dwalleck/.local-dotnet/sdk/10.0.102/Sdks/Microsoft.NET.Sdk/targets/Microsoft.NET.Sdk.ImportWorkloads.targets(38,5): error NETSDK1147: To install these workloads, run the following command: dotnet workload restore [/home/dwalleck/repos",
+      "project": "tests/BuildTests/BuildTests.iOS/BuildTests.iOS.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NETSDK1147']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes []; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-f7b2txe5/avalonia/tests/BuildTests/IncludeBuildTestsAvaloniaItems.props(32,5): error : Please set the AvaloniaVersion property on build (using -p:AvaloniaVersion=x.y",
+      "project": "tests/BuildTests/BuildTests/BuildTests.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes []",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "tests/TestFiles/BuildTasks/PInvoke/PInvoke.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    }
+  ],
+  "expected_units": [
+    {
+      "project": "nukebuild/_build.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 9 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "packages/Avalonia/Avalonia.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "packages/Avalonia/Avalonia.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "packages/Avalonia/Avalonia.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "samples/AppWithoutLifetime/AppWithoutLifetime.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 4 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/BindingDemo/BindingDemo.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 11 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/ControlCatalog.Desktop/ControlCatalog.Desktop.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net461; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net461"
+    },
+    {
+      "project": "samples/ControlCatalog.NetCore/ControlCatalog.NetCore.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 10 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/ControlCatalog.Tizen/ControlCatalog.Tizen.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0-tizen; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0-tizen"
+    },
+    {
+      "project": "samples/ControlCatalog/ControlCatalog.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 97 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/ControlCatalog/ControlCatalog.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 97 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "samples/Generators.Sandbox/Generators.Sandbox.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 7 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/GpuInterop/GpuInterop.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 23 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/IntegrationTestApp/IntegrationTestApp.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 36 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/MiniMvvm/MiniMvvm.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 20 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "samples/PlatformSanityChecks/PlatformSanityChecks.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/Previewer/Previewer.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 4 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/ReactiveUIDemo/ReactiveUIDemo.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/RemoteDemo/RemoteDemo.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/RenderDemo/RenderDemo.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 24 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/SafeAreaDemo.Desktop/SafeAreaDemo.Desktop.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/SafeAreaDemo/SafeAreaDemo.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 5 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/SampleControls/ControlSamples.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "samples/Sandbox/Sandbox.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 4 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/UnloadableAssemblyLoadContext/UnloadableAssemblyLoadContext/UnloadableAssemblyLoadContext.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 6 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/UnloadableAssemblyLoadContext/UnloadableAssemblyLoadContextPlug/UnloadableAssemblyLoadContextPlug.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 4 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/VirtualizationDemo/VirtualizationDemo.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 14 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "samples/XEmbedSample/XEmbedSample.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "samples/interop/WindowsInteropTest/WindowsInteropTest.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net461; 5 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net461"
+    },
+    {
+      "project": "samples/interop/WindowsInteropTest/WindowsInteropTest.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0-windows; 5 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0-windows"
+    },
+    {
+      "project": "src/Avalonia.Base/Avalonia.Base.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 1190 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.Base/Avalonia.Base.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 1190 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.Base/Avalonia.Base.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 1190 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.Build.Tasks/Avalonia.Build.Tasks.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 111 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.Controls.ColorPicker/Avalonia.Controls.ColorPicker.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 40 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.Controls.ColorPicker/Avalonia.Controls.ColorPicker.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 40 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.Controls.ColorPicker/Avalonia.Controls.ColorPicker.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 40 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.Controls/Avalonia.Controls.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 442 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.Controls/Avalonia.Controls.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 442 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.Controls/Avalonia.Controls.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 442 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.DesignerSupport/Avalonia.DesignerSupport.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 9 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.DesignerSupport/Avalonia.DesignerSupport.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 9 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.DesignerSupport/Avalonia.DesignerSupport.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 9 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.Desktop/Avalonia.Desktop.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.Desktop/Avalonia.Desktop.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.Desktop/Avalonia.Desktop.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.Diagnostics/Avalonia.Diagnostics.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 63 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.Diagnostics/Avalonia.Diagnostics.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 63 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.Diagnostics/Avalonia.Diagnostics.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 63 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.Dialogs/Avalonia.Dialogs.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 17 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.Dialogs/Avalonia.Dialogs.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 17 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.Dialogs/Avalonia.Dialogs.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 17 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.Fonts.Inter/Avalonia.Fonts.Inter.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.Fonts.Inter/Avalonia.Fonts.Inter.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.Fonts.Inter/Avalonia.Fonts.Inter.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.FreeDesktop/Avalonia.FreeDesktop.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 18 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.FreeDesktop/Avalonia.FreeDesktop.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 18 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.FreeDesktop/Avalonia.FreeDesktop.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 18 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.Metal/Avalonia.Metal.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.Metal/Avalonia.Metal.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.Metal/Avalonia.Metal.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.MicroCom/Avalonia.MicroCom.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.Native/Avalonia.Native.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 49 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.Native/Avalonia.Native.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 49 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.Native/Avalonia.Native.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 49 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.OpenGL/Avalonia.OpenGL.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 29 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.OpenGL/Avalonia.OpenGL.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 29 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.OpenGL/Avalonia.OpenGL.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 29 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.ReactiveUI/Avalonia.ReactiveUI.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 11 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.ReactiveUI/Avalonia.ReactiveUI.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 11 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.ReactiveUI/Avalonia.ReactiveUI.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 11 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.Remote.Protocol/Avalonia.Remote.Protocol.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 17 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.Remote.Protocol/Avalonia.Remote.Protocol.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 17 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.Remote.Protocol/Avalonia.Remote.Protocol.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 17 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.Themes.Fluent/Avalonia.Themes.Fluent.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 6 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.Themes.Fluent/Avalonia.Themes.Fluent.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 6 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.Themes.Fluent/Avalonia.Themes.Fluent.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 6 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.Themes.Simple/Avalonia.Themes.Simple.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.Themes.Simple/Avalonia.Themes.Simple.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.Themes.Simple/Avalonia.Themes.Simple.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.Vulkan/Avalonia.Vulkan.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 30 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.Vulkan/Avalonia.Vulkan.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 30 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.Vulkan/Avalonia.Vulkan.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 30 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Avalonia.X11/Avalonia.X11.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 62 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Avalonia.X11/Avalonia.X11.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 62 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Avalonia.X11/Avalonia.X11.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 62 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Browser/Avalonia.Browser.Blazor/Avalonia.Browser.Blazor.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0-browser; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0-browser"
+    },
+    {
+      "project": "src/Browser/Avalonia.Browser/Avalonia.Browser.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 52 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Browser/Avalonia.Browser/Avalonia.Browser.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0-browser; 52 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0-browser"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless.NUnit/Avalonia.Headless.NUnit.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless.NUnit/Avalonia.Headless.NUnit.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless.NUnit/Avalonia.Headless.NUnit.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless.Vnc/Avalonia.Headless.Vnc.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless.Vnc/Avalonia.Headless.Vnc.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless.Vnc/Avalonia.Headless.Vnc.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless.XUnit/Avalonia.Headless.XUnit.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless.XUnit/Avalonia.Headless.XUnit.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless.XUnit/Avalonia.Headless.XUnit.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless/Avalonia.Headless.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless/Avalonia.Headless.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Headless/Avalonia.Headless/Avalonia.Headless.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Linux/Avalonia.LinuxFramebuffer/Avalonia.LinuxFramebuffer.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 31 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Linux/Avalonia.LinuxFramebuffer/Avalonia.LinuxFramebuffer.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 31 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Linux/Avalonia.LinuxFramebuffer/Avalonia.LinuxFramebuffer.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 31 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Markup/Avalonia.Markup.Xaml.Loader/Avalonia.Markup.Xaml.Loader.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 66 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Markup/Avalonia.Markup.Xaml.Loader/Avalonia.Markup.Xaml.Loader.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 66 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Markup/Avalonia.Markup.Xaml.Loader/Avalonia.Markup.Xaml.Loader.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 66 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Markup/Avalonia.Markup.Xaml/Avalonia.Markup.Xaml.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 46 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Markup/Avalonia.Markup.Xaml/Avalonia.Markup.Xaml.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 46 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Markup/Avalonia.Markup.Xaml/Avalonia.Markup.Xaml.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 46 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Markup/Avalonia.Markup/Avalonia.Markup.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 14 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Markup/Avalonia.Markup/Avalonia.Markup.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 14 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Markup/Avalonia.Markup/Avalonia.Markup.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 14 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Skia/Avalonia.Skia/Avalonia.Skia.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 54 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Skia/Avalonia.Skia/Avalonia.Skia.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 54 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Skia/Avalonia.Skia/Avalonia.Skia.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 54 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Tizen/Avalonia.Tizen/Avalonia.Tizen.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0-tizen; 26 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0-tizen"
+    },
+    {
+      "project": "src/Windows/Avalonia.Direct2D1/Avalonia.Direct2D1.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 42 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Windows/Avalonia.Direct2D1/Avalonia.Direct2D1.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 42 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Windows/Avalonia.Direct2D1/Avalonia.Direct2D1.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 42 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Windows/Avalonia.Win32.Automation/Avalonia.Win32.Automation.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 41 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Windows/Avalonia.Win32.Automation/Avalonia.Win32.Automation.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 41 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Windows/Avalonia.Win32.Automation/Avalonia.Win32.Automation.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 41 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Windows/Avalonia.Win32.Interoperability/Avalonia.Win32.Interoperability.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net461; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net461"
+    },
+    {
+      "project": "src/Windows/Avalonia.Win32.Interoperability/Avalonia.Win32.Interoperability.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0-windows; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0-windows"
+    },
+    {
+      "project": "src/Windows/Avalonia.Win32.Interoperability/Avalonia.Win32.Interoperability.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0-windows; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0-windows"
+    },
+    {
+      "project": "src/Windows/Avalonia.Win32/Avalonia.Win32.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 91 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "src/Windows/Avalonia.Win32/Avalonia.Win32.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 91 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/Windows/Avalonia.Win32/Avalonia.Win32.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 91 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/tools/Avalonia.Analyzers/Avalonia.Analyzers.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 6 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/tools/Avalonia.Designer.HostApp/Avalonia.Designer.HostApp.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net461; 71 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net461"
+    },
+    {
+      "project": "src/tools/Avalonia.Designer.HostApp/Avalonia.Designer.HostApp.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 71 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/tools/Avalonia.Designer.HostApp/Avalonia.Designer.HostApp.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 71 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/tools/Avalonia.Generators/Avalonia.Generators.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 25 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/tools/DevAnalyzers/DevAnalyzers.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/tools/DevGenerators/DevGenerators.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 18 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "tests/Avalonia.Base.UnitTests/Avalonia.Base.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 218 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.Benchmarks/Avalonia.Benchmarks.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 45 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.Build.Tasks.UnitTest/Avalonia.Build.Tasks.UnitTest.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "tests/Avalonia.Controls.UnitTests/Avalonia.Controls.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 107 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.DesignerSupport.TestApp/Avalonia.DesignerSupport.TestApp.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.DesignerSupport.Tests/Avalonia.DesignerSupport.Tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.Direct2D1.RenderTests/Avalonia.Direct2D1.RenderTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 45 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.Direct2D1.UnitTests/Avalonia.Direct2D1.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 5 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.Generators.Tests/Avalonia.Generators.Tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 9 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.Headless.NUnit.UnitTests/Avalonia.Headless.NUnit.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 7 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.Headless.XUnit.UnitTests/Avalonia.Headless.XUnit.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 7 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.IntegrationTests.Appium/Avalonia.IntegrationTests.Appium.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 29 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.LeakTests/Avalonia.LeakTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net462; 6 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net462"
+    },
+    {
+      "project": "tests/Avalonia.Markup.UnitTests/Avalonia.Markup.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 28 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.Markup.Xaml.UnitTests/Avalonia.Markup.Xaml.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net47; 60 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net47"
+    },
+    {
+      "project": "tests/Avalonia.Markup.Xaml.UnitTests/Avalonia.Markup.Xaml.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 60 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.ReactiveUI.UnitTests/Avalonia.ReactiveUI.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 10 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.RenderTests.WpfCompare/Avalonia.RenderTests.WpfCompare.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0-windows; 9 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0-windows"
+    },
+    {
+      "project": "tests/Avalonia.Skia.RenderTests/Avalonia.Skia.RenderTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 50 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.Skia.UnitTests/Avalonia.Skia.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 18 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/Avalonia.UnitTests/Avalonia.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 27 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "tests/TestFiles/BuildTasks/PInvoke/PInvoke.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 4 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "tests/TestFiles/BuildTasks/PInvoke/PInvoke.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 4 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    }
+  ],
+  "id": "avalonia",
+  "review": {
+    "rationale": null,
+    "reviewer": null,
+    "status": "proposed-awaiting-signoff"
+  },
+  "schema": 1,
+  "sha": "0834dbbbb9252406b08f2e74e8f328cc5ba502ee"
+}

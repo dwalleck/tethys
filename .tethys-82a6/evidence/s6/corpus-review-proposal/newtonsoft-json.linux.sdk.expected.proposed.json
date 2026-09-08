@@ -1,0 +1,171 @@
+{
+  "capture_digest": "5f34b56a749460329d3d5a6cb2ca4fd1781b7edc49f35e84dbf7d6f2339c8242",
+  "capture_path": "newtonsoft-json.linux.sdk.capture.json.gz",
+  "expected_exit": 0,
+  "expected_projects": [
+    {
+      "project": "Src/Newtonsoft.Json.FuzzTests/Newtonsoft.Json.FuzzTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "Src/Newtonsoft.Json.TestConsole/Newtonsoft.Json.TestConsole.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "Src/Newtonsoft.Json.Tests/Newtonsoft.Json.Tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "Src/Newtonsoft.Json/Newtonsoft.Json.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    }
+  ],
+  "expected_units": [
+    {
+      "project": "Src/Newtonsoft.Json.FuzzTests/Newtonsoft.Json.FuzzTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "Src/Newtonsoft.Json.TestConsole/Newtonsoft.Json.TestConsole.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net46; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net46"
+    },
+    {
+      "project": "Src/Newtonsoft.Json.TestConsole/Newtonsoft.Json.TestConsole.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "Src/Newtonsoft.Json.Tests/Newtonsoft.Json.Tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net20; 702 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net20"
+    },
+    {
+      "project": "Src/Newtonsoft.Json.Tests/Newtonsoft.Json.Tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net35; 702 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net35"
+    },
+    {
+      "project": "Src/Newtonsoft.Json.Tests/Newtonsoft.Json.Tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net40; 702 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net40"
+    },
+    {
+      "project": "Src/Newtonsoft.Json.Tests/Newtonsoft.Json.Tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net46; 702 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net46"
+    },
+    {
+      "project": "Src/Newtonsoft.Json.Tests/Newtonsoft.Json.Tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net5.0; 702 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net5.0"
+    },
+    {
+      "project": "Src/Newtonsoft.Json.Tests/Newtonsoft.Json.Tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 702 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "Src/Newtonsoft.Json.Tests/Newtonsoft.Json.Tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 702 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "Src/Newtonsoft.Json.Tests/Newtonsoft.Json.Tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netcoreapp2.1; 702 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netcoreapp2.1"
+    },
+    {
+      "project": "Src/Newtonsoft.Json.Tests/Newtonsoft.Json.Tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netcoreapp3.1; 702 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netcoreapp3.1"
+    },
+    {
+      "project": "Src/Newtonsoft.Json/Newtonsoft.Json.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net20; 240 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net20"
+    },
+    {
+      "project": "Src/Newtonsoft.Json/Newtonsoft.Json.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net35; 240 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net35"
+    },
+    {
+      "project": "Src/Newtonsoft.Json/Newtonsoft.Json.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net40; 240 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net40"
+    },
+    {
+      "project": "Src/Newtonsoft.Json/Newtonsoft.Json.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net45; 240 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net45"
+    },
+    {
+      "project": "Src/Newtonsoft.Json/Newtonsoft.Json.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net6.0; 240 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net6.0"
+    },
+    {
+      "project": "Src/Newtonsoft.Json/Newtonsoft.Json.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 240 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "Src/Newtonsoft.Json/Newtonsoft.Json.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard1.0; 240 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard1.0"
+    },
+    {
+      "project": "Src/Newtonsoft.Json/Newtonsoft.Json.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard1.3; 240 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard1.3"
+    },
+    {
+      "project": "Src/Newtonsoft.Json/Newtonsoft.Json.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 240 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    }
+  ],
+  "id": "newtonsoft-json",
+  "review": {
+    "rationale": null,
+    "reviewer": null,
+    "status": "proposed-awaiting-signoff"
+  },
+  "schema": 1,
+  "sha": "4e13299d4b0ec96bd4df9954ef646bd2d1b5bf2a"
+}

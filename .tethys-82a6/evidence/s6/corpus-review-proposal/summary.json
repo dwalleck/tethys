@@ -1,0 +1,428 @@
+{
+  "judgment_cases": [
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NETSDK1147"
+      ],
+      "project": "samples/ControlCatalog.Android/ControlCatalog.Android.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NETSDK1147"
+      ],
+      "project": "samples/ControlCatalog.Browser.Blazor/ControlCatalog.Browser.Blazor.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NETSDK1147"
+      ],
+      "project": "samples/ControlCatalog.Browser/ControlCatalog.Browser.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NETSDK1147"
+      ],
+      "project": "samples/ControlCatalog.iOS/ControlCatalog.iOS.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NETSDK1147"
+      ],
+      "project": "samples/SafeAreaDemo.Android/SafeAreaDemo.Android.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NETSDK1147"
+      ],
+      "project": "samples/SafeAreaDemo.iOS/SafeAreaDemo.iOS.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NETSDK1147"
+      ],
+      "project": "samples/SingleProjectSandbox/SingleProjectSandbox.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NETSDK1147"
+      ],
+      "project": "src/Android/Avalonia.Android/Avalonia.Android.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NETSDK1147"
+      ],
+      "project": "src/iOS/Avalonia.iOS/Avalonia.iOS.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NETSDK1147"
+      ],
+      "project": "tests/BuildTests/BuildTests.Android/BuildTests.Android.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [],
+      "project": "tests/BuildTests/BuildTests.Browser/BuildTests.Browser.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [],
+      "project": "tests/BuildTests/BuildTests.Desktop/BuildTests.Desktop.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [],
+      "project": "tests/BuildTests/BuildTests.NativeAot/BuildTests.NativeAot.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NETSDK1100"
+      ],
+      "project": "tests/BuildTests/BuildTests.WpfHybrid/BuildTests.WpfHybrid.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NETSDK1147"
+      ],
+      "project": "tests/BuildTests/BuildTests.iOS/BuildTests.iOS.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [],
+      "project": "tests/BuildTests/BuildTests/BuildTests.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "avalonia"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NU1605"
+      ],
+      "project": "src/xunit.v3.templates/templates/project/xunit3-extension/cs/ExtensionProject.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "xunit"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NU1605"
+      ],
+      "project": "src/xunit.v3.templates/templates/project/xunit3/cs/TestProject.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "xunit"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NU1301",
+        "NU1605"
+      ],
+      "project": "eng/common/internal/Tools.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4236"
+      ],
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestMSBuildTaskInNet/TestMSBuildTaskInNet.csproj",
+      "proposed_reason": "sdk-unresolved",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4236"
+      ],
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestNetTask/TestNetTask.csproj",
+      "proposed_reason": "sdk-unresolved",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4236"
+      ],
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestNetTaskBuildCallback/TestNetTaskBuildCallback.csproj",
+      "proposed_reason": "sdk-unresolved",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4236"
+      ],
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestNetTaskCallback/TestNetTaskCallback.csproj",
+      "proposed_reason": "sdk-unresolved",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4236"
+      ],
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestNetTaskHostReuse/TestNetTaskHostReuse.csproj",
+      "proposed_reason": "sdk-unresolved",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4236"
+      ],
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestNetTaskResourceCallback/TestNetTaskResourceCallback.csproj",
+      "proposed_reason": "sdk-unresolved",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4236"
+      ],
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestNetTaskWithImplicitParams/TestNetTaskWithImplicitParams.csproj",
+      "proposed_reason": "sdk-unresolved",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NU1008",
+        "NU1507",
+        "NU1603",
+        "NU1605",
+        "NU5105",
+        "NU5131"
+      ],
+      "project": "src/BuildCheck.UnitTests/TestAssets/CheckCandidate/CheckCandidate.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NU1008",
+        "NU1507",
+        "NU1603",
+        "NU1605",
+        "NU5105",
+        "NU5131"
+      ],
+      "project": "src/BuildCheck.UnitTests/TestAssets/CheckCandidateWithMultipleChecksInjected/CheckCandidateWithMultipleChecksInjected.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4019"
+      ],
+      "project": "src/BuildCheck.UnitTests/TestAssets/CopyAlwaysTest/EntryProject/EntryProject.csproj",
+      "proposed_reason": "evaluation-failed",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4019"
+      ],
+      "project": "src/BuildCheck.UnitTests/TestAssets/CopyAlwaysTest/ReferencedProject/ReferencedProject.csproj",
+      "proposed_reason": "evaluation-failed",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "MSB4067"
+      ],
+      "project": "src/BuildCheck.UnitTests/TestAssets/EmbeddedResourceTest/EntryProject/EntryProject.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4067"
+      ],
+      "project": "src/BuildCheck.UnitTests/TestAssets/EmbeddedResourceTest/ReferencedProject/ReferencedProject.csproj",
+      "proposed_reason": "evaluation-failed",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4067"
+      ],
+      "project": "src/BuildCheck.UnitTests/TestAssets/TFMConfusionCheck/TFMConfusionCheck.csproj",
+      "proposed_reason": "evaluation-failed",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4236"
+      ],
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/ProjectWithDependencies/ConsoleApp/ConsoleApp.csproj",
+      "proposed_reason": "sdk-unresolved",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4236"
+      ],
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/ProjectWithDependencies/Library1/Library1.csproj",
+      "proposed_reason": "sdk-unresolved",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4236"
+      ],
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/ProjectWithDependencies/Library2/Library2.csproj",
+      "proposed_reason": "sdk-unresolved",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4236"
+      ],
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/ProjectWithDependencies/Library3/Library3.csproj",
+      "proposed_reason": "sdk-unresolved",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4236"
+      ],
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/ProjectWithDependencies/Library4/Library4.csproj",
+      "proposed_reason": "sdk-unresolved",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "enumeration-failure",
+      "native_codes": [
+        "MSB4236"
+      ],
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/SingleProject/SingleProject.csproj",
+      "proposed_reason": "sdk-unresolved",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NU1008",
+        "NU1507",
+        "NU1603",
+        "NU1605",
+        "NU5105",
+        "NU5131"
+      ],
+      "project": "src/MSBuild.UnitTests/TestAssets/MemberAccessException/LoggerProject/CustomLogger.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "msbuild"
+    },
+    {
+      "kind": "restore-failure",
+      "native_codes": [
+        "NU1008",
+        "NU1507",
+        "NU1603",
+        "NU1605",
+        "NU5105",
+        "NU5131"
+      ],
+      "project": "src/MSBuild.UnitTests/TestAssets/TargetInvocationException/LoggerProject/FaultyLogger.csproj",
+      "proposed_reason": "restore-failed",
+      "repo": "msbuild"
+    }
+  ],
+  "summary": {
+    "avalonia": {
+      "confirmed_projects": 88,
+      "confirmed_units": 159,
+      "expected_exit": 0,
+      "indeterminate_projects": 16,
+      "indeterminate_units": 0,
+      "projects": 104,
+      "proposal": "avalonia.linux.sdk.expected.proposed.json",
+      "units": 159
+    },
+    "msbuild": {
+      "confirmed_projects": 62,
+      "confirmed_units": 80,
+      "expected_exit": 0,
+      "indeterminate_projects": 23,
+      "indeterminate_units": 0,
+      "projects": 85,
+      "proposal": "msbuild.linux.sdk.expected.proposed.json",
+      "units": 80
+    },
+    "newtonsoft-json": {
+      "confirmed_projects": 4,
+      "confirmed_units": 21,
+      "expected_exit": 0,
+      "indeterminate_projects": 0,
+      "indeterminate_units": 0,
+      "projects": 4,
+      "proposal": "newtonsoft-json.linux.sdk.expected.proposed.json",
+      "units": 21
+    },
+    "xunit": {
+      "confirmed_projects": 45,
+      "confirmed_units": 83,
+      "expected_exit": 0,
+      "indeterminate_projects": 2,
+      "indeterminate_units": 0,
+      "projects": 47,
+      "proposal": "xunit.linux.sdk.expected.proposed.json",
+      "units": 83
+    }
+  }
+}
