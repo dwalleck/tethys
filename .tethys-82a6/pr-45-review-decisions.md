@@ -37,42 +37,44 @@ timing. `P45-6`/`P45-7`/`P45-8` retain verified mechanisms but refuted impact or
 | P45-14 | Bundled-runtime fence is a 4-name denylist | code-review xhigh | Verified | `:177-180` vs `packages.lock.json` (`Microsoft.NET.StringTools`, `System.Collections.Immutable`, `System.Reflection.Metadata`, `System.Threading.Tasks.Dataflow`, …); `ExcludeAssets="runtime"` currently keeps them out | Modify | Derive the forbidden set from the `Microsoft.Build` closure in `packages.lock.json` instead of a hand-maintained list | Self-maintaining when a transitive dependency or `ExcludeAssets` changes |
 | P45-15 | Duplicate misnamed tests hardcode `python3`; fix: merge them | code-review xhigh | Verified (duplication, `python3`) / Refuted (misnaming at head) | Both files are 21-line wrappers differing by one flag; the `python3` fallback is at line 7 in both; at the current head both files carry real tests and CI excludes these two from `--run-ignored all` | Modify | One file with both ignored fns sharing an interpreter resolver (`PYTHON` → `python` on Windows → `python3`) that panics actionably; update the CI exclusion filter | Merging alone does not fix the `python3` fallback; do not delete either case — they fence different contracts |
 
-## Repair plan (prepared; not applied)
+## Repair plan (applied)
 
-Accepted/Modified findings group into five atomic changes. All land on
-`feat/tethys-82a6-worker` (PR #45) unless the landing decision below says otherwise.
+Landed on `feat/tethys-82a6-worker` (PR #45) per the maintainer's decision, then merged
+forward so the stack head carries the same fixes:
 
-1. **Worker self-defence (`P45-1`, `P45-6`)** — `Evaluation.cs` post-properties
-   effective-toolset check; `Program.cs` containment. Affected proof: new worker
-   fixtures in `worker_qualification.py` for a divergent toolset and an escaping
-   project path; existing qualification run must stay green.
-2. **Oracle robustness (`P45-4`, `P45-9`, `P45-10b`, `P45-12`, `P45-13`, `P45-14`)** —
-   per-site timeouts, failure-direction exit fence, intentional SDK ranking
-   (release outranks its prerelease), bounded drain/join with process-group kill and node
-   reuse off, hermetic publish directory, closure-derived forbidden set. Affected proof:
-   the oracle itself is the fence; run it on Linux and Windows before/after, plus a
-   mutation that restores the old ranking and one that skips the new exit assertion.
-3. **Metadata reproducibility (`P45-11`)** — remove the three timestamp names and skip
-   them in the oracle comparison in one commit; the qualification oracle is the fence.
-4. **vswhere selection split (`P45-5`)** — tolerant packaging selector, strict
-   qualification selector; Windows qualification run is the fence.
-5. **Test deduplication (`P45-15`)** — single test file with a shared interpreter
-   resolver; CI's `-E "not test(...)"` filter must be updated in the same commit.
+| Commit | Branch | Findings |
+|---|---|---|
+| `24479dd` | worker | `P45-1`, `P45-6`, `P45-11` (worker protocol) |
+| `fdd7b59` | worker | `P45-4`, `P45-5`, `P45-9`, `P45-10b`, `P45-12`, `P45-13`, `P45-14` (oracle + fences) |
+| `0dd4940` | worker | `P45-15` (shared interpreter resolver) |
+| `72e973a` | discovery | merge of the above |
+| `0471d04` | publication | merge |
+| `a91816c` | coupling | merge |
+| `ce23669` | corpus | merge (docs conflict resolved by combining both texts) |
+
+Verification (all on this host, `--host sdk`):
+
+- Full C5/C14 qualification passes: `python3 .tethys-82a6/oracles/worker_qualification.py --host sdk --prepare` then `--host sdk` → `C5/C14 PASS: independent manifests + direct MSBuild, no targets, clean distribution`.
+- `P45-1`/`P45-6`/`P45-11` fences, each proven red then restored green:
+  - timestamps re-added to `BuiltInMetadata` → `Filesystem timestamps are not contract metadata and break response reproducibility`;
+  - containment removed from `Program.cs` → `A project outside workspace_root was not refused`;
+  - exit contract broken (`return 0`) → `C5 failure response with success exit: 0`.
+- `P45-12` reproduced and fixed: a 200 KB payload to a non-reading child raised after 2.0 s; a grandchild holding the pipes raised after 2.0 s (previously unbounded).
+- `P45-13`: a planted `stale-artifact.dll` does not survive `--prepare`.
+- `P45-14`: a planted `System.Text.Json.dll` in the bundle fails `check_distribution`; removing it passes. The derived set is unioned with the explicit names because the lock graph at this version does not list `microsoft.build.utilities.core`/`tasks.core`.
+- `P45-10b`: `sdk_rank` orders `10.0.102 > 8.0.417`, `10.0.100 > 10.0.100-preview…`, `10.0.100-preview… > 9.0.310`.
+- `P45-15`: both wrapper tests pass via the shared resolver; the 11 native tests pass on the merged stack head with the CI environment.
+- Quality: `cargo fmt --check`, `cargo clippy --all-targets --all-features -- -D warnings`, and both worker target frameworks (`net8.0`, `net472`) build.
+
+Not fenced locally: `P45-1`'s divergent-toolset path (needs a host whose effective toolset
+differs — the Windows qualification leg and the oracle's own `MSBuildBinPath` identity
+assertion cover it) and `P45-5` (Windows-only selection split).
 
 `P45-2` is a placement change and `P45-8` is backlog; both are tracked and excluded from
 this repair set until their design/plan update lands.
 
-## Landing decision (open)
+## Landing decision (resolved)
 
-The findings target PR #45, the bottom of a five-PR stack; the current head already fixes
-`P45-1` (Rust adapter), `P45-6` (caller containment), `P45-7` (import disqualification)
-and `P45-11` (consumer-side stripping) at later layers. Two options:
-
-- **Fix on `feat/tethys-82a6-worker` and restack #46–#49** — reviewers see the fixes
-  where the findings were filed; costs a rebase of four branches and a CI re-run.
-- **Fix on the stack head (`feat/tethys-82a6-corpus`)** — one branch, no rebase; the
-  final merged state carries the fixes, but PR #45's own diff still shows the defects.
-
-Recommendation: fix on `feat/tethys-82a6-worker` for `P45-1`/`P45-6`/`P45-11` (worker
-files, where the review points) and on the stack head for the oracle-only findings, so
-the stack rebases once. Awaiting the user's call before applying.
+Maintainer: **"Land them on 45"** — repairs landed on `feat/tethys-82a6-worker` and were
+merged forward through discovery → publication → coupling → corpus, so every PR in the
+stack carries them without a history rewrite.
