@@ -10,6 +10,12 @@ closure and containment checks are later-stack additions, so several findings ar
 the worker but already closed one layer up at the current head. No fix has been applied
 yet; the repair plan below is prepared for approval and the applicable gate.
 
+Corrections made during verification: `P45-10` was split after running the example — the
+`TypeError` crash claim is **refuted** (`pathlib.PurePath` is orderable, and
+`selected_sdk` builds only same-flavour paths), while the selection ambiguity is real and
+resolves *against* the stable release. `P45-3` was refuted by the reviewed head's own CI
+timing. `P45-6`/`P45-7`/`P45-8` retain verified mechanisms but refuted impact or severity.
+
 ## Decision log
 
 | finding-id | finding | reviewer | evidence-state | evidence | decision | fix | note |
@@ -23,7 +29,8 @@ yet; the repair plan below is prepared for approval and the applicable gate.
 | P45-7 | Failed import probes are omitted from the input closure; fix: subscribe to import events | code-review xhigh | Verified (mechanism) / Refuted (impact) | `Evaluation.cs:88-89` + logger `:189-198`; importing projects are already cache-ineligible (`:139`, `:105-106`); the named `UnexpectedlyMissing` event does not exist and `ImportIgnored` excludes the glob-no-match case | Reject | `N/A` | The proposed fix cannot observe the claimed case, and the claimed stale-reuse scenario is unreachable in the eligible (import-free) class |
 | P45-8 | `glob_patterns` omits condition and Update provenance; fix: add the fields | code-review xhigh | Verified (mechanism) / Refuted (impact) | `Evaluation.cs:96-100`; `Contract.cs:51-58`; no consumer reads dead branches as live, and any condition already disqualifies the receipt | Reject (tracked at `tethys-w25h`) | `N/A` | Protocol change with no consumer today; recorded as backlog |
 | P45-9 | Exit-code fence asserts only the success direction; fix: assert non-zero on failure | code-review xhigh | Verified | `:214` `require(not success or status == 0)`; every negative case passes `success=False`; `Program.cs:57` | Accept | Add `require(status != 0, …)` inside the `if not success:` branch | Pure regression fence; all negative cases already exit non-zero |
-| P45-10 | `max()` over `(version, Path)` crashes on tied SDK versions; implied fix: catch `TypeError` | code-review xhigh | Verified | `:96-100` and the fatal-only handler `:363`; pre-release strip collides `10.0.100-preview…` with `10.0.100` | Accept (root-cause key) | Rank by `(core_version, release_before_prerelease, prerelease, str(path))` and `max(..., key=…)` | Widening the handler to `TypeError` would mask genuine bugs and break the deliberate fatal-only exit contract |
+| P45-10a | `max()` over `(version, Path)` crashes on tied SDK versions (`TypeError`) | code-review xhigh | Refuted | Ran a tied-version example: `max([((10,0,100), Path('…/10.0.100-preview.5.25277.114')), ((10,0,100), Path('…/10.0.100'))])` returns the preview path, no exception — `PurePath` is orderable (pathlib "General properties"), and `selected_sdk` builds only same-flavour `Path` values | Reject | `N/A` | No crash to fix; adding `TypeError` to the fatal-only handler would mask genuine bugs |
+| P45-10b | The same tie makes "highest SDK" selection ill-defined (preview vs its release) | code-review xhigh | Verified | Same example: the preview sorts **after** its release (`Path('…/10.0.100-preview…') < Path('…/10.0.100')` is `False`), so `max` picks the prerelease; the pre-release strip (`version.split("-")[0]`) collapses both to `(10,0,100)` | Modify | Rank by `(core_version, 0 if prerelease else 1, prerelease_parts, str(path))` so a release outranks its preview and remaining ties are explicit | Low severity — a machine must hold both a preview and its release — but the selection should be intentional |
 | P45-11 | Timestamps in metadata make responses non-reproducible; fix: remove them | code-review xhigh | Verified | `Evaluation.cs:26` + `:82-83`; the oracle compares the direct-host keys at `:313-317`, so removal alone fails CI; the stack already strips the same three names | Modify | Remove the three names **and** skip them in the oracle comparison in the same commit | No test asserts them as expected values |
 | P45-12 | Unbounded stdin write and unconditional thread join can hang the runner | code-review xhigh | Verified (structure) / Plausible (hang) | `:68`/`:70`, kill path `:71-73`, `thread.join()` `:76-77`; MSBuild node reuse is a known pipe-holding hazard | Modify | Daemon drain threads + `join(timeout)` + process group / `start_new_session` + `-nodeReuse:false` on direct MSBuild invocations | Prerequisite for P45-4: a longer `wait` timeout does not bound the write or the join |
 | P45-13 | Publish directory never cleaned; stale DLLs ship | code-review xhigh | Verified | `prepare()` `:152-165` has no cleanup; `publish -o` and `-t:Build -p:OutputPath` merge; `check_distribution` asserts presence only | Accept | `shutil.rmtree(destination / "msbuild-evaluate", ignore_errors=True)` before publishing | The staged `tethys` binary sits outside that directory and is untouched |
@@ -39,12 +46,12 @@ Accepted/Modified findings group into five atomic changes. All land on
    effective-toolset check; `Program.cs` containment. Affected proof: new worker
    fixtures in `worker_qualification.py` for a divergent toolset and an escaping
    project path; existing qualification run must stay green.
-2. **Oracle robustness (`P45-4`, `P45-9`, `P45-10`, `P45-12`, `P45-13`, `P45-14`)** —
-   per-site timeouts, failure-direction exit fence, deterministic SDK ranking, bounded
-   drain/join with process-group kill and node reuse off, hermetic publish directory,
-   closure-derived forbidden set. Affected proof: the oracle itself is the fence; run it
-   on Linux and Windows before/after, plus a mutation that restores the old `max()`
-   ranking and one that skips the new exit assertion.
+2. **Oracle robustness (`P45-4`, `P45-9`, `P45-10b`, `P45-12`, `P45-13`, `P45-14`)** —
+   per-site timeouts, failure-direction exit fence, intentional SDK ranking
+   (release outranks its prerelease), bounded drain/join with process-group kill and node
+   reuse off, hermetic publish directory, closure-derived forbidden set. Affected proof:
+   the oracle itself is the fence; run it on Linux and Windows before/after, plus a
+   mutation that restores the old ranking and one that skips the new exit assertion.
 3. **Metadata reproducibility (`P45-11`)** — remove the three timestamp names and skip
    them in the oracle comparison in one commit; the qualification oracle is the fence.
 4. **vswhere selection split (`P45-5`)** — tolerant packaging selector, strict
