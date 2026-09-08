@@ -357,9 +357,8 @@ def run(args, report):
             accounting["aggregate_seconds"] = time.monotonic() - invocation_started
             accounting["runner_overhead_seconds"] = max(
                 0.0, accounting["lane_seconds"] - accounting["product_seconds"] - accounting["transparency_control_seconds"])
-            # The cap binds the aggregate invocation, not each lane's private clock.
-            check_elapsed(accounting["aggregate_seconds"], args.cadence)
-            query_times = [row["measurement"]["wall_seconds"] for row in records if row.get("correctness", {}).get("evaluator_free")]
+            query_times = [row["measurement"]["wall_seconds"] for row in records
+                           if row.get("correctness", {}).get("evaluator_free")]
             lane_report = {"status": "pass", "elapsed_seconds": elapsed, "records": records, **lane_totals}
             if lane == "cache":
                 lane_report["repeat_policy"] = (
@@ -371,6 +370,9 @@ def run(args, report):
                 lane_report["query_budget"] = check_queries(query_times)
             report["lanes"][lane] = lane_report
             atomic_json(args.output, report)
+            # Persist the lane's records before enforcing the cap: a breach must retain the
+            # measured evidence it judged, not discard hours of capture into a failed report.
+            check_elapsed(accounting["aggregate_seconds"], args.cadence)
         accounting["status"] = "pass"
         if baseline is not None:
             grouped = {}
