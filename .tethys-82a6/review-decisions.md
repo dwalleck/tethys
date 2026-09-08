@@ -500,3 +500,13 @@ Main owns this assembled receipt; isolated writers did not validate. `evidence/s
 - **Reproduction and gates:** a local Windows 11 VM (`resourcefs-win11`) was reached over WinRM and, on request, given Rust 1.98.1 and MSVC 14.44; `C:\tethys` was staged from `git archive HEAD` and the companion published for net8.0. Affected tests PASS there (`cargo test --lib -- native_path_normalizes` and the three native `authorized_restore` fences) and locally (`fmt`, `clippy -D warnings`, unit fences, four native restore fences). Falsifiers PASS (the Windows-only unit fence is this repair's falsifier). Stress fixture PASS at unit scope; the corpus lane remains the end-to-end falsifier. Module shape PASS (no new path or owner). Production-scale budget PASS (one lexical normalization per path). Regression fence PASS (new Windows fence plus the existing restore fences). Named mutation PASS (dropping the normalization → Windows unit fence FAIL). Restored fence PASS (green again on Windows after restoring the original bytes).
 - **VM state left behind (reusable):** Rust 1.98.1 under `%USERPROFILE%\.cargo`, MSVC 14.44 in `C:\BuildTools`, sources at `C:\tethys`, companion at `C:\tethys\target\worker-dist\msbuild-evaluate`, SDK 9.0.317. Extraction resets file timestamps; touch a file or clean the package after re-staging so cargo rebuilds.
 - **Commit:** the path-identity commit references this record.
+
+### R8 amendment — final implementation
+
+The first attempt normalized `restore::native_path` globally, which changed the spelling returned to `package_roots` and failed the existing destination-precedence unit test on Windows. The delivered repair is narrower and keeps every path value unchanged:
+
+- `receipt_digest` hashes one identity per file (`dunce::simplified`), sorted and deduplicated, so the receipt is a set digest independent of `\\?\` spelling and ordering (`tethys-restore-inputs-v4`; older receipts simply fail to match and force reevaluation).
+- `cache::contains_identity` is used by the evaluation-closure check, which previously keyed membership by raw spelling.
+- `cache::captured_restore_paths` resolves each restored path to its captured key by identity, so a restore recorded under one spelling is still found under the other.
+
+Windows verification on `resourcefs-win11` (Rust 1.98.1, MSVC 14.44, staged from `git archive HEAD`): `receipt_digest_ignores_verbatim_spelling_and_order` and `legacy_destination_uses_solution_context_and_config_precedence_without_ancestor_guesses` pass, and all three native `authorized_restore` fences pass. Linux: `fmt`, `clippy -D warnings`, the unit fences and all four native restore fences pass.

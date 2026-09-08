@@ -449,15 +449,11 @@ fn property<'a>(evaluated: Option<&'a EvaluatedProject>, name: &str) -> Option<&
 
 fn native_path(project: &Path, value: &str) -> PathBuf {
     let path = Path::new(value);
-    let path = if path.is_absolute() {
+    if path.is_absolute() {
         path.to_owned()
     } else {
         project.parent().unwrap_or(Path::new(".")).join(path)
-    };
-    // One identity per file: a relative value joined to the verbatim canonical project
-    // and an absolute value reported by MSBuild must not differ only in `\\?\` spelling,
-    // or the same input hashes differently between restore and revalidation.
-    dunce::simplified(&path).to_owned()
+    }
 }
 
 /// Name a restore artifact the same way however its location was learned.
@@ -1221,8 +1217,17 @@ fn receipt_digest(files: &[PathBuf]) -> crate::Result<String> {
     // path/content boundaries from aliasing one another. Older receipts also
     // lack the stable before/after source authority required by graph evidence.
     hash.update(b"tethys-restore-inputs-v4\0");
+    // One identity per file, in one order: the same input may be spelled with or
+    // without the extended-length prefix depending on whether an evaluated property
+    // or a relative fallback produced it, and the raw spellings sort differently.
+    let mut identities: Vec<PathBuf> = files
+        .iter()
+        .map(|path| dunce::simplified(path).to_path_buf())
+        .collect();
+    identities.sort();
+    identities.dedup();
     let mut chunk = [0_u8; 16_384];
-    for path in files {
+    for path in &identities {
         let path_bytes = path.as_os_str().as_encoded_bytes();
         hash.update((path_bytes.len() as u64).to_le_bytes());
         hash.update(path_bytes);
@@ -1985,12 +1990,19 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
-    fn native_path_normalizes_verbatim_and_ordinary_spellings() {
-        let project = Path::new(r"\\?\C:\work\App.csproj");
-        let relative = native_path(project, "obj/project.assets.json");
-        let absolute = native_path(project, r"C:\work\obj\project.assets.json");
-        assert_eq!(relative, absolute);
-        assert!(!relative.to_string_lossy().starts_with(r"\\?\"));
+    fn receipt_digest_ignores_verbatim_spelling_and_order() {
+        let root = tempfile::tempdir().unwrap();
+        let first = root.path().join("a.txt");
+        let second = root.path().join("b.txt");
+        std::fs::write(&first, "one").unwrap();
+        std::fs::write(&second, "two").unwrap();
+        let verbatim = first.canonicalize().unwrap();
+        let ordinary = dunce::simplified(&verbatim).to_path_buf();
+        assert_ne!(verbatim, ordinary, "fixture must exercise both spellings");
+        assert_eq!(
+            receipt_digest(&[verbatim.clone(), second.clone()]).unwrap(),
+            receipt_digest(&[second, ordinary]).unwrap()
+        );
     }
 
     #[test]
