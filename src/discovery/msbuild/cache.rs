@@ -50,25 +50,41 @@ impl EpochOffset {
             },
         }
     }
+
+    fn into_system_time(self) -> crate::Result<SystemTime> {
+        let value = if self.before_epoch {
+            UNIX_EPOCH.checked_sub(self.duration)
+        } else {
+            UNIX_EPOCH.checked_add(self.duration)
+        };
+        value.ok_or_else(|| {
+            crate::Error::Internal(
+                "persisted evaluation timestamp exceeds the SystemTime range".into(),
+            )
+        })
+    }
 }
 
 pub(super) type Inputs = BTreeMap<PathBuf, Stamp>;
 
 /// Consume already captured stamps without rereading inputs or interpreting receipts.
-pub(super) fn input_scope(project: ProjectKey, inputs: Inputs) -> DiscoveryInputScope {
-    DiscoveryInputScope {
-        project,
-        inputs: inputs
-            .into_iter()
-            .map(|(path, stamp)| EvaluationInput {
+pub(super) fn input_scope(
+    project: ProjectKey,
+    inputs: Inputs,
+) -> crate::Result<DiscoveryInputScope> {
+    let inputs = inputs
+        .into_iter()
+        .map(|(path, stamp)| {
+            Ok(EvaluationInput {
                 path,
                 canonical_path: stamp.canonical,
                 length: stamp.length,
-                modified: stamp.modified,
+                modified: stamp.modified.into_system_time()?,
                 digest: stamp.digest,
             })
-            .collect(),
-    }
+        })
+        .collect::<crate::Result<Vec<_>>>()?;
+    Ok(DiscoveryInputScope { project, inputs })
 }
 
 #[derive(Serialize, Deserialize)]
@@ -447,4 +463,31 @@ pub(super) fn evaluation_paths(
         paths.extend(items.iter().map(|item| item.full_path.clone()));
     }
     paths
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pre_epoch_input_scope_round_trips_through_public_serialization() {
+        let modified = UNIX_EPOCH
+            .checked_sub(Duration::new(7, 11))
+            .expect("test timestamp should be representable");
+        let inputs = BTreeMap::from([(
+            PathBuf::from("App.csproj"),
+            Stamp {
+                canonical: PathBuf::from("/workspace/App.csproj"),
+                length: 12,
+                modified: EpochOffset::from_system_time(modified),
+                digest: "digest".into(),
+            },
+        )]);
+        let scope = input_scope(ProjectKey("App.csproj".into()), inputs).expect("scope");
+        assert_eq!(scope.inputs[0].modified, modified);
+
+        let encoded = serde_json::to_string(&scope).expect("serialize scope");
+        let decoded: DiscoveryInputScope =
+            serde_json::from_str(&encoded).expect("deserialize scope");
+        assert_eq!(decoded, scope);
+    }
 }

@@ -13,9 +13,9 @@ pub use types::{
     DiscoveryCachePolicy, DiscoveryDiagnostic, DiscoveryDiagnosticSeverity, DiscoveryFailure,
     DiscoveryFailureReason, DiscoveryGrants, DiscoveryInputScope, DiscoveryIssue, DiscoveryOptions,
     DiscoveryRequest, DiscoveryRestoreStyle, DiscoverySnapshot, DiscoveryStanding,
-    EvaluationCacheEntry, EvaluationContext, EvaluationEnvironment, EvaluationHostKind, EvaluationInput, EvaluationUnit,
-    EvaluationUnitKey, FrameworkIdentity, HostProvenance, ImportToleranceProfile, ProjectDiscovery,
-    ProjectKey, RestoreProvenance, SourceMembership,
+    EvaluationCacheEntry, EvaluationContext, EvaluationEnvironment, EvaluationHostKind,
+    EvaluationInput, EvaluationUnit, EvaluationUnitKey, FrameworkIdentity, HostProvenance,
+    ImportToleranceProfile, ProjectDiscovery, ProjectKey, RestoreProvenance, SourceMembership,
 };
 
 use crate::Result;

@@ -351,7 +351,7 @@ jobs:
       - name: Qualify real discovery failures, currentness and cache
         # No runner-level loader cleanup: each fixture states the environment it
         # evaluates under, so harness settings cannot disqualify a receipt.
-        run: cargo nextest run --all-features --lib --test discovery_candidates --test discovery_failures --test discovery_cache --test discovery_runtime --run-ignored all --no-fail-fast
+        run: cargo nextest run --all-features --lib --test discovery_candidates --test discovery_failures --test discovery_cache --test discovery_runtime --test msbuild_discovery --test discovery_cli --test revision_publication --run-ignored all --no-fail-fast -E "not test(sdk_classic_metadata) and not test(installed_companion)"
       - name: Build actual CLI for discovery smoke
         run: cargo build --lib --bin tethys
       - name: Prove native cache launches and frozen Cargo output

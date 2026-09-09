@@ -91,7 +91,7 @@ impl WorkspaceDiscovery for MsBuildDiscovery {
         snapshot.inputs = validations
             .into_iter()
             .map(|(project, inputs)| cache::input_scope(project, inputs))
-            .collect();
+            .collect::<crate::Result<Vec<_>>>()?;
         Ok(snapshot)
     }
 }

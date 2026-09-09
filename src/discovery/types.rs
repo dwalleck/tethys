@@ -617,9 +617,81 @@ pub struct EvaluationInput {
     /// Observed byte length.
     pub length: u64,
     /// Observed filesystem modification time.
+    #[serde(with = "system_time")]
     pub modified: SystemTime,
     /// Digest of the bytes observed by the existing input fingerprint.
     pub digest: String,
+}
+
+/// Lossless signed-epoch serialization for the public [`SystemTime`] field.
+///
+/// Positive timestamps retain serde's existing wire shape. Pre-epoch values use
+/// an explicit signed-offset shape because serde's `SystemTime` serializer rejects
+/// them rather than encoding the side of the epoch.
+mod system_time {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct PositiveTime {
+        secs_since_epoch: u64,
+        nanos_since_epoch: u32,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct OffsetTime {
+        before_epoch: bool,
+        duration: Duration,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum WireTime {
+        Positive(PositiveTime),
+        Offset(OffsetTime),
+    }
+
+    pub fn serialize<S>(value: &SystemTime, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match value.duration_since(UNIX_EPOCH) {
+            Ok(duration) => PositiveTime {
+                secs_since_epoch: duration.as_secs(),
+                nanos_since_epoch: duration.subsec_nanos(),
+            }
+            .serialize(serializer),
+            Err(error) => OffsetTime {
+                before_epoch: true,
+                duration: error.duration(),
+            }
+            .serialize(serializer),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<SystemTime, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let time = match WireTime::deserialize(deserializer)? {
+            WireTime::Positive(value) => {
+                if value.nanos_since_epoch >= 1_000_000_000 {
+                    return Err(serde::de::Error::custom(
+                        "invalid nanoseconds in persisted SystemTime",
+                    ));
+                }
+                UNIX_EPOCH.checked_add(Duration::new(
+                    value.secs_since_epoch,
+                    value.nanos_since_epoch,
+                ))
+            }
+            WireTime::Offset(value) if value.before_epoch => UNIX_EPOCH.checked_sub(value.duration),
+            WireTime::Offset(value) => UNIX_EPOCH.checked_add(value.duration),
+        };
+        time.ok_or_else(|| serde::de::Error::custom("persisted SystemTime is out of range"))
+    }
 }
 
 /// One captured evaluation scope, retained even if later validation invalidates it.
