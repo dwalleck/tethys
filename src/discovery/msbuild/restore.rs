@@ -449,11 +449,17 @@ fn property<'a>(evaluated: Option<&'a EvaluatedProject>, name: &str) -> Option<&
 
 fn native_path(project: &Path, value: &str) -> PathBuf {
     let path = Path::new(value);
-    if path.is_absolute() {
+    let joined = if path.is_absolute() {
         path.to_owned()
     } else {
         project.parent().unwrap_or(Path::new(".")).join(path)
-    }
+    };
+    // One file, one spelling. A value MSBuild reports is already a plain native
+    // path, while the same file derived from the canonicalized project keeps
+    // Windows' verbatim `\\?\` prefix. Restore inputs are compared by exact path
+    // in three places -- the receipt digest, the captured-restore set and the
+    // evaluation input closure -- so a second spelling reads as a different file.
+    dunce::simplified(&joined).to_owned()
 }
 
 fn style(inputs: &ProjectInputs, evaluated: Option<&EvaluatedProject>) -> Style {
