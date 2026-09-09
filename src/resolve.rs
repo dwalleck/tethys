@@ -160,7 +160,7 @@ impl Tethys {
             module_resolver.file_anchor(&current_file_path, &self.workspace_root, self.crates());
         let module_ctx = ModuleContext {
             current_file: &current_file_path,
-            discovery: &self.discovery,
+            discovery: self.discovery_snapshot()?,
             anchor,
             // Namespace-import languages get the map; Rust contexts stay None.
             namespaces: (file_record.language == Language::CSharp).then_some(namespace_map),

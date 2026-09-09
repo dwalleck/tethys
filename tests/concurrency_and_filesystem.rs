@@ -534,3 +534,54 @@ fn csharp_external_file_and_directory_aliases_are_not_published() {
         assert!(index.get_file(&spelling).unwrap().is_none());
     }
 }
+
+// === Filesystem edge cases: identity failure must not delete live facts ===
+
+#[cfg(unix)]
+#[test]
+fn unresolvable_source_keeps_live_facts_and_reports_once() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().expect("should create temp dir");
+    let nested = dir.path().join("src").join("nested");
+    fs::create_dir_all(&nested).expect("should create nested dir");
+    fs::write(nested.join("Handler.cs"), "class Handler { }\n").expect("should write source");
+
+    let mut tethys = Tethys::new(dir.path()).expect("should create Tethys");
+    tethys.index().expect("initial index");
+    let indexed = tethys
+        .get_file(Path::new("src/nested/Handler.cs"))
+        .expect("lookup")
+        .expect("indexed file");
+    let symbols_before = tethys.list_symbols(&indexed.path).expect("symbols");
+
+    let permissions = fs::metadata(&nested).unwrap().permissions();
+    fs::set_permissions(&nested, fs::Permissions::from_mode(0o000)).expect("should restrict dir");
+    let blocked = fs::read_dir(&nested).is_err();
+    let result = tethys.index();
+    fs::set_permissions(&nested, permissions).expect("should restore permissions");
+    if !blocked {
+        return; // Elevated users cannot exercise a directory-permission boundary.
+    }
+    let stats = result.expect("indexing must publish what it can read");
+
+    let retained = tethys
+        .get_file(Path::new("src/nested/Handler.cs"))
+        .expect("lookup after identity failure")
+        .expect("an unresolvable source must not delete live facts");
+    assert_eq!(
+        tethys.list_symbols(&retained.path).expect("symbols").len(),
+        symbols_before.len(),
+        "symbols of a live but unresolvable source must survive"
+    );
+    assert_eq!(
+        stats
+            .errors
+            .iter()
+            .filter(|error| error.path.ends_with("Handler.cs"))
+            .count(),
+        1,
+        "one unresolvable source must emit exactly one diagnostic: {:?}",
+        stats.errors
+    );
+}

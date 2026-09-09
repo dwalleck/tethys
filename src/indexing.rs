@@ -10,7 +10,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Instant, UNIX_EPOCH};
 
 use rayon::prelude::*;
@@ -28,19 +28,20 @@ use crate::languages::{self, common};
 use crate::lsp;
 use crate::parallel::{OwnedSymbolData, ParsedFileData};
 use crate::types::{
-    ArchPhaseResult, FileId, Import, IndexOptions, IndexStats, Language, SymbolKind,
+    ArchPhaseResult, CrateInfo, FileId, Import, IndexOptions, IndexStats, Language, SymbolKind,
 };
 
 /// Keep the loaded context aligned with SQL rollback, including unwinding.
 struct DiscoveryRun<'a> {
     owner: &'a mut Tethys,
-    previous: Option<Arc<DiscoverySnapshot>>,
+    previous: Option<(Vec<CrateInfo>, Option<Arc<DiscoverySnapshot>>)>,
 }
 
 impl Drop for DiscoveryRun<'_> {
     fn drop(&mut self) {
-        if let Some(previous) = self.previous.take() {
-            self.owner.discovery = previous;
+        if let Some((crates, publication)) = self.previous.take() {
+            self.owner.crates = crates;
+            self.owner.discovery = publication.map_or_else(OnceLock::new, OnceLock::from);
         }
     }
 }
@@ -184,15 +185,25 @@ impl Tethys {
         rebuild: bool,
     ) -> Result<IndexStats> {
         let start = Instant::now();
-        let revision = self.db.begin_revision(rebuild)?;
+        // Discovery runs before the write transaction: it spawns MSBuild
+        // evaluation and restore, which touch no database state, and holding
+        // `BEGIN IMMEDIATE` across that work starves every other writer.
+        let cache = if rebuild {
+            Vec::new()
+        } else {
+            self.db.discovery_cache()?
+        };
         let request =
             DiscoveryRequest::new(&self.workspace_root, std::mem::take(&mut options.discovery))?
-                .with_cache(self.db.discovery_cache()?);
+                .with_cache(cache);
         let discovery = Arc::new(discover_workspace(&request)?);
-        let previous = std::mem::replace(&mut self.discovery, discovery);
+        let revision = self.db.begin_revision(rebuild)?;
+        let previous = self.discovery.take();
+        let previous_crates = std::mem::replace(&mut self.crates, discovery.crates.clone());
+        let _ = self.discovery.set(Arc::clone(&discovery));
         let mut run = DiscoveryRun {
             owner: self,
-            previous: Some(previous),
+            previous: Some((previous_crates, previous)),
         };
         let mut stats = run.owner.index_discovered_revision(&options, start)?;
         revision.commit()?;
@@ -215,13 +226,16 @@ impl Tethys {
         let mut references_found = 0;
         let mut directories_skipped = Vec::new();
         let mut errors = Vec::new();
+        // Source-identity failures are reported, never treated as deletion
+        // evidence: an unreadable path is not proof that its facts are stale.
+        let mut source_errors = Vec::new();
         let mut pending: Vec<PendingDependency> = Vec::new();
 
         let indexed_files = self.db.list_all_files()?;
         let (source_files, files_skipped) = self.discover_files(
             indexed_files.iter().map(|file| file.path.as_path()),
             &mut directories_skipped,
-            &mut errors,
+            &mut source_errors,
         )?;
 
         let total_files = source_files.len();
@@ -438,6 +452,8 @@ impl Tethys {
             );
         }
 
+        errors.extend(source_errors);
+
         // Resolution passes: retry pending dependencies until stable
         let mut prev_count = pending.len() + 1;
         let mut pass = 0;
@@ -562,8 +578,9 @@ impl Tethys {
             );
         }
 
+        let publication = self.discovery_snapshot()?;
         self.db
-            .replace_discovery_snapshot(&self.discovery, &errors, &directories_skipped)?;
+            .replace_discovery_snapshot(publication, &errors, &directories_skipped)?;
 
         // Update query planner statistics after bulk writes
         self.db.analyze()?;
@@ -588,7 +605,7 @@ impl Tethys {
             unresolved_dependencies,
             lsp_sessions,
             arch_phase,
-            discovery: Arc::clone(&self.discovery),
+            discovery: self.publication_arc()?,
         })
     }
 
@@ -874,7 +891,7 @@ impl Tethys {
         let resolver = get_module_resolver(language);
         let module_ctx = ModuleContext {
             current_file,
-            discovery: &self.discovery,
+            discovery: self.discovery_snapshot()?,
             anchor: resolver.file_anchor(current_file, &self.workspace_root, self.crates()),
             namespaces: None,
         };
@@ -1063,7 +1080,7 @@ impl Tethys {
         let resolver = get_module_resolver(language);
         let module_ctx = ModuleContext {
             current_file,
-            discovery: &self.discovery,
+            discovery: self.discovery_snapshot()?,
             anchor: resolver.file_anchor(current_file, &self.workspace_root, self.crates()),
             namespaces: None,
         };
@@ -1210,19 +1227,22 @@ impl Tethys {
             // Unknown existence is retried at the canonical/read boundary, where
             // an actual failure is diagnosed rather than interpreted as deletion.
             .filter(|path| !matches!(path.try_exists(), Ok(false)));
-        let evaluated = self
-            .discovery
+        let publication = self.discovery_snapshot()?;
+        let evaluated = publication
             .units
             .iter()
             .flat_map(|unit| &unit.sources)
             .map(|source| self.workspace_root.join(&source.path));
         let mut sources = Vec::new();
+        // `seen` holds canonical identities that produced a source; `attempted`
+        // holds raw spellings already processed, so a physical source is
+        // canonicalized once per spelling instead of once per occurrence.
         let mut seen = HashSet::new();
+        let mut attempted = HashSet::new();
+        let mut failed = HashSet::new();
         let mut skipped = 0;
         for path in files.into_iter().chain(retained).chain(evaluated) {
-            // Most evaluated/retained paths already appeared in the walk.
-            // Avoid repeated normalization for those source identities.
-            if seen.contains(&path) {
+            if !attempted.insert(path.clone()) {
                 continue;
             }
             let Some(language) = path
@@ -1243,11 +1263,13 @@ impl Tethys {
                             Ok(_) => "source resolves outside the workspace".into(),
                         };
                         warn!(path = %path.display(), %message, "Skipping unresolvable source");
-                        errors.push(IndexError {
-                            path,
-                            kind: IndexErrorKind::IoError,
-                            message,
-                        });
+                        if failed.insert(path.clone()) {
+                            errors.push(IndexError {
+                                path,
+                                kind: IndexErrorKind::IoError,
+                                message,
+                            });
+                        }
                         continue;
                     }
                 },

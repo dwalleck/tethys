@@ -72,7 +72,7 @@ pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use db::Index;
 use discovery::DiscoverySnapshot;
@@ -89,7 +89,20 @@ pub struct Tethys {
     workspace_root: PathBuf,
     db_path: PathBuf,
     db: Index,
-    discovery: Arc<DiscoverySnapshot>,
+    crates: Vec<CrateInfo>,
+    discovery: OnceLock<Arc<DiscoverySnapshot>>,
+}
+
+/// Whether persisted crate roots still describe this workspace on disk.
+///
+/// A publication records absolute crate paths, so a copied, moved or pruned
+/// workspace silently loses Rust crate attribution until the next index. The
+/// crate list is the only discovery state every open reads, so it is cheap to
+/// re-derive when the persisted roots no longer exist under this root.
+fn crates_are_current(crates: &[CrateInfo], workspace_root: &Path) -> bool {
+    crates
+        .iter()
+        .all(|krate| krate.path.starts_with(workspace_root) && krate.path.is_dir())
 }
 
 /// The canonical on-disk location of a workspace's index:
@@ -194,20 +207,17 @@ impl Tethys {
             Index::open(&db_path)?
         };
 
-        let discovery = if rebuild {
-            None
+        let crates = if rebuild {
+            cargo::discover_crates(&workspace_root)
         } else {
-            db.discovery_snapshot()?
-        }
-        .unwrap_or_else(|| DiscoverySnapshot {
-            crates: cargo::discover_crates(&workspace_root),
-            ..DiscoverySnapshot::default()
-        });
+            db.discovery_crates()?
+                .filter(|crates| crates_are_current(crates, &workspace_root))
+                .unwrap_or_else(|| cargo::discover_crates(&workspace_root))
+        };
 
         debug_assert!(
             {
-                let mut sorted: Vec<&str> =
-                    discovery.crates.iter().map(|c| c.name.as_str()).collect();
+                let mut sorted: Vec<&str> = crates.iter().map(|c| c.name.as_str()).collect();
                 sorted.sort_unstable();
                 sorted.windows(2).all(|w| w[0] != w[1])
             },
@@ -218,7 +228,8 @@ impl Tethys {
             workspace_root,
             db_path,
             db,
-            discovery: Arc::new(discovery),
+            crates,
+            discovery: OnceLock::new(),
         })
     }
 
@@ -675,16 +686,50 @@ impl Tethys {
     /// Get all discovered crates in this workspace.
     #[must_use]
     pub fn crates(&self) -> &[CrateInfo] {
-        &self.discovery.crates
+        &self.crates
     }
 
-    /// Immutable discovery context loaded from the index or published by this instance.
+    /// Discovery context loaded from the index or published by this instance.
     ///
-    /// Opening never evaluates `MSBuild`. Before a fresh index's first publication,
-    /// this contains only the existing Cargo discovery fallback.
-    #[must_use]
-    pub fn discovery_snapshot(&self) -> &DiscoverySnapshot {
-        &self.discovery
+    /// Opening never evaluates `MSBuild` and reads only the crate list; the rest
+    /// of the publication is hydrated on first use and retained for this
+    /// instance. Before a fresh index's first publication this contains only the
+    /// existing Cargo discovery fallback.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a published row cannot be decoded; the message names
+    /// the recovery command. `--rebuild` replaces the publication without reading it.
+    pub fn discovery_snapshot(&self) -> Result<&DiscoverySnapshot> {
+        self.ensure_publication()?;
+        self.discovery
+            .get()
+            .map(Arc::as_ref)
+            .ok_or_else(|| Error::Internal("discovery publication was not retained".to_owned()))
+    }
+
+    /// Retained publication handle for callers that must outlive the borrow.
+    pub(crate) fn publication_arc(&self) -> Result<Arc<DiscoverySnapshot>> {
+        self.ensure_publication()?;
+        self.discovery
+            .get()
+            .cloned()
+            .ok_or_else(|| Error::Internal("discovery publication was not retained".to_owned()))
+    }
+
+    fn ensure_publication(&self) -> Result<()> {
+        if self.discovery.get().is_none() {
+            let publication = self.load_publication()?;
+            let _ = self.discovery.set(publication);
+        }
+        Ok(())
+    }
+
+    /// Hydrate the full publication, or the Cargo fallback when none exists.
+    fn load_publication(&self) -> Result<Arc<DiscoverySnapshot>> {
+        let mut snapshot = self.db.discovery_snapshot()?.unwrap_or_default();
+        snapshot.crates.clone_from(&self.crates);
+        Ok(Arc::new(snapshot))
     }
 
     /// Find the crate that contains a given file path.

@@ -48,7 +48,7 @@ fn untrusted_index_publishes_source_only_with_nonzero_status() {
         .unwrap();
     assert_eq!(symbols, ["Source"]);
     let tethys = tethys::Tethys::new(root.path()).unwrap();
-    let snapshot = tethys.discovery_snapshot();
+    let snapshot = tethys.discovery_snapshot().expect("discovery publication");
     assert_eq!(snapshot.projects.len(), 1);
     assert_eq!(snapshot.projects[0].key.as_str(), "App.csproj");
     assert!(matches!(
@@ -99,7 +99,7 @@ fn restore_permission_does_not_grant_evaluation_and_queries_use_published_source
     assert_eq!(output.status.code(), Some(1));
     let before = tethys::Tethys::new(root.path()).unwrap();
     assert!(matches!(
-        &before.discovery_snapshot().projects[0].standing,
+        &before.discovery_snapshot().expect("discovery publication").projects[0].standing,
         tethys::discovery::DiscoveryStanding::Indeterminate(failure)
             if failure.reason == tethys::discovery::DiscoveryFailureReason::TrustRequired
     ));
@@ -118,7 +118,10 @@ fn restore_permission_does_not_grant_evaluation_and_queries_use_published_source
     );
     assert!(String::from_utf8_lossy(&query.stdout).contains("Source"));
     let after = tethys::Tethys::new(root.path()).unwrap();
-    assert_eq!(before.discovery_snapshot(), after.discovery_snapshot());
+    assert_eq!(
+        before.discovery_snapshot().expect("discovery publication"),
+        after.discovery_snapshot().expect("discovery publication")
+    );
 }
 
 #[test]
@@ -140,7 +143,7 @@ fn missing_selected_host_publishes_toolchain_failure_even_on_rebuild() {
         assert_eq!(output.status.code(), Some(1));
         let index = tethys::Tethys::new(root.path()).unwrap();
         assert!(matches!(
-            &index.discovery_snapshot().projects[0].standing,
+            &index.discovery_snapshot().expect("discovery publication").projects[0].standing,
             tethys::discovery::DiscoveryStanding::Indeterminate(failure)
                 if failure.reason == tethys::discovery::DiscoveryFailureReason::ToolchainUnavailable
         ));

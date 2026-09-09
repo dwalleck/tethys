@@ -178,7 +178,7 @@ impl Tethys {
         let full_path = self.workspace_root.join(&file.relative_path);
         let module_ctx = ModuleContext {
             current_file: &full_path,
-            discovery: &self.discovery,
+            discovery: self.discovery_snapshot()?,
             anchor: resolver.file_anchor(&full_path, &self.workspace_root, self.crates()),
             namespaces: None,
         };
