@@ -36,9 +36,24 @@ impl Tethys {
     /// Incrementally update index for changed files.
     ///
     /// **Note:** Currently performs a full re-index. Incremental update is tracked as a future enhancement.
+    ///
+    /// Uses [`IndexOptions::default`], which grants no `MSBuild` evaluation. A
+    /// trusted publication must be refreshed with
+    /// [`Self::update_with_options`] or it is replaced by source-only coverage.
     pub fn update(&mut self) -> Result<IndexUpdate> {
+        self.update_with_options(IndexOptions::default())
+    }
+
+    /// Incrementally update index for changed files with explicit options.
+    ///
+    /// **Note:** Currently performs a full re-index. Incremental update is tracked as a future enhancement.
+    ///
+    /// This is the only way to update while keeping a granted discovery
+    /// authority: [`IndexOptions`] carries the `MSBuild` trust and restore
+    /// permissions that [`Self::update`] omits.
+    pub fn update_with_options(&mut self, options: IndexOptions) -> Result<IndexUpdate> {
         // For now, just re-index everything
-        let stats = self.index()?;
+        let stats = self.index_with_options(options)?;
         Ok(IndexUpdate {
             files_changed: stats.files_indexed,
             files_unchanged: 0, // Always 0 until incremental change detection is implemented
