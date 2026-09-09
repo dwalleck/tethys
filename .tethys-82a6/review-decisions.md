@@ -321,3 +321,7 @@ recipe, while explicit startup-hook/native-loader child settings remain intact.
 The managed step's runner cleanup also removes Cargo-added PATH on Windows.
 Local repaired fixtures pass17/17; full platform verification requires the next
 CI run.
+
+macOS CI showed `DYLD_FALLBACK_FRAMEWORK_PATH` from setup-python; the harness
+coverage and managed runner cleanup now include it. The remaining four macOS
+failures were harness-specific; local repaired fixtures pass17/17 again.

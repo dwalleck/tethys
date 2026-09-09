@@ -56,7 +56,9 @@ fn harness_free(command: &mut Command) -> &mut Command {
         .env_remove("DYLD_LIBRARY_PATH")
         .env_remove("DYLD_FALLBACK_LIBRARY_PATH")
         .env_remove("DYLD_FRAMEWORK_PATH")
-        .env_remove("DYLD_FALLBACK_FRAMEWORK_PATH");
+        .env_remove("DYLD_FALLBACK_FRAMEWORK_PATH")
+        .env_remove("PYTHONHOME")
+        .env_remove("PYTHONPATH");
     command
 }
 
