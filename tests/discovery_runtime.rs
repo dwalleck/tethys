@@ -44,12 +44,29 @@ fn fixture() -> TempDir {
     root
 }
 
+fn harness_free(command: &mut Command) -> &mut Command {
+    // Test-tool loader search paths are harness inputs, not the caller's
+    // authorized runtime settings. Production never removes user settings.
+    #[cfg(unix)]
+    command
+        .env_remove("LD_PRELOAD")
+        .env_remove("LD_AUDIT")
+        .env_remove("LD_LIBRARY_PATH")
+        .env_remove("DYLD_INSERT_LIBRARIES")
+        .env_remove("DYLD_LIBRARY_PATH")
+        .env_remove("DYLD_FALLBACK_LIBRARY_PATH")
+        .env_remove("DYLD_FRAMEWORK_PATH")
+        .env_remove("DYLD_FALLBACK_FRAMEWORK_PATH");
+    command
+}
+
 fn child(root: &Path, state: &Path) -> Command {
     let mut command = Command::new(std::env::current_exe().unwrap());
     command
         .args(["--ignored", "--exact", "runtime_extension_child"])
         .env("TETHYS_RUNTIME_ROOT", root)
         .env("TETHYS_RUNTIME_STATE", state);
+    harness_free(&mut command);
     command
 }
 

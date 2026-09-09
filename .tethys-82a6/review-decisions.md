@@ -313,3 +313,11 @@ under the new finite loader gate. The durable oracle now removes harness-added
 loader paths from its child environment instead of weakening production or
 wrapping the workflow runner. Fresh local execution passes C6/C7/C9 and is
 retained as [public discovery smoke](evidence/pr46-discovery-smoke-green.log).
+
+The Windows managed worker exposed the same loader qualification in Cargo's own
+PATH runtime search and startup-hook controls. The harness now strips only
+loader-related settings from subprocesses whose scenario requires a qualified
+recipe, while explicit startup-hook/native-loader child settings remain intact.
+The managed step's runner cleanup also removes Cargo-added PATH on Windows.
+Local repaired fixtures pass17/17; full platform verification requires the next
+CI run.

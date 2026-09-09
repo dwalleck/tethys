@@ -390,6 +390,22 @@ fn eligible_literal_with_preepoch_source_serializes_and_invalidates_content() {
     );
 }
 
+fn harness_free(command: &mut std::process::Command) -> &mut std::process::Command {
+    // Remove test-tool loader search paths from harness children only; the
+    // product must not silently exempt caller-supplied runtime settings.
+    #[cfg(unix)]
+    command
+        .env_remove("LD_PRELOAD")
+        .env_remove("LD_AUDIT")
+        .env_remove("LD_LIBRARY_PATH")
+        .env_remove("DYLD_INSERT_LIBRARIES")
+        .env_remove("DYLD_LIBRARY_PATH")
+        .env_remove("DYLD_FALLBACK_LIBRARY_PATH")
+        .env_remove("DYLD_FRAMEWORK_PATH")
+        .env_remove("DYLD_FALLBACK_FRAMEWORK_PATH");
+    command
+}
+
 #[test]
 #[ignore = "requires packaged real worker and explicitly selected installed SDK"]
 fn shared_physical_memberships_and_case_insensitive_global_precedence() {
@@ -464,17 +480,19 @@ fn native_metadata_names_are_case_insensitive_without_rewriting_spelling() {
 fn eligible_hit_launches_zero_evaluators() {
     let trace_root = TempDir::new().unwrap();
     let log = trace_root.path().join("host.trace");
-    let output = std::process::Command::new(std::env::current_exe().unwrap())
-        .args(["--ignored", "--exact", "cache_launch_child"])
-        .env("TETHYS_CACHE_LAUNCH_CHILD", "1")
-        .env("COREHOST_TRACE", "1")
-        .env("COREHOST_TRACE_VERBOSITY", "4")
-        .env("COREHOST_TRACEFILE", &log)
-        .env("DOTNET_HOST_TRACE", "1")
-        .env("DOTNET_HOST_TRACE_VERBOSITY", "4")
-        .env("DOTNET_HOST_TRACEFILE", &log)
-        .output()
-        .unwrap();
+    let output = harness_free(&mut std::process::Command::new(
+        std::env::current_exe().unwrap(),
+    ))
+    .args(["--ignored", "--exact", "cache_launch_child"])
+    .env("TETHYS_CACHE_LAUNCH_CHILD", "1")
+    .env("COREHOST_TRACE", "1")
+    .env("COREHOST_TRACE_VERBOSITY", "4")
+    .env("COREHOST_TRACEFILE", &log)
+    .env("DOTNET_HOST_TRACE", "1")
+    .env("DOTNET_HOST_TRACE_VERBOSITY", "4")
+    .env("DOTNET_HOST_TRACEFILE", &log)
+    .output()
+    .unwrap();
     assert!(
         output.status.success(),
         "{}\n{}",
@@ -578,7 +596,9 @@ fn environment_change_invalidates_eligible_receipt() {
     let state_path = state.path().join("receipt.json");
     fs::write(&state_path, "{\"cache\":[]}").unwrap();
     let run = |value: &str| {
-        let output = std::process::Command::new(std::env::current_exe().unwrap())
+        let mut command = std::process::Command::new(std::env::current_exe().unwrap());
+        harness_free(&mut command);
+        let output = command
             .args(["--ignored", "--exact", "environment_child"])
             .env("TETHYS_ENV_ROOT", root.path())
             .env("TETHYS_ENV_STATE", &state_path)
