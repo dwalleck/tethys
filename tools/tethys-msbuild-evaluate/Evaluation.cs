@@ -19,7 +19,7 @@ internal static class Evaluation
         "TargetPlatformIdentifier TargetPlatformVersion Platform PlatformTarget Configuration AssemblyName RootNamespace " +
         "DefineConstants LangVersion Nullable AllowUnsafeBlocks OutputType OutputPath TargetPath TargetFileName " +
         "MSBuildProjectFullPath MSBuildProjectDirectory MSBuildProjectExtensionsPath ProjectAssetsFile RestoreProjectStyle " +
-        "NuGetPackageRoot RestorePackagesPath RestorePackagesConfig RestoreRepositoryPath ManagePackageVersionsCentrally " +
+        "NuGetPackageRoot RestorePackagesPath RestorePackagesConfig RestoreRepositoryPath RestoreConfigFile ManagePackageVersionsCentrally " +
         "BaseIntermediateOutputPath IntermediateOutputPath RuntimeIdentifier RuntimeIdentifiers " +
         "VSToolsPath UsingMicrosoftNETSdk MSBuildToolsVersion MSBuildVersion MSBuildFileVersion NETCoreSdkVersion MSBuildRuntimeType MSBuildBinPath"
     ).Split(' ');

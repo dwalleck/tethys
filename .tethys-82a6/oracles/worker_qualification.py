@@ -268,6 +268,11 @@ def check_distribution(destination, host):
 def normalize(path):
     return os.path.normcase(str(Path(path).resolve()))
 
+def verbatim(path):
+    value = str(path)
+    if value.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + value[2:]
+    return "\\\\?\\" + value
 
 def qualify(destination, host, installed_only):
     check_distribution(destination, host)
@@ -369,6 +374,21 @@ def qualify(destination, host, installed_only):
                     if x["item_type"] == "Compile" and normalize(x["project_path"]) == normalize(literal)}
         require(patterns == {("*.cs", "Excluded.cs", ""), ("", "", "Removed.cs")},
                 "Literal recipe lacks complete include/exclude/remove provenance")
+        if host == "windows":
+            # Exercise the managed boundary with the long verbatim spelling that Windows
+            # uses once a descendant exceeds MAX_PATH; the original fixture stays untouched.
+            long_parent = workspace / ("long-" + "a" * 100) / ("long-" + "b" * 100) / ("long-" + "c" * 100)
+            long_parent.parent.mkdir(parents=True)
+            shutil.copytree(literal.parent, long_parent)
+            long_project = long_parent / literal.name
+            long_project_verbatim = verbatim(long_project)
+            require(len(long_project_verbatim) > 300, "Long Windows containment fixture is too short")
+            long_result = worker(request(long_project, project_path=long_project_verbatim))
+            require(long_result["project_path"] == long_project_verbatim and
+                    long_result["properties"]["AssemblyName"] == "Literal",
+                    "Verbatim long descendant was not evaluated in the requested workspace")
+            print("C14 path-alias PASS: long verbatim descendant accepted")
+
         worker(request(literal, protocol_version=999), success=False)
         untrusted = worker(request(workspace / "Failures/MissingImport.csproj", trust_granted=False), success=False)
         require(untrusted["host"] is None and not untrusted["imports"], "Untrusted input loaded MSBuild/project")

@@ -350,6 +350,12 @@ jobs:
                   output.write(f"{name}={value}\n")
       - name: Qualify real discovery failures, currentness and cache
         run: cargo nextest run --all-features --lib --test discovery_candidates --test discovery_failures --test discovery_cache --test discovery_runtime --run-ignored all --no-fail-fast
+        env:
+          # Cargo adds loader search paths to test processes. Remove only those
+          # harness settings before the binary; explicit fixture child env stays intact.
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: env -u LD_LIBRARY_PATH
+          CARGO_TARGET_X86_64_APPLE_DARWIN_RUNNER: env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH
+          CARGO_TARGET_AARCH64_APPLE_DARWIN_RUNNER: env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH
       - name: Build actual CLI for discovery smoke
         if: runner.os != 'Windows'
         run: cargo build --lib --bin tethys

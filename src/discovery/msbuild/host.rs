@@ -118,6 +118,11 @@ impl HostSelection {
 
 // Diagnostic-only COREHOST_TRACE / DOTNET_HOST_TRACE inputs deliberately do not
 // appear here: unlike these injection points, tracing does not load arbitrary code.
+// The native-loader entries cover glibc's LD_PRELOAD/LD_AUDIT/LD_LIBRARY_PATH
+// and dyld's DYLD_INSERT_LIBRARIES, DYLD_LIBRARY_PATH,
+// DYLD_FALLBACK_LIBRARY_PATH, DYLD_FRAMEWORK_PATH, and
+// DYLD_FALLBACK_FRAMEWORK_PATH. This finite list is not a sandbox or a complete
+// model of arbitrary environment-dependent code.
 const RUNTIME_CODE_EXTENSIONS: &[&str] = &[
     "DOTNET_STARTUP_HOOKS",
     "DOTNET_ADDITIONAL_DEPS",
@@ -143,6 +148,14 @@ const RUNTIME_CODE_EXTENSIONS: &[&str] = &[
     "COR_PROFILER_PATH_64",
     "APPDOMAIN_MANAGER_ASM",
     "APPDOMAIN_MANAGER_TYPE",
+    "LD_PRELOAD",
+    "LD_AUDIT",
+    "LD_LIBRARY_PATH",
+    "DYLD_INSERT_LIBRARIES",
+    "DYLD_LIBRARY_PATH",
+    "DYLD_FALLBACK_LIBRARY_PATH",
+    "DYLD_FRAMEWORK_PATH",
+    "DYLD_FALLBACK_FRAMEWORK_PATH",
 ];
 
 fn installation_muxer(msbuild_path: &Path) -> io::Result<PathBuf> {

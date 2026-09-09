@@ -1,4 +1,5 @@
 //! Runtime extensions remain executable but cannot close an evaluation cache recipe.
+use std::cmp::Ordering;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -95,7 +96,7 @@ fn compile_startup_hook(directory: &Path) -> PathBuf {
         .map(|entry| entry.unwrap().path().join("ref").join(tfm))
         .filter(|path| path.is_dir())
         .collect();
-    versions.sort();
+    versions.sort_by(|left, right| compare_targeting_pack_versions(left, right));
     let references = versions
         .last()
         .expect("installed targeting pack matching the worker target framework");
@@ -122,6 +123,198 @@ fn compile_startup_hook(directory: &Path) -> PathBuf {
         String::from_utf8_lossy(&output.stderr)
     );
     assembly
+}
+fn compare_targeting_pack_versions(left: &Path, right: &Path) -> Ordering {
+    let left_name = left
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    let right_name = right
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::file_name)
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    compare_dotnet_versions(left_name, right_name).then_with(|| left.cmp(right))
+}
+
+fn compare_dotnet_versions(left: &str, right: &str) -> Ordering {
+    let (left_release, left_prerelease) = split_dotnet_version(left);
+    let (right_release, right_prerelease) = split_dotnet_version(right);
+    compare_numeric_dotted(left_release, right_release)
+        .then_with(|| compare_prerelease(left_prerelease, right_prerelease))
+}
+
+fn split_dotnet_version(value: &str) -> (&str, Option<&str>) {
+    let without_build = value.split_once('+').map_or(value, |(core, _)| core);
+    without_build
+        .split_once('-')
+        .map_or((without_build, None), |(release, prerelease)| {
+            (release, Some(prerelease))
+        })
+}
+
+fn compare_numeric_dotted(left: &str, right: &str) -> Ordering {
+    let left_parts: Vec<_> = left.split('.').collect();
+    let right_parts: Vec<_> = right.split('.').collect();
+    let count = left_parts.len().max(right_parts.len());
+    (0..count)
+        .map(|index| {
+            let left_part = left_parts.get(index).copied().unwrap_or("0");
+            let right_part = right_parts.get(index).copied().unwrap_or("0");
+            compare_numeric_identifier(left_part, right_part)
+        })
+        .find(|ordering| *ordering != Ordering::Equal)
+        .unwrap_or(Ordering::Equal)
+}
+
+fn compare_numeric_identifier(left: &str, right: &str) -> Ordering {
+    match (left.parse::<u64>(), right.parse::<u64>()) {
+        (Ok(left), Ok(right)) => left.cmp(&right),
+        _ => left.cmp(right),
+    }
+}
+
+fn compare_prerelease(left: Option<&str>, right: Option<&str>) -> Ordering {
+    match (left, right) {
+        (None, None) => Ordering::Equal,
+        (None, Some(_)) => Ordering::Greater,
+        (Some(_), None) => Ordering::Less,
+        (Some(left), Some(right)) => {
+            let left_parts: Vec<_> = left.split('.').collect();
+            let right_parts: Vec<_> = right.split('.').collect();
+            let count = left_parts.len().max(right_parts.len());
+            (0..count)
+                .map(
+                    |index| match (left_parts.get(index), right_parts.get(index)) {
+                        (None, Some(_)) => Ordering::Less,
+                        (Some(_), None) => Ordering::Greater,
+                        (Some(left), Some(right)) => {
+                            match (left.parse::<u64>(), right.parse::<u64>()) {
+                                (Ok(left), Ok(right)) => left.cmp(&right),
+                                (Ok(_), Err(_)) => Ordering::Less,
+                                (Err(_), Ok(_)) => Ordering::Greater,
+                                (Err(_), Err(_)) => left.cmp(right),
+                            }
+                        }
+                        (None, None) => Ordering::Equal,
+                    },
+                )
+                .find(|ordering| *ordering != Ordering::Equal)
+                .unwrap_or(Ordering::Equal)
+        }
+    }
+}
+
+#[test]
+fn targeting_pack_versions_sort_numerically() {
+    assert_eq!(compare_dotnet_versions("8.0.2", "8.0.12"), Ordering::Less);
+    assert_eq!(compare_dotnet_versions("9.0.3", "10.0.0"), Ordering::Less);
+    assert_eq!(
+        compare_dotnet_versions("8.0.0-rc.1", "8.0.0"),
+        Ordering::Less
+    );
+    let older = Path::new("/packs/Microsoft.NETCore.App.Ref/8.0.2/ref/net8.0");
+    let newer = Path::new("/packs/Microsoft.NETCore.App.Ref/8.0.12/ref/net8.0");
+    assert_eq!(
+        compare_targeting_pack_versions(older, newer),
+        Ordering::Less
+    );
+}
+
+#[cfg(target_os = "linux")]
+fn compile_native_loader(directory: &Path) -> PathBuf {
+    let source = directory.join("native_loader.c");
+    let library = directory.join("native_loader.so");
+    fs::write(
+        &source,
+        r#"
+#define _GNU_SOURCE
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+
+__attribute__((constructor))
+static void set_define_constants(void) {
+    char executable[4096];
+    ssize_t length = readlink("/proc/self/exe", executable, sizeof(executable) - 1);
+    if (length <= 0) return;
+    executable[length] = '\0';
+    const char *basename = strrchr(executable, '/');
+    basename = basename == NULL ? executable : basename + 1;
+    if (strcmp(basename, "dotnet") != 0) return;
+
+    const char *external = getenv("TETHYS_RUNTIME_EXTERNAL");
+    if (external == NULL) return;
+    FILE *file = fopen(external, "r");
+    if (file == NULL) return;
+    char value[4096];
+    size_t value_length = fread(value, 1, sizeof(value) - 1, file);
+    fclose(file);
+    while (value_length != 0
+        && (value[value_length - 1] == '\n' || value[value_length - 1] == '\r')) {
+        value_length -= 1;
+    }
+    value[value_length] = '\0';
+    if (value_length != 0) setenv("DefineConstants", value, 1);
+}
+"#,
+    )
+    .unwrap();
+    let output = Command::new("cc")
+        .args(["-shared", "-fPIC", "-O2", "-Wall", "-Werror"])
+        .arg(&source)
+        .args(["-o"])
+        .arg(&library)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "native loader compiler: {}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    library
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+#[ignore = "requires packaged real worker, selected installed SDK and a C compiler"]
+fn native_loader_external_reads_never_reuse_literal_metadata() {
+    let root = fixture();
+    let external = TempDir::new().unwrap();
+
+    // Keep the real cold/hit control: the unchanged invocation is reusable
+    // before the native loader introduces an unqualified code extension.
+    let native_state = state(external.path(), "native.json");
+    let mut native = child(root.path(), &native_state);
+    let first = run(&mut native, &native_state);
+    let hit = run(&mut native, &native_state);
+    assert_eq!(hit["observations"][0]["reused"], true);
+    assert_eq!(first["units"], hit["units"]);
+
+    let loader = compile_native_loader(external.path());
+    let value = external.path().join("value");
+    let loader_state = state(external.path(), "loader.json");
+    let mut command = child(root.path(), &loader_state);
+    command
+        .env("LD_PRELOAD", &loader)
+        .env("TETHYS_RUNTIME_EXTERNAL", &value);
+
+    fs::write(&value, "NATIVE_ONE").unwrap();
+    let first_loaded = run(&mut command, &loader_state);
+    assert_defines(&first_loaded, "NATIVE_ONE");
+    assert_eq!(first_loaded["cache"], serde_json::json!([]));
+    assert_eq!(first_loaded["observations"][0]["reused"], false);
+
+    fs::write(&value, "NATIVE_TWO").unwrap();
+    let refreshed = run(&mut command, &loader_state);
+    assert_defines(&refreshed, "NATIVE_TWO");
+    assert_eq!(refreshed["cache"], serde_json::json!([]));
+    assert_eq!(refreshed["observations"][0]["reused"], false);
 }
 
 #[test]

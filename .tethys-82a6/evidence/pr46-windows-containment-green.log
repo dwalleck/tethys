@@ -1,0 +1,5 @@
+status 0
+SOURCE_HAS_COMPARISON_PATH=True
+{"project":"C:\\Users\\resourcefs\\AppData\\Local\\Temp\\tethys-r46-verify-d386652709064fd2a6fa3ccb6692d97e\\workspace\\Short.csproj","exit":0,"success":true,"diagnostics":[]}
+{"project":"\\\\?\\C:\\Users\\resourcefs\\AppData\\Local\\Temp\\tethys-r46-verify-d386652709064fd2a6fa3ccb6692d97e\\workspace\\nested-component\\nested-component\\nested-component\\nested-component\\nested-component\\nested-component\\nested-component\\nested-component\\nested-component\\nested-component\\nested-component\\nested-component\\Long.csproj","exit":0,"success":true,"diagnostics":[]}
+{"project":"\\\\?\\C:\\Users\\resourcefs\\AppData\\Local\\Temp\\tethys-r46-verify-d386652709064fd2a6fa3ccb6692d97e\\workspace-sibling\\Outside.csproj","exit":1,"success":false,"diagnostics":[{"code":null,"message":"project_path must lie inside workspace_root.","file":null,"line":0,"column":0,"severity":"error","exception_type":"System.ArgumentException"}]}
