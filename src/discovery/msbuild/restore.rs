@@ -449,17 +449,25 @@ fn property<'a>(evaluated: Option<&'a EvaluatedProject>, name: &str) -> Option<&
 
 fn native_path(project: &Path, value: &str) -> PathBuf {
     let path = Path::new(value);
-    let joined = if path.is_absolute() {
+    if path.is_absolute() {
         path.to_owned()
     } else {
         project.parent().unwrap_or(Path::new(".")).join(path)
-    };
-    // One file, one spelling. A value MSBuild reports is already a plain native
-    // path, while the same file derived from the canonicalized project keeps
-    // Windows' verbatim `\\?\` prefix. Restore inputs are compared by exact path
-    // in three places -- the receipt digest, the captured-restore set and the
-    // evaluation input closure -- so a second spelling reads as a different file.
-    dunce::simplified(&joined).to_owned()
+    }
+}
+
+/// Name a restore artifact the same way however its location was learned.
+///
+/// `MSBuild` reports an already-plain native path, while the same file derived from
+/// the canonicalized project keeps Windows' verbatim `\\?\` prefix. Which branch
+/// applies changes within one invocation, because properties like `ProjectAssetsFile`
+/// are absent before a restore and present after it. Restore inputs are compared by
+/// exact path in three places -- the receipt digest, the captured-restore set and the
+/// evaluation input closure -- so a second spelling reads as a different file.
+/// Only the generated artifacts below take this: a caller-facing destination such as
+/// `repositoryPath` keeps the spelling its own configuration gave it.
+fn artifact_path(project: &Path, value: &str) -> PathBuf {
+    dunce::simplified(&native_path(project, value)).to_owned()
 }
 
 fn style(inputs: &ProjectInputs, evaluated: Option<&EvaluatedProject>) -> Style {
@@ -958,8 +966,8 @@ fn native_project_matches(path: &str, project: &Path) -> io::Result<bool> {
 
 fn assets_path(project: &Path, evaluated: Option<&EvaluatedProject>) -> PathBuf {
     property(evaluated, "ProjectAssetsFile").map_or_else(
-        || native_path(project, "obj/project.assets.json"),
-        |value| native_path(project, value),
+        || artifact_path(project, "obj/project.assets.json"),
+        |value| artifact_path(project, value),
     )
 }
 
@@ -972,8 +980,8 @@ fn generated_inputs(
         .and_then(|assets| assets["project"]["restore"]["outputPath"].as_str())
         .or_else(|| property(evaluated, "MSBuildProjectExtensionsPath"))
         .map_or_else(
-            || native_path(project, "obj"),
-            |value| native_path(project, value),
+            || artifact_path(project, "obj"),
+            |value| artifact_path(project, value),
         );
     let name = project
         .file_name()
@@ -1107,7 +1115,7 @@ fn asset_inputs(
     let Some(output_path) = restore["outputPath"].as_str() else {
         return Ok(None);
     };
-    let output = native_path(project, output_path);
+    let output = artifact_path(project, output_path);
     let generated = generated_inputs(project, evaluated, Some(&assets))?;
     let Some(spec) = read_assets(&generated[3])? else {
         return Ok(None);
