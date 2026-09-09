@@ -325,3 +325,9 @@ CI run.
 macOS CI showed `DYLD_FALLBACK_FRAMEWORK_PATH` from setup-python; the harness
 coverage and managed runner cleanup now include it. The remaining four macOS
 failures were harness-specific; local repaired fixtures pass17/17 again.
+
+The follow-up workflow commit deleted the Build step boundary and omitted
+`DYLD_FALLBACK_FRAMEWORK_PATH` from runner cleanup; that run never started.
+The step boundary and both Darwin runners are now repaired, and the edited
+workflow passes YAML parsing. Child-only cleanup cannot fix in-process tests;
+runner cleanup is required there.
