@@ -306,3 +306,10 @@ Evidence correction: the first retained `pr46-runtime-extension-green.log` and
 Those files now contain only the exact runtime nextest result and the three
 native Windows request verdicts, respectively; no behavior depended on the
 earlier malformed links.
+
+PR46 managed-worker CI initially failed only in the public discovery smoke:
+setup-python's LD_LIBRARY_PATH made the traced worker invocation ineligible
+under the new finite loader gate. The durable oracle now removes harness-added
+loader paths from its child environment instead of weakening production or
+wrapping the workflow runner. Fresh local execution passes C6/C7/C9 and is
+retained as [public discovery smoke](evidence/pr46-discovery-smoke-green.log).

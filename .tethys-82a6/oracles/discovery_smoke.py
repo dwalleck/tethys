@@ -157,10 +157,16 @@ def discovery(companion, host):
         # Outside the workspace: diagnostic writes must not mutate recipe inputs.
         # Set both names for pre-.NET 10 and .NET 10+ native hosts, including a
         # newer muxer loading an older runtime's hostpolicy.
+        # Remove test-harness loader search paths only from the public caller's
+        # environment; production does not silently exempt caller settings.
         log = temporary / "host.trace"
-        environment = dict(os.environ, COREHOST_TRACE="1", COREHOST_TRACE_VERBOSITY="4",
-                           COREHOST_TRACEFILE=str(log), DOTNET_HOST_TRACE="1",
-                           DOTNET_HOST_TRACE_VERBOSITY="4", DOTNET_HOST_TRACEFILE=str(log))
+        loader_paths = ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH")
+        environment = {name: value for name, value in os.environ.items()
+                       if name not in loader_paths}
+        environment.update(
+            COREHOST_TRACE="1", COREHOST_TRACE_VERBOSITY="4",
+            COREHOST_TRACEFILE=str(log), DOTNET_HOST_TRACE="1",
+            DOTNET_HOST_TRACE_VERBOSITY="4", DOTNET_HOST_TRACEFILE=str(log))
         with tempfile.TemporaryFile(mode="w+") as errors, ThreadPoolExecutor(max_workers=1) as reader:
             process = subprocess.Popen([binary], cwd=temporary, env=environment, text=True,
                                        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=errors)
