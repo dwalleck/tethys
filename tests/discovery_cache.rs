@@ -1,6 +1,7 @@
 //! Closed-recipe cache behavior through the public adapter and real managed worker.
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, UNIX_EPOCH};
 use tempfile::TempDir;
 use tethys::discovery::*;
 
@@ -86,7 +87,8 @@ fn cache_input_closure_matches_forced_and_invalidates_globs_content_context() {
     assert_authored(&fresh, &["src/First.cs"]);
     assert!(
         !fresh.cache.is_empty(),
-        "qualified literal/glob recipe must be reusable"
+        "qualified literal/glob recipe must be reusable: {:?}",
+        fresh.cache_observations
     );
     let hit = discover(root.path(), options(), fresh.cache.clone());
     assert!(
@@ -243,6 +245,149 @@ fn restore_and_missing_host_cannot_republish_cached_success() {
     );
     assert!(unavailable.cache.is_empty());
     assert!(unavailable.units.is_empty());
+}
+
+#[test]
+#[ignore = "requires installed net8 targeting pack and packaged real worker"]
+fn disabled_restore_noop_keeps_units_without_cache_publication() {
+    let root = TempDir::new().unwrap();
+    fs::write(
+        root.path().join("App.csproj"),
+        "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>",
+    )
+    .unwrap();
+    fs::write(root.path().join("App.cs"), "class App {}\n").unwrap();
+    fs::write(
+        root.path().join("NuGet.Config"),
+        "<configuration><packageSources><clear /></packageSources></configuration>",
+    )
+    .unwrap();
+
+    let restored = discover(
+        root.path(),
+        DiscoveryOptions {
+            allow_restore: true,
+            ..options()
+        },
+        vec![],
+    );
+    assert_eq!(restored.projects[0].standing, DiscoveryStanding::Confirmed);
+    assert!(!restored.units.is_empty());
+    assert!(
+        !restored.cache.is_empty(),
+        "restore-backed run must publish evidence"
+    );
+
+    let disabled = discover(
+        root.path(),
+        DiscoveryOptions {
+            allow_restore: true,
+            cache_policy: DiscoveryCachePolicy::Disabled,
+            ..options()
+        },
+        restored.cache,
+    );
+    assert_eq!(disabled.projects, restored.projects);
+    assert_eq!(disabled.units, restored.units);
+    assert!(disabled.cache.is_empty());
+}
+
+#[test]
+#[ignore = "requires installed net8 targeting pack and packaged real worker"]
+fn restore_receipt_property_names_ignore_case_but_values_do_not() {
+    let root = TempDir::new().unwrap();
+    let project = root.path().join("App.csproj");
+    fs::write(&project, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>").unwrap();
+    fs::write(root.path().join("App.cs"), "class App {}\n").unwrap();
+    fs::write(
+        root.path().join("NuGet.Config"),
+        "<configuration><packageSources><clear /></packageSources></configuration>",
+    )
+    .unwrap();
+    fs::File::options()
+        .write(true)
+        .open(&project)
+        .unwrap()
+        .set_modified(std::time::SystemTime::now() + Duration::from_secs(60))
+        .unwrap();
+    let mut selected = options();
+    selected.allow_restore = true;
+    selected
+        .context
+        .global_properties
+        .insert("DefineConstants".to_owned(), "STABLE".to_owned());
+    let restored = discover(root.path(), selected, vec![]);
+    assert_eq!(restored.projects[0].standing, DiscoveryStanding::Confirmed);
+    let mut recased = options();
+    recased.cache_policy = DiscoveryCachePolicy::Disabled;
+    recased
+        .context
+        .global_properties
+        .insert("defineconstants".to_owned(), "STABLE".to_owned());
+    let reused = discover(root.path(), recased.clone(), restored.cache.clone());
+    assert_eq!(reused.projects[0].standing, DiscoveryStanding::Confirmed);
+    assert_eq!(reused.units[0].key, restored.units[0].key);
+    assert!(reused.cache.is_empty());
+    recased
+        .context
+        .global_properties
+        .insert("defineconstants".to_owned(), "DIFFERENT".to_owned());
+    let changed = discover(root.path(), recased, restored.cache);
+    assert!(matches!(
+        changed.projects[0].standing,
+        DiscoveryStanding::Indeterminate(DiscoveryFailure {
+            reason: DiscoveryFailureReason::RestoreRequired,
+            ..
+        })
+    ));
+}
+
+#[test]
+#[ignore = "requires packaged real worker and explicitly selected installed SDK"]
+fn eligible_literal_with_preepoch_source_serializes_and_invalidates_content() {
+    let root = fixture();
+    let source = root.path().join("src/First.cs");
+    let pre_epoch = UNIX_EPOCH.checked_sub(Duration::new(1, 1)).unwrap();
+    fs::File::options()
+        .write(true)
+        .open(&source)
+        .unwrap()
+        .set_modified(pre_epoch)
+        .unwrap();
+
+    let fresh = discover(root.path(), options(), vec![]);
+    assert_authored(&fresh, &["src/First.cs"]);
+    assert!(
+        !fresh.cache.is_empty(),
+        "eligible literal must publish evidence: {:?}",
+        fresh.cache_observations
+    );
+
+    let hit = discover(root.path(), options(), fresh.cache.clone());
+    assert_authored(&hit, &["src/First.cs"]);
+    assert!(
+        hit.cache_observations
+            .iter()
+            .all(|observation| observation.reused)
+    );
+    semantic_eq(&fresh, &hit);
+
+    fs::write(&source, "class Other {}\n").unwrap();
+    fs::File::options()
+        .write(true)
+        .open(&source)
+        .unwrap()
+        .set_modified(pre_epoch)
+        .unwrap();
+    let changed = discover(root.path(), options(), hit.cache);
+    assert_authored(&changed, &["src/First.cs"]);
+    assert!(
+        changed
+            .cache_observations
+            .iter()
+            .all(|observation| !observation.reused),
+        "same-size content mutation with a preserved pre-epoch mtime must invalidate"
+    );
 }
 
 #[test]

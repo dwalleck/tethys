@@ -1,0 +1,51 @@
+   Compiling tethys v0.1.0 (/tmp/r46-red)
+    Finished `test` profile [optimized + debuginfo] target(s) in 11.58s
+────────────
+ Nextest run ID 4ec6bace-fc66-44bd-9700-6698d5f22c23 with nextest profile: default
+    Starting 2 tests across 1 binary (619 tests skipped)
+        FAIL [   0.005s] (1/2) tethys discovery::msbuild::restore::tests::equal_timestamps_do_not_establish_unreceipted_restore_freshness
+  stdout ───
+
+    running 1 test
+    test discovery::msbuild::restore::tests::equal_timestamps_do_not_establish_unreceipted_restore_freshness ... FAILED
+
+    failures:
+
+    failures:
+        discovery::msbuild::restore::tests::equal_timestamps_do_not_establish_unreceipted_restore_freshness
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 620 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'discovery::msbuild::restore::tests::equal_timestamps_do_not_establish_unreceipted_restore_freshness' (2564337) panicked at src/discovery/msbuild/restore.rs:1589:9:
+    assertion failed: !fresh_files(std::slice::from_ref(&input),
+                std::slice::from_ref(&generated)).unwrap()
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+        FAIL [   0.006s] (2/2) tethys discovery::msbuild::restore::tests::receipt_distinguishes_paths_from_file_contents
+  stdout ───
+
+    running 1 test
+    test discovery::msbuild::restore::tests::receipt_distinguishes_paths_from_file_contents ... FAILED
+
+    failures:
+
+    failures:
+        discovery::msbuild::restore::tests::receipt_distinguishes_paths_from_file_contents
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 620 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'discovery::msbuild::restore::tests::receipt_distinguishes_paths_from_file_contents' (2564338) panicked at src/discovery/msbuild/restore.rs:1612:9:
+    assertion `left != right` failed
+      left: "a268c78fb873a78f4f47fe1b195ffb971fcadd92b793802cfb462e9eec755f85"
+     right: "a268c78fb873a78f4f47fe1b195ffb971fcadd92b793802cfb462e9eec755f85"
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   0.007s] 2 tests run: 0 passed, 2 failed, 619 skipped
+        FAIL [   0.005s] (1/2) tethys discovery::msbuild::restore::tests::equal_timestamps_do_not_establish_unreceipted_restore_freshness
+        FAIL [   0.006s] (2/2) tethys discovery::msbuild::restore::tests::receipt_distinguishes_paths_from_file_contents
+error: test run failed

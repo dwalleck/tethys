@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -14,15 +14,41 @@ use super::super::{
 use super::candidates::WorkspaceInventory;
 use super::host::{EvaluatedProject, HostSelection};
 
-// Invalidate successful-but-empty glob results from verbatim Windows path presentation.
-const RECIPE: u32 = 2;
+// Recipe 2 receipts encoded `SystemTime` with serde's unsigned epoch shape.
+// Recipe 3 stores the epoch side and a lossless `Duration` offset, including
+// subsecond timestamps before the epoch. The key and payload checks below
+// deliberately reject older receipts.
+const EVALUATION_RECIPE: u32 = 3;
+const RESTORE_RECIPE: u32 = 3;
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct Stamp {
     canonical: PathBuf,
     length: u64,
-    modified: SystemTime,
+    modified: EpochOffset,
     digest: String,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EpochOffset {
+    before_epoch: bool,
+    duration: Duration,
+}
+
+impl EpochOffset {
+    fn from_system_time(value: SystemTime) -> Self {
+        match value.duration_since(UNIX_EPOCH) {
+            Ok(duration) => Self {
+                before_epoch: false,
+                duration,
+            },
+            Err(error) => Self {
+                before_epoch: true,
+                duration: error.duration(),
+            },
+        }
+    }
 }
 
 pub(super) type Inputs = BTreeMap<PathBuf, Stamp>;
@@ -92,7 +118,7 @@ pub(super) fn stamp(path: &Path) -> std::io::Result<Stamp> {
     Ok(Stamp {
         canonical,
         length: after.len(),
-        modified: after.modified()?,
+        modified: EpochOffset::from_system_time(after.modified()?),
         digest,
     })
 }
@@ -177,7 +203,7 @@ impl<'a> Cache<'a> {
     ) -> crate::Result<String> {
         Ok(digest(
             &serde_json::to_vec(&(
-                RECIPE,
+                EVALUATION_RECIPE,
                 &self.request.workspace_root,
                 project,
                 selector,
@@ -210,7 +236,10 @@ impl<'a> Cache<'a> {
         let entry = self.entries.get(key).ok_or("cache_miss")?;
         let receipt: Receipt =
             serde_json::from_str(&entry.payload).map_err(|_| "corrupt_receipt")?;
-        if receipt.recipe != RECIPE || receipt.key != key || receipt.inventory != self.inventory {
+        if receipt.recipe != EVALUATION_RECIPE
+            || receipt.key != key
+            || receipt.inventory != self.inventory
+        {
             return Err("stale_recipe_or_context_or_inventory".into());
         }
         let content = serde_json::to_vec(&(&receipt.inputs, &receipt.evaluation, &receipt.restore))
@@ -314,7 +343,7 @@ impl<'a> Cache<'a> {
             return Ok(None);
         }
         let payload = serde_json::to_string(&Receipt {
-            recipe: RECIPE,
+            recipe: EVALUATION_RECIPE,
             key: key.clone(),
             inventory: self.inventory.clone(),
             inputs: inputs.clone(),
@@ -344,7 +373,7 @@ impl<'a> Cache<'a> {
         };
         let receipt: RestoreReceipt =
             serde_json::from_str(&entry.payload).map_err(|_| "corrupt_restore_receipt")?;
-        if receipt.recipe != RECIPE
+        if receipt.recipe != RESTORE_RECIPE
             || receipt.key != key
             || digest(
                 &serde_json::to_vec(&receipt.receipts).map_err(|_| "invalid_restore_receipt")?,
@@ -356,10 +385,13 @@ impl<'a> Cache<'a> {
     }
 
     pub(super) fn restore_entry(
+        &self,
         key: &str,
         receipts: BTreeMap<String, String>,
     ) -> crate::Result<Option<EvaluationCacheEntry>> {
-        if receipts.is_empty() {
+        if self.request.options.cache_policy == DiscoveryCachePolicy::Disabled
+            || receipts.is_empty()
+        {
             return Ok(None);
         }
         let key = format!("restore:{key}");
@@ -367,7 +399,7 @@ impl<'a> Cache<'a> {
             crate::Error::Internal(format!("discovery evidence serialization failed: {error}"))
         })?);
         let payload = serde_json::to_string(&RestoreReceipt {
-            recipe: RECIPE,
+            recipe: RESTORE_RECIPE,
             key: key.clone(),
             receipts,
             content_digest,

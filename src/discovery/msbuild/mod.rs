@@ -2,6 +2,7 @@
 mod cache;
 mod candidates;
 mod host;
+mod input;
 mod restore;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -277,7 +278,7 @@ fn discover_project(
         }
         Ok(Ok(()))
     })();
-    if let Some(entry) = cache::Cache::restore_entry(&restore_key, restore::receipts(&inputs))? {
+    if let Some(entry) = cache.restore_entry(&restore_key, restore::receipts(&inputs))? {
         snapshot.cache.push(entry);
     }
     result
