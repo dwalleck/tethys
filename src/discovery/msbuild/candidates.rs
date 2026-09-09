@@ -7,6 +7,8 @@ use std::path::{Component, Path, PathBuf};
 use quick_xml::{Reader, events::Event};
 use serde::Deserialize;
 
+use super::input::bounded_read;
+
 use super::super::{
     DiscoveryDiagnostic, DiscoveryFailure, DiscoveryFailureReason, DiscoveryIssue, ProjectKey,
 };
@@ -48,6 +50,23 @@ fn failure(
 
 fn malformed(path: &Path, message: impl Into<String>) -> DiscoveryFailure {
     failure(path, DiscoveryFailureReason::MalformedInput, message)
+}
+
+/// Candidate containers are untrusted before any `MSBuild` trust grant. Keep
+/// their cap aligned with the existing bounded XML input convention. The
+/// bounded read consumes one byte beyond the cap so an exact-boundary file is
+/// accepted without a metadata/read TOCTOU check.
+const SOLUTION_CONTAINER_LIMIT: u64 = 4 * 1024 * 1024;
+
+enum CandidateError {
+    Failure(DiscoveryFailure),
+    Fatal(crate::Error),
+}
+
+impl From<DiscoveryFailure> for CandidateError {
+    fn from(failure: DiscoveryFailure) -> Self {
+        Self::Failure(failure)
+    }
 }
 
 pub(super) fn relative_path(
@@ -304,9 +323,38 @@ fn declared_path(base: &Path, text: &str) -> Result<PathBuf, DiscoveryFailure> {
     Ok(base.join(portable))
 }
 
-fn read_container(root: &Path, path: &Path) -> Result<String, DiscoveryFailure> {
+fn read_container(root: &Path, path: &Path) -> Result<String, CandidateError> {
     let relative = relative_path(root, path, false)?;
-    fs::read_to_string(root.join(relative)).map_err(|error| malformed(path, error.to_string()))
+    let bytes = match bounded_read(&root.join(relative), SOLUTION_CONTAINER_LIMIT) {
+        Ok(bytes) => bytes,
+        Err(crate::Error::Config(message)) => {
+            return Err(CandidateError::Failure(malformed(path, message)));
+        }
+        Err(error) => return Err(CandidateError::Fatal(error)),
+    };
+    String::from_utf8(bytes).map_err(|error| {
+        CandidateError::Failure(malformed(path, format!("Container is not UTF-8: {error}")))
+    })
+}
+
+fn supported_solution_project_path(text: &str) -> bool {
+    // Keep malformed C# declarations visible to the typed path diagnostics;
+    // only path-shaped entries with a known unsupported extension are skipped.
+    if text.trim().is_empty() || text.contains('\0') {
+        return true;
+    }
+    let portable = text.replace('\\', "/");
+    extension(Path::new(&portable), "csproj")
+}
+
+fn supported_solution_project_kind(kind: &str) -> bool {
+    [
+        // Legacy and SDK-style C# project types used by Visual Studio solutions.
+        "{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}",
+        "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}",
+    ]
+    .iter()
+    .any(|supported| kind.eq_ignore_ascii_case(supported))
 }
 
 fn sln_paths(path: &Path, text: &str) -> Result<Vec<String>, DiscoveryFailure> {
@@ -352,10 +400,11 @@ fn sln_paths(path: &Path, text: &str) -> Result<Vec<String>, DiscoveryFailure> {
                 "Trailing solution project declaration text",
             ));
         }
-        // Solution folders are containers, not filesystem projects.
-        if !kind.eq_ignore_ascii_case("{66A26720-8FB5-11D2-AA7E-00C04F688DDE}")
-            && !kind.eq_ignore_ascii_case("{2150E333-8FDC-42A3-9474-1A3956D46DE8}")
-        {
+        // Solution folders and every non-C# project kind are not candidates.
+        // Classify from the declaration GUID before validating its path: a
+        // missing vcxproj or URL-style WebSite entry must not create a
+        // spurious path diagnostic, while supported C# paths still do.
+        if supported_solution_project_kind(kind) {
             projects.push(fields[1].to_owned());
         }
     }
@@ -396,9 +445,11 @@ fn slnx_paths(path: &Path, text: &str) -> Result<Vec<String>, DiscoveryFailure> 
                     }
                 }
                 if element.name().as_ref() == b"Project" {
-                    projects.push(
-                        declared.ok_or_else(|| malformed(path, "Solution Project lacks Path"))?,
-                    );
+                    let declared =
+                        declared.ok_or_else(|| malformed(path, "Solution Project lacks Path"))?;
+                    if supported_solution_project_path(&declared) {
+                        projects.push(declared);
+                    }
                 }
                 depth += 1;
             }
@@ -436,9 +487,9 @@ struct FilterSolution {
     projects: Vec<String>,
 }
 
-fn solution_paths(root: &Path, path: &Path) -> Result<Vec<String>, DiscoveryFailure> {
+fn solution_paths(root: &Path, path: &Path) -> Result<Vec<String>, CandidateError> {
     let text = read_container(root, path)?;
-    if extension(path, "sln") {
+    let paths = if extension(path, "sln") {
         sln_paths(path, &text)
     } else if extension(path, "slnx") {
         slnx_paths(path, &text)
@@ -447,7 +498,30 @@ fn solution_paths(root: &Path, path: &Path) -> Result<Vec<String>, DiscoveryFail
             path,
             "Filter must reference a solution or solution XML file",
         ))
+    };
+    paths.map_err(CandidateError::Failure)
+}
+
+fn filter_membership(
+    root: &Path,
+    base: &Path,
+    members: Vec<String>,
+    container: &Path,
+    issues: &mut Vec<DiscoveryIssue>,
+) -> BTreeSet<ProjectKey> {
+    let mut membership = BTreeSet::new();
+    for member in members {
+        match declared_path(base, &member).and_then(|declared| project_key(root, &declared)) {
+            Ok(key) => {
+                membership.insert(key);
+            }
+            Err(failure) => issues.push(DiscoveryIssue {
+                path: container.to_path_buf(),
+                failure,
+            }),
+        }
     }
+    membership
 }
 
 pub(super) fn discover(root: &Path) -> crate::Result<Candidates> {
@@ -455,11 +529,13 @@ pub(super) fn discover(root: &Path) -> crate::Result<Candidates> {
     let mut projects = BTreeMap::<ProjectKey, Candidate>::new();
     let mut issues = Vec::new();
     let mut add = |path: &Path, origin: Option<(&Path, &Path)>| -> Result<(), DiscoveryFailure> {
-        let key = project_key(root, path)?;
-        let relative = relative_path(root, path, false)?;
+        // Do not validate paths for unsupported solution project kinds. This
+        // is also a defensive guard for path-based solution formats.
         if !extension(path, "csproj") {
             return Ok(());
         }
+        let key = project_key(root, path)?;
+        let relative = relative_path(root, path, false)?;
         fs::File::open(root.join(&relative)).map_err(|error| malformed(path, error.to_string()))?;
         let candidate = projects.entry(key.clone()).or_insert_with(|| Candidate {
             key,
@@ -475,9 +551,9 @@ pub(super) fn discover(root: &Path) -> crate::Result<Candidates> {
     };
     for logical in paths {
         let path = root.join(&logical);
-        let result = (|| {
+        let result = (|| -> Result<(), CandidateError> {
             if extension(&path, "csproj") {
-                return add(&path, None);
+                return add(&path, None).map_err(CandidateError::Failure);
             }
             let container = relative_path(root, &path, false)?;
             let parent = path
@@ -491,19 +567,14 @@ pub(super) fn discover(root: &Path) -> crate::Result<Candidates> {
                 let base = solution
                     .parent()
                     .ok_or_else(|| malformed(&solution, "Solution has no parent"))?;
-                let membership = members
-                    .iter()
-                    .map(|member| {
-                        declared_path(base, member).and_then(|path| project_key(root, &path))
-                    })
-                    .collect::<Result<BTreeSet<_>, _>>()?;
+                let membership = filter_membership(root, base, members, &logical, &mut issues);
                 for member in &filter.solution.projects {
                     let selected = declared_path(base, member)?;
                     if !membership.contains(&project_key(root, &selected)?) {
-                        return Err(malformed(
+                        return Err(CandidateError::Failure(malformed(
                             &path,
                             "Filter project is not declared by its referenced solution",
-                        ));
+                        )));
                     }
                 }
                 (
@@ -531,11 +602,13 @@ pub(super) fn discover(root: &Path) -> crate::Result<Candidates> {
             }
             Ok(())
         })();
-        if let Err(failure) = result {
-            issues.push(DiscoveryIssue {
+        match result {
+            Ok(()) => {}
+            Err(CandidateError::Failure(failure)) => issues.push(DiscoveryIssue {
                 path: logical,
                 failure,
-            });
+            }),
+            Err(CandidateError::Fatal(error)) => return Err(error),
         }
     }
     for candidate in projects.values_mut() {

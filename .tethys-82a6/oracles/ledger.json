@@ -16,6 +16,8 @@
     "src/cli/coupling.rs", "src/cli/mod.rs", "src/error.rs", "src/discovery/mod.rs", "src/discovery/types.rs",
     "src/discovery/msbuild/mod.rs", "src/discovery/msbuild/candidates.rs", "src/discovery/msbuild/host.rs",
     "src/discovery/msbuild/cache.rs", "src/discovery/msbuild/restore.rs",
+    "src/discovery/msbuild/input.rs", "src/discovery/msbuild/restore/graph.rs",
+    "src/discovery/msbuild/restore/graph/dependencies.rs",
     "tools/tethys-msbuild-evaluate/Program.cs", "tools/tethys-msbuild-evaluate/Evaluation.cs",
     "tools/tethys-msbuild-evaluate/Contract.cs", "tools/tethys-msbuild-evaluate/Tethys.MSBuild.Evaluate.csproj"
   ],

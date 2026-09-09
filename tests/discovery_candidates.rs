@@ -225,6 +225,201 @@ fn filter_requires_exact_solution_membership_and_valid_json() {
 }
 
 #[test]
+fn unsupported_solution_kinds_are_skipped_before_path_validation() {
+    let parent = TempDir::new().unwrap();
+    let root = parent.path().join("workspace");
+    fs::create_dir(&root).unwrap();
+    put(&root, "A.csproj", "<Project />");
+    put(parent.path(), "sibling/Outside.csproj", "<Project />");
+    put(
+        &root,
+        "Mixed.sln",
+        "Microsoft Visual Studio Solution File, Format Version 12.00\n\
+         Project(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"A\", \"A.csproj\", \"{00000000-0000-0000-0000-000000000001}\"\n\
+         EndProject\n\
+         Project(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"Missing\", \"Missing.csproj\", \"{00000000-0000-0000-0000-000000000002}\"\n\
+         EndProject\n\
+         Project(\"{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}\") = \"Outside\", \"../sibling/Outside.csproj\", \"{00000000-0000-0000-0000-000000000003}\"\n\
+         EndProject\n\
+         Project(\"{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}\") = \"Native\", \"Missing.vcxproj\", \"{00000000-0000-0000-0000-000000000004}\"\n\
+         EndProject\n\
+         Project(\"{E24C65DC-7377-472B-9ABA-BC803B73C61A}\") = \"Site\", \"https://example.test/site\", \"{00000000-0000-0000-0000-000000000005}\"\n\
+         EndProject\n",
+    );
+    let snapshot = discover(&root);
+
+    assert_eq!(snapshot.projects.len(), 1);
+    assert_eq!(snapshot.projects[0].key.as_str(), "A.csproj");
+    assert_eq!(
+        snapshot.projects[0].containers,
+        vec![PathBuf::from("Mixed.sln")]
+    );
+    assert_eq!(snapshot.issues.len(), 2);
+    assert!(
+        snapshot
+            .issues
+            .iter()
+            .any(|issue| issue.failure.reason == DiscoveryFailureReason::MalformedInput)
+    );
+    assert!(
+        snapshot
+            .issues
+            .iter()
+            .any(|issue| issue.failure.reason == DiscoveryFailureReason::OutsideWorkspaceInput)
+    );
+}
+
+#[test]
+fn filter_preserves_selected_project_when_unselected_solution_member_is_invalid() {
+    let parent = TempDir::new().unwrap();
+    let root = parent.path().join("workspace");
+    fs::create_dir(&root).unwrap();
+    put(&root, "A.csproj", "<Project />");
+    put(&root, "B.csproj", "<Project />");
+    put(
+        &root,
+        "Main.sln",
+        &solution(&["A.csproj", "B.csproj", "../sibling/NotHere.csproj"]),
+    );
+    put(
+        &root,
+        "OnlyA.slnf",
+        r#"{"solution":{"path":"Main.sln","projects":["A.csproj"]}}"#,
+    );
+    let snapshot = discover(&root);
+
+    let projects: Vec<_> = snapshot
+        .projects
+        .iter()
+        .map(|project| (project.key.as_str(), project.containers.clone()))
+        .collect();
+    assert_eq!(
+        projects,
+        vec![
+            (
+                "A.csproj",
+                vec![PathBuf::from("Main.sln"), PathBuf::from("OnlyA.slnf")]
+            ),
+            ("B.csproj", vec![PathBuf::from("Main.sln")]),
+        ]
+    );
+    assert_eq!(
+        snapshot
+            .issues
+            .iter()
+            .filter(|issue| issue.failure.reason == DiscoveryFailureReason::OutsideWorkspaceInput)
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn solution_container_limit_is_exact_and_overages_are_per_container() {
+    const CONTAINER_LIMIT: usize = 4 * 1024 * 1024;
+    fn padded(text: &str, length: usize) -> String {
+        assert!(text.len() <= length);
+        let mut padded = text.to_owned();
+        padded.push_str(&" ".repeat(length - padded.len()));
+        padded
+    }
+
+    let root = TempDir::new().unwrap();
+    put(root.path(), "A.csproj", "<Project />");
+    put(root.path(), "B.csproj", "<Project />");
+    let exact_sln = padded(&solution(&["A.csproj"]), CONTAINER_LIMIT);
+    put(root.path(), "Exact.sln", &exact_sln);
+    put(
+        root.path(),
+        "Exact.slnx",
+        &padded(
+            "<Solution><Project Path=\"A.csproj\" /></Solution>",
+            CONTAINER_LIMIT,
+        ),
+    );
+    put(
+        root.path(),
+        "Exact.slnf",
+        &padded(
+            r#"{"solution":{"path":"Exact.sln","projects":["A.csproj"]}}"#,
+            CONTAINER_LIMIT,
+        ),
+    );
+    put(
+        root.path(),
+        "Over.sln",
+        &padded(&solution(&["A.csproj"]), CONTAINER_LIMIT + 1),
+    );
+    put(
+        root.path(),
+        "Over.slnx",
+        &padded(
+            "<Solution><Project Path=\"A.csproj\" /></Solution>",
+            CONTAINER_LIMIT + 1,
+        ),
+    );
+    put(
+        root.path(),
+        "Over.slnf",
+        &padded(
+            r#"{"solution":{"path":"Exact.sln","projects":["A.csproj"]}}"#,
+            CONTAINER_LIMIT + 1,
+        ),
+    );
+
+    let snapshot = discover(root.path());
+
+    assert_eq!(
+        snapshot
+            .projects
+            .iter()
+            .map(|project| project.key.as_str())
+            .collect::<Vec<_>>(),
+        vec!["A.csproj", "B.csproj"]
+    );
+    assert_eq!(
+        snapshot.projects[0].containers,
+        vec![
+            PathBuf::from("Exact.sln"),
+            PathBuf::from("Exact.slnf"),
+            PathBuf::from("Exact.slnx"),
+        ]
+    );
+    assert!(snapshot.projects[1].containers.is_empty());
+    assert_eq!(snapshot.issues.len(), 3);
+    assert_eq!(
+        snapshot
+            .issues
+            .iter()
+            .map(|issue| issue.path.as_path())
+            .collect::<Vec<_>>(),
+        vec![
+            Path::new("Over.sln"),
+            Path::new("Over.slnf"),
+            Path::new("Over.slnx"),
+        ]
+    );
+    assert!(snapshot.issues.iter().all(|issue| {
+        issue
+            .failure
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("input limit"))
+    }));
+    assert!(
+        snapshot
+            .issues
+            .iter()
+            .all(|issue| issue.failure.reason == DiscoveryFailureReason::MalformedInput)
+    );
+    assert!(snapshot.units.is_empty());
+    assert!(snapshot.projects.iter().all(|project| matches!(
+        &project.standing,
+        DiscoveryStanding::Indeterminate(failure)
+            if failure.reason == DiscoveryFailureReason::TrustRequired
+    )));
+}
+
+#[test]
 fn xml_escapes_decode_but_external_entities_and_broken_roots_are_rejected() {
     let root = TempDir::new().unwrap();
     put(root.path(), "A & B.csproj", "<Project />");
