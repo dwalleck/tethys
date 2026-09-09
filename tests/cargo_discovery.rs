@@ -357,11 +357,15 @@ fn discover_rivets_workspace() {
     // Test against the actual rivets workspace
     // NOTE: This test may be skipped if the workspace uses features not supported
     // by the cargo_toml crate (e.g., resolver = "3")
-    let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    // No grandparent when the crate sits two directories below a filesystem root;
+    // that is the same "cannot inspect the workspace" case this test already skips.
+    let Some(workspace) = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .expect("CARGO_MANIFEST_DIR should have parent")
-        .parent()
-        .expect("tethys should be nested under workspace");
+        .and_then(std::path::Path::parent)
+    else {
+        eprintln!("Skipping discover_rivets_workspace: crate is not nested under a workspace");
+        return;
+    };
 
     let crates = tethys::discover_crates(workspace);
 
