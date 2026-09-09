@@ -94,3 +94,215 @@
 - **Mutation validity:** discovery-mutations-e8_7dw4z, discovery-mutations-uyjzn7zr and discovery-mutations-vw3sdhpm collectively provide fresh or explicitly retained red/restored-green evidence for every S3/S3a fence. The F17/F18 records state affected-path applicability; native path/DLL external premises remain valid without rerunning their unchanged experiments.
 - **Checkpoint gates:** affected tests PASS; falsifiers PASS; stress fixtures PASS; implementation/independent oracle agreement PASS; C13 ownership/shape PASS; bounded native process guards PASS; regression fences PASS; named mutants red PASS; explicit restored fences green PASS. Corpus-wide cold/changed/cache resource qualification remains S6/C12, not waived. Final assembled S4–S6 integration is not yet complete.
 - **Drift/transition:** after d9119ff, git fetch origin main and git log HEAD..origin/main show no unseen upstream commits. The standalone discovery PR increment is independently qualified. This record/evidence-only commit leaves production, tests, dependencies and CI configuration unchanged, so d9119ff platform evidence remains applicable while S4 begins on its own stacked branch.
+
+## PR46 max-review decisions — baseline 913e40d
+
+Main owns this decision surface and integration. The requester authorized repairs
+in the suggested order. R46 IDs follow the pasted finding order; T46 IDs identify
+its unranked tail. The green baseline CI run34298401540 does not prove these repairs.
+The earlier assessment JSON was a working capture; this section is authoritative.
+
+| finding-id | finding | reviewer | evidence-state | evidence | decision | fix | note |
+|---|---|---|---|---|---|---|---|
+| R46-01 | Authored TFM fails assets targetAlias lookup | User-supplied max review | Verified | SDK8.0.417 maps net8.0-windows to assets net8.0-windows7.0; baseline discovery refuses it | Accept | Repair A: one exact-or-unique targetAlias authority | Preserve wrong/ambiguous-alias rejection |
+| R46-02 | Inner Restore overwrites sibling framework assets | User-supplied max review | Verified | Native Restore with invented TargetFramework=net8.0 removes netstandard2.1 from a two-framework assets file | Accept | Repair A: retain only caller globals during ordinary Restore and corroborate its graph | Ports the upper-stack R1/R2 authority rather than duplicating it |
+| R46-03 | Lexical NuGet ranges reject equivalent native versions | User-supplied max review | Verified | Local-feed native restores encode 1.0 as [1.0.0, ), 1.* as [1.*, ), exact download as two equal bounds | Modify | Repair A: shared semantic version/range comparison | Exact and minimum remain distinct; native graph CPM/download paths must agree |
+| R46-04 | Restore must exceed the 60-second budget | User-supplied max review | Verified | design.md11,37 and discovery/types.rs explicitly cap each process at60seconds | Reject | N/A — approved deadline is retained | Increasing the deadline changes an approved decision, not a defect repair |
+| R46-05 | An unrelated central catalogue demands restore | User-supplied max review | Verified | Adding an unimported Directory.Packages.props changes a package-free literal from Confirmed to RestoreRequired | Accept | Repair A: PackageVersion does not select restore style alone | Still retain catalogue provenance; actual PackageReference selects its style |
+| R46-06 | Framework-list whitespace rejects current restore | User-supplied max review | Verified | Real restored multi-target project confirms without semicolon whitespace and refuses with it | Accept | Repair A: trim framework entries before lookup | Same interpretation as framework enumeration |
+| R46-07 | Malformed NuGet configuration aborts unrelated candidates | User-supplied max review | Verified | New native sibling fence on baseline aborts with Config(duplicated attribute) | Modify | Repair C: scoped malformed configuration, fatal operational I/O retained | Bounded content errors are not infrastructure failures |
+| R46-08 | Equal timestamps establish unjustified restore freshness | User-supplied max review | Verified | fresh_files accepts equality; coarse timestamps cannot order an edit and generated outputs | Modify | Repair B: require strictly newer outputs for unreceipted bootstrap | Validated content receipts retain legitimate no-op restore authority |
+| R46-09 | Restore context keys treat property-name casing as identity | User-supplied max review | Verified | context_key serializes original names while evaluation cache uses normalized_globals | Accept | Repair B: reuse normalized_globals | Property values remain case-sensitive |
+| R46-10 | Evaluation grant must also gate SDK-resolver networking | User-supplied max review | Verified | docs/msbuild-evaluation.md explicitly describes trusted evaluation as executable code, not a sandbox | Reject | N/A — trust and restore grants stay distinct | Blanket restore gating would change the approved authority model |
+| R46-11 | Disabled cache must reject previous restore receipts | User-supplied max review | Refuted | Existing native no-op/future-mtime fence intentionally consumes receipts while forcing evaluation | Reject | N/A — retain restore receipt reads | Do not copy evaluation reuse gates onto restore authority |
+| R46-12 | Disabled cache emits reusable restore entries | User-supplied max review | Verified | Public baseline caller with authorized restore and Disabled returns a restore: cache entry | Accept | Repair B: gate publication only | Preserve current-invocation receipts and prior receipt consumption |
+| R46-13 | Pre-epoch timestamps abort eligible discovery | User-supplied max review | Verified | Public baseline caller with source mtime -1 fails SystemTime serialization; Disabled confirms | Accept | Repair B: signed epoch offset in private cache stamps | Recipe bump rejects older opaque receipts; no public timestamp change |
+| R46-14 | Fatal transport errors should become candidate failures | User-supplied max review | Verified | discovery/mod.rs and design.md60 classify protocol/infrastructure errors as fatal | Reject | N/A — approved fatal contract retained | Blanket conversion could publish an incoherent run |
+| R46-15 | Broad runtime fingerprinting is expensive | User-supplied max review | Verified | Smoke measured91.20seconds unoptimized versus35.05seconds optimized; host closure is rechecked at invocation completion | Reject | N/A — retain complete qualified host closure; F28 fixes qualification caller optimization | No evidence establishes a smaller equivalent closure; changing cache authority is outside this repair |
+| R46-16 | Fatal directory enumeration should become best effort | User-supplied max review | Verified | Discovery inventory enumeration intentionally propagates operational I/O | Reject | N/A — complete-inventory contract retained | A partial inventory cannot authorize current cached membership |
+| R46-17 | Generated inventory entries cause cache invalidation | User-supplied max review | Verified | candidates::walk excludes generated automatic candidates, not generated glob inputs | Reject | N/A — retain names that authored globs can consume | Blanket generated-directory exclusion would change membership/cache authority; restore receipts do not include this inventory |
+| R46-18 | Unsupported solution entries produce missing-path issues | User-supplied max review | Verified | Public mixed .sln confirms A.csproj but emits MalformedInput for missing Missing.vcxproj | Accept | Repair C: classify unsupported declarations before filesystem validation | Missing/outside supported C# declarations remain visible |
+| T46-01 | One bad unselected solution member destroys filter attribution | User-supplied max review | Verified | Baseline filter membership construction exits on the first failed project_key | Modify | Repair C: retain valid membership and selected-subset validation | Keep typed issues; malformed filter JSON remains atomic |
+| T46-02 | Receipt path/content concatenation is not injective | User-supplied max review | Verified | path input plus content xrest equals path inputx plus content rest before hashing | Modify | Repair B: length-framed path plus fixed-width content digest | New domain version invalidates previous receipt authority |
+| T46-03 | packages.config resets dependency uncertainty | User-supplied max review | Unverified | No escaping native dependency counterexample; reset alone does not establish one | Reject | N/A — no verified behavior fix | Preserving every imported hint uncertainty would reject ordinary classic projects |
+| T46-04 | Mixed normal/verbatim Windows paths fail containment | User-supplied max review | Verified | Native SDK9.0.317 worker: normalized short descendant succeeds; same workspace with >300-character verbatim descendant fails containment | Accept | Repair D: compare recognized equivalent Windows identities only | Original request/IO paths and outside-sibling rejection are retained |
+| T46-05 | Native loader extensions escape cache eligibility gating | User-supplied max review | Verified | Linux LD_PRELOAD constructor sets NATIVE_ONE from an external file; after changing it to NATIVE_TWO, baseline reuses stale NATIVE_ONE | Accept | Repair D: native-loader injection/search settings make evaluation ineligible | Authorized evaluation remains available; this finite gate is not a sandbox |
+| T46-06 | Pretrust solution reads are unbounded | User-supplied max review | Verified | read_container uses read_to_string before trust | Modify | Repair C:4MiB bounded reads with typed oversized content | Operational I/O remains fatal; exact boundary is accepted |
+| T46-07 | Truncated “twrocess fences” tail | User-supplied max review | Unverified | Exact wording unavailable in supplied text, repository artifacts or PR comments | Reject | N/A — blocked on original wording | No inferred behavior change |
+| T46-08 | Targeting-pack fixture chooses versions lexically | User-supplied max review | Verified | compile_startup_hook sorts paths, so8.0.2 can outrank8.0.12 | Modify | Repair D: numeric targeting-pack ordering | Product SDK selection is already numeric and remains unchanged |
+
+### Repair A — restore identity and native authority
+
+- **Ownership:** Main; C4/C5/C7/C9 and inherited plan.md S3/S3a. No changed grant,
+  deadline, public interface or restore policy. Upper-stack R1/R2/R6/R7 authority
+  moves down to its behavior-owning discovery increment.
+- **Paths/change:** restore.rs and private restore/graph.rs,
+  restore/graph/dependencies.rs; discovery_failures.rs. Ordinary Restore preserves
+  caller globals and all framework targets; graph evidence corroborates
+  target-derived dependencies, centrally supplied versions and downloads. One
+  range/version authority and one framework-key authority serve every consumer.
+- **Expected checks:** real native alias, whitespace/multitarget, local-feed range,
+  CPM target-download and changed-import fences pass; wrong aliases, stale inputs,
+  exact/minimum mismatches and graph tampering remain refused.
+- **Evidence disposition:** old S3 currentness/graph proof is invalidated on these
+  paths. Cargo, transaction and unrelated process-kill conclusions are retained by
+  unchanged ownership/bytes; assembled discovery and platform proof remains Main's
+  obligation after the final repair. Gate results pending execution.
+
+### Repair B — restore receipt identity and publication
+
+- **Ownership:** Main; C7/C9 and inherited S3/S3a. Preserve complete cache recipes,
+  independent restore receipts, caller-visible requested settings and native
+  content-change detection.
+- **Paths/change:** cache.rs, restore.rs, the existing restore_entry call in
+  msbuild/mod.rs, discovery_cache.rs and discovery_failures.rs. Private epoch
+  offsets represent pre-epoch mtimes; Disabled suppresses reusable output, not
+  invocation-local authority. Property-name casing is normalized through the
+  existing helper; unreceipted equality is not freshness; framed digests remove
+  ambiguous boundaries.
+- **Expected checks:** Disabled restore-backed no-op returns unchanged facts and
+  empty cache; pre-epoch eligible discovery confirms, reuses, and detects preserved-
+  mtime content edits; case-only property names preserve restore authority while
+  changed values do not; equal timestamps and digest-boundary collisions are refused.
+- **Evidence disposition:** prior timestamp serialization, restore-publication,
+  context/freshness and receipt-format evidence is replaced; existing no-op
+  receipt-read semantics are retained and re-exercised. Gate results pending.
+
+### Repair C — bounded candidate/configuration failures
+
+- **Ownership:** Main; C4/C6/C7 and S3/S3a. Existing typed malformed-content versus
+  fatal operational-I/O distinction governs the repair.
+- **Paths/change:** candidates.rs, restore.rs, shared private bounded-input helper,
+  msbuild/mod.rs declaration, discovery_candidates.rs and discovery_failures.rs.
+  Reuse one capped-read implementation instead of introducing separate error
+  conventions. Keep valid filter membership, classify unsupported entries before
+  path validation, and cap containers at the existing XML4MiB boundary.
+- **Expected checks:** malformed/oversized NuGet config only withholds its project;
+  a valid sibling confirms; supported missing/outside paths remain issues; mixed
+  unsupported entries are ignored; exact-limit containers work and over-limit
+  containers do not execute MSBuild.
+- **Evidence disposition:** baseline native malformed-config abort is fresh red;
+  candidate/filter/bounded-read fences need fresh defect-sensitivity and restoration
+  proof. Full inventory and fatal enumeration semantics remain unchanged. Gates pending.
+
+### Repair D — proven native platform and qualification defects
+
+- **Ownership:** Main; C4/C6/C9/C14 and S2/S3/S3a. Existing Windows containment and
+  unknown-runtime-read obligations determine these technical corrections.
+- **Paths/change:** Program.cs, host.rs, discovery_runtime.rs and
+  worker_qualification.py. Recognized Windows drive/UNC aliases compare equally
+  without altering IO paths. Native loader injection/search environment settings
+  disable reuse/publication but not trusted evaluation. Fixture pack ordering is
+  numeric, not lexical.
+- **Expected checks:** native Windows long descendant succeeds and outside sibling
+  still fails; real LD_PRELOAD external mutation returns NATIVE_TWO with no reuse;
+  original startup-hook, forwarding-muxer and cold/hit controls remain intact.
+- **Evidence disposition:** native Windows and Linux baseline counterexamples are
+  fresh; post-fix native/platform evidence is mandatory. Product SDK selection,
+  grant semantics and F28 qualification optimization remain unchanged. Gates pending.
+
+### PR46 local verification checkpoint — uncommitted
+
+Main completed the ordinary local repair checks without rerunning native-library
+injection or remote PowerShell after the requester reported `cyber_policy`.
+This is not final platform acceptance and does not authorize publication.
+
+- **Repair A:** the two target-derived restore fences initially failed because
+  `Evaluation.cs` omitted `RestoreConfigFile` from its property projection.
+  The strict before/after source check correctly noticed that the selected
+  nonstandard configuration appeared only after restore. Projecting that existing
+  property and rebuilding the local worker fixes both cases without weakening
+  source equality. Direct SDK8.0.417 `NuGet.Versioning` also confirms floating
+  `*`, `1.*-*`, and `*-*` normalization, and rejects five-part versions; the shared
+  comparison and its existing range fence now retain those distinctions.
+- **Repair B:** isolated baseline913e40d fails all three new public cache fences:
+  pre-epoch serialization aborts, case-only property changes lose restore
+  authority, and Disabled emits a restore entry. Both private timestamp-equality
+  and path/content-boundary fences also fail against that baseline. The rebuilt
+  assembled implementation passes those tests, including the changed-value
+  negative control and preserved-mtime content invalidation.
+- **Repair C:** the native malformed-config sibling fence fails on baseline with
+  a fatal duplicated-attribute Config error and passes after repair for malformed
+  and oversized inputs. Current candidate tests pass supported/unsupported paths,
+  retained filter attribution and exact/over-limit container behavior.
+- **Final ordinary commands:** `cargo fmt --all -- --check`;
+  `cargo clippy --all-targets --all-features -- -D warnings`;
+  `cargo nextest run --all-features` →1169 passed,43 skipped;
+  `cargo test --doc --all-features` →18 passed,2 ignored.
+  `python3 .tethys-82a6/oracles/module_shape.py --stage S3` →C13 PASS.
+- **Targeted native command:** `cargo nextest run --test discovery_failures
+  --test discovery_cache --run-ignored all -E 'test(authorized_restore) |
+  test(malformed_nuget_config) | test(disabled_restore_noop) |
+  test(eligible_literal_with_preepoch) | test(cache_input_closure) |
+  test(restore_receipt_property)'` →9 passed,22 skipped in15.950seconds.
+  Environment: selected SDK8.0.417, rebuilt local worker, and the test-only
+  `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='env -u LD_LIBRARY_PATH'`.
+- **Harness correction:** Cargo adds loader search paths to test processes. The
+  new production gate correctly makes such runs ineligible; the managed CI test
+  step now removes only the runner-added settings before starting the binary.
+  Explicit fixture child environments remain unchanged. This CI change itself
+  has not been run on macOS or Windows.
+- **Build evidence validity:** the first broad attempt exhausted `/tmp`.
+  Main moved only this worktree's build artifacts to disk-backed storage. Shared
+  baseline/subject artifacts then produced baseline candidate behavior despite
+  unchanged repaired source hashes. `cargo clean -p tethys` followed by a full
+  subject rebuild restored all1169 passes. Earlier mixed-artifact broad results
+  are not accepted as current implementation evidence.
+- **Retained contracts:** AGENTS.md and CONTEXT.md intentionally remain unchanged:
+  discovery already owns execution/freshness, typed bounded failures, canonical
+  identities and separate grants. Public reference documentation, changelog,
+  private module ledger and the behavior-owning source changes travel together.
+- **Outstanding gates:** post-fix native Windows containment and runtime-extension
+  defect-sensitivity/restoration proof are still unverified. The earlier baseline
+  probes prove the defects, not these repairs. Full platform/CI acceptance, atomic
+  repair commits and stack cascade remain pending; no new repair commit or push
+  has been made. S6/corpus obligations and missing T46-07 wording remain blocked
+  for their previously recorded reasons.
+
+Retained output: [ordinary verification](evidence/pr46-ordinary-verification.log),
+[receipt-boundary baseline failures](evidence/pr46-receipt-boundaries-red.log),
+[public cache baseline failures](evidence/pr46-cache-regressions-red.log).
+The [source snapshot](evidence/pr46-source-snapshot.sha256) records both verified
+local paths and still-unverified platform paths; a hash alone is not a PASS.
+Only the latest clean subject rebuild supplies assembled ordinary evidence.
+Local throwaway probe scripts are removed after capture; remote VM scratch is
+retained because remote execution has not resumed.
+
+### PR46 platform repair checkpoint — verified before commits
+
+The user authorized completing the remaining work after the prior model's
+policy pause. Main reran both withheld mechanisms as controlled probes; these
+results supply defect-sensitivity and repaired behavior, not a claim that the
+evaluation grant is a sandbox.
+
+- **Runtime extension:** `cargo nextest run --test discovery_runtime
+  --run-ignored all` with the test-only Linux runner and selected SDK8.0.417
+  passes5/5 in3.793seconds: subprocess child, numeric pack ordering,
+  forwarding muxer, native loader and startup hook. The LD_PRELOAD external
+  input changes from NATIVE_ONE to NATIVE_TWO, no cache is published, and reuse
+  remains false. The earlier baseline proves that this scenario previously
+  reused stale NATIVE_ONE. Retained summary:
+  [runtime extension green](evidence/pr46-runtime-extension-green.log).
+- **Windows containment:** the remote source archive was checked for
+  `ComparisonPath` before building; a failed cleanup retry is retained as
+  [initial attempt](evidence/pr46-windows-containment-initial-attempt.log)
+  and not counted as behavior evidence. Direct SDK9.0.317 evaluation of the
+  resulting repaired worker succeeds for a normal short descendant and a
+  >300-character `\\?\` descendant inside one workspace, while a `\\?\`
+  sibling outside that root is rejected with `project_path must lie inside
+  workspace_root`. Retained summary:
+  [Windows containment green](evidence/pr46-windows-containment-green.log).
+- **Qualification harness:** the repaired long-descendant case also exists in
+  `worker_qualification.py` as a Windows-only C14 fence; full multi-platform CI
+  remains the assembled platform authority after commits.
+- **Evidence disposition:** all four atomic repairs now have baseline red and
+  repaired green evidence. AGENTS.md and CONTEXT.md remain intentionally
+  unchanged; public docs, changelog, ledger, fences and behavior-owning source
+  travel in the same repair commits. Remote disposable probe roots are being
+  cleaned; local scripts under `.claude/tmp` are not repository evidence.
+
+Evidence correction: the first retained `pr46-runtime-extension-green.log` and
+`pr46-windows-containment-green.log` mixed or omitted the relevant raw output.
+Those files now contain only the exact runtime nextest result and the three
+native Windows request verdicts, respectively; no behavior depended on the
+earlier malformed links.

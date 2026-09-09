@@ -58,10 +58,13 @@ Counts use design's physical-production footprint convention; all new paths star
 | src/discovery/mod.rs | 0 | 30–100 | adapter interface/coordinator | no SQL |
 | src/discovery/types.rs | 0 | 250–550 | canonical immutable metadata/options | no execution |
 | src/discovery/msbuild/mod.rs | 0 | 550–750 | trust/evaluation workflow | no SQL |
-| src/discovery/msbuild/candidates.rs | 0 | 440–570 | non-executing candidate/path parsing, rooted Windows prefixes and whitespace-preserving XML decoding | no execution |
+| src/discovery/msbuild/candidates.rs | 0 | 440–650 | non-executing candidate/path parsing, bounded containers and scoped filter membership | no execution |
 | src/discovery/msbuild/host.rs | 0 | 850–1100 | host/process/protocol deadline, runtime qualification and native wire lookup | no inferred grants |
 | src/discovery/msbuild/cache.rs | 0 | 300–450 | qualified recipe/input validation and opaque restore receipts | no universal purity claim |
-| src/discovery/msbuild/restore.rs | 0 | 1100–1400 | separately authorized restore, actual solution/config provenance and current-input corroboration | no feed/lock override |
+| src/discovery/msbuild/input.rs | 0 | 15–40 | shared capped file read with malformed-content versus operational-I/O distinction; replaces the two private copies | no standing or execution policy |
+| src/discovery/msbuild/restore.rs | 0 | 1100–1800 | separately authorized restore, actual solution/config provenance, semantic range comparison and current-input corroboration | no feed/lock override |
+| src/discovery/msbuild/restore/graph.rs | 0 | 200–350 | private native restore graph/asset correspondence under C7; moved down with upper-stack R1/R2 authority | no process launch or separate grant |
+| src/discovery/msbuild/restore/graph/dependencies.rs | 0 | 100–200 | private per-framework native dependency/central-version/download correspondence | share version and framework identity authorities |
 | tools/tethys-msbuild-evaluate/Program.cs | 0 | 40–100 | host registration/protocol dispatch | no evaluation bodies |
 | tools/tethys-msbuild-evaluate/Evaluation.cs | 0 | 250–500 | evaluated items/properties/imports/diagnostics | no target APIs |
 | tools/tethys-msbuild-evaluate/Contract.cs | 0 | 80–180 | JSON DTOs | data only |
@@ -71,6 +74,14 @@ Counts use design's physical-production footprint convention; all new paths star
 | Cargo.lock | existing generated | generated | dependency resolution | no manual version guesses |
 | .github/workflows/ci.yml | 311 | 330–410 | focused qualification | no runtime policy |
 | .github/workflows/release.yml | 150 | 170–250 | companion package/smoke | no implicit runtime downloads |
+
+PR46 review repairs A–D update only the affected private MSBuild footprint above.
+The discovery adapter remains the owner; public interfaces, dependency direction,
+protected parents, grants and deadlines are unchanged. `input.rs` consolidates
+existing capped-read mechanics, not a new configurable abstraction. The graph
+helpers carry native restore corroboration formerly present only in upper-stack
+commits. The canonical repair records and fresh C13 result belong to
+`review-decisions.md`; these projections are not evidence of a passing gate.
 
 Issue-local oracles and test fixtures are non-production. Named test paths occur in the slices below. Required atomic behavior documentation: AGENTS.md, CONTEXT.md, existing CLI/reference docs and per-increment changelog.d/tethys-82a6-<increment>.changed.md; new worker/protocol instructions only where explicitly required by approved design. Documentation source claims change in the same commit as behavior. No unrelated dirty files are staged.
 

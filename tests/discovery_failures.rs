@@ -474,6 +474,429 @@ fn authorized_restore_rechecks_metadata_before_confirmation() {
 }
 
 #[test]
+#[ignore = "requires packaged worker, net8 targeting pack, and its restored Newtonsoft.Json dependency"]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the fixture IS the test: the target-declared download, restore config, ungranted/granted/no-op transition and independent direct-host evaluation are inlined so the authority assertion is self-contained"
+)]
+fn authorized_restore_corroborates_target_downloads_and_rejects_changed_imports() {
+    let root = TempDir::new().unwrap();
+    write(
+        root.path(),
+        "App.csproj",
+        r#"<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RestoreConfigFile>Restore.config</RestoreConfigFile>
+  </PropertyGroup>
+  <ItemGroup><PackageReference Include="Newtonsoft.Json" /></ItemGroup>
+  <Import Project="Downloads.targets" />
+</Project>"#,
+    );
+    write(root.path(), "App.cs", "class App {}\n");
+    write(
+        root.path(),
+        "Restore.config",
+        "<configuration><packageSources><clear/></packageSources></configuration>",
+    );
+    write(
+        root.path(),
+        "Directory.Packages.props",
+        r#"<Project>
+  <PropertyGroup><ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally></PropertyGroup>
+  <ItemGroup><PackageVersion Include="Newtonsoft.Json" Version="13.0.3" /></ItemGroup>
+</Project>"#,
+    );
+    // Use the worker's already-restored package, not a feed or fabricated assets.
+    // This supported NuGet extension point runs only during ordinary Restore.
+    let signals = TempDir::new().unwrap();
+    let restore_marker = signals.path().join("restore-ran");
+    let noop_marker = signals.path().join("noop-restore-ran");
+    let xml_path = |path: &Path| {
+        path.to_string_lossy()
+            .replace('&', "&amp;")
+            .replace('"', "&quot;")
+            .replace('<', "&lt;")
+    };
+    let restore_marker_xml = xml_path(&restore_marker);
+    let noop_marker_xml = xml_path(&noop_marker);
+    let download = r#"<PackageDownload Include="Newtonsoft.Json" Version="[13.0.3.0]" />"#;
+    let targets = format!(
+        r#"<Project>
+  <Target Name="AddQualificationDownload" BeforeTargets="CollectPackageDownloads">
+    <ItemGroup>{download}</ItemGroup>
+    <WriteLinesToFile File="{restore_marker_xml}" Lines="restore" Overwrite="true" />
+  </Target>
+</Project>"#
+    );
+    write(root.path(), "Downloads.targets", &targets);
+    let selected = options();
+    let dotnet = std::env::var_os("DOTNET").unwrap_or_else(|| "dotnet".into());
+    let evaluation = std::process::Command::new(dotnet)
+        .arg(selected.msbuild_path.as_ref().unwrap().join("MSBuild.dll"))
+        .arg(root.path().join("App.csproj"))
+        .args(["-getItem:PackageDownload", "-nologo"])
+        .current_dir(root.path())
+        .output()
+        .unwrap();
+    assert!(
+        evaluation.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&evaluation.stdout),
+        String::from_utf8_lossy(&evaluation.stderr)
+    );
+    let evaluated: serde_json::Value = serde_json::from_slice(&evaluation.stdout).unwrap();
+    assert_eq!(evaluated["Items"]["PackageDownload"], serde_json::json!([]));
+    let ungranted = discover(root.path(), selected.clone());
+    assert_eq!(
+        reason(&ungranted.projects[0].standing),
+        DiscoveryFailureReason::RestoreRequired
+    );
+    assert!(!restore_marker.exists());
+    assert!(!root.path().join("obj/project.assets.json").exists());
+
+    let restored = discover(
+        root.path(),
+        DiscoveryOptions {
+            allow_restore: true,
+            ..selected.clone()
+        },
+    );
+    assert_eq!(
+        restored.projects[0].standing,
+        DiscoveryStanding::Confirmed,
+        "{:?}",
+        restored.projects
+    );
+    assert_eq!(restored.units[0].standing, DiscoveryStanding::Confirmed);
+    assert_eq!(restored.units[0].sources[0].path, Path::new("App.cs"));
+    assert!(restore_marker.is_file());
+    let assets: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.path().join("obj/project.assets.json")).unwrap())
+            .unwrap();
+    assert!(
+        assets["project"]["frameworks"]["net8.0"]["downloadDependencies"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|dependency| dependency["name"] == "Newtonsoft.Json"
+                && dependency["version"] == "[13.0.3, 13.0.3]"),
+        "ordinary native Restore must actually record the target-generated download"
+    );
+    fs::remove_file(&restore_marker).unwrap();
+
+    // Native artifacts alone do not grant target-derived authority to a fresh
+    // caller. Only the genuine earlier snapshot can carry that evidence.
+    let no_receipt = discover(root.path(), selected.clone());
+    assert_eq!(
+        reason(&no_receipt.projects[0].standing),
+        DiscoveryFailureReason::RestoreRequired
+    );
+    let reuse = || {
+        MsBuildDiscovery
+            .discover(
+                &DiscoveryRequest::new(
+                    root.path(),
+                    DiscoveryOptions {
+                        cache_policy: DiscoveryCachePolicy::Disabled,
+                        ..selected.clone()
+                    },
+                )
+                .unwrap()
+                .with_cache(restored.cache.clone()),
+            )
+            .unwrap()
+    };
+    let current = reuse();
+    assert_eq!(
+        current.projects[0].standing,
+        DiscoveryStanding::Confirmed,
+        "{:?}",
+        current.projects
+    );
+    assert_eq!(current.units, restored.units);
+    assert!(!restore_marker.exists());
+
+    let import = root.path().join("Downloads.targets");
+    let modified = fs::metadata(&import).unwrap().modified().unwrap();
+    for changed in [
+        targets.replace("[13.0.3.0]", "[13.0.4.0]"),
+        targets.replace(download, ""),
+    ] {
+        fs::write(&import, changed).unwrap();
+        fs::File::options()
+            .write(true)
+            .open(&import)
+            .unwrap()
+            .set_modified(modified)
+            .unwrap();
+        let stale = reuse();
+        assert_eq!(
+            reason(&stale.projects[0].standing),
+            DiscoveryFailureReason::RestoreRequired,
+            "changed or removed target downloads cannot reuse stale native outputs"
+        );
+        assert!(stale.units.is_empty());
+        assert!(!restore_marker.exists());
+    }
+
+    // An ordinary Restore target may report success without generating anything.
+    // That success cannot corroborate the old download after its removal.
+    write(
+        root.path(),
+        "App.csproj",
+        &format!(
+            r#"<Project>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RestoreConfigFile>Restore.config</RestoreConfigFile>
+  </PropertyGroup>
+  <ItemGroup><PackageReference Include="Newtonsoft.Json" /></ItemGroup>
+  <Import Project="Downloads.targets" />
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+  <Target Name="Restore">
+    <WriteLinesToFile File="{noop_marker_xml}" Lines="restore" Overwrite="true" />
+  </Target>
+</Project>"#
+        ),
+    );
+    let stale = MsBuildDiscovery
+        .discover(
+            &DiscoveryRequest::new(
+                root.path(),
+                DiscoveryOptions {
+                    allow_restore: true,
+                    ..selected
+                },
+            )
+            .unwrap()
+            .with_cache(restored.cache),
+        )
+        .unwrap();
+    assert!(noop_marker.is_file());
+    assert_eq!(
+        reason(&stale.projects[0].standing),
+        DiscoveryFailureReason::RestoreFailed,
+        "an exit-zero no-op Restore cannot legitimize stale target downloads"
+    );
+    assert!(stale.units.is_empty());
+}
+
+#[test]
+#[ignore = "requires packaged worker, net8/netstandard2.1 targeting packs, and restored Newtonsoft.Json"]
+#[expect(
+    clippy::too_many_lines,
+    reason = "the fixture IS the test: the multi-target project, target-assigned version, shared-assets assertion and no-op/cached/forced reuse sequence are inlined so the preserved-assets assertion is self-contained"
+)]
+fn authorized_restore_preserves_multitarget_assets_with_target_assigned_versions() {
+    let root = TempDir::new().unwrap();
+    let signals = TempDir::new().unwrap();
+    let restore_marker = signals.path().join("restore-ran");
+    let noop_marker = signals.path().join("noop-restore-ran");
+    let restore_marker_text = restore_marker.to_string_lossy();
+    let noop_marker_text = noop_marker.to_string_lossy();
+    let restore_marker_xml = quick_xml::escape::escape(restore_marker_text);
+    let noop_marker_xml = quick_xml::escape::escape(noop_marker_text);
+    let project = r#"<Project>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup>
+    <TargetFrameworks> net8.0 ; netstandard2.1 ; </TargetFrameworks>
+    <RestoreConfigFile>Restore.config</RestoreConfigFile>
+  </PropertyGroup>
+  <ItemGroup><PackageReference Include="Newtonsoft.Json" /></ItemGroup>
+  <Import Project="Versions.targets" />
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+</Project>"#;
+    let targets = format!(
+        r#"<Project>
+  <Target Name="AssignQualificationVersion" BeforeTargets="CollectPackageReferences">
+    <ItemGroup><PackageReference Update="Newtonsoft.Json" Version="13.0.3" /></ItemGroup>
+    <WriteLinesToFile File="{restore_marker_xml}" Lines="restore" Overwrite="true" />
+  </Target>
+</Project>"#
+    );
+    write(root.path(), "App.csproj", project);
+    write(root.path(), "Versions.targets", &targets);
+    write(root.path(), "App.cs", "class App {}\n");
+    write(
+        root.path(),
+        "Restore.config",
+        "<configuration><packageSources><clear/></packageSources></configuration>",
+    );
+    let selected = options();
+    let ungranted = discover(root.path(), selected.clone());
+    assert_eq!(
+        reason(&ungranted.projects[0].standing),
+        DiscoveryFailureReason::RestoreRequired
+    );
+    assert!(!restore_marker.exists());
+    assert!(!root.path().join("obj/project.assets.json").exists());
+
+    let restored = discover(
+        root.path(),
+        DiscoveryOptions {
+            allow_restore: true,
+            ..selected.clone()
+        },
+    );
+    assert_eq!(
+        restored.projects[0].standing,
+        DiscoveryStanding::Confirmed,
+        "{:?}",
+        restored.projects
+    );
+    assert_eq!(restored.units.len(), 2, "{:?}", restored.units);
+    for framework in ["net8.0", "netstandard2.1"] {
+        let unit = restored
+            .units
+            .iter()
+            .find(|unit| unit.target_framework.as_deref() == Some(framework))
+            .unwrap();
+        assert_eq!(unit.standing, DiscoveryStanding::Confirmed);
+        assert_eq!(unit.sources[0].path, Path::new("App.cs"));
+    }
+    let assets_path = root.path().join("obj/project.assets.json");
+    let assets: serde_json::Value =
+        serde_json::from_slice(&fs::read(&assets_path).unwrap()).unwrap();
+    let frameworks = assets["project"]["frameworks"].as_object().unwrap();
+    assert_eq!(
+        frameworks.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["net8.0", "netstandard2.1"],
+        "internal selector restores must not overwrite the shared assets with one framework"
+    );
+    for framework in ["net8.0", "netstandard2.1"] {
+        assert_eq!(
+            frameworks[framework]["dependencies"]["Newtonsoft.Json"]["version"], "[13.0.3, )",
+            "ordinary Restore must supply the otherwise unavailable version"
+        );
+    }
+    assert!(restore_marker.is_file());
+    fs::remove_file(&restore_marker).unwrap();
+    let reuse = || {
+        MsBuildDiscovery
+            .discover(
+                &DiscoveryRequest::new(
+                    root.path(),
+                    DiscoveryOptions {
+                        cache_policy: DiscoveryCachePolicy::Disabled,
+                        ..selected.clone()
+                    },
+                )
+                .unwrap()
+                .with_cache(restored.cache.clone()),
+            )
+            .unwrap()
+    };
+    let current = reuse();
+    assert_eq!(current.projects[0].standing, DiscoveryStanding::Confirmed);
+    assert_eq!(current.units, restored.units);
+    assert!(!restore_marker.exists());
+
+    let import = root.path().join("Versions.targets");
+    let modified = fs::metadata(&import).unwrap().modified().unwrap();
+    fs::write(&import, targets.replace("13.0.3", "13.0.4")).unwrap();
+    fs::File::options()
+        .write(true)
+        .open(&import)
+        .unwrap()
+        .set_modified(modified)
+        .unwrap();
+    let stale = reuse();
+    assert_eq!(
+        reason(&stale.projects[0].standing),
+        DiscoveryFailureReason::PartialTargetFrameworks
+    );
+    assert_eq!(stale.units.len(), restored.units.len());
+    for unit in &stale.units {
+        assert_eq!(
+            reason(&unit.standing),
+            DiscoveryFailureReason::RestoreRequired
+        );
+    }
+    assert!(!restore_marker.exists());
+
+    let noop = format!(
+        r#"  <Target Name="Restore">
+    <WriteLinesToFile File="{noop_marker_xml}" Lines="restore" Overwrite="true" />
+  </Target>
+</Project>"#
+    );
+    write(
+        root.path(),
+        "App.csproj",
+        &project.replace("</Project>", &noop),
+    );
+    let stale = MsBuildDiscovery
+        .discover(
+            &DiscoveryRequest::new(
+                root.path(),
+                DiscoveryOptions {
+                    allow_restore: true,
+                    ..selected.clone()
+                },
+            )
+            .unwrap()
+            .with_cache(restored.cache),
+        )
+        .unwrap();
+    assert!(noop_marker.is_file());
+    assert_eq!(
+        reason(&stale.projects[0].standing),
+        DiscoveryFailureReason::PartialTargetFrameworks,
+        "exit-zero Restore cannot supply an unavailable target-assigned version"
+    );
+    assert_eq!(stale.units.len(), 2);
+    for unit in &stale.units {
+        assert_eq!(
+            reason(&unit.standing),
+            DiscoveryFailureReason::RestoreFailed
+        );
+    }
+
+    // Unlike internal selectors, an explicit caller global must constrain Restore.
+    write(
+        root.path(),
+        "App.csproj",
+        &project.replace(
+            "<TargetFrameworks> net8.0 ; netstandard2.1 ; </TargetFrameworks>",
+            "<TargetFramework>net8.0</TargetFramework>",
+        ),
+    );
+    write(root.path(), "Versions.targets", &targets);
+    let mut explicit = selected;
+    explicit.allow_restore = true;
+    explicit
+        .context
+        .global_properties
+        .insert("TargetFramework".into(), "netstandard2.1".into());
+    let constrained = discover(root.path(), explicit);
+    assert_eq!(
+        constrained.projects[0].standing,
+        DiscoveryStanding::Confirmed,
+        "{:?}",
+        constrained.projects
+    );
+    assert_eq!(constrained.units.len(), 1, "{:?}", constrained.units);
+    assert_eq!(
+        constrained.units[0].target_framework.as_deref(),
+        Some("netstandard2.1")
+    );
+    assert_eq!(constrained.units[0].standing, DiscoveryStanding::Confirmed);
+    let assets: serde_json::Value =
+        serde_json::from_slice(&fs::read(&assets_path).unwrap()).unwrap();
+    assert_eq!(
+        assets["project"]["frameworks"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
+        ["netstandard2.1"]
+    );
+}
+
+#[test]
 #[ignore = "requires installed net8 targeting pack and packaged real worker"]
 fn later_restore_does_not_excuse_an_earlier_glob_change() {
     let root = TempDir::new().unwrap();
@@ -912,4 +1335,31 @@ fn authorized_restore_preserves_aliased_artifact_identity() {
         aliased_restore.units[0].sources[0].path,
         Path::new("App.cs")
     );
+}
+
+#[test]
+#[ignore = "requires packaged real worker and explicitly selected installed SDK"]
+fn malformed_nuget_config_preserves_unrelated_project() {
+    let root = TempDir::new().unwrap();
+    fs::create_dir(root.path().join("Bad")).unwrap();
+    fs::create_dir(root.path().join("Good")).unwrap();
+    write(root.path(), "Bad/Bad.csproj", &literal(""));
+    write(root.path(), "Good/Good.csproj", &literal(""));
+    write(
+        root.path(),
+        "Bad/packages.config",
+        "<packages><package id=\"Example\" version=\"1.0.0\" /></packages>",
+    );
+    for config in [
+        "<configuration><config><add key=\"repositoryPath\" key=\"duplicate\" value=\"packages\" /></config></configuration>".to_owned(),
+        format!("<configuration><!--{}--></configuration>", "x".repeat(4 * 1024 * 1024)),
+    ] {
+        write(root.path(), "Bad/NuGet.Config", &config);
+        let snapshot = discover(root.path(), options());
+        let bad = snapshot.projects.iter().find(|project| project.key.as_str() == "Bad/Bad.csproj").unwrap();
+        let good = snapshot.projects.iter().find(|project| project.key.as_str() == "Good/Good.csproj").unwrap();
+        assert_eq!(reason(&bad.standing), DiscoveryFailureReason::MalformedInput);
+        assert_eq!(good.standing, DiscoveryStanding::Confirmed);
+        assert!(snapshot.units.iter().any(|unit| unit.project == good.key));
+    }
 }

@@ -15,6 +15,9 @@ use super::super::{
     DiscoveryRestoreStyle as Style, RestoreProvenance,
 };
 use super::host::{self, EvaluatedProject, HostSelection, ProcessFailure, failure};
+use super::input::bounded_read;
+
+mod graph;
 
 const XML_LIMIT: u64 = 4 * 1024 * 1024;
 const ASSETS_LIMIT: u64 = 64 * 1024 * 1024;
@@ -53,20 +56,6 @@ pub(super) fn receipts(inputs: &ProjectInputs) -> BTreeMap<String, String> {
 pub(super) struct RestoreOutcome {
     pub provenance: RestoreProvenance,
     pub performed: bool,
-}
-
-fn bounded_read(path: &Path, limit: u64) -> io::Result<Vec<u8>> {
-    let mut bytes = Vec::new();
-    std::fs::File::open(path)?
-        .take(limit + 1)
-        .read_to_end(&mut bytes)?;
-    if bytes.len() as u64 > limit {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("{} exceeds its input byte limit", path.display()),
-        ));
-    }
-    Ok(bytes)
 }
 
 pub(super) fn inspect(
@@ -416,11 +405,10 @@ fn record_hint(
     if name == b"Import" || attrs.contains_key("Condition") {
         inputs.uncertain_dependencies = true;
     }
-    if name == b"PackageReference"
-        || name == b"PackageVersion"
-        || (packages_config && name == b"package")
-    {
-        if !packages_config {
+    let is_package_reference = name == b"PackageReference";
+    let is_package_version = name == b"PackageVersion";
+    if is_package_reference || is_package_version || (packages_config && name == b"package") {
+        if is_package_reference && !packages_config {
             inputs.style = Style::PackageReference;
         }
         let id = attrs.get(if packages_config { "id" } else { "Include" });
@@ -479,7 +467,7 @@ fn context_key(
 ) -> crate::Result<String> {
     serde_json::to_string(&(
         project,
-        request.options.context.effective_globals(),
+        super::cache::normalized_globals(request),
         target_framework,
     ))
     .map_err(|error| crate::Error::Internal(error.to_string()))
@@ -508,7 +496,10 @@ fn fresh_files(files: &[PathBuf], generated: &[PathBuf]) -> io::Result<bool> {
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
             Err(error) => return Err(error),
         };
-        if metadata.modified()? > oldest {
+        // Equal timestamps cannot establish ordering on coarse-resolution
+        // filesystems. A validated content receipt handles legitimate no-op
+        // restores; unreceipted bootstrap requires strictly newer outputs.
+        if metadata.modified()? >= oldest {
             return Ok(false);
         }
     }
@@ -524,34 +515,186 @@ fn read_assets(path: &Path) -> crate::Result<Option<Value>> {
                 Ok(None)
             }
         },
-        Err(error)
-            if matches!(
-                error.kind(),
-                io::ErrorKind::NotFound | io::ErrorKind::InvalidData
-            ) =>
-        {
+        Err(crate::Error::Config(message)) => {
+            tracing::debug!(%message, path = %path.display(), "restore metadata exceeds input limit");
+            Ok(None)
+        }
+        Err(crate::Error::Io(error)) if error.kind() == io::ErrorKind::NotFound => {
             tracing::debug!(%error, path = %path.display(), "restore metadata unavailable");
             Ok(None)
         }
-        Err(error) => Err(error.into()),
+        Err(error) => Err(error),
     }
 }
 
-fn normalized_range(value: &str) -> String {
+#[derive(Debug, PartialEq, Eq)]
+enum NuGetRange {
+    Any,
+    Minimum {
+        version: String,
+        inclusive: bool,
+    },
+    Maximum {
+        version: String,
+        inclusive: bool,
+    },
+    Exact(String),
+    Between {
+        lower: String,
+        lower_inclusive: bool,
+        upper: String,
+        upper_inclusive: bool,
+    },
+}
+
+fn normalized_version(value: &str) -> Option<String> {
     let value = value.trim();
-    if value.starts_with(['[', '(']) {
-        value.replace(' ', "")
-    } else if value.contains('*') {
-        value.to_owned()
-    } else {
-        format!("[{value},)")
+    let value = value.split_once('+').map_or(value, |(value, _)| value);
+    let (release, prerelease) = value
+        .split_once('-')
+        .map_or((value, None), |(value, pre)| (value, Some(pre)));
+    let mut components = Vec::new();
+    for component in release.split('.') {
+        if component.is_empty() {
+            return None;
+        }
+        if component == "*" {
+            components.push("*".to_owned());
+            break;
+        }
+        components.push(component.parse::<u64>().ok()?.to_string());
     }
+    if components.is_empty() || components.len() > 4 {
+        return None;
+    }
+    if components.last().is_some_and(|component| component == "*") {
+        if release.split('.').count() != components.len() {
+            return None;
+        }
+    } else {
+        while components.len() < 3 {
+            components.push("0".to_owned());
+        }
+        // NuGet normalizes a four-part release whose revision is zero to the
+        // equivalent three-part version.
+        while components.len() > 3 && components.last().is_some_and(|component| component == "0") {
+            components.pop();
+        }
+    }
+    let mut normalized = components.join(".");
+    if let Some(prerelease) = prerelease {
+        if prerelease.is_empty() {
+            return None;
+        }
+        let mut identifiers = Vec::new();
+        for identifier in prerelease.split('.') {
+            if identifier.is_empty() {
+                return None;
+            }
+            identifiers.push(identifier.parse::<u64>().map_or_else(
+                |_| identifier.to_ascii_lowercase(),
+                |number| number.to_string(),
+            ));
+        }
+        normalized.push('-');
+        normalized.push_str(&identifiers.join("."));
+    }
+    Some(normalized)
+}
+
+fn parse_range(value: &str) -> Option<NuGetRange> {
+    let value = value.trim();
+    if value.is_empty() {
+        return None;
+    }
+    if value.starts_with(['[', '(']) {
+        let lower_inclusive = value.starts_with('[');
+        let upper_inclusive = value.ends_with(']');
+        if !(value.ends_with(']') || value.ends_with(')')) {
+            return None;
+        }
+        let inner = &value[1..value.len() - 1];
+        if let Some((lower, upper)) = inner.split_once(',') {
+            let lower = if lower.trim().is_empty() {
+                None
+            } else {
+                Some(normalized_version(lower)?)
+            };
+            let upper = if upper.trim().is_empty() {
+                None
+            } else {
+                Some(normalized_version(upper)?)
+            };
+            return match (lower, upper) {
+                (None, None) => Some(NuGetRange::Any),
+                (Some(lower), None) => Some(NuGetRange::Minimum {
+                    version: lower,
+                    inclusive: lower_inclusive,
+                }),
+                (None, Some(upper)) => Some(NuGetRange::Maximum {
+                    version: upper,
+                    inclusive: upper_inclusive,
+                }),
+                (Some(lower), Some(upper))
+                    if lower_inclusive && upper_inclusive && lower == upper =>
+                {
+                    Some(NuGetRange::Exact(lower))
+                }
+                (Some(lower), Some(upper)) => Some(NuGetRange::Between {
+                    lower,
+                    lower_inclusive,
+                    upper,
+                    upper_inclusive,
+                }),
+            };
+        }
+        if lower_inclusive && upper_inclusive {
+            return Some(NuGetRange::Exact(normalized_version(inner)?));
+        }
+        return None;
+    }
+    Some(NuGetRange::Minimum {
+        version: normalized_version(value)?,
+        inclusive: true,
+    })
+}
+
+fn ranges_match(left: &str, right: &str) -> bool {
+    parse_range(left).is_some_and(|left| parse_range(right).is_some_and(|right| left == right))
+}
+
+fn asset_metadata_matches(dependency: &Value, metadata: [Option<&str>; 3]) -> bool {
+    let normalize = |value: &str| {
+        let mut names: Vec<_> = value
+            .split([';', ','])
+            .map(|part| part.trim().to_ascii_lowercase())
+            .collect();
+        names.sort();
+        names.dedup();
+        names
+    };
+    for ((field, default), value) in [
+        ("include", "all"),
+        ("exclude", "none"),
+        ("suppressParent", "contentfiles;analyzers;build"),
+    ]
+    .into_iter()
+    .zip(metadata)
+    {
+        if let Some(value) = value.filter(|value| !value.is_empty())
+            && normalize(value) != normalize(dependency[field].as_str().unwrap_or(default))
+        {
+            return false;
+        }
+    }
+    true
 }
 
 fn dependencies_match(
     assets: &Value,
     evaluated: &EvaluatedProject,
     requested: Option<&str>,
+    target_evidence: bool,
 ) -> bool {
     let Some(frameworks) = assets["project"]["frameworks"].as_object() else {
         return false;
@@ -559,7 +702,7 @@ fn dependencies_match(
     // Outer multi-target metadata cannot stand in for conditioned inner dependencies.
     // Its complete inner scopes are each checked by ensure before confirmation.
     let framework = match requested {
-        Some(name) => frameworks.get(name),
+        Some(name) => graph::framework_key(frameworks, name).map(|(_, value)| value),
         None if frameworks.len() == 1 => frameworks.values().next(),
         None => return true,
     };
@@ -578,7 +721,12 @@ fn dependencies_match(
             })
             .count()
     });
-    if package_count != native.len() {
+    // Implicitly defined dependencies (for example Microsoft.NETFramework.ReferenceAssemblies)
+    // appear only in the assets and the native restore graph. When the caller supplies target
+    // evidence it corroborates the complete set against that graph, so the evaluated explicit
+    // references must be a subset rather than the whole set; without target evidence the sets
+    // must match exactly.
+    if package_count < native.len() || (!target_evidence && package_count != native.len()) {
         return false;
     }
     for item in native {
@@ -608,49 +756,27 @@ fn dependencies_match(
                     })
                     .and_then(|version| version.metadata_value("Version"))
             });
-        let Some(version) = version else {
+        if version.is_none() && !target_evidence {
             return false;
-        };
+        }
         let Some(recorded) = dependency["version"].as_str() else {
             return false;
         };
-        if normalized_range(version) != normalized_range(recorded) {
+        if version.is_some_and(|version| !ranges_match(version, recorded)) {
             return false;
         }
-        for (native_name, restored_name) in [
-            ("IncludeAssets", "include"),
-            ("ExcludeAssets", "exclude"),
-            ("PrivateAssets", "suppressParent"),
-        ] {
-            if let Some(value) = item
-                .metadata_value(native_name)
-                .filter(|value| !value.is_empty())
-            {
-                let normalize = |value: &str| {
-                    let mut names: Vec<_> = value
-                        .split([';', ','])
-                        .map(|part| part.trim().to_ascii_lowercase())
-                        .collect();
-                    names.sort();
-                    names.dedup();
-                    names
-                };
-                let default = if native_name == "IncludeAssets" {
-                    "all"
-                } else if native_name == "ExcludeAssets" {
-                    "none"
-                } else {
-                    "contentfiles;analyzers;build"
-                };
-                if normalize(value)
-                    != normalize(dependency[restored_name].as_str().unwrap_or(default))
-                {
-                    return false;
-                }
-            }
+        if !asset_metadata_matches(
+            dependency,
+            [
+                item.metadata_value("IncludeAssets"),
+                item.metadata_value("ExcludeAssets"),
+                item.metadata_value("PrivateAssets"),
+            ],
+        ) {
+            return false;
         }
     }
-    downloads_match(framework, evaluated)
+    target_evidence || downloads_match(framework, evaluated)
 }
 
 fn downloads_match(framework: &Value, evaluated: &EvaluatedProject) -> bool {
@@ -674,7 +800,7 @@ fn downloads_match(framework: &Value, evaluated: &EvaluatedProject) -> bool {
                     .is_some_and(|name| name.eq_ignore_ascii_case(&item.include))
                     && value["version"]
                         .as_str()
-                        .is_some_and(|value| normalized_range(value) == normalized_range(version))
+                        .is_some_and(|value| ranges_match(value, version))
             })
         }) {
             return false;
@@ -687,37 +813,42 @@ fn asset_context_matches(
     assets: &Value,
     evaluated: Option<&EvaluatedProject>,
     target_framework: Option<&str>,
-    restored_here: bool,
+    target_evidence: bool,
 ) -> bool {
     let requested = target_framework.or_else(|| property(evaluated, "TargetFramework"));
+    let frameworks = assets["project"]["frameworks"].as_object();
     if let Some(framework) = requested {
-        if assets["project"]["frameworks"].get(framework).is_none() {
+        let Some((key, _)) = frameworks.and_then(|values| graph::framework_key(values, framework))
+        else {
             return false;
-        }
+        };
         if let Some(rid) = property(evaluated, "RuntimeIdentifier")
-            && assets["targets"]
-                .get(format!("{framework}/{rid}"))
-                .is_none()
+            && assets["targets"].get(format!("{key}/{rid}")).is_none()
         {
             return false;
         }
-    } else if let Some(frameworks) = property(evaluated, "TargetFrameworks") {
-        for framework in frameworks
+    } else if let Some(names) = property(evaluated, "TargetFrameworks") {
+        for framework in names
             .split(';')
+            .map(str::trim)
             .filter(|framework| !framework.is_empty())
         {
-            if assets["project"]["frameworks"].get(framework).is_none() {
+            if frameworks
+                .and_then(|values| graph::framework_key(values, framework))
+                .is_none()
+            {
                 return false;
             }
         }
     }
-    if let Some(evaluated) =
-        evaluated.filter(|value| value.success && value.items.contains_key("PackageReference"))
-    {
-        dependencies_match(assets, evaluated, requested)
+    if let Some(evaluated) = evaluated.filter(|value| value.success) {
+        evaluated.items.contains_key("PackageReference")
+            && dependencies_match(assets, evaluated, requested, target_evidence)
     } else {
-        // Failed provisional evaluation has no authoritative dependency set.
-        restored_here
+        // This is a provisional candidate, not confirmed metadata. Its caller must
+        // validate a receipt or fresh native graph; stabilize then requires a
+        // successful reevaluation and repeats the strict PackageReference checks.
+        target_evidence
     }
 }
 
@@ -815,42 +946,136 @@ fn native_project_matches(path: &str, project: &Path) -> io::Result<bool> {
     }
 }
 
-fn append_restore_imports(
-    relevant: &mut Vec<PathBuf>,
-    imports: &[PathBuf],
+fn assets_path(project: &Path, evaluated: Option<&EvaluatedProject>) -> PathBuf {
+    property(evaluated, "ProjectAssetsFile").map_or_else(
+        || native_path(project, "obj/project.assets.json"),
+        |value| native_path(project, value),
+    )
+}
+
+fn generated_inputs(
+    project: &Path,
+    evaluated: Option<&EvaluatedProject>,
+    assets: Option<&Value>,
+) -> crate::Result<Vec<PathBuf>> {
+    let output = assets
+        .and_then(|assets| assets["project"]["restore"]["outputPath"].as_str())
+        .or_else(|| property(evaluated, "MSBuildProjectExtensionsPath"))
+        .map_or_else(
+            || native_path(project, "obj"),
+            |value| native_path(project, value),
+        );
+    let name = project
+        .file_name()
+        .ok_or_else(|| crate::Error::Config("project has no filename".into()))?
+        .to_string_lossy();
+    Ok(vec![
+        assets_path(project, evaluated),
+        output.join(format!("{name}.nuget.g.props")),
+        output.join(format!("{name}.nuget.g.targets")),
+        output.join(format!("{name}.nuget.dgspec.json")),
+    ])
+}
+
+fn restore_sources(
+    request: &DiscoveryRequest,
+    project: &Path,
+    evaluated: Option<&EvaluatedProject>,
+    assets: Option<&Value>,
     generated: &[PathBuf],
-) -> io::Result<()> {
-    // Compare physical identities without changing the inventory's native paths.
-    let generated_identities = generated
-        .iter()
-        .map(|path| path.canonicalize())
-        .collect::<io::Result<Vec<_>>>()?;
-    for path in imports {
-        let identity = path.canonicalize()?;
-        if !generated_identities.contains(&identity) {
-            relevant.push(path.clone());
+) -> crate::Result<Option<Vec<PathBuf>>> {
+    // Recapture conventional paths, including previously absent inputs, rather
+    // than treating the initial inspection's path list as a stable closure.
+    let mut inspected = match inspect(request, project, &[]) {
+        Ok(inputs) => inputs,
+        Err(error) => {
+            tracing::debug!(?error, "restore source inspection is unavailable");
+            return Ok(None);
+        }
+    };
+    inspect_external_configs(&mut inspected)?;
+    if !cfg!(windows) {
+        for home in ["HOME", "DOTNET_CLI_HOME"]
+            .into_iter()
+            .filter_map(std::env::var_os)
+        {
+            let fallback = PathBuf::from(home).join(".nuget/NuGet/NuGet.Config");
+            if regular_file(&fallback)? {
+                inspected.files.push(fallback);
+            }
         }
     }
-    Ok(())
+    let mut paths = inspected.files;
+    if let Some(evaluated) = evaluated {
+        paths.extend(evaluated.imports.iter().cloned());
+    }
+    if let Some(configs) =
+        assets.and_then(|assets| assets["project"]["restore"]["configFilePaths"].as_array())
+    {
+        for config in configs {
+            let Some(path) = config.as_str() else {
+                return Ok(None);
+            };
+            paths.push(native_path(project, path));
+        }
+    }
+    if let Some(config) = property(evaluated, "RestoreConfigFile") {
+        paths.push(native_path(project, config));
+    }
+    let mut generated_identities = Vec::new();
+    for path in generated {
+        if regular_file(path)? {
+            generated_identities.push(path.canonicalize()?);
+        }
+    }
+    let mut sources = Vec::new();
+    for path in paths {
+        if !regular_file(&path)? {
+            tracing::debug!(path = %path.display(), "restore source is unavailable");
+            return Ok(None);
+        }
+        let path = path.canonicalize()?;
+        if !generated_identities.contains(&path) {
+            sources.push(path);
+        }
+    }
+    sources.sort();
+    sources.dedup();
+    Ok(Some(sources))
+}
+
+fn observe_restore(
+    request: &DiscoveryRequest,
+    project: &Path,
+    evaluated: Option<&EvaluatedProject>,
+) -> crate::Result<Option<BTreeMap<PathBuf, String>>> {
+    let assets = read_assets(&assets_path(project, evaluated))?;
+    let generated = generated_inputs(project, evaluated, assets.as_ref())?;
+    let Some(sources) = restore_sources(request, project, evaluated, assets.as_ref(), &generated)?
+    else {
+        return Ok(None);
+    };
+    let sources = sources
+        .into_iter()
+        .map(|path| receipt_digest(std::slice::from_ref(&path)).map(|digest| (path, digest)))
+        .collect::<crate::Result<BTreeMap<_, _>>>()?;
+    Ok(Some(sources))
+}
+
+struct AssetInputs {
+    files: Vec<PathBuf>,
+    evaluated_dependencies: bool,
+    assets: Value,
 }
 
 fn asset_inputs(
-    _request: &DiscoveryRequest,
+    request: &DiscoveryRequest,
     project: &Path,
-    inputs: &ProjectInputs,
     evaluated: Option<&EvaluatedProject>,
     target_framework: Option<&str>,
-    restored_here: bool,
-) -> crate::Result<Option<Vec<PathBuf>>> {
-    let assets_path = property(evaluated, "ProjectAssetsFile").map_or_else(
-        || {
-            project
-                .parent()
-                .unwrap_or(Path::new("."))
-                .join("obj/project.assets.json")
-        },
-        |value| native_path(project, value),
-    );
+    target_evidence: bool,
+) -> crate::Result<Option<AssetInputs>> {
+    let assets_path = assets_path(project, evaluated);
     let Some(assets) = read_assets(&assets_path)? else {
         return Ok(None);
     };
@@ -872,17 +1097,8 @@ fn asset_inputs(
     let Some(output_path) = restore["outputPath"].as_str() else {
         return Ok(None);
     };
-    let name = project
-        .file_name()
-        .ok_or_else(|| crate::Error::Config("project has no filename".into()))?
-        .to_string_lossy();
     let output = native_path(project, output_path);
-    let generated = vec![
-        assets_path,
-        output.join(format!("{name}.nuget.g.props")),
-        output.join(format!("{name}.nuget.g.targets")),
-        output.join(format!("{name}.nuget.dgspec.json")),
-    ];
+    let generated = generated_inputs(project, evaluated, Some(&assets))?;
     let Some(spec) = read_assets(&generated[3])? else {
         return Ok(None);
     };
@@ -898,26 +1114,16 @@ fn asset_inputs(
     {
         return Ok(None);
     }
-    if !asset_context_matches(&assets, evaluated, target_framework, restored_here) {
+    if !asset_context_matches(&assets, evaluated, target_framework, target_evidence) {
         return Ok(None);
     }
-    let mut relevant = inputs.files.clone();
-    if let Some(evaluated) = evaluated {
-        match append_restore_imports(&mut relevant, &evaluated.imports, &generated) {
-            Ok(()) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(error.into()),
-        }
-    }
-    if let Some(configs) = restore["configFilePaths"].as_array() {
-        for config in configs {
-            let Some(path) = config.as_str() else {
-                return Ok(None);
-            };
-            relevant.push(PathBuf::from(path));
-        }
-    }
-    if (!restored_here && !fresh_files(&relevant, &generated)?) || !fresh_files(&[], &generated)? {
+    let Some(mut relevant) =
+        restore_sources(request, project, evaluated, Some(&assets), &generated)?
+    else {
+        return Ok(None);
+    };
+    if (!target_evidence && !fresh_files(&relevant, &generated)?) || !fresh_files(&[], &generated)?
+    {
         return Ok(None);
     }
     if !asset_packages_present(&assets)? {
@@ -932,6 +1138,19 @@ fn asset_inputs(
             if value["success"] != true {
                 return Ok(None);
             }
+            if let Some(expected) = value["expectedPackageFiles"].as_array() {
+                for path in expected {
+                    let Some(path) = path.as_str().map(PathBuf::from) else {
+                        return Ok(None);
+                    };
+                    if !path.is_absolute() || !regular_file(&path)? {
+                        return Ok(None);
+                    }
+                    relevant.push(path);
+                }
+            } else if !value["expectedPackageFiles"].is_null() {
+                return Ok(None);
+            }
             relevant.push(cache);
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
@@ -940,22 +1159,34 @@ fn asset_inputs(
     relevant.extend(generated);
     relevant.sort();
     relevant.dedup();
-    Ok(Some(relevant))
+    Ok(Some(AssetInputs {
+        files: relevant,
+        evaluated_dependencies: asset_context_matches(&assets, evaluated, target_framework, false),
+        assets,
+    }))
 }
 
 fn receipt_digest(files: &[PathBuf]) -> crate::Result<String> {
     let mut hash = Sha256::new();
+    // Versioned, length-framed paths and fixed-width content digests prevent
+    // path/content boundaries from aliasing one another. Older receipts also
+    // lack the stable before/after source authority required by graph evidence.
+    hash.update(b"tethys-restore-inputs-v4\0");
     let mut chunk = [0_u8; 16_384];
     for path in files {
-        hash.update(path.as_os_str().as_encoded_bytes());
+        let path_bytes = path.as_os_str().as_encoded_bytes();
+        hash.update((path_bytes.len() as u64).to_le_bytes());
+        hash.update(path_bytes);
+        let mut content = Sha256::new();
         let mut file = std::fs::File::open(path)?;
         loop {
             let size = file.read(&mut chunk)?;
             if size == 0 {
                 break;
             }
-            hash.update(&chunk[..size]);
+            content.update(&chunk[..size]);
         }
+        hash.update(content.finalize());
     }
     Ok(format!("{:x}", hash.finalize()))
 }
@@ -1156,53 +1387,53 @@ fn current_inputs(
     style: Style,
     key: &str,
 ) -> crate::Result<Option<Vec<PathBuf>>> {
-    let restored_here = inputs.restored.borrow().contains_key(key);
+    let restored = inputs.restored.borrow().get(key).cloned();
     let prior = inputs.prior_receipts.borrow().get(key).cloned();
-    let mut current = match style {
-        Style::PackageReference => asset_inputs(
-            request,
-            project,
-            inputs,
-            evaluated,
-            target_framework,
-            restored_here || prior.is_some(),
-        )?,
-        Style::PackagesConfig => packages_inputs(project, inputs, evaluated)?,
-        Style::None => unreachable!("handled by ensure"),
-    };
-    if !restored_here && let Some(prior) = prior {
-        let matches = match &current {
-            Some(files) => receipt_digest(files)? == prior,
-            None => false,
+    if let Some(receipt) = restored.as_ref().or(prior.as_ref()) {
+        let candidate = match style {
+            Style::PackageReference => {
+                asset_inputs(request, project, evaluated, target_framework, true)?
+                    .map(|inventory| inventory.files)
+            }
+            Style::PackagesConfig => packages_inputs(project, inputs, evaluated)?,
+            Style::None => unreachable!("handled by ensure"),
         };
-        if matches {
-            inputs
-                .validated_receipts
-                .borrow_mut()
-                .insert(key.to_owned(), prior);
-        } else {
-            inputs.prior_receipts.borrow_mut().remove(key);
-            inputs.validated_receipts.borrow_mut().remove(key);
-            current = match style {
-                Style::PackageReference => {
-                    asset_inputs(request, project, inputs, evaluated, target_framework, false)?
-                }
-                Style::PackagesConfig => packages_inputs(project, inputs, evaluated)?,
-                Style::None => unreachable!("handled by ensure"),
-            };
+        if let Some(files) = candidate
+            && receipt_digest(&files)? == *receipt
+        {
+            if restored.is_none() {
+                inputs
+                    .validated_receipts
+                    .borrow_mut()
+                    .insert(key.to_owned(), receipt.clone());
+            }
+            return Ok(Some(files));
+        }
+        // Neither a claimed prior receipt nor an earlier restore in this invocation
+        // authorizes target-derived dependencies after any inventoried bytes change.
+        inputs.prior_receipts.borrow_mut().remove(key);
+        inputs.validated_receipts.borrow_mut().remove(key);
+        if restored.is_some() {
+            return Ok(None);
         }
     }
-    Ok(current)
+    match style {
+        Style::PackageReference => {
+            asset_inputs(request, project, evaluated, target_framework, false)
+                .map(|inventory| inventory.map(|inventory| inventory.files))
+        }
+        Style::PackagesConfig => packages_inputs(project, inputs, evaluated),
+        Style::None => unreachable!("handled by ensure"),
+    }
 }
 
 fn run_authorized_restore(
     request: &DiscoveryRequest,
     project: &Path,
     host: &HostSelection,
-    target_framework: Option<&str>,
     style: Style,
     inputs: &ProjectInputs,
-) -> crate::Result<Result<(), DiscoveryFailure>> {
+) -> crate::Result<Result<Option<graph::RestoreGraphEvidence>, DiscoveryFailure>> {
     let native_project = dunce::simplified(project);
     let mut command = if style == Style::PackagesConfig {
         if package_roots(project, inputs, None)?.is_empty() {
@@ -1236,17 +1467,13 @@ fn run_authorized_restore(
         command
     } else {
         let mut command = host::restore_command(host);
-        command
-            .arg(native_project)
-            .args(["-target:Restore", "-nologo"]);
-        let mut globals = request.options.context.effective_globals();
-        if let Some(framework) = target_framework
-            && !globals
-                .keys()
-                .any(|name| name.eq_ignore_ascii_case("TargetFramework"))
-        {
-            globals.insert("TargetFramework".into(), framework.into());
-        }
+        command.arg(native_project).args([
+            "-target:Restore",
+            "-nologo",
+            "-verbosity:quiet",
+            "-getItem:_RestoreGraphEntryFiltered",
+        ]);
+        let globals = request.options.context.effective_globals();
         for (name, value) in globals {
             if name.is_empty()
                 || !name.chars().all(|character| {
@@ -1291,7 +1518,70 @@ fn run_authorized_restore(
             host::diagnostic_text(&output),
         )));
     }
-    Ok(Ok(()))
+    Ok(Ok(if style == Style::PackageReference {
+        graph::RestoreGraphEvidence::parse(&output.stdout)
+    } else {
+        None
+    }))
+}
+
+fn restored_asset_inputs(
+    request: &DiscoveryRequest,
+    project: &Path,
+    evaluated: Option<&EvaluatedProject>,
+    target_framework: Option<&str>,
+    before: Option<&BTreeMap<PathBuf, String>>,
+    graph: Option<&graph::RestoreGraphEvidence>,
+) -> crate::Result<Option<Vec<PathBuf>>> {
+    let Some(before) = before else {
+        return Ok(None);
+    };
+    let Some(candidate) = asset_inputs(request, project, evaluated, target_framework, true)? else {
+        return Ok(None);
+    };
+    let Some(after) = observe_restore(request, project, evaluated)? else {
+        return Ok(None);
+    };
+    if *before != after {
+        tracing::debug!("source, import, or configuration inputs changed during restore");
+        return Ok(None);
+    }
+    if !candidate.evaluated_dependencies {
+        let corroborated = match graph {
+            Some(graph) => graph.matches(&candidate.assets, project)?,
+            None => false,
+        };
+        if !corroborated {
+            tracing::debug!("restore target-derived dependency evidence is unavailable");
+            return Ok(None);
+        }
+    }
+    Ok(Some(candidate.files))
+}
+
+/// Explain why a scope that already restored in this invocation can no longer validate.
+fn post_restore_refusal(
+    request: &DiscoveryRequest,
+    project: &Path,
+    inputs: &ProjectInputs,
+    evaluated: Option<&EvaluatedProject>,
+    target_framework: Option<&str>,
+    style: Style,
+    key: &str,
+) -> crate::Result<String> {
+    if style != Style::PackageReference {
+        return Ok("the legacy packages.config receipt is unavailable or changed".to_owned());
+    }
+    let Some(inventory) = asset_inputs(request, project, evaluated, target_framework, true)? else {
+        return Ok("the asset inventory is unavailable".to_owned());
+    };
+    match inputs.restored.borrow().get(key) {
+        Some(expected) if receipt_digest(&inventory.files)? == *expected => {
+            Ok("the receipt is unchanged".to_owned())
+        }
+        Some(_) => Ok("the recorded receipt no longer matches the inventoried inputs".to_owned()),
+        None => Ok("the recorded receipt is missing".to_owned()),
+    }
 }
 
 pub(super) fn ensure(
@@ -1302,94 +1592,142 @@ pub(super) fn ensure(
     evaluated: Option<&EvaluatedProject>,
     target_framework: Option<&str>,
 ) -> crate::Result<Result<RestoreOutcome, DiscoveryFailure>> {
-    if !request.options.trust_msbuild {
-        return Ok(Err(failure(
-            Reason::TrustRequired,
-            "MSBuild restore requires explicit evaluation trust",
-        )));
-    }
-    let style = style(inputs, evaluated);
-    if style == Style::None {
-        return Ok(Ok(RestoreOutcome {
-            provenance: RestoreProvenance::default(),
-            performed: false,
-        }));
-    }
-    let key = context_key(request, project, target_framework)?;
-    let restored_here = inputs.restored.borrow().contains_key(&key);
-    let current = current_inputs(
-        request,
-        project,
-        inputs,
-        evaluated,
-        target_framework,
-        style,
-        &key,
-    )?;
-    if let Some(files) = current {
-        if let Some(receipt) = inputs.restored.borrow().get(&key)
-            && *receipt != receipt_digest(&files)?
-        {
+    let outcome = (|| {
+        if !request.options.trust_msbuild {
             return Ok(Err(failure(
-                Reason::RestoreFailed,
-                "restore inputs changed after the authorized restore",
+                Reason::TrustRequired,
+                "MSBuild restore requires explicit evaluation trust",
             )));
         }
-        return Ok(Ok(RestoreOutcome {
-            provenance: RestoreProvenance {
-                style,
-                inputs: files,
-            },
-            performed: false,
-        }));
-    }
-    if !request.options.allow_restore {
-        return Ok(Err(failure(
-            Reason::RestoreRequired,
-            "current restore inputs are unavailable; grant ordinary repository restore separately",
-        )));
-    }
-    if style == Style::PackagesConfig && !cfg!(windows) {
-        return Ok(Err(failure(
-            Reason::RestoreUnsupportedOnHost,
-            "packages.config restoration requires Windows NuGet and the selected MSBuild",
-        )));
-    }
-    if restored_here {
-        return Ok(Err(failure(
-            Reason::RestoreFailed,
-            "restore inputs changed or could not be validated after the authorized restore",
-        )));
-    }
-    if let Err(failure) =
-        run_authorized_restore(request, project, host, target_framework, style, inputs)?
-    {
-        return Ok(Err(failure));
-    }
-    let current = match style {
-        Style::PackageReference => {
-            asset_inputs(request, project, inputs, evaluated, target_framework, true)?
+        let style = style(inputs, evaluated);
+        if style == Style::None {
+            return Ok(Ok(RestoreOutcome {
+                provenance: RestoreProvenance::default(),
+                performed: false,
+            }));
         }
-        Style::PackagesConfig => packages_inputs(project, inputs, evaluated)?,
-        Style::None => unreachable!("handled above"),
-    };
-    let Some(files) = current else {
+        let key = context_key(request, project, target_framework)?;
+        let restored_here = inputs.restored.borrow().contains_key(&key);
+        let current = current_inputs(
+            request,
+            project,
+            inputs,
+            evaluated,
+            target_framework,
+            style,
+            &key,
+        )?;
+        if let Some(files) = current {
+            return reuse_restore(inputs, &key, style, files);
+        }
+        if !request.options.allow_restore {
+            return Ok(Err(failure(
+                Reason::RestoreRequired,
+                "current restore inputs are unavailable; grant ordinary repository restore separately",
+            )));
+        }
+        if style == Style::PackagesConfig && !cfg!(windows) {
+            return Ok(Err(failure(
+                Reason::RestoreUnsupportedOnHost,
+                "packages.config restoration requires Windows NuGet and the selected MSBuild",
+            )));
+        }
+        if restored_here {
+            // Name the cause: an unavailable inventory and a receipt that no longer matches
+            // are different platform behaviours, and a generic message hides which one fired.
+            let detail = post_restore_refusal(
+                request,
+                project,
+                inputs,
+                evaluated,
+                target_framework,
+                style,
+                &key,
+            )?;
+            return Ok(Err(failure(
+                Reason::RestoreFailed,
+                format!(
+                    "restore inputs changed or could not be validated after the authorized restore: {detail}"
+                ),
+            )));
+        }
+        let before = if style == Style::PackageReference {
+            observe_restore(request, project, evaluated)?
+        } else {
+            None
+        };
+        let graph = match run_authorized_restore(request, project, host, style, inputs)? {
+            Ok(graph) => graph,
+            Err(failure) => return Ok(Err(failure)),
+        };
+        let current = match style {
+            Style::PackageReference => restored_asset_inputs(
+                request,
+                project,
+                evaluated,
+                target_framework,
+                before.as_ref(),
+                graph.as_ref(),
+            )?,
+            Style::PackagesConfig => packages_inputs(project, inputs, evaluated)?,
+            Style::None => unreachable!("handled above"),
+        };
+        let Some(files) = current else {
+            return Ok(Err(failure(
+                Reason::RestoreFailed,
+                "NuGet reported success but required restore inputs could not be validated",
+            )));
+        };
+        record_restore(inputs, &key, style, files).map(Ok)
+    })();
+    match outcome {
+        Err(crate::Error::Config(message)) => Ok(Err(failure(Reason::MalformedInput, message))),
+        result => result,
+    }
+}
+
+/// Reuse current inputs only while this invocation's restore authority is intact.
+fn reuse_restore(
+    inputs: &ProjectInputs,
+    key: &str,
+    style: Style,
+    files: Vec<PathBuf>,
+) -> crate::Result<Result<RestoreOutcome, DiscoveryFailure>> {
+    if let Some(receipt) = inputs.restored.borrow().get(key)
+        && *receipt != receipt_digest(&files)?
+    {
         return Ok(Err(failure(
             Reason::RestoreFailed,
-            "NuGet reported success but required restore inputs could not be validated",
+            "restore inputs changed after the authorized restore",
         )));
-    };
-    inputs
-        .restored
-        .borrow_mut()
-        .insert(key, receipt_digest(&files)?);
+    }
     Ok(Ok(RestoreOutcome {
         provenance: RestoreProvenance {
             style,
             inputs: files,
         },
-        performed: true,
+        performed: false,
     }))
+}
+
+/// Record the receipt and outcome for a restore this invocation performed.
+fn record_restore(
+    inputs: &ProjectInputs,
+    key: &str,
+    style: Style,
+    files: Vec<PathBuf>,
+) -> crate::Result<RestoreOutcome> {
+    inputs
+        .restored
+        .borrow_mut()
+        .insert(key.to_owned(), receipt_digest(&files)?);
+    Ok(RestoreOutcome {
+        provenance: RestoreProvenance {
+            style,
+            inputs: files,
+        },
+        performed: true,
+    })
 }
 
 fn regular_file(path: &Path) -> io::Result<bool> {
@@ -1450,12 +1788,145 @@ mod tests {
         std::fs::write(&project, "<Project Sdk=\"Microsoft.NET.Sdk\"/>").unwrap();
         std::fs::create_dir(root.path().join("obj")).unwrap();
         std::fs::write(root.path().join("obj/project.assets.json"), "{}").unwrap();
-        let inputs = inspect(&request, &project, &[]).unwrap();
         assert!(
-            asset_inputs(&request, &project, &inputs, None, None, false)
+            asset_inputs(&request, &project, None, None, false)
                 .unwrap()
                 .is_none()
         );
+    }
+    #[test]
+    fn nuget_ranges_match_semantically_without_erasing_range_kind() {
+        for (requested, recorded) in [
+            ("1.0", "[1.0.0, )"),
+            ("1.*", "[1.*, )"),
+            ("*", "[*, )"),
+            ("1.*-*", "[1.*-*, )"),
+            ("*-*", "[*-*, )"),
+            ("[1.0.0]", "[1.0.0, 1.0.0]"),
+            ("1.0.0.0", "[1.0.0, )"),
+            ("1.2.3.4", "[1.2.3.4, )"),
+            ("1.0.0-beta", "[1.0.0-beta, )"),
+        ] {
+            assert!(
+                ranges_match(requested, recorded),
+                "{requested} != {recorded}"
+            );
+        }
+        for (requested, recorded) in [
+            ("[1.0.0]", "[1.0.0, )"),
+            ("1.0", "[1.0.1, )"),
+            ("1.0.0-beta", "[1.0.0, )"),
+            ("1.0.0.1", "[1.0.0, )"),
+            ("1.2.3.5", "[1.2.3.4, )"),
+        ] {
+            assert!(
+                !ranges_match(requested, recorded),
+                "{requested} == {recorded}"
+            );
+        }
+        assert!(!ranges_match("1.2.3.4.5", "1.2.3.4.5"));
+    }
+
+    #[test]
+    fn unrelated_central_package_version_does_not_select_classic_restore() {
+        let root = tempfile::tempdir().unwrap();
+        let project = root.path().join("App.csproj");
+        std::fs::write(&project, "<Project />").unwrap();
+        std::fs::write(
+            root.path().join("Directory.Packages.props"),
+            r#"<Project><ItemGroup><PackageVersion Include="Unreferenced" Version="1.0.0" /></ItemGroup></Project>"#,
+        )
+        .unwrap();
+        let request = DiscoveryRequest::new(root.path(), DiscoveryOptions::default()).unwrap();
+        let inputs = inspect(&request, &project, &[]).unwrap();
+        assert_eq!(inputs.style, Style::None);
+        assert_eq!(
+            inputs.packages.get("unreferenced"),
+            Some(&"1.0.0".to_owned())
+        );
+    }
+
+    #[test]
+    fn implicit_package_dependencies_require_target_evidence_without_relaxing_explicit_versions() {
+        let assets = serde_json::json!({
+            "project": {"frameworks": {"net461": {"dependencies": {
+                "Microsoft.NETFramework.ReferenceAssemblies": {
+                    "target": "Package", "version": "[1.0.3, )",
+                    "suppressParent": "All", "autoReferenced": true
+                }
+            }}}}
+        });
+        let evaluated = |packages: &[(&str, &str, Option<&str>)]| EvaluatedProject {
+            protocol_version: 1,
+            success: true,
+            project_path: PathBuf::from("App.csproj"),
+            host: None,
+            properties: BTreeMap::new(),
+            items: BTreeMap::from([(
+                "PackageReference".to_owned(),
+                packages
+                    .iter()
+                    .map(|(name, version, private)| host::EvaluatedItem {
+                        include: (*name).to_owned(),
+                        full_path: PathBuf::new(),
+                        metadata: BTreeMap::from([("Version".to_owned(), (*version).to_owned())])
+                            .into_iter()
+                            .chain(
+                                private.map(|value| ("PrivateAssets".to_owned(), value.to_owned())),
+                            )
+                            .collect(),
+                    })
+                    .collect(),
+            )]),
+            imports: Vec::new(),
+            glob_patterns: Vec::new(),
+            diagnostics: Vec::new(),
+            cache_eligible: false,
+            cache_ineligibility: Vec::new(),
+        };
+        // An implicit dependency exists only in the assets and the native graph.
+        let implicit_only = evaluated(&[]);
+        assert!(dependencies_match(
+            &assets,
+            &implicit_only,
+            Some("net461"),
+            true
+        ));
+        assert!(!dependencies_match(
+            &assets,
+            &implicit_only,
+            Some("net461"),
+            false
+        ));
+        // An explicit reference still has to agree with the recorded version and asset flags.
+        let wrong_version = evaluated(&[(
+            "Microsoft.NETFramework.ReferenceAssemblies",
+            "9.9.9",
+            Some("All"),
+        )]);
+        assert!(!dependencies_match(
+            &assets,
+            &wrong_version,
+            Some("net461"),
+            true
+        ));
+        let wrong_flags = evaluated(&[(
+            "Microsoft.NETFramework.ReferenceAssemblies",
+            "1.0.3",
+            Some("None"),
+        )]);
+        assert!(!dependencies_match(
+            &assets,
+            &wrong_flags,
+            Some("net461"),
+            true
+        ));
+        let explicit = evaluated(&[(
+            "Microsoft.NETFramework.ReferenceAssemblies",
+            "1.0.3",
+            Some("All"),
+        )]);
+        assert!(dependencies_match(&assets, &explicit, Some("net461"), true));
     }
 
     #[test]
@@ -1569,5 +2040,49 @@ mod tests {
         file.set_modified(std::time::SystemTime::now() + std::time::Duration::from_secs(5))
             .unwrap();
         assert!(!fresh_files(&[input], &[generated]).unwrap());
+    }
+
+    #[test]
+    fn equal_timestamps_do_not_establish_unreceipted_restore_freshness() {
+        let root = tempfile::tempdir().unwrap();
+        let input = root.path().join("project");
+        let generated = root.path().join("assets");
+        let timestamp = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000);
+        for path in [&input, &generated] {
+            std::fs::write(path, "content").unwrap();
+            std::fs::File::options()
+                .write(true)
+                .open(path)
+                .unwrap()
+                .set_modified(timestamp)
+                .unwrap();
+        }
+        assert!(
+            !fresh_files(
+                std::slice::from_ref(&input),
+                std::slice::from_ref(&generated)
+            )
+            .unwrap()
+        );
+        std::fs::File::options()
+            .write(true)
+            .open(&generated)
+            .unwrap()
+            .set_modified(timestamp + std::time::Duration::from_secs(1))
+            .unwrap();
+        assert!(fresh_files(&[input], &[generated]).unwrap());
+    }
+
+    #[test]
+    fn receipt_distinguishes_paths_from_file_contents() {
+        let root = tempfile::tempdir().unwrap();
+        let first = root.path().join("input");
+        let second = root.path().join("inputx");
+        std::fs::write(&first, "xrest").unwrap();
+        std::fs::write(&second, "rest").unwrap();
+        assert_ne!(
+            receipt_digest(&[first]).unwrap(),
+            receipt_digest(&[second]).unwrap()
+        );
     }
 }
