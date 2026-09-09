@@ -281,6 +281,9 @@ jobs:
   managed-worker:
     name: Managed Worker (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    env:
+      # Match the repository's optimized test checks for runtime smoke binaries.
+      CARGO_PROFILE_DEV_OPT_LEVEL: 1
     timeout-minutes: 25
     strategy:
       fail-fast: false
