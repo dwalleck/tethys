@@ -2,3 +2,4 @@
 - C# discovery requires explicit evaluation trust and separate restore permission; unavailable metadata is reported with a reason rather than as an empty project.
 - Native C# project paths preserve globbed sources and accept valid restore artifacts across canonical Windows spelling and filesystem aliases.
 - Eligible discovery cache hits validate current inputs; unqualified evaluation recipes and runtime configurations are reevaluated.
+- Multi-target restore preserves sibling assets and recognizes equivalent framework aliases and package versions; malformed configuration stays scoped, and disabled caching emits no reusable restore entries.

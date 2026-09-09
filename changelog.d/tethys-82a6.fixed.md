@@ -1,0 +1,5 @@
+- `tethys index` tolerates duplicate `Compile` entries and continues indexing the workspace.
+- `tethys index` tolerates non-UTF-8 workspace paths, and discovery paths persist and reload without changing spelling on Windows.
+- `tethys index` no longer blocks other index operations while MSBuild evaluation or restore runs.
+- Padded property names passed with `--property`, such as `" Name =value"`, behave like the equivalent unpadded spelling.
+- Indexing avoids loading the entire saved discovery state for every command, reducing unnecessary startup work and memory use.
