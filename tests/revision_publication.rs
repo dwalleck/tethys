@@ -313,20 +313,13 @@ fn persisted_crate_paths_outside_the_workspace_are_re_derived_on_open() {
     let db_path = dir.path().join(".rivets/index/tethys.db");
     {
         let conn = Connection::open(&db_path).expect("index database");
-        let published: String = conn
-            .query_row(
-                "SELECT crates_json FROM evaluation_context WHERE singleton = 1",
-                [],
-                |row| row.get(0),
-            )
-            .expect("published crates");
-        let foreign = published.replace(
-            &canonical_root.display().to_string(),
-            "/nonexistent/elsewhere",
-        );
-        assert_ne!(foreign, published, "fixture must move the crate root");
-        conn.execute("UPDATE evaluation_context SET crates_json = ?1", [foreign])
-            .expect("move the published crate root");
+        // The published path is JSON-escaped, so write the moved crate list
+        // literally rather than string-replacing the native spelling.
+        conn.execute(
+            "UPDATE evaluation_context SET crates_json = ?1",
+            [r#"[{"name":"revision_fixture","path":"/nonexistent/elsewhere","lib_path":"src/lib.rs","bin_paths":[]}]"#],
+        )
+        .expect("move the published crate root");
     }
 
     let reopened = Tethys::new(dir.path()).expect("reopen");
