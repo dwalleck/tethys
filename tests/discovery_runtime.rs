@@ -47,19 +47,14 @@ fn fixture() -> TempDir {
 fn harness_free(command: &mut Command) -> &mut Command {
     // Test-tool loader search paths are harness inputs, not the caller's
     // authorized runtime settings. Production never removes user settings.
-    #[cfg(unix)]
-    command
-        .env_remove("LD_PRELOAD")
-        .env_remove("LD_AUDIT")
-        .env_remove("LD_LIBRARY_PATH")
-        .env_remove("DYLD_INSERT_LIBRARIES")
-        .env_remove("DYLD_LIBRARY_PATH")
-        .env_remove("DYLD_FALLBACK_LIBRARY_PATH")
-        .env_remove("DYLD_FRAMEWORK_PATH")
-        .env_remove("DYLD_FALLBACK_FRAMEWORK_PATH")
-        .env_remove("PYTHONHOME")
-        .env_remove("PYTHONPATH");
-    command
+    // Driven by the product's own constant so this harness cannot fall behind
+    // the names discovery actually treats as runtime code extensions.
+    for name in EvaluationEnvironment::RUNTIME_CODE_EXTENSIONS {
+        command.env_remove(name);
+    }
+    // Not product inputs; a `shell: python` CI step leaves these behind and a
+    // child of this harness has no use for them.
+    command.env_remove("PYTHONHOME").env_remove("PYTHONPATH")
 }
 
 fn child(root: &Path, state: &Path) -> Command {

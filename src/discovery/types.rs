@@ -1,6 +1,8 @@
 //! Owned records at the language-neutral workspace discovery seam.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::ffi::{OsStr, OsString};
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -93,6 +95,177 @@ impl EvaluationContext {
     }
 }
 
+/// Ambient process settings that evaluation depends on but cannot receive as arguments.
+///
+/// `MSBuild` reads environment variables as properties, and a selected host's native
+/// loader reads some of them as code-injection points. Both are therefore evaluation
+/// cache identity. Discovery takes the environment as an explicit value rather than
+/// reading the calling process's ambient state, so the environment that is
+/// fingerprinted is exactly the environment the evaluation host is given.
+#[derive(Clone, PartialEq, Eq)]
+pub struct EvaluationEnvironment {
+    variables: BTreeMap<OsString, OsString>,
+}
+
+/// Values may hold credentials, so only the binding count is rendered.
+impl fmt::Debug for EvaluationEnvironment {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("EvaluationEnvironment")
+            .field("variables", &self.variables.len())
+            .finish()
+    }
+}
+
+impl EvaluationEnvironment {
+    /// Settings that let a selected host load arbitrary code, disqualifying reuse.
+    ///
+    /// Diagnostic-only `COREHOST_TRACE` / `DOTNET_HOST_TRACE` inputs deliberately do
+    /// not appear here: unlike these injection points, tracing does not load arbitrary
+    /// code. `PATH` is likewise absent. It is the Windows loader's search path, but it
+    /// is also required for ordinary operation and is already an explicit input to host
+    /// selection, so disqualifying on it would make every Windows evaluation ineligible.
+    /// The native-loader entries cover glibc's `LD_PRELOAD`, `LD_AUDIT` and
+    /// `LD_LIBRARY_PATH`, and dyld's `DYLD_INSERT_LIBRARIES`, `DYLD_LIBRARY_PATH`,
+    /// `DYLD_FALLBACK_LIBRARY_PATH`, `DYLD_FRAMEWORK_PATH` and
+    /// `DYLD_FALLBACK_FRAMEWORK_PATH`. This finite list is not a sandbox or a complete
+    /// model of arbitrary environment-dependent code.
+    pub const RUNTIME_CODE_EXTENSIONS: &'static [&'static str] = &[
+        "DOTNET_STARTUP_HOOKS",
+        "DOTNET_ADDITIONAL_DEPS",
+        "DOTNET_SHARED_STORE",
+        "DOTNET_ENABLE_PROFILING",
+        "DOTNET_PROFILER",
+        "DOTNET_PROFILER_PATH",
+        "DOTNET_PROFILER_PATH_32",
+        "DOTNET_PROFILER_PATH_64",
+        "DOTNET_PROFILER_PATH_ARM32",
+        "DOTNET_PROFILER_PATH_ARM64",
+        "CORECLR_ENABLE_PROFILING",
+        "CORECLR_PROFILER",
+        "CORECLR_PROFILER_PATH",
+        "CORECLR_PROFILER_PATH_32",
+        "CORECLR_PROFILER_PATH_64",
+        "CORECLR_PROFILER_PATH_ARM32",
+        "CORECLR_PROFILER_PATH_ARM64",
+        "COR_ENABLE_PROFILING",
+        "COR_PROFILER",
+        "COR_PROFILER_PATH",
+        "COR_PROFILER_PATH_32",
+        "COR_PROFILER_PATH_64",
+        "APPDOMAIN_MANAGER_ASM",
+        "APPDOMAIN_MANAGER_TYPE",
+        "LD_PRELOAD",
+        "LD_AUDIT",
+        "LD_LIBRARY_PATH",
+        "DYLD_INSERT_LIBRARIES",
+        "DYLD_LIBRARY_PATH",
+        "DYLD_FALLBACK_LIBRARY_PATH",
+        "DYLD_FRAMEWORK_PATH",
+        "DYLD_FALLBACK_FRAMEWORK_PATH",
+    ];
+
+    /// Capture the calling process's environment. This is the default for discovery.
+    #[must_use]
+    pub fn inherited() -> Self {
+        Self {
+            variables: std::env::vars_os().collect(),
+        }
+    }
+
+    /// An environment that binds no variables at all.
+    #[must_use]
+    pub fn empty() -> Self {
+        Self {
+            variables: BTreeMap::new(),
+        }
+    }
+
+    /// Look up one binding using the platform's own environment-block name comparison.
+    ///
+    /// Windows compares names case-insensitively; Unix compares them exactly. This
+    /// matches what a spawned evaluation host would itself observe.
+    #[must_use]
+    pub fn get(&self, name: &str) -> Option<&OsStr> {
+        if let Some(value) = self.variables.get(OsStr::new(name)) {
+            return Some(value);
+        }
+        if !cfg!(windows) {
+            return None;
+        }
+        self.variables.iter().find_map(|(key, value)| {
+            key.as_encoded_bytes()
+                .eq_ignore_ascii_case(name.as_bytes())
+                .then_some(value.as_os_str())
+        })
+    }
+
+    /// Bind one variable, replacing any existing binding of the same platform name.
+    pub fn insert(&mut self, name: impl Into<OsString>, value: impl Into<OsString>) {
+        let name = name.into();
+        self.remove_platform_name(&name);
+        self.variables.insert(name, value.into());
+    }
+
+    /// Remove one variable, returning its previous value.
+    pub fn remove(&mut self, name: &str) -> Option<OsString> {
+        self.remove_platform_name(OsStr::new(name))
+    }
+
+    /// Bind one variable, consuming and returning the environment.
+    #[must_use]
+    pub fn with(mut self, name: impl Into<OsString>, value: impl Into<OsString>) -> Self {
+        self.insert(name, value);
+        self
+    }
+
+    /// Remove several variables, consuming and returning the environment.
+    ///
+    /// Pass [`Self::RUNTIME_CODE_EXTENSIONS`] to build a caller environment that a
+    /// harness's own loader settings cannot disqualify.
+    #[must_use]
+    pub fn without(mut self, names: &[&str]) -> Self {
+        for name in names {
+            self.remove(name);
+        }
+        self
+    }
+
+    /// Iterate every binding in a stable order, name before value.
+    pub fn iter(&self) -> impl Iterator<Item = (&OsStr, &OsStr)> {
+        self.variables
+            .iter()
+            .map(|(name, value)| (name.as_os_str(), value.as_os_str()))
+    }
+
+    /// Whether any binding lets a selected host load arbitrary code.
+    pub(crate) fn loads_runtime_code(&self) -> bool {
+        Self::RUNTIME_CODE_EXTENSIONS
+            .iter()
+            .any(|name| self.get(name).is_some_and(|value| !value.is_empty()))
+    }
+
+    /// Remove every spelling the platform considers the same name.
+    fn remove_platform_name(&mut self, name: &OsStr) -> Option<OsString> {
+        let mut removed = self.variables.remove(name);
+        if cfg!(windows) {
+            let recased: Vec<_> = self
+                .variables
+                .keys()
+                .filter(|key| {
+                    key.as_encoded_bytes()
+                        .eq_ignore_ascii_case(name.as_encoded_bytes())
+                })
+                .cloned()
+                .collect();
+            for key in recased {
+                removed = self.variables.remove(&key).or(removed);
+            }
+        }
+        removed
+    }
+}
+
 /// Whether eligible evaluations may be reused after input validation.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum DiscoveryCachePolicy {
@@ -120,6 +293,8 @@ pub struct DiscoveryOptions {
     pub timeout: Duration,
     /// Conservative evaluation-cache policy.
     pub cache_policy: DiscoveryCachePolicy,
+    /// Ambient settings evaluation depends on; fingerprinted and given to the host.
+    pub environment: EvaluationEnvironment,
 }
 
 impl Default for DiscoveryOptions {
@@ -132,6 +307,7 @@ impl Default for DiscoveryOptions {
             companion_directory: None,
             timeout: Duration::from_secs(60),
             cache_policy: DiscoveryCachePolicy::Enabled,
+            environment: EvaluationEnvironment::inherited(),
         }
     }
 }
@@ -439,4 +615,57 @@ pub struct DiscoverySnapshot {
     pub cache: Vec<EvaluationCacheEntry>,
     /// Invocation-level cache reuse/bypass evidence, excluded from semantic comparisons.
     pub cache_observations: Vec<DiscoveryCacheObservation>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::EvaluationEnvironment;
+
+    #[test]
+    fn without_removes_every_runtime_code_extension() {
+        let mut environment = EvaluationEnvironment::empty();
+        for name in EvaluationEnvironment::RUNTIME_CODE_EXTENSIONS {
+            environment.insert(*name, "Probe.dll");
+        }
+        environment.insert("DefineConstants", "KEPT");
+        assert!(environment.loads_runtime_code());
+
+        let scrubbed = environment.without(EvaluationEnvironment::RUNTIME_CODE_EXTENSIONS);
+        assert!(!scrubbed.loads_runtime_code());
+        assert_eq!(scrubbed.get("DefineConstants").unwrap(), "KEPT");
+        assert_eq!(scrubbed.iter().count(), 1);
+    }
+
+    #[test]
+    fn insert_replaces_rather_than_binding_a_name_twice() {
+        let environment = EvaluationEnvironment::empty()
+            .with("DefineConstants", "FIRST")
+            .with("DefineConstants", "SECOND");
+        assert_eq!(environment.get("DefineConstants").unwrap(), "SECOND");
+        assert_eq!(environment.iter().count(), 1);
+    }
+
+    /// Name comparison follows the platform's own environment block, so a recased
+    /// lookup resolves on Windows and stays distinct everywhere else.
+    #[test]
+    fn name_comparison_follows_the_platform() {
+        let environment = EvaluationEnvironment::empty().with("DefineConstants", "VALUE");
+        assert_eq!(environment.get("DefineConstants").unwrap(), "VALUE");
+        assert_eq!(
+            environment.get("defineconstants").is_some(),
+            cfg!(windows),
+            "recased lookup must match the platform's environment block",
+        );
+    }
+
+    /// A captured environment holds credentials on any CI runner, and
+    /// `DiscoveryOptions` derives `Debug`.
+    #[test]
+    fn debug_redacts_values() {
+        let environment = EvaluationEnvironment::empty().with("TOKEN", "s3cret");
+        let rendered = format!("{environment:?}");
+        assert!(!rendered.contains("s3cret"), "{rendered}");
+        assert!(!rendered.contains("TOKEN"), "{rendered}");
+        assert!(rendered.contains('1'), "{rendered}");
+    }
 }

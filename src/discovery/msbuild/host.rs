@@ -14,7 +14,8 @@ use sha2::{Digest, Sha256};
 
 use super::super::{
     DiscoveryDiagnostic, DiscoveryDiagnosticSeverity, DiscoveryFailure,
-    DiscoveryFailureReason as Reason, DiscoveryRequest, EvaluationHostKind, HostProvenance,
+    DiscoveryFailureReason as Reason, DiscoveryRequest, EvaluationEnvironment, EvaluationHostKind,
+    HostProvenance,
 };
 
 const REQUEST_LIMIT: usize = 1024 * 1024;
@@ -82,16 +83,16 @@ pub(super) struct HostSelection {
 impl HostSelection {
     /// The project's closed recipe cannot account for arbitrary code loaded by its host.
     /// Consult this on each lookup and publication, independently of persisted worker evidence.
-    pub(super) fn cache_ineligibility(&self) -> Option<&'static str> {
+    pub(super) fn cache_ineligibility(
+        &self,
+        environment: &EvaluationEnvironment,
+    ) -> Option<&'static str> {
         if self.kind == EvaluationHostKind::Framework {
             // CLR4's stable version string does not identify the installed CLR/BCL
             // closure, which this host selection does not currently fingerprint.
             return Some("unqualified_framework_runtime");
         }
-        if RUNTIME_CODE_EXTENSIONS
-            .iter()
-            .any(|name| std::env::var_os(name).is_some_and(|value| !value.is_empty()))
-        {
+        if environment.loads_runtime_code() {
             return Some("unqualified_runtime_code_extension");
         }
         if self.kind == EvaluationHostKind::Sdk {
@@ -107,56 +108,14 @@ impl HostSelection {
         None
     }
 
-    pub(super) fn is_current(&self) -> crate::Result<bool> {
-        match installed_fingerprint(&self.fingerprint_paths, &self.fingerprint_seed) {
+    pub(super) fn is_current(&self, environment: &EvaluationEnvironment) -> crate::Result<bool> {
+        match installed_fingerprint(&self.fingerprint_paths, &self.fingerprint_seed, environment) {
             Ok(value) => Ok(value == self.fingerprint),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
             Err(error) => Err(error.into()),
         }
     }
 }
-
-// Diagnostic-only COREHOST_TRACE / DOTNET_HOST_TRACE inputs deliberately do not
-// appear here: unlike these injection points, tracing does not load arbitrary code.
-// The native-loader entries cover glibc's LD_PRELOAD/LD_AUDIT/LD_LIBRARY_PATH
-// and dyld's DYLD_INSERT_LIBRARIES, DYLD_LIBRARY_PATH,
-// DYLD_FALLBACK_LIBRARY_PATH, DYLD_FRAMEWORK_PATH, and
-// DYLD_FALLBACK_FRAMEWORK_PATH. This finite list is not a sandbox or a complete
-// model of arbitrary environment-dependent code.
-const RUNTIME_CODE_EXTENSIONS: &[&str] = &[
-    "DOTNET_STARTUP_HOOKS",
-    "DOTNET_ADDITIONAL_DEPS",
-    "DOTNET_SHARED_STORE",
-    "DOTNET_ENABLE_PROFILING",
-    "DOTNET_PROFILER",
-    "DOTNET_PROFILER_PATH",
-    "DOTNET_PROFILER_PATH_32",
-    "DOTNET_PROFILER_PATH_64",
-    "DOTNET_PROFILER_PATH_ARM32",
-    "DOTNET_PROFILER_PATH_ARM64",
-    "CORECLR_ENABLE_PROFILING",
-    "CORECLR_PROFILER",
-    "CORECLR_PROFILER_PATH",
-    "CORECLR_PROFILER_PATH_32",
-    "CORECLR_PROFILER_PATH_64",
-    "CORECLR_PROFILER_PATH_ARM32",
-    "CORECLR_PROFILER_PATH_ARM64",
-    "COR_ENABLE_PROFILING",
-    "COR_PROFILER",
-    "COR_PROFILER_PATH",
-    "COR_PROFILER_PATH_32",
-    "COR_PROFILER_PATH_64",
-    "APPDOMAIN_MANAGER_ASM",
-    "APPDOMAIN_MANAGER_TYPE",
-    "LD_PRELOAD",
-    "LD_AUDIT",
-    "LD_LIBRARY_PATH",
-    "DYLD_INSERT_LIBRARIES",
-    "DYLD_LIBRARY_PATH",
-    "DYLD_FALLBACK_LIBRARY_PATH",
-    "DYLD_FRAMEWORK_PATH",
-    "DYLD_FALLBACK_FRAMEWORK_PATH",
-];
 
 fn installation_muxer(msbuild_path: &Path) -> io::Result<PathBuf> {
     let root = msbuild_path
@@ -176,7 +135,11 @@ fn installation_muxer(msbuild_path: &Path) -> io::Result<PathBuf> {
     .canonicalize()
 }
 
-fn installed_fingerprint(paths: &[PathBuf], seed: &[u8]) -> io::Result<String> {
+fn installed_fingerprint(
+    paths: &[PathBuf],
+    seed: &[u8],
+    environment: &EvaluationEnvironment,
+) -> io::Result<String> {
     let mut hash = Sha256::new();
     hash.update(seed);
     for path in paths {
@@ -186,9 +149,7 @@ fn installed_fingerprint(paths: &[PathBuf], seed: &[u8]) -> io::Result<String> {
             hash_file(&mut hash, path)?;
         }
     }
-    let mut environment: Vec<_> = std::env::vars_os().collect();
-    environment.sort();
-    for (key, value) in environment {
+    for (key, value) in environment.iter() {
         hash.update(key.as_encoded_bytes());
         hash.update([0]);
         hash.update(value.as_encoded_bytes());
@@ -260,13 +221,18 @@ pub(super) fn run(
     command: &mut Command,
     input: Vec<u8>,
     timeout: Duration,
+    environment: &EvaluationEnvironment,
 ) -> Result<ProcessOutput, ProcessFailure> {
     if input.len() > REQUEST_LIMIT {
         return Err(ProcessFailure::Overflow);
     }
     let deadline = Instant::now() + timeout;
+    // Every bounded launch goes through here, so the environment the recipe
+    // fingerprinted is the only environment an evaluation host is ever given.
     let mut child = ProcessGuard(
         command
+            .env_clear()
+            .envs(environment.iter())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -412,12 +378,13 @@ fn terminate_and_reap(child: &mut ProcessGuard) -> Result<(), ProcessFailure> {
     }
 }
 
-pub(super) fn executable(name: &str) -> io::Result<PathBuf> {
+pub(super) fn executable(name: &str, environment: &EvaluationEnvironment) -> io::Result<PathBuf> {
     let path = Path::new(name);
     if path.components().count() > 1 || path.is_absolute() {
         return path.canonicalize();
     }
-    for directory in std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()) {
+    let search = environment.get("PATH").unwrap_or_default().to_owned();
+    for directory in std::env::split_paths(&search) {
         let candidate = directory.join(name);
         match candidate.metadata() {
             Ok(metadata) if metadata.is_file() => return candidate.canonicalize(),
@@ -443,6 +410,11 @@ impl<'a> HostSelector<'a> {
             request,
             selections: BTreeMap::new(),
         }
+    }
+
+    /// The invocation's environment: fingerprinted, searched, and given to every host.
+    fn environment(&self) -> &'a EvaluationEnvironment {
+        &self.request.options.environment
     }
 
     pub fn select(
@@ -523,14 +495,17 @@ impl<'a> HostSelector<'a> {
         } else {
             let dotnet = if let Some(path) = &explicit {
                 installation_muxer(path).map_err(unavailable)?
-            } else if let Some(path) = std::env::var_os("DOTNET") {
+            } else if let Some(path) = self.environment().get("DOTNET") {
                 PathBuf::from(path).canonicalize().map_err(unavailable)?
             } else {
-                executable(if cfg!(windows) {
-                    "dotnet.exe"
-                } else {
-                    "dotnet"
-                })
+                executable(
+                    if cfg!(windows) {
+                        "dotnet.exe"
+                    } else {
+                        "dotnet"
+                    },
+                    self.environment(),
+                )
                 .map_err(unavailable)?
             };
             let (path, version) =
@@ -630,7 +605,8 @@ impl<'a> HostSelector<'a> {
         fingerprint_paths.sort();
         fingerprint_paths.dedup();
         let fingerprint =
-            installed_fingerprint(&fingerprint_paths, &runtime_evidence).map_err(unavailable)?;
+            installed_fingerprint(&fingerprint_paths, &runtime_evidence, self.environment())
+                .map_err(unavailable)?;
         Ok(HostSelection {
             kind,
             msbuild_path,
@@ -720,7 +696,13 @@ impl<'a> HostSelector<'a> {
     }
 
     fn probe(&self, command: &mut Command) -> Result<ProcessOutput, DiscoveryFailure> {
-        run(command, Vec::new(), self.request.options.timeout).map_err(|error| match error {
+        run(
+            command,
+            Vec::new(),
+            self.request.options.timeout,
+            self.environment(),
+        )
+        .map_err(|error| match error {
             ProcessFailure::Timeout => failure(
                 Reason::Timeout,
                 "installed host probe exceeded its deadline",
@@ -734,7 +716,7 @@ impl<'a> HostSelector<'a> {
     }
 
     fn visual_studio(&self, directory: &Path) -> Result<PathBuf, DiscoveryFailure> {
-        let base = std::env::var_os("ProgramFiles(x86)").ok_or_else(|| {
+        let base = self.environment().get("ProgramFiles(x86)").ok_or_else(|| {
             failure(
                 Reason::ToolchainUnavailable,
                 "Visual Studio Installer directory is unavailable",
@@ -894,7 +876,12 @@ pub(super) fn evaluate(
             .parent()
             .ok_or_else(|| crate::Error::Config("project has no directory".into()))?,
     ));
-    let output = match run(&mut command, payload, request.options.timeout) {
+    let output = match run(
+        &mut command,
+        payload,
+        request.options.timeout,
+        &request.options.environment,
+    ) {
         Ok(output) => output,
         Err(ProcessFailure::Timeout) => {
             return Ok(Err(failure(
@@ -1107,6 +1094,12 @@ pub(super) fn classify_failure(project: &EvaluatedProject) -> DiscoveryFailure {
 mod tests {
     use super::*;
 
+    /// The transport tests exercise pipes and reaping, not recipe identity, and
+    /// resolve `sh` on `PATH`; they inherit rather than construct an environment.
+    fn transport_environment() -> EvaluationEnvironment {
+        EvaluationEnvironment::inherited()
+    }
+
     fn unavailable_host(root: &Path) -> HostSelection {
         HostSelection {
             kind: EvaluationHostKind::Sdk,
@@ -1204,13 +1197,75 @@ mod tests {
         }
     }
 
+    /// A bounded launch must receive exactly the environment its recipe
+    /// fingerprinted. If the host inherited the caller's ambient settings instead,
+    /// the hashed environment and the evaluated one could differ without evidence.
+    #[cfg(unix)]
+    #[test]
+    fn a_bounded_launch_receives_exactly_the_given_environment() {
+        let environment = EvaluationEnvironment::empty()
+            .with("PATH", "/usr/bin:/bin")
+            .with("TETHYS_PROBE", "GIVEN");
+        let output = run(
+            Command::new("/bin/sh").args(["-c", "env"]),
+            Vec::new(),
+            Duration::from_secs(5),
+            &environment,
+        )
+        .expect("the probe must run");
+        let reported = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            reported.lines().any(|line| line == "TETHYS_PROBE=GIVEN"),
+            "the given environment must reach the host: {reported}"
+        );
+        // Cargo sets this for the test process; production must not silently
+        // extend a host's environment with the caller's ambient settings.
+        assert!(
+            !reported.contains("CARGO_PKG_NAME"),
+            "ambient caller settings leaked into the host: {reported}"
+        );
+    }
+
+    /// Every name the product publishes as a runtime code extension must actually
+    /// disqualify reuse. Driving the assertion from the constant itself means a new
+    /// entry is covered without editing a second list anywhere.
+    #[test]
+    fn every_runtime_code_extension_disqualifies_reuse() {
+        let root = tempfile::tempdir().unwrap();
+        let host = unavailable_host(root.path());
+        assert_eq!(
+            host.cache_ineligibility(&EvaluationEnvironment::empty()),
+            Some("unqualified_forwarding_muxer"),
+            "the clean baseline must fail for an unrelated reason, not vacuously",
+        );
+        for name in EvaluationEnvironment::RUNTIME_CODE_EXTENSIONS {
+            let extended = EvaluationEnvironment::empty().with(*name, "Probe.dll");
+            assert_eq!(
+                host.cache_ineligibility(&extended),
+                Some("unqualified_runtime_code_extension"),
+                "{name} must disqualify reuse",
+            );
+            let blank = EvaluationEnvironment::empty().with(*name, "");
+            assert_eq!(
+                host.cache_ineligibility(&blank),
+                Some("unqualified_forwarding_muxer"),
+                "{name} bound to an empty value loads no code",
+            );
+        }
+    }
+
     #[cfg(unix)]
     #[test]
     fn executable_permission_errors_remain_infrastructure_failures() {
         let root = tempfile::tempdir().unwrap();
         let path = root.path().join("not-executable");
         std::fs::write(&path, "#!/bin/sh\nexit 0\n").unwrap();
-        let result = run(&mut Command::new(path), Vec::new(), Duration::from_secs(1));
+        let result = run(
+            &mut Command::new(path),
+            Vec::new(),
+            Duration::from_secs(1),
+            &transport_environment(),
+        );
         assert!(
             matches!(result, Err(ProcessFailure::Io(error)) if error.kind() == io::ErrorKind::PermissionDenied)
         );
@@ -1233,6 +1288,7 @@ mod tests {
             Command::new("sh").args(["-c", "sleep 30 & exit 0"]),
             Vec::new(),
             Duration::from_millis(100),
+            &transport_environment(),
         );
         assert!(matches!(result, Err(ProcessFailure::Timeout)));
         assert!(start.elapsed() < Duration::from_secs(3));
@@ -1246,6 +1302,7 @@ mod tests {
             Command::new("sh").args(["-c", "yes >&2 & wait"]),
             Vec::new(),
             Duration::from_secs(5),
+            &transport_environment(),
         );
         match result {
             Err(ProcessFailure::Overflow) => {}
@@ -1300,6 +1357,7 @@ mod tests {
             Command::new("sh").args(["-c", "cat >&2"]),
             vec![b'x'; REQUEST_LIMIT],
             Duration::from_secs(5),
+            &transport_environment(),
         );
         let output = result.unwrap_or_else(|_| panic!("concurrent pipe transport failed"));
         assert!(output.status.success());

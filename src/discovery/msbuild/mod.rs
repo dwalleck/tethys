@@ -129,7 +129,7 @@ fn validate_snapshot(
     }
     let mut host_changed = false;
     for host in hosts.values() {
-        if !host.is_current()? {
+        if !host.is_current(&request.options.environment)? {
             host_changed = true;
         }
     }

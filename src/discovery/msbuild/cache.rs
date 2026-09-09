@@ -171,10 +171,9 @@ impl<'a> Cache<'a> {
         request: &'a DiscoveryRequest,
         inventory: &WorkspaceInventory,
     ) -> crate::Result<Self> {
-        let environment: BTreeMap<_, _> = std::env::vars_os().collect();
         // OS strings are hashed without lossy conversion and never persisted verbatim.
         let mut hash = Sha256::new();
-        for (name, value) in environment {
+        for (name, value) in request.options.environment.iter() {
             for bytes in [name.as_encoded_bytes(), value.as_encoded_bytes()] {
                 hash.update(bytes.len().to_le_bytes());
                 hash.update(bytes);
@@ -227,7 +226,7 @@ impl<'a> Cache<'a> {
         if self.request.options.cache_policy == DiscoveryCachePolicy::Disabled {
             return Err("cache_disabled".into());
         }
-        if let Some(reason) = host.cache_ineligibility() {
+        if let Some(reason) = host.cache_ineligibility(&self.request.options.environment) {
             return Err(reason.into());
         }
         if self.symlinks {
@@ -285,7 +284,7 @@ impl<'a> Cache<'a> {
         host: &HostSelection,
     ) -> Vec<String> {
         let mut reasons = evaluation.cache_ineligibility.clone();
-        if let Some(reason) = host.cache_ineligibility() {
+        if let Some(reason) = host.cache_ineligibility(&self.request.options.environment) {
             reasons.push(reason.into());
         }
         if !evaluation.cache_eligible {

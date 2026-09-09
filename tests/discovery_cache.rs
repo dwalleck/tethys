@@ -5,8 +5,19 @@ use std::time::{Duration, UNIX_EPOCH};
 use tempfile::TempDir;
 use tethys::discovery::*;
 
+/// Build the caller environment these fixtures evaluate under.
+///
+/// Test tooling (`setup-python`, cargo runners) adds loader search paths that the
+/// product treats as runtime code extensions, which would disqualify every receipt.
+/// Remove exactly the names the product itself names, from this caller's environment
+/// only; production still refuses to exempt caller-supplied runtime settings.
+fn harness_environment() -> EvaluationEnvironment {
+    EvaluationEnvironment::inherited().without(EvaluationEnvironment::RUNTIME_CODE_EXTENSIONS)
+}
+
 fn options() -> DiscoveryOptions {
     DiscoveryOptions {
+        environment: harness_environment(),
         trust_msbuild: true,
         msbuild_path: Some(PathBuf::from(
             std::env::var_os("TETHYS_SDK_MSBUILD_PATH")
@@ -390,24 +401,6 @@ fn eligible_literal_with_preepoch_source_serializes_and_invalidates_content() {
     );
 }
 
-fn harness_free(command: &mut std::process::Command) -> &mut std::process::Command {
-    // Remove test-tool loader search paths from harness children only; the
-    // product must not silently exempt caller-supplied runtime settings.
-    #[cfg(unix)]
-    command
-        .env_remove("LD_PRELOAD")
-        .env_remove("LD_AUDIT")
-        .env_remove("LD_LIBRARY_PATH")
-        .env_remove("DYLD_INSERT_LIBRARIES")
-        .env_remove("DYLD_LIBRARY_PATH")
-        .env_remove("DYLD_FALLBACK_LIBRARY_PATH")
-        .env_remove("DYLD_FRAMEWORK_PATH")
-        .env_remove("DYLD_FALLBACK_FRAMEWORK_PATH")
-        .env_remove("PYTHONHOME")
-        .env_remove("PYTHONPATH");
-    command
-}
-
 #[test]
 #[ignore = "requires packaged real worker and explicitly selected installed SDK"]
 fn shared_physical_memberships_and_case_insensitive_global_precedence() {
@@ -482,41 +475,30 @@ fn native_metadata_names_are_case_insensitive_without_rewriting_spelling() {
 fn eligible_hit_launches_zero_evaluators() {
     let trace_root = TempDir::new().unwrap();
     let log = trace_root.path().join("host.trace");
-    let output = harness_free(&mut std::process::Command::new(
-        std::env::current_exe().unwrap(),
-    ))
-    .args(["--ignored", "--exact", "cache_launch_child"])
-    .env("TETHYS_CACHE_LAUNCH_CHILD", "1")
-    .env("COREHOST_TRACE", "1")
-    .env("COREHOST_TRACE_VERBOSITY", "4")
-    .env("COREHOST_TRACEFILE", &log)
-    .env("DOTNET_HOST_TRACE", "1")
-    .env("DOTNET_HOST_TRACE_VERBOSITY", "4")
-    .env("DOTNET_HOST_TRACEFILE", &log)
-    .output()
-    .unwrap();
-    assert!(
-        output.status.success(),
-        "{}\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-#[test]
-#[ignore = "subprocess-only cache-launch fence"]
-fn cache_launch_child() {
-    if std::env::var_os("TETHYS_CACHE_LAUNCH_CHILD").is_none() {
-        return;
-    }
-    let log = PathBuf::from(std::env::var_os("COREHOST_TRACEFILE").unwrap());
     let root = fixture();
-    let selected = options();
-    let sdk = selected.msbuild_path.as_ref().unwrap();
+    let sdk = options().msbuild_path.unwrap();
     fs::write(
         root.path().join("global.json"),
         serde_json::json!({"sdk": {"version": sdk.file_name().unwrap().to_str().unwrap(), "rollForward": "disable"}}).to_string(),
     ).unwrap();
+    // Diagnostic tracing is deliberately not a runtime code extension, so it does
+    // not disqualify reuse. The worker receives it because a bounded launch is
+    // given exactly the environment its recipe fingerprinted; no re-exec is needed
+    // to place these settings in the evaluator's process. Set both names for
+    // pre-.NET 10 and .NET 10+ native hosts, including a newer muxer loading an
+    // older runtime's hostpolicy.
+    let traced = |policy: DiscoveryCachePolicy, trust: bool| DiscoveryOptions {
+        trust_msbuild: trust,
+        cache_policy: policy,
+        environment: harness_environment()
+            .with("COREHOST_TRACE", "1")
+            .with("COREHOST_TRACE_VERBOSITY", "4")
+            .with("COREHOST_TRACEFILE", log.clone())
+            .with("DOTNET_HOST_TRACE", "1")
+            .with("DOTNET_HOST_TRACE_VERBOSITY", "4")
+            .with("DOTNET_HOST_TRACEFILE", log.clone()),
+        ..options()
+    };
     // trace.cpp opens in append mode; remove the prior invocation's file rather
     // than comparing lengths or cumulative counts. The environment stays fixed.
     let reset_trace = || match fs::remove_file(&log) {
@@ -543,10 +525,7 @@ fn cache_launch_child() {
     reset_trace();
     let untrusted = discover(
         root.path(),
-        DiscoveryOptions {
-            trust_msbuild: false,
-            ..selected.clone()
-        },
+        traced(DiscoveryCachePolicy::Enabled, false),
         vec![],
     );
     assert!(untrusted.units.is_empty());
@@ -555,14 +534,22 @@ fn cache_launch_child() {
         "untrusted discovery must leave no native process evidence"
     );
     reset_trace();
-    let fresh = discover(root.path(), selected.clone(), vec![]);
+    let fresh = discover(
+        root.path(),
+        traced(DiscoveryCachePolicy::Enabled, true),
+        vec![],
+    );
     assert_authored(&fresh, &["src/First.cs"]);
     assert!(
         worker_launches(&read_trace()) > 0,
         "fresh control must launch the real worker"
     );
     reset_trace();
-    let hit = discover(root.path(), selected.clone(), fresh.cache.clone());
+    let hit = discover(
+        root.path(),
+        traced(DiscoveryCachePolicy::Enabled, true),
+        fresh.cache.clone(),
+    );
     let hit_trace = read_trace();
     assert_eq!(
         worker_launches(&hit_trace),
@@ -577,10 +564,7 @@ fn cache_launch_child() {
     reset_trace();
     let forced = discover(
         root.path(),
-        DiscoveryOptions {
-            cache_policy: DiscoveryCachePolicy::Disabled,
-            ..selected
-        },
+        traced(DiscoveryCachePolicy::Disabled, true),
         hit.cache.clone(),
     );
     assert!(
@@ -591,60 +575,77 @@ fn cache_launch_child() {
 }
 
 #[test]
-#[ignore = "requires real worker; process-local environment avoids unsafe global test mutation"]
+#[ignore = "requires packaged real worker and explicitly selected installed SDK"]
 fn environment_change_invalidates_eligible_receipt() {
     let root = fixture();
-    let state = TempDir::new().unwrap();
-    let state_path = state.path().join("receipt.json");
-    fs::write(&state_path, "{\"cache\":[]}").unwrap();
-    let run = |value: &str| {
-        let mut command = std::process::Command::new(std::env::current_exe().unwrap());
-        harness_free(&mut command);
-        let output = command
-            .args(["--ignored", "--exact", "environment_child"])
-            .env("TETHYS_ENV_ROOT", root.path())
-            .env("TETHYS_ENV_STATE", &state_path)
-            .env("DefineConstants", value)
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "{}\n{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        serde_json::from_slice::<serde_json::Value>(&fs::read(&state_path).unwrap()).unwrap()
+    // MSBuild reads environment variables as properties, so the caller's
+    // environment is recipe identity. It is an argument here, not process state:
+    // no re-exec, no `set_var`, and the runs may execute alongside other tests.
+    let defined = |value: &str| DiscoveryOptions {
+        environment: harness_environment().with("DefineConstants", value),
+        ..options()
     };
-    let first = run("ENV_ONE");
-    assert_eq!(
-        first["units"][0]["properties"]["DefineConstants"],
-        "ENV_ONE"
+    let first = discover(root.path(), defined("ENV_ONE"), vec![]);
+    assert_eq!(first.units[0].properties["DefineConstants"], "ENV_ONE");
+    assert!(
+        !first.cache.is_empty(),
+        "eligible recipe must publish evidence: {:?}",
+        first.cache_observations
     );
-    let hit = run("ENV_ONE");
-    assert_eq!(hit["observations"][0]["reused"], true);
-    assert_eq!(first["units"], hit["units"]);
-    let changed = run("ENV_TWO");
-    assert_eq!(changed["observations"][0]["reused"], false);
-    assert_eq!(
-        changed["units"][0]["properties"]["DefineConstants"],
-        "ENV_TWO"
+
+    let hit = discover(root.path(), defined("ENV_ONE"), first.cache.clone());
+    assert!(
+        hit.cache_observations
+            .iter()
+            .all(|observation| observation.reused)
     );
+    assert_eq!(first.units, hit.units);
+
+    let changed = discover(root.path(), defined("ENV_TWO"), hit.cache);
+    assert!(
+        changed
+            .cache_observations
+            .iter()
+            .all(|observation| !observation.reused)
+    );
+    assert_eq!(changed.units[0].properties["DefineConstants"], "ENV_TWO");
 }
 
 #[test]
-#[ignore = "subprocess-only environment fence"]
-fn environment_child() {
-    let Some(root) = std::env::var_os("TETHYS_ENV_ROOT") else {
-        return;
-    };
-    let state_path = PathBuf::from(std::env::var_os("TETHYS_ENV_STATE").unwrap());
-    let state: serde_json::Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
-    let snapshot = discover(
-        Path::new(&root),
-        options(),
-        serde_json::from_value(state["cache"].clone()).unwrap(),
+#[ignore = "requires packaged real worker and explicitly selected installed SDK"]
+fn caller_runtime_code_extension_never_publishes_evidence() {
+    let root = fixture();
+    let fresh = discover(root.path(), options(), vec![]);
+    assert!(
+        !fresh.cache.is_empty(),
+        "control must publish evidence: {:?}",
+        fresh.cache_observations
     );
-    fs::write(state_path, serde_json::to_vec(&serde_json::json!({
-        "cache": snapshot.cache, "units": snapshot.units, "observations": snapshot.cache_observations
-    })).unwrap()).unwrap();
+    // A caller-supplied loader setting is not silently exempted just because the
+    // harness supplied it; the evaluator is launched with it and reuse declines.
+    // The setting has to be one a host tolerates: a real search path is disqualifying
+    // but harmless, where a missing profiler or startup hook aborts host startup and
+    // would prove nothing about cache eligibility.
+    let search = TempDir::new().unwrap();
+    let extended = discover(
+        root.path(),
+        DiscoveryOptions {
+            environment: harness_environment().with("LD_LIBRARY_PATH", search.path()),
+            ..options()
+        },
+        fresh.cache,
+    );
+    assert_authored(&extended, &["src/First.cs"]);
+    assert!(extended.cache.is_empty());
+    assert!(
+        extended.cache_observations.iter().all(|observation| {
+            !observation.reused
+                && observation
+                    .bypass_reasons
+                    .iter()
+                    .any(|reason| reason == "unqualified_runtime_code_extension")
+        }),
+        "{:?}",
+        extended.cache_observations
+    );
 }

@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 
 use super::super::{
     DiscoveryFailure, DiscoveryFailureReason as Reason, DiscoveryRequest,
-    DiscoveryRestoreStyle as Style, RestoreProvenance,
+    DiscoveryRestoreStyle as Style, EvaluationEnvironment, RestoreProvenance,
 };
 use super::host::{self, EvaluatedProject, HostSelection, ProcessFailure, failure};
 use super::input::bounded_read;
@@ -231,14 +231,18 @@ fn inspect_legacy_context(
             }
         }
     }
-    inspect_external_configs(inputs)
+    inspect_external_configs(inputs, &request.options.environment)
         .map_err(|error| failure(Reason::MalformedInput, error.to_string()))?;
     Ok(())
 }
 
-fn inspect_external_configs(inputs: &mut ProjectInputs) -> io::Result<()> {
-    let environment_path = |name| {
-        std::env::var_os(name)
+fn inspect_external_configs(
+    inputs: &mut ProjectInputs,
+    environment: &EvaluationEnvironment,
+) -> io::Result<()> {
+    let environment_path = |name: &str| {
+        environment
+            .get(name)
             .filter(|value| !value.is_empty())
             .map(PathBuf::from)
     };
@@ -993,11 +997,11 @@ fn restore_sources(
             return Ok(None);
         }
     };
-    inspect_external_configs(&mut inspected)?;
+    inspect_external_configs(&mut inspected, &request.options.environment)?;
     if !cfg!(windows) {
         for home in ["HOME", "DOTNET_CLI_HOME"]
             .into_iter()
-            .filter_map(std::env::var_os)
+            .filter_map(|name| request.options.environment.get(name))
         {
             let fallback = PathBuf::from(home).join(".nuget/NuGet/NuGet.Config");
             if regular_file(&fallback)? {
@@ -1442,7 +1446,7 @@ fn run_authorized_restore(
                 "packages.config restore destination is unavailable, ambiguous, or depends on unestablished configuration; establish repositoryPath or clear inherited config with an explicit/unique SolutionDir",
             )));
         }
-        let nuget = match host::executable("nuget.exe") {
+        let nuget = match host::executable("nuget.exe", &request.options.environment) {
             Ok(path) => path,
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
                 return Ok(Err(failure(
@@ -1497,7 +1501,12 @@ fn run_authorized_restore(
             .parent()
             .ok_or_else(|| crate::Error::Config("project has no directory".into()))?,
     ));
-    let output = match host::run(&mut command, Vec::new(), request.options.timeout) {
+    let output = match host::run(
+        &mut command,
+        Vec::new(),
+        request.options.timeout,
+        &request.options.environment,
+    ) {
         Ok(output) => output,
         Err(ProcessFailure::Timeout) => {
             return Ok(Err(failure(

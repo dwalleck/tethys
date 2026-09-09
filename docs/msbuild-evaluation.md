@@ -111,10 +111,16 @@ Reusable evaluation requires a qualified recipe and matching project, inventory/
 
 Native-loader injection and library/framework search-path settings also make
 evaluation ineligible for reuse. This finite qualification gate is not a sandbox.
-When testing an otherwise eligible recipe under Cargo/nextest, account for the
-loader search paths the test runner adds: a test-only target runner can remove
-those inherited settings before launching the test binary. Production discovery
-does not silently remove or exempt caller settings.
+
+The environment is an argument, not ambient process state. `DiscoveryOptions`
+carries an `EvaluationEnvironment`, which defaults to the calling process's
+environment; discovery fingerprints exactly that value and gives exactly that
+value to every bounded launch, so the hashed environment and the evaluated one
+cannot diverge. Production discovery still does not silently remove or exempt
+caller settings: a caller that wants the loader search paths its own test runner
+added to be excluded says so, by name, with
+`EvaluationEnvironment::without(EvaluationEnvironment::RUNTIME_CODE_EXTENSIONS)`.
+That constant is the single published list of settings that disqualify reuse.
 
 The supervisor enforces the per-process deadline and protocol byte limits, terminates the process group, and bounds reaping. These controls do not make arbitrary trusted project code a security sandbox.
 
