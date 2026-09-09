@@ -726,6 +726,24 @@ pub struct DiscoverySnapshot {
     pub cache_observations: Vec<DiscoveryCacheObservation>,
 }
 
+impl DiscoverySnapshot {
+    /// Whether all discovered coverage has confirmed standing and no top-level issues.
+    ///
+    /// This checks only observed projects and units; it does not invent coverage
+    /// for projects that were not discovered.
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.issues.is_empty()
+            && self
+                .projects
+                .iter()
+                .all(|project| project.standing == DiscoveryStanding::Confirmed)
+            && self
+                .units
+                .iter()
+                .all(|unit| unit.standing == DiscoveryStanding::Confirmed)
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::EvaluationEnvironment;
@@ -776,23 +794,5 @@ mod tests {
         assert!(!rendered.contains("s3cret"), "{rendered}");
         assert!(!rendered.contains("TOKEN"), "{rendered}");
         assert!(rendered.contains('1'), "{rendered}");
-    }
-}
-impl DiscoverySnapshot {
-    /// Whether all discovered coverage has confirmed standing and no top-level issues.
-    ///
-    /// This checks only observed projects and units; it does not invent coverage
-    /// for projects that were not discovered.
-    #[must_use]
-    pub fn is_complete(&self) -> bool {
-        self.issues.is_empty()
-            && self
-                .projects
-                .iter()
-                .all(|project| project.standing == DiscoveryStanding::Confirmed)
-            && self
-                .units
-                .iter()
-                .all(|unit| unit.standing == DiscoveryStanding::Confirmed)
     }
 }
