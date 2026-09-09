@@ -13,13 +13,53 @@ use tethys::{ArchPhaseResult, IndexOptions, Tethys};
 
 use super::ensure_lsp_if_requested;
 
-/// Parse an explicit global property without losing empty values or embedded `=`.
+/// Parse an explicit global property, trimming its name without losing empty values or embedded `=`.
 pub(crate) fn parse_property(value: &str) -> Result<(String, String), String> {
     let (name, value) = value
         .split_once('=')
         .filter(|(name, _)| !name.trim().is_empty() && !name.contains('\0'))
         .ok_or_else(|| "expected NAME=VALUE with a nonempty property name".to_owned())?;
-    Ok((name.to_owned(), value.to_owned()))
+    Ok((name.trim().to_owned(), value.to_owned()))
+}
+
+#[cfg(test)]
+mod parse_property_tests {
+    use super::parse_property;
+
+    #[test]
+    fn trims_padded_property_names() {
+        assert_eq!(
+            parse_property(" Configuration =Release").expect("valid property"),
+            ("Configuration".to_owned(), "Release".to_owned())
+        );
+        assert_eq!(
+            parse_property(" TargetFramework =net8.0").expect("valid property"),
+            ("TargetFramework".to_owned(), "net8.0".to_owned())
+        );
+    }
+
+    #[test]
+    fn preserves_value_spacing_and_embedded_equals() {
+        assert_eq!(
+            parse_property("Configuration=  Release  ").expect("valid property"),
+            ("Configuration".to_owned(), "  Release  ".to_owned())
+        );
+        assert_eq!(
+            parse_property("Configuration=").expect("empty value is valid"),
+            ("Configuration".to_owned(), String::new())
+        );
+        assert_eq!(
+            parse_property("A=b=c").expect("embedded equals are valid"),
+            ("A".to_owned(), "b=c".to_owned())
+        );
+    }
+
+    #[test]
+    fn rejects_missing_or_invalid_property_names() {
+        assert!(parse_property("").is_err());
+        assert!(parse_property("=x").is_err());
+        assert!(parse_property("A\0=x").is_err());
+    }
 }
 
 /// Run the index command.
