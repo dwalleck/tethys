@@ -200,6 +200,7 @@ pub(super) struct ProcessOutput {
     pub stderr: Vec<u8>,
 }
 
+#[cfg_attr(test, derive(Debug))]
 pub(super) enum ProcessFailure {
     Timeout,
     Io(io::Error),
@@ -362,26 +363,40 @@ fn supervise(
 }
 
 fn terminate_and_reap(child: &mut ProcessGuard) -> Result<(), ProcessFailure> {
-    // Killing on success closes any surviving descendants too. ESRCH means the Unix group is gone.
-    if let Err(error) = child.0.kill()
-        && error.kind() != io::ErrorKind::InvalidInput
-        && !(cfg!(unix) && error.raw_os_error() == Some(3))
-    {
-        return Err(ProcessFailure::Io(error));
-    }
     let reap_deadline = Instant::now() + Duration::from_secs(2);
+    let mut signalled = false;
+    let mut kill_error = None;
     loop {
-        if child.0.try_wait()?.is_some() {
-            break;
+        if !signalled {
+            match child.0.kill() {
+                Ok(()) => signalled = true,
+                Err(error)
+                    if error.kind() == io::ErrorKind::InvalidInput
+                        || (cfg!(unix) && error.raw_os_error() == Some(3)) =>
+                {
+                    signalled = true;
+                }
+                Err(error)
+                    if cfg!(target_os = "macos")
+                        && error.kind() == io::ErrorKind::PermissionDenied =>
+                {
+                    // Darwin may deny signalling an unreaped zombie group. Reap
+                    // and retry: leader exit alone does not prove the group is gone.
+                    kill_error = Some(error);
+                }
+                Err(error) => return Err(ProcessFailure::Io(error)),
+            }
+        }
+        if child.0.try_wait()?.is_some() && signalled {
+            return Ok(());
         }
         if Instant::now() >= reap_deadline {
-            return Err(ProcessFailure::Io(io::Error::other(
-                "terminated discovery process could not be reaped",
-            )));
+            return Err(ProcessFailure::Io(kill_error.unwrap_or_else(|| {
+                io::Error::other("terminated discovery process could not be reaped")
+            })));
         }
         thread::sleep(Duration::from_millis(5));
     }
-    Ok(())
 }
 
 pub(super) fn executable(name: &str) -> io::Result<PathBuf> {
@@ -1219,8 +1234,50 @@ mod tests {
             Vec::new(),
             Duration::from_secs(5),
         );
-        assert!(matches!(result, Err(ProcessFailure::Overflow)));
+        match result {
+            Err(ProcessFailure::Overflow) => {}
+            Err(error) => panic!("expected Overflow, got {error:?}"),
+            Ok(output) => panic!("expected Overflow, process exited {}", output.status),
+        }
         assert!(start.elapsed() < Duration::from_secs(3));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn already_exited_process_group_is_reaped() {
+        let mut child = ProcessGuard(
+            Command::new("sh")
+                .args(["-c", "exit 0"])
+                .group_spawn()
+                .expect("should spawn an isolated process group"),
+        );
+        let pid = child.0.inner().id().to_string();
+        let deadline = Instant::now() + Duration::from_secs(3);
+        loop {
+            // Observe exit without wait/try_wait: the unreaped group is the
+            // boundary at which Darwin can deny a signal to zombie members.
+            let state = Command::new("ps")
+                .args(["-o", "stat=", "-p", &pid])
+                .output()
+                .expect("should inspect the child without reaping it");
+            assert!(state.status.success(), "child must still exist before reap");
+            if String::from_utf8_lossy(&state.stdout)
+                .trim_start()
+                .starts_with('Z')
+            {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "child did not reach exited state"
+            );
+            thread::sleep(Duration::from_millis(5));
+        }
+        terminate_and_reap(&mut child).expect("an exited group must be reaped successfully");
+        assert!(
+            child.0.try_wait().unwrap().unwrap().success(),
+            "cleanup must retain the child's successful exit"
+        );
     }
 
     #[cfg(unix)]
