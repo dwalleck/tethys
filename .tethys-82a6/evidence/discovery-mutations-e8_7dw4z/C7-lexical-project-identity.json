@@ -1,0 +1,8 @@
+{
+  "path": "src/discovery/msbuild/restore.rs",
+  "before": "        Ok(canonical) => Ok(canonical == project),",
+  "after": "        Ok(_canonical) => Ok(path == project),",
+  "tests": [
+    "existing_restore_requires_same_physical_project"
+  ]
+}

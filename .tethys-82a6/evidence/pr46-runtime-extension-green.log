@@ -1,0 +1,12 @@
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.05s
+info: using target runner `env -u LD_LIBRARY_PATH` defined by environment variable `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER`
+────────────
+ Nextest run ID 150c0063-9671-472d-8e4c-1cfa7c07ad9b with nextest profile: default
+    Starting 5 tests across 1 binary
+        PASS [   0.003s] (1/5) tethys::discovery_runtime targeting_pack_versions_sort_numerically
+        PASS [   0.003s] (2/5) tethys::discovery_runtime runtime_extension_child
+        PASS [   1.931s] (3/5) tethys::discovery_runtime forwarding_muxer_external_reads_never_reuse_literal_metadata
+        PASS [   3.406s] (4/5) tethys::discovery_runtime native_loader_external_reads_never_reuse_literal_metadata
+        PASS [   3.586s] (5/5) tethys::discovery_runtime startup_hook_external_reads_never_reuse_literal_metadata
+────────────
+     Summary [   3.586s] 5 tests run: 5 passed, 0 skipped

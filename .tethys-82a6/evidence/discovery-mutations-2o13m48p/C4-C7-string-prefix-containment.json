@@ -1,0 +1,8 @@
+{
+  "path": "src/discovery/msbuild/candidates.rs",
+  "before": "    let relative = resolved.strip_prefix(root).map_err(|_| {\n        failure(\n            path,\n            DiscoveryFailureReason::OutsideWorkspaceInput,\n            \"Path escapes the workspace\",\n        )\n    })?;",
+  "after": "    let resolved_text = resolved.to_string_lossy();\n    let root_text = root.to_string_lossy();\n    let relative = resolved_text.strip_prefix(root_text.as_ref()).map(|suffix| {\n        PathBuf::from(suffix.trim_start_matches(std::path::MAIN_SEPARATOR))\n    }).ok_or_else(|| {\n        failure(\n            path,\n            DiscoveryFailureReason::OutsideWorkspaceInput,\n            \"Path escapes the workspace\",\n        )\n    })?;",
+  "tests": [
+    "missing_directory_empty_and_outside_declarations_are_typed_not_dropped"
+  ]
+}

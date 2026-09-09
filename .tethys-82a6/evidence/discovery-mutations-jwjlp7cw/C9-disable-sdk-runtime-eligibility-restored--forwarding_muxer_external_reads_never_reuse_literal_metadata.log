@@ -1,0 +1,12 @@
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.04s
+────────────
+ Nextest run ID 8017d4c7-8aa7-4ec1-a90d-caa76d895cae with nextest profile: default
+    Starting 1 test across 1 binary (2 tests skipped)
+        SKIP [         ] tethys::discovery_runtime runtime_extension_child
+        SKIP [         ] tethys::discovery_runtime startup_hook_external_reads_never_reuse_literal_metadata
+        PASS [   1.723s] tethys::discovery_runtime forwarding_muxer_external_reads_never_reuse_literal_metadata
+────────────
+     Summary [   1.723s] 1 test run: 1 passed, 2 skipped
+        PASS [   1.723s] tethys::discovery_runtime forwarding_muxer_external_reads_never_reuse_literal_metadata
+        SKIP [         ] tethys::discovery_runtime runtime_extension_child
+        SKIP [         ] tethys::discovery_runtime startup_hook_external_reads_never_reuse_literal_metadata

@@ -1,4 +1,4 @@
-# MSBuild evaluation companion
+# MSBuild discovery and evaluation
 
 The companion evaluates C# project metadata through the selected MSBuild installation. It does not compile source, execute targets, restore project dependencies, or acquire compiler bindings. Evaluation can execute MSBuild property functions and SDK-resolver code: the evaluation grant is trust, not a sandbox.
 
@@ -38,7 +38,7 @@ Request fields:
 | Field | Meaning |
 |---|---|
 | `protocol_version` | `1` |
-| `workspace_root` | Canonical absolute workspace path; `project_path` must lie inside it |
+| `workspace_root` | Absolute workspace path in native-compatible form; `project_path` must lie inside it |
 | `project_path` | Absolute project-file path |
 | `target_framework` | Inner SDK framework selector, or `null` for outer/classic evaluation |
 | `global_properties` | Explicit caller property map |
@@ -52,7 +52,7 @@ Response fields:
 - `protocol_version`, `success`, and `project_path` identify the result.
 - `host` records actual runtime kind, loaded toolchain path, full MSBuild file version and runtime; failures before loading may have no host.
 - `properties` contains evaluated framework, assembly, compiler-option, output, restore-location and toolchain metadata, plus explicitly requested global-property keys. It is not a dump of ambient environment variables.
-- `items` has `Compile`, `ProjectReference`, and `Reference` arrays. Each item contains `include`, `full_path`, and evaluated `metadata`; imported/linked items retain their metadata, including `Link` and `HintPath` where present. Filesystem timestamps (`ModifiedTime`, `CreatedTime`, `AccessedTime`) are excluded so an unchanged project produces an identical response.
+- `items` has `Compile`, `ProjectReference`, `Reference`, `PackageReference`, `PackageVersion`, and `PackageDownload` arrays. Each item contains `include`, `full_path`, and evaluated `metadata`. Authored metadata spelling is retained; known names such as `Link`, `HintPath`, and package versions are interpreted case-insensitively, as MSBuild does. Filesystem timestamps (`ModifiedTime`, `CreatedTime`, `AccessedTime`) are excluded so an unchanged project produces an identical response.
 - `imports` lists imported project paths. `glob_patterns` records defining project, item type and include/exclude/remove expressions.
 - `diagnostics` carries severity, native code, exception type, message, file and source position where available. Human message substrings are not failure categories.
 - `cache_eligible` and `cache_ineligibility` report whether a qualified evaluation recipe can account for its input closure. They are evidence, not permission to reuse a result without validating its inputs.
@@ -64,6 +64,65 @@ A declared `ProjectReference` is not proof that MSBuild selected a particular ta
 Missing imports remain errors. There is no blanket ignore-missing-imports mode. If a caller explicitly supplies the approved import-tolerance profile as `VSToolsPath=""`, that value is evaluated and reported; the worker does not silently invent it or override other caller globals.
 
 The companion has no restore or target-execution mode. Restoring project assets is a separately authorized operation of the discovery caller, using the repository's normal package policy. Evaluation metadata is not a substitute for reference assemblies, target-generated references, generated source, or Roslyn semantic facts.
+
+## Standalone discovery
+
+`tethys::discovery::discover_workspace` accepts a `DiscoveryRequest` and returns Cargo attribution plus C# projects, evaluation units, source memberships, diagnostics and opaque cache entries. `CargoDiscovery` reuses the existing Cargo discovery algorithms. This API is independently usable; CLI indexing does not yet invoke it.
+
+Candidate discovery reads `.sln`, `.slnx`, `.slnf`, and standalone `.csproj` files without executing project code. Filters resolve relative to their referenced solution and do not suppress unrelated standalone projects. Canonical path containment rejects outside-workspace declarations and source links. Automatic candidates exclude generated and internal directory identities; explicit solution declarations may name projects in generated directories. An empty workspace differs from malformed containers or failed enumeration.
+
+Solution containers are limited to 4 MiB before evaluation trust is considered.
+Unsupported solution project kinds are skipped before validating their paths;
+invalid supported C# declarations remain diagnostics. An invalid unselected
+solution member does not erase a filter's valid selected membership.
+
+The Rust adapter keeps canonical workspace, project and host identities, but presents filesystem-equivalent ordinary Windows paths to MSBuild/NuGet when possible, including the SDK `MSBuild.dll` argument. SDK MSBuild and VS17.14 can silently omit globbed items for verbatim project paths; SDK restore can also report success without producing assets when its DLL argument is verbatim (`tethys-82a6`). The adapter validates the exact presented response identity before restoring canonical project/host identity for domain records and cache receipts; authored global values and native item metadata are not rewritten.
+
+`DiscoveryOptions::trust_msbuild` is required before host probes or evaluation. `allow_restore` is a separate grant, not implied by trust. An explicit installed `msbuild_path` selects its own SDK muxer and cannot be overridden by ambient `DOTNET`; implicit SDK selection honors applicable `global.json` policy. Missing helpers and unsupported toolchains are reported, never installed on demand.
+
+Confirmed units retain their full framework identity, compiler/output properties, source memberships and declared references. A failed outer evaluation remains an indeterminate project; failed inner evaluations retain their selectors beside successful sibling units. Stable reasons are `trust-required`, `restore-required`, `restore-failed`, `restore-unsupported-on-host`, `toolchain-unavailable`, `sdk-unresolved`, `malformed-input`, `evaluation-failed`, `timeout`, `outside-workspace-input`, and `partial-target-frameworks`.
+
+Restore uses normal selected-host MSBuild/NuGet policy without replacing feeds or disabling lock enforcement. `packages.config` restore requires Windows and installed NuGet. Native restore success is followed by input validation and authoritative reevaluation; it does not excuse unrelated source or glob changes. Existing valid restore inputs do not require a new restore grant.
+
+Ordinary restore retains caller-supplied globals without inventing a per-framework
+selector that overwrites sibling assets. Native graph evidence corroborates
+target-derived package dependencies and downloads; framework aliases and NuGet
+version ranges are compared semantically. The worker reports `RestoreConfigFile`
+so explicitly selected configuration participates in the before/after input set.
+Malformed or oversized NuGet configuration withholds the affected project rather
+than aborting unrelated candidates; operational I/O failures remain fatal.
+
+Restore metadata must identify the same canonical project, not merely use the same path spelling. Native Windows spelling and symlink aliases can identify that project; valid artifacts for a different project cannot establish its currentness.
+
+Legacy restore retains the actual solution behind a solution filter and supplies its directory to NuGet. A repository `repositoryPath` takes precedence over the solution's default `packages` directory; multiple solution directories are not resolved by choosing the first or searching arbitrary ancestor folders. Applicable user/machine configuration files participate in currentness checks. When their destination cannot be established, or a repository path requires environment expansion that is not qualified, discovery declines rather than accepting a guessed directory. A nearer repository configuration assignment or explicit `<config><clear /></config>` can establish policy; tethys never writes that override itself.
+
+## Freshness and reuse
+
+Every discovery invocation validates current inputs. Pass previous opaque entries through `DiscoveryRequest::with_cache`; `DiscoveryCachePolicy::Disabled` forces evaluation while still allowing existing restore evidence to be checked. Cache entries are acceleration data, not an authority for project standing.
+
+Disabled caching emits no reusable entries, including restore receipts. Existing
+receipts can still establish a legitimate no-op restore whose outputs are older
+than its inputs. Without such a content receipt, generated outputs must be strictly
+newer; equal timestamps cannot establish ordering. Receipt context keys ignore
+property-name casing but preserve values. Private cache stamps support pre-epoch
+timestamps without weakening content-change detection.
+
+Reusable evaluation requires a qualified recipe and matching project, inventory/glob, environment, selected host/runtime, companion and restore evidence. Corrupt or unknown receipts cause misses. Imported or otherwise unqualified input closures, runtime hooks/profilers, and forwarding muxers force reevaluation. Framework evaluation also bypasses evaluation reuse: CLR4's stable runtime version does not establish an exact CLR/BCL closure. Metadata evaluation remains available on that host.
+
+Native-loader injection and library/framework search-path settings also make
+evaluation ineligible for reuse. This finite qualification gate is not a sandbox.
+
+The environment is an argument, not ambient process state. `DiscoveryOptions`
+carries an `EvaluationEnvironment`, which defaults to the calling process's
+environment; discovery fingerprints exactly that value and gives exactly that
+value to every bounded launch, so the hashed environment and the evaluated one
+cannot diverge. Production discovery still does not silently remove or exempt
+caller settings: a caller that wants the loader search paths its own test runner
+added to be excluded says so, by name, with
+`EvaluationEnvironment::without(EvaluationEnvironment::RUNTIME_CODE_EXTENSIONS)`.
+That constant is the single published list of settings that disqualify reuse.
+
+The supervisor enforces the per-process deadline and protocol byte limits, terminates the process group, and bounds reaping. These controls do not make arbitrary trusted project code a security sandbox.
 
 ## Qualification
 
@@ -85,3 +144,7 @@ python .tethys-82a6/oracles/worker_qualification.py --host windows
 `DOTNET` selects the dotnet executable; `TETHYS_SDK_MSBUILD_PATH` selects an installed SDK directory. `--distribution` overrides the default `target/worker-dist` directory. Windows qualification uses `vswhere` to select and report an actual VS 17.14 installation, with no fallback to SDK MSBuild for classic qualification.
 
 The fixtures cover SDK multi-targeting, classic v4.0 Client/v4.7.2/v4.8, imported and linked source, conditioned/globbed/removed items, assembly-name collisions, spaces and Unicode. A target sentinel must remain absent during evaluation; a separately authorized target invocation is the positive control. Clean-install qualification copies the distribution away from build outputs and evaluates using the explicitly selected host.
+
+The native Rust discovery gate additionally runs `discovery_candidates`, `discovery_failures`, `discovery_cache`, and `discovery_runtime` with `--run-ignored all`. Set `TETHYS_WORKER_DISTRIBUTION` to the packaged `msbuild-evaluate` directory and `TETHYS_SDK_MSBUILD_PATH` to the selected SDK. Windows CI separately supplies VS17.14 and NuGet6.14 for an offline `packages.config` restore transition.
+
+Cache-launch proof uses native `COREHOST_TRACE`/`DOTNET_HOST_TRACE`, with a fresh trace file for each completed invocation. Fresh and forced controls must launch the actual evaluator; an eligible hit must neither launch nor attempt to start it. Runtime-hook and forwarding-muxer fixtures change an external value at the same path and require changed native metadata, rather than trusting the cache's own reuse flag.

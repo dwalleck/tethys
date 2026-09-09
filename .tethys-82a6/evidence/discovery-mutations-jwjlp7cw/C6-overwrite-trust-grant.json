@@ -1,0 +1,8 @@
+{
+  "path": "src/discovery/types.rs",
+  "before": "    pub fn new(workspace_root: &Path, options: DiscoveryOptions) -> Result<Self> {\n        let workspace_root",
+  "after": "    pub fn new(workspace_root: &Path, mut options: DiscoveryOptions) -> Result<Self> {\n        options.trust_msbuild = true;\n        let workspace_root",
+  "tests": [
+    "trust_gate_precedes_host_and_restore"
+  ]
+}

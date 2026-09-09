@@ -1,0 +1,45 @@
+dep|executables/main.rs|rootcode/root.rs|1
+dep|first/src/main.rs|first/src/helper.rs|1
+dep|rootcode/root.rs|rootcode/child.rs|1
+dep|second/custom/lib.rs|second/custom/support.rs|1
+dep|second/entry/app.rs|second/custom/lib.rs|1
+edge|executables/main.rs:1:1:main|rootcode/root.rs:2:1:entry|1
+edge|first/src/main.rs:2:1:main|first/src/helper.rs:1:1:answer|1
+edge|rootcode/root.rs:2:1:entry|rootcode/child.rs:1:1:value|1
+edge|second/custom/lib.rs:2:1:library_entry|second/custom/support.rs:1:1:answer|1
+edge|second/entry/app.rs:1:1:main|second/custom/lib.rs:2:1:library_entry|1
+file|executables/main.rs|rust|45
+file|first/src/helper.rs|rust|32
+file|first/src/main.rs|rust|52
+file|rootcode/child.rs|rust|30
+file|rootcode/root.rs|rust|58
+file|second/custom/lib.rs|rust|71
+file|second/custom/support.rs|rust|32
+file|second/entry/app.rs|rust|53
+fpkg|executables/main.rs|root-adapter
+fpkg|first/src/helper.rs|first
+fpkg|first/src/main.rs|first
+fpkg|rootcode/child.rs|root-adapter
+fpkg|rootcode/root.rs|root-adapter
+fpkg|second/custom/lib.rs|second-crate
+fpkg|second/custom/support.rs|second-crate
+fpkg|second/entry/app.rs|second-crate
+pkg|first|first|manifest
+pkg|root-adapter||manifest
+pkg|second-crate|second|manifest
+ref|executables/main.rs|1|21|call||rootcode/root.rs:2:1:entry|executables/main.rs:1:1:main
+ref|first/src/main.rs|2|21|call||first/src/helper.rs:1:1:answer|first/src/main.rs:2:1:main
+ref|rootcode/root.rs|2|27|call||rootcode/child.rs:1:1:value|rootcode/root.rs:2:1:entry
+ref|second/custom/lib.rs|2|35|call||second/custom/support.rs:1:1:answer|second/custom/lib.rs:2:1:library_entry
+ref|second/entry/app.rs|1|21|call||second/custom/lib.rs:2:1:library_entry|second/entry/app.rs:1:1:main
+sym|executables/main.rs|1|1|main|root_command|main|function|1|45|fn main()|private||0
+sym|first/src/helper.rs|1|1|answer|first::helper|answer|function|1|32|fn answer() usize|public||0
+sym|first/src/main.rs|1|1|helper|first|helper|module|1|12||private||0
+sym|first/src/main.rs|2|1|main|first|main|function|2|40|fn main()|private||0
+sym|rootcode/child.rs|1|1|value|crate::child|value|function|1|30|fn value() usize|public||0
+sym|rootcode/root.rs|1|1|child|crate::root|child|module|1|15||public||0
+sym|rootcode/root.rs|2|1|entry|crate::root|entry|function|2|43|fn entry() usize|public||0
+sym|second/custom/lib.rs|1|1|support|crate|support|module|1|17||public||0
+sym|second/custom/lib.rs|2|1|library_entry|crate|library_entry|function|2|54|fn library_entry() usize|public||0
+sym|second/custom/support.rs|1|1|answer|crate::support|answer|function|1|32|fn answer() usize|public||0
+sym|second/entry/app.rs|1|1|main|second_command::app|main|function|1|53|fn main()|private||0

@@ -22,8 +22,8 @@ start there (especially `index.md`) for anything this file does not cover.
 
 <!-- tags: entry-points, overview -->
 
-- **Library API**: `src/lib.rs` — the `Tethys` struct is the single facade for
-  all functionality. Most query methods live here or in `src/indexing.rs`.
+- **Library API**: `src/lib.rs` — `Tethys` is the indexing/query facade;
+  standalone workspace discovery is in `src/discovery/mod.rs`.
 - **CLI**: `src/main.rs` defines clap commands and dispatches to `src/cli/<cmd>.rs`.
   Commands: `index`, `search`, `callers`, `impact`, `coupling`, `cycles`,
   `stats`, `reachable`, `affected-tests`, `panic-points`, `deprecated-callers`,
@@ -54,6 +54,7 @@ For "what is X / how do I call X / how does process Y work", route via
 | `src/resolve.rs` | **Language-neutral** cross-file reference resolution driver |
 | `src/resolver.rs` | Rust module-path (`crate::`/`self::`/`super::`) resolution |
 | `src/cargo.rs` | Cargo workspace/crate discovery (public) |
+| `src/discovery/` | Neutral discovery records/coordinator; MSBuild candidate, host, restore and cache owners (tethys-82a6) |
 | `src/languages/` | Per-language extraction: `LanguageSupport` + `ModuleResolver` (rust.rs, csharp.rs, module_resolver.rs, common.rs) |
 | `src/db/` | SQLite layer: `Index` + submodules (symbols, references, imports, call_edges, file_deps, graph, architecture, panic_points, files, schema, helpers) |
 | `src/graph/` | Graph query result DTOs (public ones, e.g. `SymbolImpact`, re-export via `lib.rs`); concrete traversal queries live on `db::Index` |
@@ -100,6 +101,10 @@ For "what is X / how do I call X / how does process Y work", route via
   queuing `PendingDependency` and retrying until no progress. Consequence:
   `refs.symbol_id` is **NULL until Pass 2 resolves it** — don't assume refs are
   resolved mid-pipeline.
+- **Discovery owns execution and freshness** (tethys-82a6), separately from
+  syntax extraction and reference resolution. Before changing host selection,
+  restore grants, cache eligibility, or companion packaging, read
+  [`docs/msbuild-evaluation.md`](docs/msbuild-evaluation.md).
 
 ## Data & Persistence
 

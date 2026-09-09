@@ -1,0 +1,53 @@
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.05s
+────────────
+ Nextest run ID 1db9bf84-db38-4a9c-bd9d-fbedea46678d with nextest profile: default
+    Starting 1 test across 1 binary (2 tests skipped)
+        SKIP [         ] tethys::discovery_runtime runtime_extension_child
+        SKIP [         ] tethys::discovery_runtime startup_hook_external_reads_never_reuse_literal_metadata
+        FAIL [   1.498s] tethys::discovery_runtime forwarding_muxer_external_reads_never_reuse_literal_metadata
+  stdout ───
+
+    running 1 test
+    test forwarding_muxer_external_reads_never_reuse_literal_metadata ... FAILED
+
+    failures:
+
+    failures:
+        forwarding_muxer_external_reads_never_reuse_literal_metadata
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 1.50s
+
+  stderr ───
+
+    thread 'forwarding_muxer_external_reads_never_reuse_literal_metadata' (2378954) panicked at tests/discovery_runtime.rs:73:5:
+    assertion `left == right` failed
+      left: String("WRAPPER_ONE")
+     right: "WRAPPER_TWO"
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   1.498s] 1 test run: 0 passed, 1 failed, 2 skipped
+        SKIP [         ] tethys::discovery_runtime runtime_extension_child
+        SKIP [         ] tethys::discovery_runtime startup_hook_external_reads_never_reuse_literal_metadata
+        FAIL [   1.498s] tethys::discovery_runtime forwarding_muxer_external_reads_never_reuse_literal_metadata
+  stdout ───
+
+    running 1 test
+    test forwarding_muxer_external_reads_never_reuse_literal_metadata ... FAILED
+
+    failures:
+
+    failures:
+        forwarding_muxer_external_reads_never_reuse_literal_metadata
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 1.50s
+
+  stderr ───
+
+    thread 'forwarding_muxer_external_reads_never_reuse_literal_metadata' (2378954) panicked at tests/discovery_runtime.rs:73:5:
+    assertion `left == right` failed
+      left: String("WRAPPER_ONE")
+     right: "WRAPPER_TWO"
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+error: test run failed

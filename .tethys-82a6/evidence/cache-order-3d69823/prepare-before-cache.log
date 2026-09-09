@@ -1,0 +1,30 @@
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.04s
+────────────
+ Nextest run ID 39cb5fc4-4247-4c26-a4e7-acbc5cba2308 with nextest profile: default
+    Starting 1 test across 1 binary (8 tests skipped)
+        FAIL [   0.006s] (1/1) tethys::discovery_cache cache_input_closure_matches_forced_and_invalidates_globs_content_context
+  stdout ───
+
+    running 1 test
+    test cache_input_closure_matches_forced_and_invalidates_globs_content_context ... FAILED
+
+    failures:
+
+    failures:
+        cache_input_closure_matches_forced_and_invalidates_globs_content_context
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'cache_input_closure_matches_forced_and_invalidates_globs_content_context' (2631805) panicked at tests/discovery_cache.rs:56:5:
+    assertion `left == right` failed
+      left: Indeterminate(DiscoveryFailure { reason: ToolchainUnavailable, diagnostics: [DiscoveryDiagnostic { code: None, exception_type: None, message: "No such file or directory (os error 2)", file: None, line: 0, column: 0, severity: Error }] })
+     right: Confirmed
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 
+────────────
+     Summary [   0.007s] 1 test run: 0 passed, 1 failed, 8 skipped
+        FAIL [   0.006s] (1/1) tethys::discovery_cache cache_input_closure_matches_forced_and_invalidates_globs_content_context
+error: test run failed

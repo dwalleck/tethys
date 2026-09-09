@@ -1,0 +1,57 @@
+{
+  "commit": "d9119ffdf5f29b81bf56aeaa94ba575f29fe96e4",
+  "run": 34116637039,
+  "url": "https://github.com/dwalleck/tethys/actions/runs/34116637039",
+  "conclusion": "success",
+  "successful_jobs": 17,
+  "native": [
+    {
+      "id": 101724882019,
+      "platform": "windows-2022",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34116637039/job/101724882019",
+      "log_sha256": "60b44a4d38185154c88ff99913beb5e457256ed21db83ca8cfd2d80ff9fc48e0",
+      "summaries": [
+        "2026-09-07T11:38:10.8670380Z      Summary [ 329.352s] 645 tests run: 645 passed (4 slow), 0 skipped\r"
+      ],
+      "restored_controls": [
+        "2026-09-07T11:37:36.1683403Z         PASS [  11.271s] (635/645) tethys::discovery_failures later_restore_does_not_excuse_an_earlier_glob_change\r",
+        "2026-09-07T11:37:50.4117701Z         PASS [  14.243s] (640/645) tethys::discovery_failures restored_package_metadata_names_are_case_insensitive\r",
+        "2026-09-07T11:37:53.7782395Z         PASS [   9.286s] (642/645) tethys::discovery_failures windows_packages_config_restore_requires_grant_and_confirms_native_inputs\r",
+        "2026-09-07T11:37:56.7202030Z         PASS [  33.043s] (643/645) tethys::discovery_failures authorized_restore_rechecks_metadata_before_confirmation\r",
+        "2026-09-07T11:37:57.3355845Z         PASS [  14.220s] (644/645) tethys::discovery_failures windows_filter_solution_default_restore_and_ambiguity\r"
+      ]
+    },
+    {
+      "id": 101724882162,
+      "platform": "ubuntu-latest",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34116637039/job/101724882162",
+      "log_sha256": "04c11f8d774ccdfd150aa53d40949dd9a6c4e0941334f68ed23eeb4c8ea74362",
+      "summaries": [
+        "2026-09-07T11:29:45.5415839Z      Summary [  95.986s] 655 tests run: 655 passed (2 slow), 0 skipped"
+      ],
+      "restored_controls": [
+        "2026-09-07T11:29:19.8450796Z         PASS [   6.097s] (638/655) tethys::discovery_failures authorized_restore_preserves_aliased_artifact_identity",
+        "2026-09-07T11:29:28.1722332Z         PASS [   6.156s] (645/655) tethys::discovery_failures later_restore_does_not_excuse_an_earlier_glob_change",
+        "2026-09-07T11:29:28.3420050Z         PASS [   8.497s] (646/655) tethys::discovery_failures existing_restore_requires_same_physical_project",
+        "2026-09-07T11:29:35.6656289Z         PASS [  19.094s] (652/655) tethys::discovery_failures authorized_restore_rechecks_metadata_before_confirmation",
+        "2026-09-07T11:29:36.7685407Z         PASS [   8.426s] (653/655) tethys::discovery_failures restored_package_metadata_names_are_case_insensitive"
+      ]
+    },
+    {
+      "id": 101724882576,
+      "platform": "macos-latest",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34116637039/job/101724882576",
+      "log_sha256": "df81f93f823d234bdeb4b4aad497fa580125f57b027be8aa2c11ac02d047617b",
+      "summaries": [
+        "2026-09-07T11:32:54.2048730Z      Summary [ 243.917s] 655 tests run: 655 passed (3 slow), 0 skipped"
+      ],
+      "restored_controls": [
+        "2026-09-07T11:30:43.4537130Z         PASS [  12.770s] (636/655) tethys::discovery_failures authorized_restore_preserves_aliased_artifact_identity",
+        "2026-09-07T11:31:22.7776880Z         PASS [  28.027s] (643/655) tethys::discovery_failures existing_restore_requires_same_physical_project",
+        "2026-09-07T11:31:39.7211500Z         PASS [  20.513s] (645/655) tethys::discovery_failures later_restore_does_not_excuse_an_earlier_glob_change",
+        "2026-09-07T11:31:47.1739430Z         PASS [  65.468s] (646/655) tethys::discovery_failures authorized_restore_rechecks_metadata_before_confirmation",
+        "2026-09-07T11:32:12.7545000Z         PASS [  25.532s] (653/655) tethys::discovery_failures restored_package_metadata_names_are_case_insensitive"
+      ]
+    }
+  ]
+}

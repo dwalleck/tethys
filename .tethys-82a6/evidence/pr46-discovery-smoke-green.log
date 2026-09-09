@@ -1,0 +1,8 @@
+Indexing /home/dwalleck/.claude/tmp/tethys-cargo-smoke-3m7cm4iz...
+
+Indexed 8 files, found 11 symbols, 5 references
+Duration: 3.27ms
+C3 PASS: pre-adapter canonical Rust output unchanged
+   Compiling tethys-discovery-smoke v0.0.0 (/home/dwalleck/.claude/tmp/tethys-discovery-smoke-9_p6ylkz/caller)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.34s
+C6/C7/C9 PASS: real public seam, no unauthorized process, native metadata, zero-evaluation hit, glob/project mutations, cached/forced equivalence

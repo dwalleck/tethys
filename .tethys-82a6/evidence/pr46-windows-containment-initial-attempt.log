@@ -1,0 +1,97 @@
+   Compiling tethys v0.1.0 (/tmp/w46)
+    Finished `test` profile [optimized + debuginfo] target(s) in 3.65s
+────────────
+ Nextest run ID 865a25d2-68dd-4154-92b4-448e68fb9c7c with nextest profile: default
+    Starting 8 tests across 2 binaries (22 tests skipped)
+        FAIL [   1.546s] (1/8) tethys::discovery_cache eligible_literal_with_preepoch_source_serializes_and_invalidates_content
+  stdout ───
+
+    running 1 test
+    test eligible_literal_with_preepoch_source_serializes_and_invalidates_content ... FAILED
+
+    failures:
+
+    failures:
+        eligible_literal_with_preepoch_source_serializes_and_invalidates_content
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10 filtered out; finished in 1.54s
+
+  stderr ───
+
+    thread 'eligible_literal_with_preepoch_source_serializes_and_invalidates_content' (2537124) panicked at tests/discovery_cache.rs:309:5:
+    eligible literal must publish evidence
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+  Cancelling due to test failure: 7 tests still running
+        FAIL [   1.546s] (2/8) tethys::discovery_cache cache_input_closure_matches_forced_and_invalidates_globs_content_context
+  stdout ───
+
+    running 1 test
+    test cache_input_closure_matches_forced_and_invalidates_globs_content_context ... FAILED
+
+    failures:
+
+    failures:
+        cache_input_closure_matches_forced_and_invalidates_globs_content_context
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10 filtered out; finished in 1.54s
+
+  stderr ───
+
+    thread 'cache_input_closure_matches_forced_and_invalidates_globs_content_context' (2537117) panicked at tests/discovery_cache.rs:88:5:
+    qualified literal/glob recipe must be reusable
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+        PASS [   2.404s] (3/8) tethys::discovery_failures malformed_nuget_config_preserves_unrelated_project
+        PASS [   2.553s] (4/8) tethys::discovery_failures authorized_restore_preserves_aliased_artifact_identity
+        FAIL [   2.929s] (5/8) tethys::discovery_failures authorized_restore_preserves_multitarget_assets_with_target_assigned_versions
+  stdout ───
+
+    running 1 test
+    test authorized_restore_preserves_multitarget_assets_with_target_assigned_versions ... FAILED
+
+    failures:
+
+    failures:
+        authorized_restore_preserves_multitarget_assets_with_target_assigned_versions
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 18 filtered out; finished in 2.93s
+
+  stderr ───
+
+    thread 'authorized_restore_preserves_multitarget_assets_with_target_assigned_versions' (2537108) panicked at tests/discovery_failures.rs:743:5:
+    assertion `left == right` failed: [ProjectDiscovery { key: ProjectKey("App.csproj"), containers: [], standing: Indeterminate(DiscoveryFailure { reason: RestoreFailed, diagnostics: [DiscoveryDiagnostic { code: None, exception_type: None, message: "NuGet reported success but required restore inputs could not be validated", file: None, line: 0, column: 0, severity: Error }] }) }]
+      left: Indeterminate(DiscoveryFailure { reason: RestoreFailed, diagnostics: [DiscoveryDiagnostic { code: None, exception_type: None, message: "NuGet reported success but required restore inputs could not be validated", file: None, line: 0, column: 0, severity: Error }] })
+     right: Confirmed
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+        FAIL [   3.035s] (6/8) tethys::discovery_failures authorized_restore_corroborates_target_downloads_and_rejects_changed_imports
+  stdout ───
+
+    running 1 test
+    test authorized_restore_corroborates_target_downloads_and_rejects_changed_imports ... FAILED
+
+    failures:
+
+    failures:
+        authorized_restore_corroborates_target_downloads_and_rejects_changed_imports
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 18 filtered out; finished in 3.03s
+
+  stderr ───
+
+    thread 'authorized_restore_corroborates_target_downloads_and_rejects_changed_imports' (2537109) panicked at tests/discovery_failures.rs:565:5:
+    assertion `left == right` failed: [ProjectDiscovery { key: ProjectKey("App.csproj"), containers: [], standing: Indeterminate(DiscoveryFailure { reason: RestoreFailed, diagnostics: [DiscoveryDiagnostic { code: None, exception_type: None, message: "NuGet reported success but required restore inputs could not be validated", file: None, line: 0, column: 0, severity: Error }] }) }]
+      left: Indeterminate(DiscoveryFailure { reason: RestoreFailed, diagnostics: [DiscoveryDiagnostic { code: None, exception_type: None, message: "NuGet reported success but required restore inputs could not be validated", file: None, line: 0, column: 0, severity: Error }] })
+     right: Confirmed
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+        PASS [   3.872s] (7/8) tethys::discovery_cache disabled_restore_noop_keeps_units_without_cache_publication
+        PASS [   7.709s] (8/8) tethys::discovery_failures authorized_restore_rechecks_metadata_before_confirmation
+────────────
+     Summary [   7.710s] 8 tests run: 4 passed, 4 failed, 22 skipped
+        FAIL [   1.546s] (1/8) tethys::discovery_cache eligible_literal_with_preepoch_source_serializes_and_invalidates_content
+        FAIL [   1.546s] (2/8) tethys::discovery_cache cache_input_closure_matches_forced_and_invalidates_globs_content_context
+        FAIL [   2.929s] (5/8) tethys::discovery_failures authorized_restore_preserves_multitarget_assets_with_target_assigned_versions
+        FAIL [   3.035s] (6/8) tethys::discovery_failures authorized_restore_corroborates_target_downloads_and_rejects_changed_imports
+error: test run failed

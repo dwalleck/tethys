@@ -654,3 +654,106 @@ path = "src/main.rs"
         "binary name should default to package name"
     );
 }
+
+#[test]
+fn neutral_cargo_adapter_preserves_member_order_custom_targets_and_root_last() {
+    use tethys::discovery::{
+        CargoDiscovery, DiscoveryOptions, DiscoveryRequest, WorkspaceDiscovery,
+    };
+    let dir = TempDir::new().unwrap();
+    fs::write(
+        dir.path().join("Cargo.toml"),
+        r#"
+[workspace]
+members = ["z-member", "broken", "a-member"]
+[package]
+name = "root-package"
+version = "0.1.0"
+edition = "2021"
+[lib]
+path = "root-code/library.rs"
+"#,
+    )
+    .unwrap();
+    for (directory, name) in [("z-member", "z-package"), ("a-member", "a-package")] {
+        let member = dir.path().join(directory);
+        fs::create_dir_all(member.join("custom code")).unwrap();
+        fs::write(
+            member.join("Cargo.toml"),
+            format!(
+                r#"
+[package]
+name = "{name}"
+version = "0.1.0"
+edition = "2021"
+[lib]
+path = "custom code/λ_library.rs"
+[[bin]]
+name = "second"
+path = "custom code/second.rs"
+[[bin]]
+name = "first"
+path = "custom code/first.rs"
+"#
+            ),
+        )
+        .unwrap();
+        for file in ["λ_library.rs", "second.rs", "first.rs"] {
+            fs::write(member.join("custom code").join(file), "pub fn entry() {}").unwrap();
+        }
+    }
+    fs::create_dir(dir.path().join("broken")).unwrap();
+    fs::write(dir.path().join("broken/Cargo.toml"), "not = [valid").unwrap();
+    fs::create_dir(dir.path().join("root-code")).unwrap();
+    fs::write(dir.path().join("root-code/library.rs"), "pub fn root() {}").unwrap();
+    let request = DiscoveryRequest::new(dir.path(), DiscoveryOptions::default()).unwrap();
+    let snapshot = CargoDiscovery.discover(&request).unwrap();
+    assert_eq!(
+        snapshot
+            .crates
+            .iter()
+            .map(|info| info.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["z-package", "a-package", "root-package"]
+    );
+    let root = dir.path().canonicalize().unwrap();
+    assert_eq!(
+        snapshot
+            .crates
+            .iter()
+            .map(|info| info.path.clone())
+            .collect::<Vec<_>>(),
+        vec![root.join("z-member"), root.join("a-member"), root.clone()]
+    );
+    for info in &snapshot.crates[..2] {
+        assert_eq!(
+            info.lib_path,
+            Some(PathBuf::from("custom code/λ_library.rs"))
+        );
+        let bins: std::collections::HashMap<_, _> = info.bin_paths.iter().cloned().collect();
+        assert_eq!(
+            bins.get("second"),
+            Some(&PathBuf::from("custom code/second.rs"))
+        );
+        assert_eq!(
+            bins.get("first"),
+            Some(&PathBuf::from("custom code/first.rs"))
+        );
+    }
+    assert_eq!(
+        snapshot.crates[2].lib_path,
+        Some(PathBuf::from("root-code/library.rs"))
+    );
+}
+
+#[test]
+fn neutral_cargo_adapter_retains_non_cargo_and_malformed_manifest_empty_behavior() {
+    use tethys::discovery::{
+        CargoDiscovery, DiscoveryOptions, DiscoveryRequest, WorkspaceDiscovery,
+    };
+    let dir = TempDir::new().unwrap();
+    let request = DiscoveryRequest::new(dir.path(), DiscoveryOptions::default()).unwrap();
+    assert!(CargoDiscovery.discover(&request).unwrap().crates.is_empty());
+    fs::write(dir.path().join("Cargo.toml"), "[package\nbroken").unwrap();
+    assert!(CargoDiscovery.discover(&request).unwrap().crates.is_empty());
+}

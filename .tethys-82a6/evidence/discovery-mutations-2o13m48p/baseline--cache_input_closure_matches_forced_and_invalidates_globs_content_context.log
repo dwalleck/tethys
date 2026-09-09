@@ -1,0 +1,25 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-rl8e2fb2)
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.83s
+────────────
+ Nextest run ID 197496da-9852-453c-b187-3b15581a090c with nextest profile: default
+    Starting 1 test across 1 binary (8 tests skipped)
+        SKIP [         ] tethys::discovery_cache cache_launch_child
+        SKIP [         ] tethys::discovery_cache corrupt_unknown_and_import_recipes_never_reuse_success
+        SKIP [         ] tethys::discovery_cache eligible_hit_launches_zero_evaluators
+        SKIP [         ] tethys::discovery_cache environment_change_invalidates_eligible_receipt
+        SKIP [         ] tethys::discovery_cache environment_child
+        SKIP [         ] tethys::discovery_cache native_metadata_names_are_case_insensitive_without_rewriting_spelling
+        SKIP [         ] tethys::discovery_cache restore_and_missing_host_cannot_republish_cached_success
+        SKIP [         ] tethys::discovery_cache shared_physical_memberships_and_case_insensitive_global_precedence
+        PASS [   5.744s] tethys::discovery_cache cache_input_closure_matches_forced_and_invalidates_globs_content_context
+────────────
+     Summary [   5.745s] 1 test run: 1 passed, 8 skipped
+        PASS [   5.744s] tethys::discovery_cache cache_input_closure_matches_forced_and_invalidates_globs_content_context
+        SKIP [         ] tethys::discovery_cache cache_launch_child
+        SKIP [         ] tethys::discovery_cache corrupt_unknown_and_import_recipes_never_reuse_success
+        SKIP [         ] tethys::discovery_cache eligible_hit_launches_zero_evaluators
+        SKIP [         ] tethys::discovery_cache environment_change_invalidates_eligible_receipt
+        SKIP [         ] tethys::discovery_cache environment_child
+        SKIP [         ] tethys::discovery_cache native_metadata_names_are_case_insensitive_without_rewriting_spelling
+        SKIP [         ] tethys::discovery_cache restore_and_missing_host_cannot_republish_cached_success
+        SKIP [         ] tethys::discovery_cache shared_physical_memberships_and_case_insensitive_global_precedence

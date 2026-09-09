@@ -1,0 +1,8 @@
+{
+  "path": "src/discovery/msbuild/cache.rs",
+  "before": "        if receipt.recipe != RECIPE || receipt.key != key || receipt.inventory != self.inventory {",
+  "after": "        if receipt.recipe != RECIPE || receipt.key != key {",
+  "tests": [
+    "cache_input_closure_matches_forced_and_invalidates_globs_content_context"
+  ]
+}

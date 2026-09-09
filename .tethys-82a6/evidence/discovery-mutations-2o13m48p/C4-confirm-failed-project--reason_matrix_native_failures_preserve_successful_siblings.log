@@ -1,0 +1,72 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-rl8e2fb2)
+    Finished `test` profile [optimized + debuginfo] target(s) in 4.70s
+────────────
+ Nextest run ID 3c3b0a86-27b2-4247-9dab-2968c323c806 with nextest profile: default
+    Starting 1 test across 1 binary (13 tests skipped)
+        SKIP [         ] tethys::discovery_failures authorized_restore_rechecks_metadata_before_confirmation
+        SKIP [         ] tethys::discovery_failures containment_rejects_link_escape_but_keeps_inside_twin
+        SKIP [         ] tethys::discovery_failures deadline_child
+        SKIP [         ] tethys::discovery_failures evaluator_deadline_kills_silent_actor
+        SKIP [         ] tethys::discovery_failures explicit_host_child
+        SKIP [         ] tethys::discovery_failures explicit_host_ignores_ambient_dotnet
+        SKIP [         ] tethys::discovery_failures later_restore_does_not_excuse_an_earlier_glob_change
+        SKIP [         ] tethys::discovery_failures malformed_input_and_missing_toolchain_are_not_empty_success
+        SKIP [         ] tethys::discovery_failures packages_config_authority_and_host_support
+        SKIP [         ] tethys::discovery_failures partial_framework_failure_retains_selector_and_success
+        SKIP [         ] tethys::discovery_failures restored_package_metadata_names_are_case_insensitive
+        SKIP [         ] tethys::discovery_failures separately_authorized_offline_restore_failure_is_explicit
+        SKIP [         ] tethys::discovery_failures trust_gate_precedes_host_and_restore
+        FAIL [   2.345s] tethys::discovery_failures reason_matrix_native_failures_preserve_successful_siblings
+  stdout ───
+
+    running 1 test
+    test reason_matrix_native_failures_preserve_successful_siblings ... FAILED
+
+    failures:
+
+    failures:
+        reason_matrix_native_failures_preserve_successful_siblings
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 13 filtered out; finished in 2.34s
+
+  stderr ───
+
+    thread 'reason_matrix_native_failures_preserve_successful_siblings' (2374772) panicked at tests/discovery_failures.rs:40:41:
+    expected explicit incomplete coverage
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   2.346s] 1 test run: 0 passed, 1 failed, 13 skipped
+        SKIP [         ] tethys::discovery_failures authorized_restore_rechecks_metadata_before_confirmation
+        SKIP [         ] tethys::discovery_failures containment_rejects_link_escape_but_keeps_inside_twin
+        SKIP [         ] tethys::discovery_failures deadline_child
+        SKIP [         ] tethys::discovery_failures evaluator_deadline_kills_silent_actor
+        SKIP [         ] tethys::discovery_failures explicit_host_child
+        SKIP [         ] tethys::discovery_failures explicit_host_ignores_ambient_dotnet
+        SKIP [         ] tethys::discovery_failures later_restore_does_not_excuse_an_earlier_glob_change
+        SKIP [         ] tethys::discovery_failures malformed_input_and_missing_toolchain_are_not_empty_success
+        SKIP [         ] tethys::discovery_failures packages_config_authority_and_host_support
+        SKIP [         ] tethys::discovery_failures partial_framework_failure_retains_selector_and_success
+        SKIP [         ] tethys::discovery_failures restored_package_metadata_names_are_case_insensitive
+        SKIP [         ] tethys::discovery_failures separately_authorized_offline_restore_failure_is_explicit
+        SKIP [         ] tethys::discovery_failures trust_gate_precedes_host_and_restore
+        FAIL [   2.345s] tethys::discovery_failures reason_matrix_native_failures_preserve_successful_siblings
+  stdout ───
+
+    running 1 test
+    test reason_matrix_native_failures_preserve_successful_siblings ... FAILED
+
+    failures:
+
+    failures:
+        reason_matrix_native_failures_preserve_successful_siblings
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 13 filtered out; finished in 2.34s
+
+  stderr ───
+
+    thread 'reason_matrix_native_failures_preserve_successful_siblings' (2374772) panicked at tests/discovery_failures.rs:40:41:
+    expected explicit incomplete coverage
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+error: test run failed

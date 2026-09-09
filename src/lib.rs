@@ -37,6 +37,7 @@ mod batch_writer;
 pub mod cargo;
 mod db;
 mod dead_code;
+pub mod discovery;
 mod error;
 mod graph;
 mod indexing;

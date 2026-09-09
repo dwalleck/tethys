@@ -1,0 +1,8 @@
+{
+  "path": "src/cargo.rs",
+  "before": "            crates: discover_crates(&request.workspace_root),",
+  "after": "            crates: discover_crates(&request.workspace_root).into_iter().map(|mut info| { info.lib_path = None; info }).collect(),",
+  "tests": [
+    "neutral_cargo_adapter_preserves_member_order_custom_targets_and_root_last"
+  ]
+}

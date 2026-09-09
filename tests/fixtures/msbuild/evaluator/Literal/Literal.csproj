@@ -1,4 +1,10 @@
 <Project>
   <PropertyGroup><AssemblyName>Literal</AssemblyName></PropertyGroup>
   <ItemGroup><Compile Include="*.cs" Exclude="Excluded.cs" /><Compile Remove="Removed.cs" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Qualification.Dependency"><Version>2.3.4</Version><PrivateAssets>all</PrivateAssets></PackageReference>
+    <PackageReference Include="Qualification.Central"><VersionOverride>4.5.6</VersionOverride></PackageReference>
+    <PackageVersion Include="Qualification.Central"><Version>4.0.0</Version></PackageVersion>
+    <PackageDownload Include="Qualification.Download"><Version>[1.2.3]</Version></PackageDownload>
+  </ItemGroup>
 </Project>

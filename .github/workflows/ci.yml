@@ -281,7 +281,10 @@ jobs:
   managed-worker:
     name: Managed Worker (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    env:
+      # Match the repository's optimized test checks for runtime smoke binaries.
+      CARGO_PROFILE_DEV_OPT_LEVEL: 1
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -296,6 +299,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Setup Rust for native discovery qualification
+        uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@nextest
+      # Cache fallback cleanup removes non-Cargo files from target; package afterward.
       - name: Restore locked dependencies, check licenses, package SDK companion
         if: runner.os != 'Windows'
         run: python .tethys-82a6/oracles/worker_qualification.py --host sdk --prepare
@@ -307,6 +315,49 @@ jobs:
       - name: Qualify classic metadata and clean VS installation
         if: runner.os == 'Windows'
         run: python .tethys-82a6/oracles/worker_qualification.py --host windows
+      - name: Install qualified Windows NuGet
+        if: runner.os == 'Windows'
+        uses: NuGet/setup-nuget@v2
+        with:
+          nuget-version: '6.14.0'
+      - name: Select native discovery fixture hosts
+        shell: python
+        run: |
+          import json, os, runpy, subprocess
+          from pathlib import Path
+          qualification = runpy.run_path(".tethys-82a6/oracles/worker_qualification.py")
+          dotnet, _ = qualification["selected_sdk"]()
+          installed = subprocess.check_output([dotnet, "--list-sdks"], text=True, timeout=30)
+          sdk8 = [line.split(" [", 1) for line in installed.splitlines() if line.startswith("8.")]
+          assert sdk8, "Native discovery fixtures require an installed .NET 8 SDK"
+          version, parent = sdk8[-1]
+          selected = (Path(parent.removesuffix("]")) / version).resolve(strict=True)
+          values = {
+              "DOTNET": str(dotnet),
+              "TETHYS_SDK_MSBUILD_PATH": str(selected),
+              "TETHYS_WORKER_DISTRIBUTION": str(Path("target/worker-dist/msbuild-evaluate").resolve(strict=True)),
+          }
+          if os.name == "nt":
+              values["TETHYS_VS_MSBUILD_PATH"] = str(qualification["selected_windows"]())
+              assets = json.loads(Path("tools/tethys-msbuild-evaluate/obj/project.assets.json").read_text(encoding="utf-8"))
+              sources = [Path(folder) / "newtonsoft.json/13.0.3" for folder in assets["packageFolders"]]
+              source = next((path for path in sources if (path / "newtonsoft.json.13.0.3.nupkg").is_file()), None)
+              assert source is not None, "Prepared worker must supply the offline package fixture"
+              values["TETHYS_NUGET_FIXTURE_SOURCE"] = str(source)
+              values["NUGET_CERT_REVOCATION_MODE"] = "offline"
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as output:
+              for name, value in values.items():
+                  output.write(f"{name}={value}\n")
+      - name: Qualify real discovery failures, currentness and cache
+        # No runner-level loader cleanup: each fixture states the environment it
+        # evaluates under, so harness settings cannot disqualify a receipt.
+        run: cargo nextest run --all-features --lib --test discovery_candidates --test discovery_failures --test discovery_cache --test discovery_runtime --run-ignored all --no-fail-fast
+      - name: Build actual CLI for discovery smoke
+        if: runner.os != 'Windows'
+        run: cargo build --lib --bin tethys
+      - name: Prove native cache launches and frozen Cargo output
+        if: runner.os != 'Windows'
+        run: python .tethys-82a6/oracles/discovery_smoke.py
       - uses: actions/upload-artifact@v4
         with:
           name: managed-worker-${{ matrix.os }}

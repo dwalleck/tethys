@@ -27,6 +27,11 @@ _Avoid_: package, module (for a whole compilation unit)
 
 ### C# project model (tethys-chlt)
 
+**Workspace discovery**:
+Establishing a workspace's crates and C# projects, including evaluated source
+membership where authorized; distinct from source extraction and compiler binding.
+_Avoid_: indexing, project parsing (when you mean effective evaluated membership)
+
 **Project**:
 A C# MSBuild project identified by its workspace-relative project-file path,
 distinct from the assemblies it produces and the solutions that include it.
@@ -51,8 +56,8 @@ assembly name; distinct projects may share that name.
 _Avoid_: project identity, assembly name (as a unique project key)
 
 **Source membership**:
-An indexed file's participation in an evaluation unit; the same physical indexed
-file may participate in several units.
+A physical source file's participation in an evaluation unit; the same file may
+participate in several units without becoming several files.
 _Avoid_: file ownership (when it implies exactly one project)
 
 **Source-only scope**:
@@ -66,6 +71,16 @@ under explicit globals and a selected toolchain. It does not invoke build target
 or establish compiler bindings. Evaluation may execute property functions and SDK
 resolvers, so granting it is trust, not sandboxing (tethys-82a6).
 _Avoid_: build, restore, compilation, binding (when you mean evaluation)
+
+**Discovery standing** (tethys-82a6):
+Whether a project's or evaluation unit's effective metadata is established:
+**Confirmed**, or **Indeterminate** with an explicit reason for unavailable evidence.
+_Avoid_: empty project, nonexistent project (when discovery could not establish it)
+
+**Declared project reference**:
+An evaluated project's declaration of a dependency on another project, without
+proof of which target evaluation unit was selected.
+_Avoid_: selected unit edge, compiler binding
 
 ### C# binding model (approved roadmap vocabulary, tethys-07eh)
 

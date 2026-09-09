@@ -26,6 +26,7 @@ PROPERTIES = ["AssemblyName", "TargetFramework", "TargetFrameworks",
               "TargetFrameworkIdentifier", "TargetFrameworkVersion", "TargetFrameworkProfile",
               "DefineConstants", "LangVersion", "Configuration", "VSToolsPath",
               "QualificationOverride", "MSBuildVersion", "MSBuildFileVersion", "MSBuildRuntimeType", "MSBuildBinPath"]
+ITEMS = ["Compile", "ProjectReference", "Reference", "PackageReference", "PackageDownload", "PackageVersion"]
 GLOBALS = {"Configuration": "Qualification", "VSToolsPath": "", "QualificationOverride": "caller value"}
 # Audited legacy packages predate NuGet SPDX metadata. Never infer licenses from
 # arbitrary URLs. Any dependency-version or license-content change requires review.
@@ -267,6 +268,11 @@ def check_distribution(destination, host):
 def normalize(path):
     return os.path.normcase(str(Path(path).resolve()))
 
+def verbatim(path):
+    value = str(path)
+    if value.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + value[2:]
+    return "\\\\?\\" + value
 
 def qualify(destination, host, installed_only):
     check_distribution(destination, host)
@@ -316,7 +322,7 @@ def qualify(destination, host, installed_only):
                 run(args + ["-t:" + target], clean, timeout=300)
                 return None
             _, text, _ = run(args + ["-getProperty:" + ",".join(PROPERTIES),
-                                     "-getItem:Compile,ProjectReference,Reference"], clean, timeout=300)
+                                     "-getItem:" + ",".join(ITEMS)], clean, timeout=300)
             return json.loads(text)
 
         def identity(result, oracle):
@@ -329,9 +335,35 @@ def qualify(destination, host, installed_only):
                     "C14 wrong loaded runtime")
             print("Loaded host:", json.dumps(actual))
 
+        def items_agree(result, oracle):
+            require(set(result["items"]) == set(ITEMS), "Wrong item wire shape")
+            for kind in ITEMS:
+                actual = result["items"][kind]
+                reference = oracle["Items"][kind]
+                require(sorted((x["include"], normalize(x["full_path"])) for x in actual) ==
+                        sorted((x["Identity"], normalize(x["FullPath"])) for x in reference), f"C5 {kind} differs from MSBuild")
+                by_identity = {x["Identity"]: x for x in reference}
+                for item in actual:
+                    for key, value in by_identity[item["include"]].items():
+                        # Filesystem timestamps are not contract metadata and would make
+                        # both the response and this comparison non-reproducible.
+                        if key in {"Identity", "ModifiedTime", "CreatedTime", "AccessedTime"}:
+                            continue
+                        require(item["metadata"].get(key) == value, f"C5 {kind} metadata mismatch: {key}")
+
         literal = workspace / "Literal/Literal.csproj"
         result = worker(request(literal))
-        identity(result, query(literal))
+        oracle = query(literal)
+        identity(result, oracle)
+        items_agree(result, oracle)
+        package = {item["include"]: item["metadata"] for item in result["items"]["PackageReference"]}
+        require(package["Qualification.Dependency"]["Version"] == "2.3.4" and
+                package["Qualification.Dependency"]["PrivateAssets"] == "all" and
+                package["Qualification.Central"]["VersionOverride"] == "4.5.6",
+                "C5 evaluated restore dependency metadata lost")
+        require(result["items"]["PackageVersion"][0]["metadata"]["Version"] == "4.0.0" and
+                result["items"]["PackageDownload"][0]["metadata"]["Version"] == "[1.2.3]",
+                "C5 central/download dependency metadata lost")
         require([normalize(x["full_path"]) for x in result["items"]["Compile"]] == [normalize(literal.parent / "Keep.cs")],
                 "Literal fixture membership mismatch")
         require(result["cache_eligible"] and not result["cache_ineligibility"], "Qualified literal recipe must be eligible")
@@ -342,6 +374,21 @@ def qualify(destination, host, installed_only):
                     if x["item_type"] == "Compile" and normalize(x["project_path"]) == normalize(literal)}
         require(patterns == {("*.cs", "Excluded.cs", ""), ("", "", "Removed.cs")},
                 "Literal recipe lacks complete include/exclude/remove provenance")
+        if host == "windows":
+            # Exercise the managed boundary with the long verbatim spelling that Windows
+            # uses once a descendant exceeds MAX_PATH; the original fixture stays untouched.
+            long_parent = workspace / ("long-" + "a" * 100) / ("long-" + "b" * 100) / ("long-" + "c" * 100)
+            long_parent.parent.mkdir(parents=True)
+            shutil.copytree(literal.parent, long_parent)
+            long_project = long_parent / literal.name
+            long_project_verbatim = verbatim(long_project)
+            require(len(long_project_verbatim) > 300, "Long Windows containment fixture is too short")
+            long_result = worker(request(long_project, project_path=long_project_verbatim))
+            require(long_result["project_path"] == long_project_verbatim and
+                    long_result["properties"]["AssemblyName"] == "Literal",
+                    "Verbatim long descendant was not evaluated in the requested workspace")
+            print("C14 path-alias PASS: long verbatim descendant accepted")
+
         worker(request(literal, protocol_version=999), success=False)
         untrusted = worker(request(workspace / "Failures/MissingImport.csproj", trust_granted=False), success=False)
         require(untrusted["host"] is None and not untrusted["imports"], "Untrusted input loaded MSBuild/project")
@@ -396,22 +443,9 @@ def qualify(destination, host, installed_only):
             for name, value in expected.items():
                 require(properties.get(name, "") == value, f"C5 handwritten property mismatch: {name}: {properties.get(name)}")
             require(unit["define"] in properties["DefineConstants"].split(";"), "C5 inner framework defines lost")
-            require(set(result["items"]) == {"Compile", "ProjectReference", "Reference"}, "Wrong item wire shape")
             require(not result["cache_eligible"] and result["cache_ineligibility"],
                     "Unknown SDK/import closure was claimed cache-eligible")
-            for kind in ["Compile", "ProjectReference", "Reference"]:
-                actual = result["items"][kind]
-                reference = oracle["Items"][kind]
-                require(sorted((x["include"], normalize(x["full_path"])) for x in actual) ==
-                        sorted((x["Identity"], normalize(x["FullPath"])) for x in reference), f"C5 {kind} differs from MSBuild")
-                by_identity = {x["Identity"]: x for x in reference}
-                for item in actual:
-                    for key, value in by_identity[item["include"]].items():
-                        # Filesystem timestamps are not contract metadata and would make
-                        # both the response and this comparison non-reproducible.
-                        if key in {"Identity", "ModifiedTime", "CreatedTime", "AccessedTime"}:
-                            continue
-                        require(item["metadata"].get(key) == value, f"C5 {kind} metadata mismatch: {key}")
+            items_agree(result, oracle)
             sources = result["items"]["Compile"]
             expected_sources = manifest["common_sources"] + unit["extra"]
             require(sorted(normalize(x["full_path"]) for x in sources) ==

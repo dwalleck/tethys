@@ -1,0 +1,550 @@
+{
+  "baseline": "913e40d0c04bfd368fc301f94a9149028e18bca2",
+  "native_probes": {
+    "sdk": "8.0.417",
+    "alias_and_multi_baselines": {
+      "alias": {
+        "exit": 0,
+        "output": "  Determining projects to restore...\n  Restored /home/dwalleck/.claude/tmp/tethys-review46-d5oad7l0/alias/Probe.csproj (in 36 ms).\n",
+        "frameworks": {
+          "net8.0-windows7.0": {
+            "targetAlias": "net8.0-windows",
+            "imports": [
+              "net461",
+              "net462",
+              "net47",
+              "net471",
+              "net472",
+              "net48",
+              "net481"
+            ],
+            "assetTargetFallback": true,
+            "warn": true,
+            "frameworkReferences": {
+              "Microsoft.NETCore.App": {
+                "privateAssets": "all"
+              }
+            },
+            "runtimeIdentifierGraphPath": "/home/dwalleck/.local-dotnet/sdk/8.0.417/PortableRuntimeIdentifierGraph.json"
+          }
+        },
+        "targets": [
+          "net8.0-windows7.0"
+        ]
+      },
+      "multi": {
+        "exit": 0,
+        "output": "  Determining projects to restore...\n  Restored /home/dwalleck/.claude/tmp/tethys-review46-d5oad7l0/multi/Probe.csproj (in 33 ms).\n",
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "imports": [
+              "net461",
+              "net462",
+              "net47",
+              "net471",
+              "net472",
+              "net48",
+              "net481"
+            ],
+            "assetTargetFallback": true,
+            "warn": true,
+            "frameworkReferences": {
+              "Microsoft.NETCore.App": {
+                "privateAssets": "all"
+              }
+            },
+            "runtimeIdentifierGraphPath": "/home/dwalleck/.local-dotnet/sdk/8.0.417/PortableRuntimeIdentifierGraph.json"
+          },
+          "netstandard2.1": {
+            "targetAlias": "netstandard2.1",
+            "imports": [
+              "net461",
+              "net462",
+              "net47",
+              "net471",
+              "net472",
+              "net48",
+              "net481"
+            ],
+            "assetTargetFallback": true,
+            "warn": true,
+            "frameworkReferences": {
+              "NETStandard.Library": {
+                "privateAssets": "all"
+              }
+            },
+            "runtimeIdentifierGraphPath": "/home/dwalleck/.local-dotnet/sdk/8.0.417/RuntimeIdentifierGraph.json"
+          }
+        },
+        "targets": [
+          ".NETStandard,Version=v2.1",
+          "net8.0"
+        ]
+      }
+    },
+    "clobber": {
+      "exit": 0,
+      "before": [
+        "net8.0",
+        "netstandard2.1"
+      ],
+      "after": [
+        "net8.0"
+      ]
+    },
+    "ranges": [
+      {
+        "case": "two-part",
+        "exit": 0,
+        "output": "  Determining projects to restore...\n  Restored /home/dwalleck/.claude/tmp/tethys-review46-d5oad7l0/two-part/Probe.csproj (in 92 ms).\n",
+        "framework": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Review46.Package": {
+              "target": "Package",
+              "version": "[1.0.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/home/dwalleck/.local-dotnet/sdk/8.0.417/PortableRuntimeIdentifierGraph.json"
+        }
+      },
+      {
+        "case": "floating",
+        "exit": 0,
+        "output": "  Determining projects to restore...\n  Restored /home/dwalleck/.claude/tmp/tethys-review46-d5oad7l0/floating/Probe.csproj (in 98 ms).\n",
+        "framework": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Review46.Package": {
+              "target": "Package",
+              "version": "[1.*, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/home/dwalleck/.local-dotnet/sdk/8.0.417/PortableRuntimeIdentifierGraph.json"
+        }
+      },
+      {
+        "case": "download",
+        "exit": 0,
+        "output": "  Determining projects to restore...\n  Restored /home/dwalleck/.claude/tmp/tethys-review46-d5oad7l0/download/Probe.csproj (in 43 ms).\n",
+        "framework": {
+          "targetAlias": "net8.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Review46.Package",
+              "version": "[1.0.0, 1.0.0]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "/home/dwalleck/.local-dotnet/sdk/8.0.417/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    ],
+    "public_range_and_alias_reports": {
+      "alias": {
+        "exit": 0,
+        "stderr": "",
+        "projects": [
+          {
+            "key": "Probe.csproj",
+            "containers": [],
+            "standing": {
+              "standing": "indeterminate",
+              "failure": {
+                "reason": "restore-required",
+                "diagnostics": [
+                  {
+                    "code": null,
+                    "exception_type": null,
+                    "message": "current restore inputs are unavailable; grant ordinary repository restore separately",
+                    "file": null,
+                    "line": 0,
+                    "column": 0,
+                    "severity": "error"
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "issues": []
+      },
+      "two-part": {
+        "exit": 0,
+        "stderr": "",
+        "projects": [
+          {
+            "key": "Probe.csproj",
+            "containers": [],
+            "standing": {
+              "standing": "indeterminate",
+              "failure": {
+                "reason": "restore-required",
+                "diagnostics": [
+                  {
+                    "code": null,
+                    "exception_type": null,
+                    "message": "current restore inputs are unavailable; grant ordinary repository restore separately",
+                    "file": null,
+                    "line": 0,
+                    "column": 0,
+                    "severity": "error"
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "issues": []
+      },
+      "floating": {
+        "exit": 0,
+        "stderr": "",
+        "projects": [
+          {
+            "key": "Probe.csproj",
+            "containers": [],
+            "standing": {
+              "standing": "indeterminate",
+              "failure": {
+                "reason": "restore-required",
+                "diagnostics": [
+                  {
+                    "code": null,
+                    "exception_type": null,
+                    "message": "current restore inputs are unavailable; grant ordinary repository restore separately",
+                    "file": null,
+                    "line": 0,
+                    "column": 0,
+                    "severity": "error"
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "issues": []
+      },
+      "download": {
+        "exit": 0,
+        "stderr": "",
+        "projects": [
+          {
+            "key": "Probe.csproj",
+            "containers": [],
+            "standing": {
+              "standing": "indeterminate",
+              "failure": {
+                "reason": "restore-required",
+                "diagnostics": [
+                  {
+                    "code": null,
+                    "exception_type": null,
+                    "message": "current restore inputs are unavailable; grant ordinary repository restore separately",
+                    "file": null,
+                    "line": 0,
+                    "column": 0,
+                    "severity": "error"
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "issues": []
+      }
+    },
+    "unrelated_central_catalog": {
+      "before": [
+        {
+          "key": "Literal.csproj",
+          "containers": [],
+          "standing": {
+            "standing": "confirmed"
+          }
+        }
+      ],
+      "after": [
+        {
+          "key": "Literal.csproj",
+          "containers": [],
+          "standing": {
+            "standing": "indeterminate",
+            "failure": {
+              "reason": "restore-required",
+              "diagnostics": [
+                {
+                  "code": null,
+                  "exception_type": null,
+                  "message": "current restore inputs are unavailable; grant ordinary repository restore separately",
+                  "file": null,
+                  "line": 0,
+                  "column": 0,
+                  "severity": "error"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "whitespace": {
+      "control": {
+        "restore_exit": 0,
+        "restore_output": "  Determining projects to restore...\n  Restored /home/dwalleck/.claude/tmp/tethys-review46-d5oad7l0/spaces/Probe.csproj (in 41 ms).\n",
+        "evaluated_TFMs": "net8.0;net8.0-windows7.0",
+        "projects": [
+          {
+            "key": "Probe.csproj",
+            "containers": [],
+            "standing": {
+              "standing": "confirmed"
+            }
+          }
+        ]
+      },
+      "fresh_restored_whitespace": {
+        "restore_exit": 0,
+        "restore_output": "  Determining projects to restore...\n  Restored /home/dwalleck/.claude/tmp/tethys-review46-d5oad7l0/spaces/Probe.csproj (in 35 ms).\n",
+        "evaluated_TFMs": "net8.0; net8.0-windows7.0",
+        "projects": [
+          {
+            "key": "Probe.csproj",
+            "containers": [],
+            "standing": {
+              "standing": "indeterminate",
+              "failure": {
+                "reason": "restore-required",
+                "diagnostics": [
+                  {
+                    "code": null,
+                    "exception_type": null,
+                    "message": "current restore inputs are unavailable; grant ordinary repository restore separately",
+                    "file": null,
+                    "line": 0,
+                    "column": 0,
+                    "severity": "error"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "epoch": {
+      "baseline": [
+        {
+          "key": "Literal.csproj",
+          "containers": [],
+          "standing": {
+            "standing": "confirmed"
+          }
+        }
+      ],
+      "enabled": {
+        "exit": 1,
+        "stderr": "Error: Internal(\"discovery evidence serialization failed: SystemTime must be later than UNIX_EPOCH\")\n",
+        "report": null
+      },
+      "disabled_exit": 0,
+      "disabled_projects": [
+        {
+          "key": "Literal.csproj",
+          "containers": [],
+          "standing": {
+            "standing": "confirmed"
+          }
+        }
+      ]
+    },
+    "disabled_restore_publication": {
+      "exit": 0,
+      "projects": [
+        {
+          "containers": [],
+          "key": "Probe.csproj",
+          "standing": {
+            "standing": "confirmed"
+          }
+        }
+      ],
+      "cache_keys": [
+        "restore:c53ec099c9720de5d820ded4a16b325b35305728813f0311d06fc8d803118cfd"
+      ]
+    },
+    "unsupported_solution_entry": {
+      "context": {
+        "configuration": null,
+        "platform": null,
+        "runtime_identifier": null,
+        "global_properties": {},
+        "import_profile": "strict"
+      },
+      "projects": [
+        {
+          "key": "A.csproj",
+          "containers": [
+            "Mixed.sln"
+          ],
+          "standing": {
+            "standing": "confirmed"
+          }
+        }
+      ],
+      "units": [
+        {
+          "key": "b9d4ee604e176728fd9a3ab70e55af3ff532d848796debbd2e60bb7d22db94e8",
+          "project": "A.csproj",
+          "target_framework": "net8.0",
+          "framework": {
+            "short_name": "net8.0",
+            "identifier": ".NETCoreApp",
+            "version": "v8.0",
+            "profile": "",
+            "platform_identifier": "",
+            "platform_version": ""
+          },
+          "standing": {
+            "standing": "confirmed"
+          },
+          "properties": {
+            "AllowUnsafeBlocks": "",
+            "AssemblyName": "",
+            "BaseIntermediateOutputPath": "",
+            "Configuration": "",
+            "DefineConstants": "",
+            "IntermediateOutputPath": "",
+            "LangVersion": "",
+            "MSBuildBinPath": "/home/dwalleck/.local-dotnet/sdk/8.0.417",
+            "MSBuildFileVersion": "17.11.48.46605",
+            "MSBuildProjectDirectory": "/home/dwalleck/.claude/tmp/tethys-review46-d5oad7l0/solution",
+            "MSBuildProjectExtensionsPath": "",
+            "MSBuildProjectFullPath": "/home/dwalleck/.claude/tmp/tethys-review46-d5oad7l0/solution/A.csproj",
+            "MSBuildRuntimeType": "Core",
+            "MSBuildToolsVersion": "Current",
+            "MSBuildVersion": "17.11.48",
+            "ManagePackageVersionsCentrally": "",
+            "NETCoreSdkVersion": "",
+            "NuGetPackageRoot": "",
+            "Nullable": "",
+            "OutputPath": "",
+            "OutputType": "",
+            "Platform": "",
+            "PlatformTarget": "",
+            "ProjectAssetsFile": "",
+            "RestorePackagesConfig": "",
+            "RestorePackagesPath": "",
+            "RestoreProjectStyle": "",
+            "RestoreRepositoryPath": "",
+            "RootNamespace": "",
+            "RuntimeIdentifier": "",
+            "RuntimeIdentifiers": "",
+            "TargetFileName": "",
+            "TargetFramework": "net8.0",
+            "TargetFrameworkIdentifier": ".NETCoreApp",
+            "TargetFrameworkMoniker": "",
+            "TargetFrameworkProfile": "",
+            "TargetFrameworkVersion": "v8.0",
+            "TargetFrameworks": "",
+            "TargetPath": "",
+            "TargetPlatformIdentifier": "",
+            "TargetPlatformVersion": "",
+            "UsingMicrosoftNETSdk": "",
+            "VSToolsPath": ""
+          },
+          "sources": [],
+          "project_references": [],
+          "assembly_references": [],
+          "host": {
+            "kind": "sdk",
+            "path": "/home/dwalleck/.local-dotnet/sdk/8.0.417",
+            "version": "17.11.48.46605",
+            "runtime": ".NET 10.0.2"
+          },
+          "restore": {
+            "style": "none",
+            "inputs": []
+          }
+        }
+      ],
+      "issues": [
+        {
+          "path": "Mixed.sln",
+          "failure": {
+            "reason": "malformed-input",
+            "diagnostics": [
+              {
+                "code": null,
+                "exception_type": null,
+                "message": "No such file or directory (os error 2)",
+                "file": "/home/dwalleck/.claude/tmp/tethys-review46-d5oad7l0/solution/Missing.vcxproj",
+                "line": 0,
+                "column": 0,
+                "severity": "error"
+              }
+            ]
+          }
+        }
+      ],
+      "cache_observations": [
+        {
+          "project": "A.csproj",
+          "target_framework": null,
+          "reused": false,
+          "bypass_reasons": [
+            "cache_miss"
+          ]
+        }
+      ]
+    }
+  }
+}

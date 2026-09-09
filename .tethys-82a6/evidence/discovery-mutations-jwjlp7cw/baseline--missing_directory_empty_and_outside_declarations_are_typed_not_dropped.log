@@ -1,0 +1,25 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-k0xr_gwk)
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.44s
+────────────
+ Nextest run ID 884f52d5-7cf1-417f-8e70-8578fa410fad with nextest profile: default
+    Starting 1 test across 1 binary (8 tests skipped)
+        SKIP [         ] tethys::discovery_candidates aliases_cannot_make_generated_or_internal_projects_automatic
+        SKIP [         ] tethys::discovery_candidates directory_exclusions_follow_platform_case_semantics
+        SKIP [         ] tethys::discovery_candidates empty_workspace_is_distinct_from_malformed_enumeration
+        SKIP [         ] tethys::discovery_candidates filter_requires_exact_solution_membership_and_valid_json
+        SKIP [         ] tethys::discovery_candidates filters_resolve_from_solution_and_do_not_exclude_standalone_projects
+        SKIP [         ] tethys::discovery_candidates symlink_aliases_deduplicate_and_escapes_and_loops_do_not_get_followed
+        SKIP [         ] tethys::discovery_candidates xml_attribute_whitespace_preserves_distinct_paths_and_character_references
+        SKIP [         ] tethys::discovery_candidates xml_escapes_decode_but_external_entities_and_broken_roots_are_rejected
+        PASS [   0.003s] tethys::discovery_candidates missing_directory_empty_and_outside_declarations_are_typed_not_dropped
+────────────
+     Summary [   0.003s] 1 test run: 1 passed, 8 skipped
+        PASS [   0.003s] tethys::discovery_candidates missing_directory_empty_and_outside_declarations_are_typed_not_dropped
+        SKIP [         ] tethys::discovery_candidates aliases_cannot_make_generated_or_internal_projects_automatic
+        SKIP [         ] tethys::discovery_candidates directory_exclusions_follow_platform_case_semantics
+        SKIP [         ] tethys::discovery_candidates empty_workspace_is_distinct_from_malformed_enumeration
+        SKIP [         ] tethys::discovery_candidates filter_requires_exact_solution_membership_and_valid_json
+        SKIP [         ] tethys::discovery_candidates filters_resolve_from_solution_and_do_not_exclude_standalone_projects
+        SKIP [         ] tethys::discovery_candidates symlink_aliases_deduplicate_and_escapes_and_loops_do_not_get_followed
+        SKIP [         ] tethys::discovery_candidates xml_attribute_whitespace_preserves_distinct_paths_and_character_references
+        SKIP [         ] tethys::discovery_candidates xml_escapes_decode_but_external_entities_and_broken_roots_are_rejected

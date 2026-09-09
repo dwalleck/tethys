@@ -1,5 +1,333 @@
 # Review decisions
 
+**Current S3/S3a status: PASS at d9119ff.** All17 CI jobs passed, including complete native Windows restore qualification. F2–F18 are repaired and qualified; earlier pending/failure notes below are historical checkpoints. S4–S6 and final assembled qualification remain required.
+
 | finding-id | finding | reviewer | evidence-state | evidence | decision | fix | note |
 |---|---|---|---|---|---|---|---|
 | F1 | Ordinary incompatible-schema open enables WAL before checking currency; check before persistent pragmas. | RevisionReview | Verified | DELETE-mode byte/sidecar fence failed before the fix (artifact 106), passed afterward; final full suite and CLI smoke passed. | Accept | S1: unconfigured open, then currency check, then WAL configuration; explicit rebuild configures independently. | S1 checkpoint PASS: 1131 nextest tests and 18 doctests passed; batch/stream 15,124-file rollback/reindex/rebuild smoke passed. Reviewer confirmed the repair. Final integration N/A — later plan slices remain. |
+| F2 | Case-sensitive Link lookup drops valid mixed-case native metadata; preserve spelling and resolve known names case-insensitively. | DiscoveryFreshnessReview | Verified | Real public-seam native_metadata_names_are_case_insensitive_without_rewriting_spelling failed: None versus Some("Shared.cs"), artifact308; repaired native gate passed in artifact357. | Accept | S3: native item known-key lookup shared by domain conversion and restore validation. | Local regression green; platform checkpoint pending. |
+| F3 | Exact Version/VersionOverride/package flag lookups reject valid case-variant package metadata. | DiscoveryFreshnessReview | Verified | Real offline Newtonsoft.Json restore succeeded natively but restored_package_metadata_names_are_case_insensitive returned RestoreFailed, artifact312; repaired native gate passed in artifact357. | Accept | S3: use native item case-insensitive lookup for versions, asset flags and HintPath. | Native success remains the authority; platform checkpoint pending. |
+| F4 | DOTNET environment overrides a valid explicit SDK installation. | DiscoveryExecutionReview | Verified | Explicit installed SDK8 plus DOTNET=/bin/false returned toolchain-unavailable; repaired explicit-host fence and native public smoke pass in artifact357. | Accept | S3: explicit installed SDK chooses its own muxer; DOTNET remains the implicit-discovery fallback. | Zero-launch proof now uses native host tracing on the explicit SDK, not a forwarding wrapper. Platform checkpoint pending. |
+| F5 | Windows case variants of generated/VCS/cache directory names bypass candidate exclusions. | DiscoveryExecutionReview | Verified | Old generated/walk comparisons used case-sensitive OsStr equality. Repaired filesystem-identity fixture passes locally, including distinct Unix casing and aliases. | Accept | S3: compare existing directory identities; generated and internal aliases share exclusion behavior. | Actual Windows candidate/platform qualification remains required. |
+| F6 | A literal project can read changing external state through a startup hook or forwarding muxer without changing ordinary input receipts. | Main / RuntimeCacheFence | Verified | Native baseline passes; disabling current SDK runtime eligibility produces stale HOOK_ONE versus HOOK_TWO and WRAPPER_ONE versus WRAPPER_TWO in discovery-mutations-2o13m48p. | Accept | S3: check current runtime/muxer eligibility before lookup and publication; reevaluate Framework until its CLR/BCL closure is qualified. | Metadata transition is the primary regression; unqualified executions must also publish no evaluation receipts. |
+| F7 | Arbitrary directory and project-file aliases into generated/internal paths bypass automatic exclusions. | S3RestoreReview | Verified | Public alias fence fails in artifact376, exposing .git/.rivets/bin/obj/target and a deep generated project; ordinary and explicitly declared generated controls remain present. Repaired676-test native gate passes in artifact392. | Accept | S3: classify resolved physical ancestry while preserving ordinary generated inventory and outside/broken-alias diagnostics. | Final local regression green; actual Windows platform gate pending. |
+| F8 | Isolated NuGet project restore loses the default solution package destination; ancestor-folder guesses do not establish normal policy. | S3RestoreReview | Verified | Microsoft restore CLI documentation and native GetPackagesFolder (artifact373:932–962) require configured repositoryPath or explicit/actual solution context; previous argv carried neither. Destination-policy fence passes in artifact392. | Accept | S3: preserve actual solution origins through filters, supply established native solution context, validate the same destination, and decline ambiguity or unestablished configuration. | Windows fixture must prove old argv failure and granted default-destination success on the same real NuGet/VS/offline feed; configured destination remains a separate control. |
+| F9 | quick-xml0.38.4 fails dependency policy for quadratic duplicate-attribute checks and unbounded namespace allocation. | Cargo Deny CI / Main | Verified | Native CI job101639029216 reports RUSTSEC-2026-0194/0195; cargo deny passes with0.41.0 in artifact458, without advisory exceptions. | Accept | S3a: update the existing dependency and lockfile; migrate three deprecated calls without changing decoding semantics. | PlatformRepairReview found no actionable repair bugs; actual platform checkpoint remains required. |
+| F10 | Windows missing-path fallback canonicalizes a bare drive/verbatim prefix and returns Incorrect function instead of the declared-path result. | Windows CI / WindowsPaths | Verified | Candidate and native cache failures in artifacts428/429; source shows Prefix filesystem access before RootDir. | Accept | S3a: accumulate Prefix, then perform existing filesystem resolution on the rooted path; preserve symlink and containment behavior. | Local1156-test and677-test native gates pass in artifact465. Actual Windows missing/outside/ProjectReference results remain pending; timings are diagnostic, not a supervisor fix. |
+| F11 | The suggested quick-xml replacement normalizes literal attribute whitespace and changes project identity. | Main | Verified | Native dotnet solution listing preserves distinct space/tab paths; the public candidate fence fails under normalization in artifact455 and passes after decoder/unescape composition in artifacts458/465. | Accept | S3a: preserve existing decoding/unescaping at all three boundaries. The fence is unconditional; Windows invalid-tab declarations must not alias an existing space path. | Read-only PlatformRepairReview found no actionable bugs; Windows assertions and diagnostic removal still require native qualification. |
+| F12 | Rust cache mismatch cleanup deletes the prepared managed worker while retaining its directory. | UnixDistributionProbe / Main | Verified | Jobs101651540609/403 restore nonmatching caches after qualification; unchanged pinned cleanTargetDir reproduces DLL deletion and exact public-seam ENOENT. Raw red/restored-green logs: evidence/cache-order-3d69823. | Accept | S3a: restore Rust cache before managed preparation; keep existing paths, debug roster and native assertions. | Actual CI required. Isolated action/runtime probe removed after proof; this cleanup does not refer to the separate Windows path diagnostic. |
+| F13 | Verbatim Windows project paths make native Compile globs empty; present filesystem-equivalent ordinary paths at the native boundary. | WindowsCompileProbe / Main | Verified | Actual SDK8/VS17.14 direct and worker comparison in evidence/windows-path-4b037e1.json:16 successful evaluations; only verbatim globs lose the authored source, while literal controls stay intact. | Accept | S3a native path repair: borrowed dunce presentation for evaluation/restore, strict presented-path echo followed by canonical identity restoration, and recipe2 invalidation of old results. | Existing membership/cache/restore assertions remain unchanged. Temporary path probe/CI step and previous fingerprint instrumentation are removed; actual post-fix Windows gate remains required. |
+| F14 | SDK restore receives a verbatim MSBuild.dll argument and returns success without generating required artifacts. | Windows CI / Main | Verified | evidence/windows-sdk-restore-a4b6ae2.json changes only DLL argument spelling on one native project: verbatim exits0 with Nothing to do/no assets; ordinary exits0 and writes assets. | Accept | S3a restore boundary repair: present the SDK DLL argument through the existing dunce boundary convention. | Artifact535's three SDK restore failures share this producer path; do not accept absent assets or weaken grants. |
+| F15 | The earlier-glob fixture never receives its intended mutation because the later SDK restore produces no files. | Windows CI / RestoreGlobTrace | Verified | Artifact535 shows A Confirmed, Z RestoreFailed and obj absent; the native DLL differential establishes why no mutation occurs. | Accept | Same F14 SDK producer repair; retain currentness and inventory logic unchanged. | Actual post-fix Windows must create the files, invalidate A and confirm Z. |
+| F16 | Restore metadata for the same canonical project is rejected when native identity or generated-output spelling differs. | Main / RestoreInputsTrace | Verified | Artifact540: real alias restore produces valid files and native dgspec identity but returns RestoreRequired. Artifact558 isolates the second boundary: alias-spelled generated outputs are counted again as physical-spelled fresh imports. | Accept | S3a: validate absolute canonical project identities, borrow the native unique-name dgspec key, and compare canonical generated/import identities while preserving native watch paths. | Different-project artifacts remain invalid; retain version/framework/package/freshness checks and operational I/O errors. |
+| F17 | Final restore inventory exemptions compare native watch keys with canonical inventory paths instead of captured physical identity. | Windows CI / Main / RestoreCurrentnessTrace | Verified | Windows050fbf9 validates SDK restore but three fixtures fail final currentness. The real Unix aliased MSBuildProjectExtensionsPath fence reproduces the same diagnostic in1.698s (artifact586); cache stamps already retain canonical identity while map/provenance keys retain native spelling. | Accept | S3a: derive eligible native/canonical identities only from this scope's captured restore inputs; compare inventory names without recanonicalizing newly introduced aliases. | Preserve native watch paths, per-scope timing, unchanged-stamp checks and earlier-glob rejection. |
+| F18 | The no-op restore fixture opens its project read-only before changing its timestamp, which Windows rejects. | Windows CI / Main | Verified | Job101717448377/run34114305610 passes644/645 tests; the remaining panic is File::set_modified at discovery_failures.rs438 with Win32 code5/PermissionDenied. SetFileTime requires FILE_WRITE_ATTRIBUTES. | Accept | S3a proof repair: open the existing fixture with File::options().write(true), without create/truncate, before the unchanged timestamp operation. | Test-only access-right correction; preserve the future timestamp and every no-op restore/cache assertion. |
+
+## S3a cache-order repair — F12
+
+- **Ownership:** Main; covering C6/C7/C9 and inherited S3/S3a discovery/packaging obligations. Unchanged approved behavior, owners, interfaces and risk remain inherited from plan.md.
+- **Root cause and paths:** .github/workflows/ci.yml restored a nonmatching Rust cache after managed publication. Move existing Rust setup/cache/nextest before preparation; no product workaround or new packaging convention. Preserve execution evidence under evidence/cache-order-3d69823. The separate Windows path probe is diagnostic investigation of F13, not its accepted fix.
+- **Commands/results:** unchanged pinned action cleanTargetDir(copiedTarget, [], true), then `cargo nextest run --all-features --test discovery_cache --run-ignored all -E 'test(cache_input_closure_matches_forced_and_invalidates_globs_content_context)'`: baseline0, mutated100 with exact ENOENT, restored publication0. `cargo fmt --check`, all-target/all-feature clippy,677 native-enabled checks and C13 S3 pass in artifact489.
+- **Evidence disposition:** prior Ubuntu/macOS platform PASS is invalidated by actual failures in run34093399905; replacement actual CI is pending and owned by Main. Product semantics and prior Cargo/public-seam smoke conclusions are retained: only CI ordering and completed temporary timing output change. No new production loop or interface; production-scale measurement remains the approved S6 obligation, not waived. Existing native cache membership fence supplies red/restored-green proof. Windows full qualification remains FAIL for independent F13; this repair does not complete S3 or authorize S4.
+
+## S3a native path repair — F13
+
+- **Ownership:** Main integrates NativePathRepair's isolated five-file change; covering C6/C7/C9 and plan.md S3/S3a. Responsibility, interface and risk remain unchanged.
+- **Root cause and paths:** Cargo.toml/Cargo.lock add dunce1.0.5 using its already-permitted Apache-2.0 alternative. host.rs presents native paths and restores verified canonical response identities; restore.rs presents system-owned native arguments without touching authored properties; cache.rs increments the existing recipe. The exact16-observation Windows oracle is retained; the temporary Python probe and CI step are deleted.
+- **Commands/results:** artifact514 passes fmt/clippy/deny,1156 ordinary tests,677 native-enabled checks,18 doctests, actual public discovery/Cargo smoke and C13. NativePathReview finds no actionable bugs. evidence/discovery-mutations-jwjlp7cw records current source hashes,8 baseline passes,8 intended failures from7 named mutations and8 explicit post-restoration passes. The existing Windows authored membership, zero-launch cache and granted/default/configured restore controls remain unchanged; actual post-fix CI must pass before acceptance.
+- **Evidence disposition:** ordinary/verbatim native observations are fresh external premises; existing pre-fix Windows membership failures are fresh defect-sensitivity evidence. Post-fix native Windows behavior remains pending and owned by Main. F12's ordering repair passes actual Ubuntu and macOS managed jobs101659036914/618 in run34095788374; order and packaging policy are unchanged here. No new production loop; path presentation is borrowed/no-I/O, and canonical identity buffers are reused after strict validation. No final S3/S4 advance before platform acceptance.
+
+## S3a restore diagnosis — F14, F15
+
+- **Ownership:** Main; approved C4/C7 and S3/S3a. Diagnostic correction only; production behavior, assertions, grants, ownership and risk are unchanged.
+- **Scope:** tests/discovery_failures.rs temporarily emits tagged project standings, canonical/native assets identities, dgspec keys and obj entries. Managed CI runs its unchanged test roster with --no-fail-fast so one failure does not hide the remaining native restore fences. Remove tagged diagnostics after evidence is captured.
+- **Expected proof:** existing native failure commands remain red on Windows and identify the first failed boundary. Local fmt/clippy and the native discovery_failures roster must still pass. Native membership and zero-evaluator cache controls now pass at6a72c81 in job101674184103; S3a remains FAIL for the two observed restore failures, with7 remaining native tests not yet executed due fail-fast.
+- **Evidence disposition:** artifact520 is the exact completed Windows job log, recovered via the job-logs REST endpoint. Native premise evidence/windows-path-4b037e1.json and unchanged local source proof in artifact514 remain valid for their checked conclusions; neither proves Windows restoration. No S3/S4 advance before full platform acceptance.
+- **Local diagnostic result:** artifact524 passes fmt, all-target/all-feature clippy and all14 native discovery_failures tests. Only tagged diagnostics and no-fail-fast execution policy change; the Windows red checks remain unresolved pending captured native state.
+- **Native diagnostic result:** artifact535 executes the full Windows roster:642/645 pass; F14/F15 plus restored_package_metadata_names_are_case_insensitive fail. Both instrumented SDK fixtures have no obj directory at all. Assets identity comparison is therefore not established as this failure's cause. Both real Windows packages.config/filter restore fences pass.
+- **Completed discriminator:** the test-only debug_sdk_restore_paths probe invoked the same installed SDK DLL, same physical project/cwd, same target and cleared feed policy with verbatim then ordinary DLL argument spelling. Actual Windows run34105613204 proves exit0/no assets versus exit0/assets created; evidence/windows-sdk-restore-a4b6ae2.json retains all four observations. Production, original assertions and grant policy were unchanged during this experiment.
+- **Separate equivalent-identity observation:** existing_restore_requires_same_physical_project failed locally in1.194s after real native restore through a directory alias (artifact533). At that checkpoint, the new fence and canonical-matching implementation were withheld while the independent Windows producer boundary was diagnosed. The permanent fence is now restored to the test file and covered by F16.
+- **Probe preparation result:** artifact537 passed fmt/clippy and all14 local native failure tests. The SDK argument differential was Windows-only; its actual Windows capture, not the local pass, discharged the external premise. Both temporary diagnostic helpers and their calls are now removed.
+
+## S3a restore boundary repair — F14, F15, F16
+
+- **Ownership:** Main; covering C4/C7/C9 and inherited S3/S3a. Production ownership stays in host.rs and restore.rs; Main owns discovery_failures.rs, evidence and docs. This completes native path round-trip handling, without changing API, architecture, grants, inventory rules or accepted risk.
+- **Root-cause change:** simplify the complete SDK DLL argument, keeping canonical host identity. Validate restore schema before path I/O; require absolute projectPath/projectUniqueName identities, compare canonical paths, and borrow the validated native unique-name dgspec key. Canonical project spellings retain their no-I/O identity fast path. append_restore_imports canonicalizes the fixed four outputs once and each evaluated import once before excluding generated outputs, retaining original watch paths. NotFound declines as incomplete restore; operational errors propagate. No graph scan or new dependency.
+- **Impact/reuse:** fresh tethys index reports163 files; precise and recall asset_inputs callers are current_inputs/ensure. LSP references remain partly stale after reload; grep grounds calls at restore.rs1113,1139,1322,1406. restore_command has one production caller at restore.rs1189; LSP reports a stale nearby position and dogfood precision misses it. Reuse dunce and std canonicalization; existing native_path resolves output paths and must not be widened to accept relative project identities.
+- **Expected proof:** existing_restore_requires_same_physical_project must pass after its native alias red in artifacts533/540, including its different-physical-project negative control. Existing native restore/cache/failure rosters, public smoke, Cargo behavior, fmt/clippy/deny and C13 remain mandatory. Existing Windows red plus the independent native DLL differential supplies defect sensitivity for the producer; actual post-fix Windows supplies restored green.
+- **Evidence disposition:** the native DLL external premise is retained in evidence/windows-sdk-restore-a4b6ae2.json; only argument spelling changed in the native discriminator, so the premise remains applicable. The permanent alias fence is retained. Both tagged diagnostic helpers/calls are removed, and the cleaned source passed artifact570; a scoped diagnostic search found no remaining tags. Actual post-fix Windows remains pending and owned by Main; no S3/S4 advancement yet.
+- **Local assembled proof:** artifact570 passes fmt, all-target/all-feature clippy with -D warnings, cargo-deny,1156 ordinary tests,678 native-enabled checks,18 doctests, actual public discovery/cache/trust smoke, frozen Cargo output and C13 S3. The alias fence passes both same-project acceptance and different-project rejection. The full native gate also retains unrelated-input freshness and later-restore/glob controls. RestoreBoundaryReview found no actionable defects in the extended parent-source repair; its prior narrow review was superseded for the new comparison boundary.
+- **Cost and symmetry:** native presentation remains borrowed/no-I/O. New identity comparison costs O(imports+4) canonicalizations and a bounded four-path vector; it does not scan projects or all workspace files. Original native paths remain watched, including aliases, and cache::evaluation_paths still retains evaluated imports. Canonicalization NotFound follows the existing missing-file incomplete-restore outcome; other I/O failures remain errors. Existing freshness, grants, inventory and package validation are unchanged. Native local checks complete within their existing60-second process bounds; full corpus resource qualification remains the inherited S6/C12 obligation.
+- **Mutation/restoration result:** evidence/discovery-mutations-e8_7dw4z records final source hashes and154.83 seconds of execution:9 baseline fences pass,9 named mutations trigger10 intended behavioral failures, and all10 explicitly restored cases pass. C7-lexical-project-identity and C7-lexical-generated-identity independently fail the alias acceptance assertion; restoration passes both same-project and different-project controls. The disposable mutation tree was removed by the runner; parent sources were never mutated.
+- **Local bounded checkpoint:** (1) affected tests PASS, (2) local falsifiers PASS, (3) alias/native restore stress PASS, (4) native restore versus public discovery oracle PASS, (5) approved module shape PASS, (6) existing per-process bounds PASS, (7) regression fences PASS, (8) named mutants red PASS, (9) explicit restored fences green PASS. Proof is artifact570 and discovery-mutations-e8_7dw4z. Full corpus budget N/A here — owned by S6/C12, not waived. This pre-push checkpoint does not discharge the separate actual Windows platform acceptance, which Main must run on the committed source before S4. Final assembled integration N/A at this intermediate repair — S4–S6 remain.
+- **Cleanup and atomicity:** diagnostics are removed; public native-path/currentness documentation and the discovery changelog fragment change with source. AGENTS.md and CONTEXT.md remain intentionally unchanged: canonical domain identity, execution/freshness ownership and separate grants already describe this contract. No public symbol signature changes or caller migration are required. Rust pre-commit checklist and scoped review passed without warning suppressions or compatibility shims.
+
+## S3a captured restore inventory repair — F17
+
+- **Ownership/claims:** Main; C4/C7/C9, inherited S3/S3a. cache.rs owns captured input identity; msbuild/mod.rs owns final scope validation. Main owns the real native alias regression, mutation record and docs. No API, ownership, grant, inventory or risk change.
+- **Verified boundary:** actual Windows job101705353130/run34110500050 runs645 tests:642 pass, three SDK restore fixtures now fail final currentness rather than RestoreFailed. Both packages.config/filter fences pass; the intended earlier-project glob mutation is now detected. local://windows-restore-050fbf9.log retains the job log. The local real-worker alias-output fence in artifact586 reproduces that final rejection without Windows-specific emulation.
+- **Approved-contract repair:** reuse Stamp.canonical rather than adding filesystem normalization or replacing native Inputs keys. A private cache operation derives borrowed native/canonical names only for restore paths already present in this scope's captured Inputs. Native names use the existing borrowed dunce presentation. The coordinator checks added/removed inventory names against those captured names, leaving unchanged-stamp, host and symlink checks intact. Do not canonicalize arbitrary changed inventory paths: that could excuse a newly introduced alias/glob name which the scope never observed. Skip the new projection when inventory is unchanged.
+- **Impact/reuse:** fresh tethys index:163 files,3543 symbols,30782 references; both caller tiers and LSP identify only MsBuildDiscovery::discover at msbuild/mod.rs76 as validate_snapshot's caller. Existing cache::stamp already captures native spelling plus canonical identity/content/mtime; cache::capture/evaluation_paths and unchanged must retain that contract. No dependency or receipt recipe change.
+- **Expected proof:** authorized_restore_preserves_aliased_artifact_identity must turn green and retain App.cs membership; existing later_restore_does_not_excuse_an_earlier_glob_change must still reject A and confirm Z. Replacing the captured physical name with its native spelling must make the alias fence red, followed by explicit restored green. Native/local rosters, public smoke, clippy/deny/C13 and actual Windows must pass; Main owns every check. No tagged production diagnostics are needed for this deterministic reproduction.
+- **Evidence disposition:** F14–F16 producer/metadata fixes and their external native premises remain valid; artifact570 and discovery-mutations-e8_7dw4z are retained only for unaffected conclusions. Final inventory validation and its affected fences require fresh proof. Windows platform acceptance remains FAIL at050fbf9; S4 remains blocked.
+- **Fresh local checkpoint:** artifact597 passes fmt/clippy,1156 ordinary tests,679 native-enabled checks,18 doctests, public discovery/Cargo smoke and C13. CapturedIdentityReview reports no actionable findings. Discovery-mutations-uyjzn7zr records two baseline passes, intended failures for C7-overwrite-restore-grant and C7-lexical-captured-restore, then two explicit restored passes. The runner's optional --mutation selector preserves default full execution and records the chosen names; this avoids duplicating unrelated proof.
+- **Retained evidence:** cargo-deny PASS in artifact570 and CI job101705352760 remains applicable because dependency manifests, lockfiles and policy are unchanged. Discovery-mutations-e8_7dw4z retains C3 (Cargo-only), containment/trust checks (before this boundary), failed-evaluation classification (unchanged inventory), C9 cache/runtime mutations (changes observed before invocation or outside workspace inventory), and F16 identity/freshness mutants (decline before final validation). The changed post-restore path and new fence have fresh red/restored-green evidence; prior actual Windows failure remains historical, not a current PASS.
+- **Cost/symmetry:** each changed scope performs O(R log I + R log R + D log R) ordered operations on borrowed names; there are no new filesystem reads, cloned path buffers or unchanged-inventory allocations. Missing capture keys still provide no exemption. Native watches and canonical stamps remain immutable; cache::unchanged retains its existing error logging and conservative invalidation. Alias and earlier-glob fences pass within existing process deadlines; full corpus budgets remain S6/C12.
+- **Local gate states:** affected tests PASS; local falsifiers PASS; native alias/earlier-glob stress PASS; independent native restore/public discovery comparison PASS; C13/module ownership PASS; local per-process bounds PASS; regression fences PASS; named mutants red PASS; explicitly restored fences green PASS. Corpus budget N/A here — owned by S6/C12, not waived. Actual Windows remains Main's next required platform checkpoint; final assembled integration remains after S4–S6.
+- **Cleanup:** no temporary diagnostics or source probes were added. Public docs, AGENTS.md, CONTEXT.md and the existing discovery fragment remain intentionally unchanged: they already require canonical identity, current inputs and no unrelated-glob exemption. This repair implements that contract rather than changing it. Mutation trees are removed by the runner; Main removes the integrated writer worktree before commit. No warning suppressions, shims or schema/recipe changes.
+
+## S3a Windows timestamp fixture repair — F18
+
+- **Ownership/claims:** Main, C7 and inherited S3/S3a; only tests/discovery_failures.rs changes executable code. No production, policy, oracle meaning, responsibility or accepted-risk change.
+- **Evidence:** actual6ca1b92 Windows job101717448377 runs645 tests:644 pass. Initial authorized restore assertions, the earlier-glob fixture, package-metadata fixture and legacy controls pass. The remaining test stops at its read-only handle's set_modified call before no-op restore qualification. Native log: local://windows-currentness-6ca1b92.log. Microsoft's SetFileTime contract requires FILE_WRITE_ATTRIBUTES: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-setfiletime.
+- **Repair:** use the standard nontruncating write-open mode for that temporary project. Keep its bytes, future mtime, grant transitions, DefineConstants expectation, cached reuse and forced-evaluation assertions unchanged. No platform skip, ignored error or production currentness change.
+- **Expected proof:** local native failure roster and clippy pass; rerun the affected C7-overwrite-restore-grant mutation and explicit restoration. Actual committed Windows roster must continue past timestamp setup and pass the complete no-op/cached/forced scenario. Main owns native platform acceptance; S4 remains blocked until it passes.
+- **Evidence disposition:** production proof/review and other mutation conclusions from artifact597, discovery-mutations-e8_7dw4z and discovery-mutations-uyjzn7zr remain applicable because production bytes and their fences are unchanged. This fixture's affected proof requires fresh execution. F17's initial native restore/currentness assertions now pass on Windows; overall platform acceptance remains FAIL solely at the F18 setup boundary.
+- **Fresh local result:** artifact609 passes fmt, all-target/all-feature clippy and all16 native discovery_failures tests, including the complete no-op/cached/forced scenario. Discovery-mutations-vw3sdhpm records the changed fixture's baseline pass, intended restore-grant-bypass failure, and explicit restored pass. Production bytes, public API and all assertions are unchanged.
+- **Local checkpoint:** affected test/falsifier/stress/oracle/fence PASS; named mutation red and explicit restoration green PASS. Module shape and assembled production proof retain artifact597 because no production path changes. Budget N/A — fixture-only correction adds no production loop or phase. Cleanup is complete: no diagnostic probe, new product documentation or changelog claim is needed. Actual Windows continuation remains Main's required next check; no S4 advance yet.
+
+## S3/S3a accepted native checkpoint — d9119ff
+
+- **Platform:** run34116637039 at d9119ffdf5f29b81bf56aeaa94ba575f29fe96e4 passes all17 jobs. Native Windows job101724882019 executes645 tests, all passing; native Ubuntu101724882162 and macOS101724882576 each execute655 tests, all passing, with zero skipped. evidence/platform-d9119ff.json retains summaries, the repaired restore controls, job URLs and full-log hashes.
+- **Discharged Windows obligations:** initial and no-op restore, cached/forced equivalence, earlier-project glob rejection, native package metadata casing, and configured/default/filter legacy restore all pass. The timestamp fixture reaches its complete sequence. F12 packaging order and F13 native membership/cache controls pass on all applicable platforms; no diagnostic or assertion bypass remains.
+- **Assembled local evidence:** artifact597 proves1156 ordinary tests,679 native-enabled checks,18 doctests, public discovery/Cargo smoke, fmt/clippy and C13. Artifact609 revalidates the only later fixture change. Cargo Deny is freshly green in CI job101724881951. Reviews remain applicable because subsequent F18 and checkpoint edits do not change production code.
+- **Mutation validity:** discovery-mutations-e8_7dw4z, discovery-mutations-uyjzn7zr and discovery-mutations-vw3sdhpm collectively provide fresh or explicitly retained red/restored-green evidence for every S3/S3a fence. The F17/F18 records state affected-path applicability; native path/DLL external premises remain valid without rerunning their unchanged experiments.
+- **Checkpoint gates:** affected tests PASS; falsifiers PASS; stress fixtures PASS; implementation/independent oracle agreement PASS; C13 ownership/shape PASS; bounded native process guards PASS; regression fences PASS; named mutants red PASS; explicit restored fences green PASS. Corpus-wide cold/changed/cache resource qualification remains S6/C12, not waived. Final assembled S4–S6 integration is not yet complete.
+- **Drift/transition:** after d9119ff, git fetch origin main and git log HEAD..origin/main show no unseen upstream commits. The standalone discovery PR increment is independently qualified. This record/evidence-only commit leaves production, tests, dependencies and CI configuration unchanged, so d9119ff platform evidence remains applicable while S4 begins on its own stacked branch.
+
+## PR46 max-review decisions — baseline 913e40d
+
+Main owns this decision surface and integration. The requester authorized repairs
+in the suggested order. R46 IDs follow the pasted finding order; T46 IDs identify
+its unranked tail. The green baseline CI run34298401540 does not prove these repairs.
+The earlier assessment JSON was a working capture; this section is authoritative.
+
+| finding-id | finding | reviewer | evidence-state | evidence | decision | fix | note |
+|---|---|---|---|---|---|---|---|
+| R46-01 | Authored TFM fails assets targetAlias lookup | User-supplied max review | Verified | SDK8.0.417 maps net8.0-windows to assets net8.0-windows7.0; baseline discovery refuses it | Accept | Repair A: one exact-or-unique targetAlias authority | Preserve wrong/ambiguous-alias rejection |
+| R46-02 | Inner Restore overwrites sibling framework assets | User-supplied max review | Verified | Native Restore with invented TargetFramework=net8.0 removes netstandard2.1 from a two-framework assets file | Accept | Repair A: retain only caller globals during ordinary Restore and corroborate its graph | Ports the upper-stack R1/R2 authority rather than duplicating it |
+| R46-03 | Lexical NuGet ranges reject equivalent native versions | User-supplied max review | Verified | Local-feed native restores encode 1.0 as [1.0.0, ), 1.* as [1.*, ), exact download as two equal bounds | Modify | Repair A: shared semantic version/range comparison | Exact and minimum remain distinct; native graph CPM/download paths must agree |
+| R46-04 | Restore must exceed the 60-second budget | User-supplied max review | Verified | design.md11,37 and discovery/types.rs explicitly cap each process at60seconds | Reject | N/A — approved deadline is retained | Increasing the deadline changes an approved decision, not a defect repair |
+| R46-05 | An unrelated central catalogue demands restore | User-supplied max review | Verified | Adding an unimported Directory.Packages.props changes a package-free literal from Confirmed to RestoreRequired | Accept | Repair A: PackageVersion does not select restore style alone | Still retain catalogue provenance; actual PackageReference selects its style |
+| R46-06 | Framework-list whitespace rejects current restore | User-supplied max review | Verified | Real restored multi-target project confirms without semicolon whitespace and refuses with it | Accept | Repair A: trim framework entries before lookup | Same interpretation as framework enumeration |
+| R46-07 | Malformed NuGet configuration aborts unrelated candidates | User-supplied max review | Verified | New native sibling fence on baseline aborts with Config(duplicated attribute) | Modify | Repair C: scoped malformed configuration, fatal operational I/O retained | Bounded content errors are not infrastructure failures |
+| R46-08 | Equal timestamps establish unjustified restore freshness | User-supplied max review | Verified | fresh_files accepts equality; coarse timestamps cannot order an edit and generated outputs | Modify | Repair B: require strictly newer outputs for unreceipted bootstrap | Validated content receipts retain legitimate no-op restore authority |
+| R46-09 | Restore context keys treat property-name casing as identity | User-supplied max review | Verified | context_key serializes original names while evaluation cache uses normalized_globals | Accept | Repair B: reuse normalized_globals | Property values remain case-sensitive |
+| R46-10 | Evaluation grant must also gate SDK-resolver networking | User-supplied max review | Verified | docs/msbuild-evaluation.md explicitly describes trusted evaluation as executable code, not a sandbox | Reject | N/A — trust and restore grants stay distinct | Blanket restore gating would change the approved authority model |
+| R46-11 | Disabled cache must reject previous restore receipts | User-supplied max review | Refuted | Existing native no-op/future-mtime fence intentionally consumes receipts while forcing evaluation | Reject | N/A — retain restore receipt reads | Do not copy evaluation reuse gates onto restore authority |
+| R46-12 | Disabled cache emits reusable restore entries | User-supplied max review | Verified | Public baseline caller with authorized restore and Disabled returns a restore: cache entry | Accept | Repair B: gate publication only | Preserve current-invocation receipts and prior receipt consumption |
+| R46-13 | Pre-epoch timestamps abort eligible discovery | User-supplied max review | Verified | Public baseline caller with source mtime -1 fails SystemTime serialization; Disabled confirms | Accept | Repair B: signed epoch offset in private cache stamps | Recipe bump rejects older opaque receipts; no public timestamp change |
+| R46-14 | Fatal transport errors should become candidate failures | User-supplied max review | Verified | discovery/mod.rs and design.md60 classify protocol/infrastructure errors as fatal | Reject | N/A — approved fatal contract retained | Blanket conversion could publish an incoherent run |
+| R46-15 | Broad runtime fingerprinting is expensive | User-supplied max review | Verified | Smoke measured91.20seconds unoptimized versus35.05seconds optimized; host closure is rechecked at invocation completion | Reject | N/A — retain complete qualified host closure; F28 fixes qualification caller optimization | No evidence establishes a smaller equivalent closure; changing cache authority is outside this repair |
+| R46-16 | Fatal directory enumeration should become best effort | User-supplied max review | Verified | Discovery inventory enumeration intentionally propagates operational I/O | Reject | N/A — complete-inventory contract retained | A partial inventory cannot authorize current cached membership |
+| R46-17 | Generated inventory entries cause cache invalidation | User-supplied max review | Verified | candidates::walk excludes generated automatic candidates, not generated glob inputs | Reject | N/A — retain names that authored globs can consume | Blanket generated-directory exclusion would change membership/cache authority; restore receipts do not include this inventory |
+| R46-18 | Unsupported solution entries produce missing-path issues | User-supplied max review | Verified | Public mixed .sln confirms A.csproj but emits MalformedInput for missing Missing.vcxproj | Accept | Repair C: classify unsupported declarations before filesystem validation | Missing/outside supported C# declarations remain visible |
+| T46-01 | One bad unselected solution member destroys filter attribution | User-supplied max review | Verified | Baseline filter membership construction exits on the first failed project_key | Modify | Repair C: retain valid membership and selected-subset validation | Keep typed issues; malformed filter JSON remains atomic |
+| T46-02 | Receipt path/content concatenation is not injective | User-supplied max review | Verified | path input plus content xrest equals path inputx plus content rest before hashing | Modify | Repair B: length-framed path plus fixed-width content digest | New domain version invalidates previous receipt authority |
+| T46-03 | packages.config resets dependency uncertainty | User-supplied max review | Unverified | No escaping native dependency counterexample; reset alone does not establish one | Reject | N/A — no verified behavior fix | Preserving every imported hint uncertainty would reject ordinary classic projects |
+| T46-04 | Mixed normal/verbatim Windows paths fail containment | User-supplied max review | Verified | Native SDK9.0.317 worker: normalized short descendant succeeds; same workspace with >300-character verbatim descendant fails containment | Accept | Repair D: compare recognized equivalent Windows identities only | Original request/IO paths and outside-sibling rejection are retained |
+| T46-05 | Native loader extensions escape cache eligibility gating | User-supplied max review | Verified | Linux LD_PRELOAD constructor sets NATIVE_ONE from an external file; after changing it to NATIVE_TWO, baseline reuses stale NATIVE_ONE | Accept | Repair D: native-loader injection/search settings make evaluation ineligible | Authorized evaluation remains available; this finite gate is not a sandbox |
+| T46-06 | Pretrust solution reads are unbounded | User-supplied max review | Verified | read_container uses read_to_string before trust | Modify | Repair C:4MiB bounded reads with typed oversized content | Operational I/O remains fatal; exact boundary is accepted |
+| T46-07 | Truncated “twrocess fences” tail | User-supplied max review | Unverified | Exact wording unavailable in supplied text, repository artifacts or PR comments | Reject | N/A — blocked on original wording | No inferred behavior change |
+| T46-08 | Targeting-pack fixture chooses versions lexically | User-supplied max review | Verified | compile_startup_hook sorts paths, so8.0.2 can outrank8.0.12 | Modify | Repair D: numeric targeting-pack ordering | Product SDK selection is already numeric and remains unchanged |
+
+### Repair A — restore identity and native authority
+
+- **Ownership:** Main; C4/C5/C7/C9 and inherited plan.md S3/S3a. No changed grant,
+  deadline, public interface or restore policy. Upper-stack R1/R2/R6/R7 authority
+  moves down to its behavior-owning discovery increment.
+- **Paths/change:** restore.rs and private restore/graph.rs,
+  restore/graph/dependencies.rs; discovery_failures.rs. Ordinary Restore preserves
+  caller globals and all framework targets; graph evidence corroborates
+  target-derived dependencies, centrally supplied versions and downloads. One
+  range/version authority and one framework-key authority serve every consumer.
+- **Expected checks:** real native alias, whitespace/multitarget, local-feed range,
+  CPM target-download and changed-import fences pass; wrong aliases, stale inputs,
+  exact/minimum mismatches and graph tampering remain refused.
+- **Evidence disposition:** old S3 currentness/graph proof is invalidated on these
+  paths. Cargo, transaction and unrelated process-kill conclusions are retained by
+  unchanged ownership/bytes; assembled discovery and platform proof remains Main's
+  obligation after the final repair. Gate results pending execution.
+
+### Repair B — restore receipt identity and publication
+
+- **Ownership:** Main; C7/C9 and inherited S3/S3a. Preserve complete cache recipes,
+  independent restore receipts, caller-visible requested settings and native
+  content-change detection.
+- **Paths/change:** cache.rs, restore.rs, the existing restore_entry call in
+  msbuild/mod.rs, discovery_cache.rs and discovery_failures.rs. Private epoch
+  offsets represent pre-epoch mtimes; Disabled suppresses reusable output, not
+  invocation-local authority. Property-name casing is normalized through the
+  existing helper; unreceipted equality is not freshness; framed digests remove
+  ambiguous boundaries.
+- **Expected checks:** Disabled restore-backed no-op returns unchanged facts and
+  empty cache; pre-epoch eligible discovery confirms, reuses, and detects preserved-
+  mtime content edits; case-only property names preserve restore authority while
+  changed values do not; equal timestamps and digest-boundary collisions are refused.
+- **Evidence disposition:** prior timestamp serialization, restore-publication,
+  context/freshness and receipt-format evidence is replaced; existing no-op
+  receipt-read semantics are retained and re-exercised. Gate results pending.
+
+### Repair C — bounded candidate/configuration failures
+
+- **Ownership:** Main; C4/C6/C7 and S3/S3a. Existing typed malformed-content versus
+  fatal operational-I/O distinction governs the repair.
+- **Paths/change:** candidates.rs, restore.rs, shared private bounded-input helper,
+  msbuild/mod.rs declaration, discovery_candidates.rs and discovery_failures.rs.
+  Reuse one capped-read implementation instead of introducing separate error
+  conventions. Keep valid filter membership, classify unsupported entries before
+  path validation, and cap containers at the existing XML4MiB boundary.
+- **Expected checks:** malformed/oversized NuGet config only withholds its project;
+  a valid sibling confirms; supported missing/outside paths remain issues; mixed
+  unsupported entries are ignored; exact-limit containers work and over-limit
+  containers do not execute MSBuild.
+- **Evidence disposition:** baseline native malformed-config abort is fresh red;
+  candidate/filter/bounded-read fences need fresh defect-sensitivity and restoration
+  proof. Full inventory and fatal enumeration semantics remain unchanged. Gates pending.
+
+### Repair D — proven native platform and qualification defects
+
+- **Ownership:** Main; C4/C6/C9/C14 and S2/S3/S3a. Existing Windows containment and
+  unknown-runtime-read obligations determine these technical corrections.
+- **Paths/change:** Program.cs, host.rs, discovery_runtime.rs and
+  worker_qualification.py. Recognized Windows drive/UNC aliases compare equally
+  without altering IO paths. Native loader injection/search environment settings
+  disable reuse/publication but not trusted evaluation. Fixture pack ordering is
+  numeric, not lexical.
+- **Expected checks:** native Windows long descendant succeeds and outside sibling
+  still fails; real LD_PRELOAD external mutation returns NATIVE_TWO with no reuse;
+  original startup-hook, forwarding-muxer and cold/hit controls remain intact.
+- **Evidence disposition:** native Windows and Linux baseline counterexamples are
+  fresh; post-fix native/platform evidence is mandatory. Product SDK selection,
+  grant semantics and F28 qualification optimization remain unchanged. Gates pending.
+
+### PR46 local verification checkpoint — uncommitted
+
+Main completed the ordinary local repair checks without rerunning native-library
+injection or remote PowerShell after the requester reported `cyber_policy`.
+This is not final platform acceptance and does not authorize publication.
+
+- **Repair A:** the two target-derived restore fences initially failed because
+  `Evaluation.cs` omitted `RestoreConfigFile` from its property projection.
+  The strict before/after source check correctly noticed that the selected
+  nonstandard configuration appeared only after restore. Projecting that existing
+  property and rebuilding the local worker fixes both cases without weakening
+  source equality. Direct SDK8.0.417 `NuGet.Versioning` also confirms floating
+  `*`, `1.*-*`, and `*-*` normalization, and rejects five-part versions; the shared
+  comparison and its existing range fence now retain those distinctions.
+- **Repair B:** isolated baseline913e40d fails all three new public cache fences:
+  pre-epoch serialization aborts, case-only property changes lose restore
+  authority, and Disabled emits a restore entry. Both private timestamp-equality
+  and path/content-boundary fences also fail against that baseline. The rebuilt
+  assembled implementation passes those tests, including the changed-value
+  negative control and preserved-mtime content invalidation.
+- **Repair C:** the native malformed-config sibling fence fails on baseline with
+  a fatal duplicated-attribute Config error and passes after repair for malformed
+  and oversized inputs. Current candidate tests pass supported/unsupported paths,
+  retained filter attribution and exact/over-limit container behavior.
+- **Final ordinary commands:** `cargo fmt --all -- --check`;
+  `cargo clippy --all-targets --all-features -- -D warnings`;
+  `cargo nextest run --all-features` →1169 passed,43 skipped;
+  `cargo test --doc --all-features` →18 passed,2 ignored.
+  `python3 .tethys-82a6/oracles/module_shape.py --stage S3` →C13 PASS.
+- **Targeted native command:** `cargo nextest run --test discovery_failures
+  --test discovery_cache --run-ignored all -E 'test(authorized_restore) |
+  test(malformed_nuget_config) | test(disabled_restore_noop) |
+  test(eligible_literal_with_preepoch) | test(cache_input_closure) |
+  test(restore_receipt_property)'` →9 passed,22 skipped in15.950seconds.
+  Environment: selected SDK8.0.417, rebuilt local worker, and the test-only
+  `CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='env -u LD_LIBRARY_PATH'`.
+- **Harness correction:** Cargo adds loader search paths to test processes. The
+  new production gate correctly makes such runs ineligible; the managed CI test
+  step now removes only the runner-added settings before starting the binary.
+  Explicit fixture child environments remain unchanged. This CI change itself
+  has not been run on macOS or Windows.
+- **Build evidence validity:** the first broad attempt exhausted `/tmp`.
+  Main moved only this worktree's build artifacts to disk-backed storage. Shared
+  baseline/subject artifacts then produced baseline candidate behavior despite
+  unchanged repaired source hashes. `cargo clean -p tethys` followed by a full
+  subject rebuild restored all1169 passes. Earlier mixed-artifact broad results
+  are not accepted as current implementation evidence.
+- **Retained contracts:** AGENTS.md and CONTEXT.md intentionally remain unchanged:
+  discovery already owns execution/freshness, typed bounded failures, canonical
+  identities and separate grants. Public reference documentation, changelog,
+  private module ledger and the behavior-owning source changes travel together.
+- **Outstanding gates:** post-fix native Windows containment and runtime-extension
+  defect-sensitivity/restoration proof are still unverified. The earlier baseline
+  probes prove the defects, not these repairs. Full platform/CI acceptance, atomic
+  repair commits and stack cascade remain pending; no new repair commit or push
+  has been made. S6/corpus obligations and missing T46-07 wording remain blocked
+  for their previously recorded reasons.
+
+Retained output: [ordinary verification](evidence/pr46-ordinary-verification.log),
+[receipt-boundary baseline failures](evidence/pr46-receipt-boundaries-red.log),
+[public cache baseline failures](evidence/pr46-cache-regressions-red.log).
+The [source snapshot](evidence/pr46-source-snapshot.sha256) records both verified
+local paths and still-unverified platform paths; a hash alone is not a PASS.
+Only the latest clean subject rebuild supplies assembled ordinary evidence.
+Local throwaway probe scripts are removed after capture; remote VM scratch is
+retained because remote execution has not resumed.
+
+### PR46 platform repair checkpoint — verified before commits
+
+The user authorized completing the remaining work after the prior model's
+policy pause. Main reran both withheld mechanisms as controlled probes; these
+results supply defect-sensitivity and repaired behavior, not a claim that the
+evaluation grant is a sandbox.
+
+- **Runtime extension:** `cargo nextest run --test discovery_runtime
+  --run-ignored all` with the test-only Linux runner and selected SDK8.0.417
+  passes5/5 in3.793seconds: subprocess child, numeric pack ordering,
+  forwarding muxer, native loader and startup hook. The LD_PRELOAD external
+  input changes from NATIVE_ONE to NATIVE_TWO, no cache is published, and reuse
+  remains false. The earlier baseline proves that this scenario previously
+  reused stale NATIVE_ONE. Retained summary:
+  [runtime extension green](evidence/pr46-runtime-extension-green.log).
+- **Windows containment:** the remote source archive was checked for
+  `ComparisonPath` before building; a failed cleanup retry is retained as
+  [initial attempt](evidence/pr46-windows-containment-initial-attempt.log)
+  and not counted as behavior evidence. Direct SDK9.0.317 evaluation of the
+  resulting repaired worker succeeds for a normal short descendant and a
+  >300-character `\\?\` descendant inside one workspace, while a `\\?\`
+  sibling outside that root is rejected with `project_path must lie inside
+  workspace_root`. Retained summary:
+  [Windows containment green](evidence/pr46-windows-containment-green.log).
+- **Qualification harness:** the repaired long-descendant case also exists in
+  `worker_qualification.py` as a Windows-only C14 fence; full multi-platform CI
+  remains the assembled platform authority after commits.
+- **Evidence disposition:** all four atomic repairs now have baseline red and
+  repaired green evidence. AGENTS.md and CONTEXT.md remain intentionally
+  unchanged; public docs, changelog, ledger, fences and behavior-owning source
+  travel in the same repair commits. Remote disposable probe roots are being
+  cleaned; local scripts under `.claude/tmp` are not repository evidence.
+
+Evidence correction: the first retained `pr46-runtime-extension-green.log` and
+`pr46-windows-containment-green.log` mixed or omitted the relevant raw output.
+Those files now contain only the exact runtime nextest result and the three
+native Windows request verdicts, respectively; no behavior depended on the
+earlier malformed links.
+
+PR46 managed-worker CI initially failed only in the public discovery smoke:
+setup-python's LD_LIBRARY_PATH made the traced worker invocation ineligible
+under the new finite loader gate. The durable oracle now removes harness-added
+loader paths from its child environment instead of weakening production or
+wrapping the workflow runner. Fresh local execution passes C6/C7/C9 and is
+retained as [public discovery smoke](evidence/pr46-discovery-smoke-green.log).
+
+The Windows managed worker exposed the same loader qualification in Cargo's own
+PATH runtime search and startup-hook controls. The harness now strips only
+loader-related settings from subprocesses whose scenario requires a qualified
+recipe, while explicit startup-hook/native-loader child settings remain intact.
+The managed step's runner cleanup also removes Cargo-added PATH on Windows.
+Local repaired fixtures pass17/17; full platform verification requires the next
+CI run.
+
+macOS CI showed `DYLD_FALLBACK_FRAMEWORK_PATH` from setup-python; the harness
+coverage and managed runner cleanup now include it. The remaining four macOS
+failures were harness-specific; local repaired fixtures pass17/17 again.
+
+The follow-up workflow commit deleted the Build step boundary and omitted
+`DYLD_FALLBACK_FRAMEWORK_PATH` from runner cleanup; that run never started.
+The step boundary and both Darwin runners are now repaired, and the edited
+workflow passes YAML parsing. Child-only cleanup cannot fix in-process tests;
+runner cleanup is required there.

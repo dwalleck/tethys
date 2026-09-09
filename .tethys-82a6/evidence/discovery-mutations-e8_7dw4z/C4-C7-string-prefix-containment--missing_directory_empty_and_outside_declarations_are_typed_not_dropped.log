@@ -1,0 +1,66 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-b3pivp7r)
+    Finished `test` profile [optimized + debuginfo] target(s) in 3.19s
+────────────
+ Nextest run ID 8a02f988-6287-4cf7-8044-83dcf8fdffcd with nextest profile: default
+    Starting 1 test across 1 binary (8 tests skipped)
+        SKIP [         ] tethys::discovery_candidates aliases_cannot_make_generated_or_internal_projects_automatic
+        SKIP [         ] tethys::discovery_candidates directory_exclusions_follow_platform_case_semantics
+        SKIP [         ] tethys::discovery_candidates empty_workspace_is_distinct_from_malformed_enumeration
+        SKIP [         ] tethys::discovery_candidates filter_requires_exact_solution_membership_and_valid_json
+        SKIP [         ] tethys::discovery_candidates filters_resolve_from_solution_and_do_not_exclude_standalone_projects
+        SKIP [         ] tethys::discovery_candidates symlink_aliases_deduplicate_and_escapes_and_loops_do_not_get_followed
+        SKIP [         ] tethys::discovery_candidates xml_attribute_whitespace_preserves_distinct_paths_and_character_references
+        SKIP [         ] tethys::discovery_candidates xml_escapes_decode_but_external_entities_and_broken_roots_are_rejected
+        FAIL [   0.003s] tethys::discovery_candidates missing_directory_empty_and_outside_declarations_are_typed_not_dropped
+  stdout ───
+
+    running 1 test
+    test missing_directory_empty_and_outside_declarations_are_typed_not_dropped ... FAILED
+
+    failures:
+
+    failures:
+        missing_directory_empty_and_outside_declarations_are_typed_not_dropped
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'missing_directory_empty_and_outside_declarations_are_typed_not_dropped' (3050859) panicked at tests/discovery_candidates.rs:180:5:
+    assertion `left == right` failed
+      left: [MalformedInput, MalformedInput, MalformedInput, MalformedInput, MalformedInput]
+     right: [MalformedInput, MalformedInput, MalformedInput, OutsideWorkspaceInput, OutsideWorkspaceInput]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   0.004s] 1 test run: 0 passed, 1 failed, 8 skipped
+        SKIP [         ] tethys::discovery_candidates aliases_cannot_make_generated_or_internal_projects_automatic
+        SKIP [         ] tethys::discovery_candidates directory_exclusions_follow_platform_case_semantics
+        SKIP [         ] tethys::discovery_candidates empty_workspace_is_distinct_from_malformed_enumeration
+        SKIP [         ] tethys::discovery_candidates filter_requires_exact_solution_membership_and_valid_json
+        SKIP [         ] tethys::discovery_candidates filters_resolve_from_solution_and_do_not_exclude_standalone_projects
+        SKIP [         ] tethys::discovery_candidates symlink_aliases_deduplicate_and_escapes_and_loops_do_not_get_followed
+        SKIP [         ] tethys::discovery_candidates xml_attribute_whitespace_preserves_distinct_paths_and_character_references
+        SKIP [         ] tethys::discovery_candidates xml_escapes_decode_but_external_entities_and_broken_roots_are_rejected
+        FAIL [   0.003s] tethys::discovery_candidates missing_directory_empty_and_outside_declarations_are_typed_not_dropped
+  stdout ───
+
+    running 1 test
+    test missing_directory_empty_and_outside_declarations_are_typed_not_dropped ... FAILED
+
+    failures:
+
+    failures:
+        missing_directory_empty_and_outside_declarations_are_typed_not_dropped
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.00s
+
+  stderr ───
+
+    thread 'missing_directory_empty_and_outside_declarations_are_typed_not_dropped' (3050859) panicked at tests/discovery_candidates.rs:180:5:
+    assertion `left == right` failed
+      left: [MalformedInput, MalformedInput, MalformedInput, MalformedInput, MalformedInput]
+     right: [MalformedInput, MalformedInput, MalformedInput, OutsideWorkspaceInput, OutsideWorkspaceInput]
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+error: test run failed

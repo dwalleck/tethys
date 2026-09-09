@@ -1,0 +1,8 @@
+{
+  "path": "src/discovery/msbuild/mod.rs",
+  "before": "            let standing = if let Err(error) = result {\n                DiscoveryStanding::Indeterminate(error)",
+  "after": "            let standing = if let Err(_error) = result {\n                DiscoveryStanding::Confirmed",
+  "tests": [
+    "reason_matrix_native_failures_preserve_successful_siblings"
+  ]
+}
