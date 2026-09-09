@@ -29,9 +29,7 @@ use crate::languages::module_resolver::{
 use crate::languages::{self, common};
 use crate::lsp;
 use crate::parallel::{OwnedSymbolData, ParsedFileData};
-use crate::types::{
-    CrateInfo, FileId, Import, IndexOptions, IndexStats, Language, SymbolKind,
-};
+use crate::types::{CrateInfo, FileId, Import, IndexOptions, IndexStats, Language, SymbolKind};
 /// Keep the loaded context aligned with SQL rollback, including unwinding.
 struct DiscoveryRun<'a> {
     owner: &'a mut Tethys,
