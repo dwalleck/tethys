@@ -8,6 +8,8 @@ Baseline: repository upstream discovered as refs/remotes/origin/main. Integratio
 
 The managed evaluator uses protocol_version=1 and one JSON request on stdin / one JSON response on stdout; stderr is diagnostics only. Request: workspace_root (canonical absolute), project_path (absolute), target_framework (nullable SDK selector), global_properties (string map), msbuild_path (selected installation directory), trust_granted (bool). Host is registered before Microsoft.Build types load. Response: protocol_version, success, project_path, host {kind,path,version,runtime}, properties (string map), items (Compile/ProjectReference/Reference arrays of {include,full_path,metadata}), imports (absolute paths), glob_patterns (include/exclude/remove evidence), diagnostics ({code,message,file,line,column,severity}), cache_eligible and cache_ineligibility. Failure still returns diagnostics; no guessed target-unit binding. Native codes are data, never inferred from human substrings. SDK/Framework worker packaging supplies the correct runtime flavor. Contract adjustments inside the approved fields are coordinated before implementation, never inferred separately.
 
+Property projection returns required framework/identity/compiler/output/restore/toolchain fields plus explicit caller-global keys, not the ambient environment property bag. An ambient secret-shaped sentinel must not appear in returned properties. Companion build outputs under tools/tethys-msbuild-evaluate/bin and obj are ignored; generated lock metadata remains tracked.
+
 Neutral DiscoveryRequest/Snapshot types live only in src/discovery/types.rs; coordinator/mod owns adapter dispatch; Cargo adapter stays in src/cargo.rs. Library discovery can be exercised independently before index wiring. All integration callers consume the one canonical type, no duplicated wire/schema models outside managed serialization DTOs.
 
 Revision owner uses live BEGIN IMMEDIATE, nested savepoints and a scoped BatchWriter borrowing Index. The owner never holds its MutexGuard while the writer locks it. Fatal storage/channel/architecture errors roll back; bounded source/evaluation diagnostics remain distinct. Rebuild performs DDL under the transaction, not pre-delete. Work on the public facade is serialized through Main.
@@ -130,10 +132,77 @@ Issue-local oracles and test fixtures are non-production. Named test paths occur
 **Diff estimate:** 1600 lines.
 **PR increment:** Evaluation companion.
 **Commands and expected results:**
-- `dotnet build tools/tethys-msbuild-evaluate/Tethys.MSBuild.Evaluate.csproj --configuration Release` → runnable SDK and Framework distributions, dependency lock/license policy satisfied.
+- `python3 .tethys-82a6/oracles/worker_qualification.py --host sdk --prepare` (Windows: `--host windows --prepare`) → explicit locked restore, dependency-license verification and complete runtime-flavor distribution.
 - `python3 .tethys-82a6/oracles/worker_qualification.py --host sdk` → C5 exact fixture manifests; target sentinel negative+positive controls.
 - `python3 .tethys-82a6/oracles/worker_qualification.py --host windows` → C5/C14 actual VS17.14 classic profile/import/link metadata and clean-installed worker.
 - `python3 .tethys-82a6/oracles/module_shape.py --stage S2` → no target APIs and approved placement.
+
+**Local checkpoint evidence (Windows gate pending):** Both net8.0 and net472 compile with warnings treated as errors, zero warnings/errors. C5/C14 clean-install qualification passes with explicitly selected SDK8.0.417/MSBuild17.11.48.46605, SDK9.0.310/MSBuild17.14.37.60402 and SDK10.0.102/MSBuild18.0.7.61305, running the worker on .NET10.0.2. The initial host-version oracle compared the shorter MSBuildVersion; a direct native-property probe established MSBuildFileVersion as the full ProjectCollection.Version identity, and the oracle now compares that native property. No version string is fabricated. All 25 locked dependencies pass MIT/license-allowlist verification. C13 S2 passes; Program remains93 lines.
+
+**Mutation evidence:** Isolated disposable companion copies (never parent production files) dropped imported items → C5 Compile differs from MSBuild; selected SDK8 instead of requested SDK10, with the worker self-check deliberately neutralized to test the independent oracle → C14 selected host was substituted; removed the bundled companion DLL → missing artifact failure. Unmodified distribution then passed C5/C14 again; disposable mutation directory removed. Fresh-context WorkerReview found no concrete S2 blocker. Actual VS17.14 classic/packaging evidence must pass Windows CI before S3 advances. CONTEXT vocabulary and agent/deployment guidance are updated atomically with this slice.
+
+**Final local gates:** `cargo fmt`, all-target/all-feature clippy with `-D warnings`, nextest1131 passed/10 skipped, doctests18 passed/2 ignored. Explicit ignored-worker run: both msbuild_discovery and discovery_cli fences passed with the packaged real worker. Throwaway boundary probes rejected a valid JSON request padded to1MiB+1 and a64MiB item-metadata response; the latter returned one parseable594-byte failure response, not partial JSON. Probe files were removed. Rust pre-commit checklist reviewed. Platform CI remains the S2 acceptance gate.
+
+**Checkpoint size/upstream:** scoped staged increment1480 changed lines across54 files, within1600-line estimate. Fresh fetch leaves upstream main at the pinned0a2753d50dd8fb335660b247c00e0efa355a8fcc; no reconciliation needed. Only explicit S2 paths are staged; unrelated skills/notes/tracker edits remain outside the checkpoint.
+
+## S2a: Enable required CI for stacked PR bases
+
+**Claim IDs:** C5, C14 (platform gate execution).
+**Expected behavior:** every pull-request base runs existing CI, including managed Windows qualification; push CI remains main-only.
+**Oracle:** actual GitHub Actions run attached to stacked PR45.
+**Stress fixture:** PR45 targets feat/tethys-82a6-evaluation, not main.
+**Regression fence:** native pull_request trigger has no base-branch restriction.
+**Named mutation:** restore branches:[main] → observed no workflow run after93 seconds/21 polls.
+**Complexity/production scale:** workflow trigger configuration only; no runtime changes.
+**Wall budget/phase:** existing CI job timeouts unchanged.
+**Module shape:** no product owner changes.
+**Files:** .github/workflows/ci.yml; this audit record.
+**Estimate:** one trigger correction.
+**Diff estimate:** 25 lines.
+**PR increment:** repair in Evaluation companion PR45 before advancing S3.
+**Commands and expected results:** push correction; GitHub run_watch must discover a real run and mandatory managed Windows/SDK jobs must pass.
+
+## S2b: Make the managed lock graph portable
+
+**Claim IDs:** C14.
+**Expected behavior:** locked restore succeeds on Linux/macOS and Windows without weakening lock enforcement or changing Framework execution/output defaults.
+**Oracle:** Windows managed-worker CI plus local locked restore/license/package qualification.
+**Stress fixture:** net472 executable; SDK10 infers win-x86 only on Windows.
+**Regression fence:** explicit net472 RuntimeIdentifiers includes win-x86 in the lock graph on every build OS.
+**Named mutation:** remove the graph entry → Windows NU1004 observed in run34070722708/job101587441492.
+**Complexity/production scale:** build metadata only.
+**Wall budget/phase:** existing restore/build deadlines unchanged.
+**Module shape:** existing companion project/lock owners only.
+**Files:** tools/tethys-msbuild-evaluate/{Tethys.MSBuild.Evaluate.csproj,packages.lock.json}; this audit record.
+**Estimate:** one cross-platform dependency-graph correction.
+**Diff estimate:** 30 lines plus generated lock graph.
+**PR increment:** repair in Evaluation companion PR45 before S3.
+**Commands and expected results:** explicit development --force-evaluate refreshes the lock; normal --prepare still uses --locked-mode and license checks; both TFMs compile and SDK oracle passes; actual Windows job must restore and evaluate successfully.
+
+Root cause is native SDK RuntimeIdentifierInference.targets55–63: Windows Framework executables infer win-x86, while the Linux-generated lock had no RID graph. RuntimeIdentifiers requests that graph without forcing RuntimeIdentifier/PlatformTarget or changing the output directory. S2a successfully triggered all stacked-PR CI gates; this is the resulting platform failure, not missing CI.
+
+**Local repair proof:** locked restore succeeds both normally and with explicit RuntimeIdentifier=win-x86. NuGet records the RID graph for both target frameworks; existing package versions remain locked. --prepare revalidates all25 MIT dependencies, SDK clean-install C5/C14 passes, and both target frameworks compile with zero warnings/errors. Actual Windows qualification remains required.
+
+## S2c: Diagnose Framework effective-toolset identity
+
+**Claim IDs:** C5, C14.
+**Expected behavior:** classic effective properties agree with the direct selected VS host, without hiding a different toolset behind assembly identity.
+**Oracle:** actual Windows direct-MSBuild property values and worker values.
+**Stress fixture:** Client40 with explicit ToolsVersion=Current.
+**Regression fence:** existing exact property comparison; report both values on failure.
+**Named mutation:** divergent MSBuildBinPath already fails run34071104686/job101588538892; no assertion is relaxed for diagnosis.
+**Complexity/production scale:** diagnostic-only probe first.
+**Wall budget/phase:** existing CI timeouts.
+**Module shape:** existing qualification owner; any product fix follows observed evidence.
+**Files:** issue-local worker qualification runner; this audit record.
+**Estimate:** one platform diagnosis/repair checkpoint.
+**Diff estimate:** 30 lines before any evidence-routed fix.
+**PR increment:** Evaluation companion PR45.
+**Commands and expected results:** push value-reporting probe; read actual Windows mismatch; repair only its demonstrated cause and re-run the full Windows oracle.
+
+S2b now passes actual Windows locked restore, licensing, both runtime-flavor packaging and SDK qualification. Framework assembly path/version and literal controls also pass. First classic unit differs at MSBuildBinPath; exact values are required before choosing between lexical path equivalence and a real effective-toolset mismatch.
+
+**Observed cause and repair:** run34071402251/job101589359326 reports worker MSBuildBinPath=Current/Bin/amd64 versus direct oracle=Current/Bin. This is a real toolset mismatch, not lexical spelling. Primary MSBuild BuildEnvironmentHelper source routes an externally hosted AnyCPU/x64 process to the VS amd64 toolset; Locator1.7.8 does not pin it for VS17.14, and MSBUILD_EXE_PATH is architecture-normalized. Pin net472 PlatformTarget=x86 to match the already-qualified root MSBuild.exe authority. Do not change the oracle or manufacture a Toolset. Existing RuntimeIdentifiers remains a restore-graph setting, not process architecture. Deployment guidance is updated atomically.
 
 ## S3: Implement the neutral discovery adapters and freshness contract
 

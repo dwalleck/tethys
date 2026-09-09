@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net472</TargetFrameworks>
+    <AssemblyName>Tethys.MSBuild.Evaluate</AssemblyName>
+    <RootNamespace>Tethys.MSBuild.Evaluate</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <RollForward>LatestMajor</RollForward>
+    <UseAppHost>false</UseAppHost>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- Windows infers this RID for Framework executables; lock that graph on every build OS. -->
+    <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net472'">win-x86</RuntimeIdentifiers>
+    <!-- Match the qualified VS Current/Bin/MSBuild.exe host, not its amd64 sibling. -->
+    <PlatformTarget Condition="'$(TargetFramework)' == 'net472'">x86</PlatformTarget>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- MIT; compile against the minimum supported host band, load the selected installation. -->
+    <PackageReference Include="Microsoft.Build" Version="[17.11.48]" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.Build.Framework" Version="[17.11.48]" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.Build.Locator" Version="[1.7.8]" />
+    <PackageReference Include="Newtonsoft.Json" Version="[13.0.3]" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="[1.0.3]" PrivateAssets="all" Condition="'$(TargetFramework)' == 'net472'" />
+  </ItemGroup>
+</Project>

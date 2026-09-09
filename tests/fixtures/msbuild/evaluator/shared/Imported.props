@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup><QualificationOverride>project must not win</QualificationOverride></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(MSBuildThisFileDirectory)Imported.cs"><Link>Imported/Exact.cs</Link></Compile>
+    <Compile Include="$(MSBuildThisFileDirectory)Linked ü.cs"><Link>Virtual Space/Linked ü.cs</Link></Compile>
+  </ItemGroup>
+  <Target Name="QualificationSentinel" BeforeTargets="Build;Compile;Restore">
+    <WriteLinesToFile File="$(MSBuildProjectDirectory)/target-sentinel.txt" Lines="target ran" Overwrite="true" />
+  </Target>
+</Project>

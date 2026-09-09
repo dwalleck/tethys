@@ -53,3 +53,19 @@ pub fn workspace_with_files(files: &[(&str, &str)]) -> (TempDir, Tethys) {
 pub fn open_db(tethys: &Tethys) -> Connection {
     Connection::open(tethys.db_path()).expect("opening tethys.db should succeed")
 }
+
+/// Resolve the Python interpreter for the issue-local qualification oracles.
+///
+/// `PYTHON` wins. Otherwise use `python` on Windows — `python3` there resolves to the
+/// Microsoft Store App Execution Alias, which opens the Store and exits 9009 — and
+/// `python3` elsewhere.
+pub fn qualification_python() -> std::ffi::OsString {
+    if let Some(value) = std::env::var_os("PYTHON") {
+        return value;
+    }
+    if cfg!(windows) {
+        "python".into()
+    } else {
+        "python3".into()
+    }
+}

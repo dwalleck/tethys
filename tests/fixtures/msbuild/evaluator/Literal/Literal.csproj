@@ -1,0 +1,4 @@
+<Project>
+  <PropertyGroup><AssemblyName>Literal</AssemblyName></PropertyGroup>
+  <ItemGroup><Compile Include="*.cs" Exclude="Excluded.cs" /><Compile Remove="Removed.cs" /></ItemGroup>
+</Project>

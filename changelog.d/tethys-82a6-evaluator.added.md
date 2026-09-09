@@ -1,0 +1,2 @@
+- Release archives include an evaluation-only MSBuild companion, with SDK and Windows Visual Studio runtime variants and no implicit helper build or download.
+- Document explicit evaluation trust, selected-toolchain requirements, and companion installation and qualification commands.

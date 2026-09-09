@@ -70,7 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest, windows-2022]
 
     steps:
       - name: Checkout code
@@ -85,26 +85,59 @@ jobs:
       - name: Build
         run: cargo build --release --all-features --locked
 
+      - name: Setup managed build SDKs
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Restore locked dependencies, check licenses, package SDK companion
+        if: runner.os != 'Windows'
+        run: python .tethys-82a6/oracles/worker_qualification.py --host sdk --prepare
+
+      - name: Package SDK and Framework using actual VS 17.14
+        if: runner.os == 'Windows'
+        run: python .tethys-82a6/oracles/worker_qualification.py --host windows --prepare
+
+      - name: Qualify SDK metadata and clean installation
+        run: python .tethys-82a6/oracles/worker_qualification.py --host sdk
+
+      - name: Qualify classic metadata and clean VS installation
+        if: runner.os == 'Windows'
+        run: python .tethys-82a6/oracles/worker_qualification.py --host windows
+
+      - name: Stage complete distribution
+        shell: python
+        run: |
+          import os, shutil
+          binary = 'tethys.exe' if os.name == 'nt' else 'tethys'
+          shutil.copy2('target/release/' + binary, 'target/worker-dist/' + binary)
+
       - name: Upload binary (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: tethys-linux
-          path: target/release/tethys
+          path: target/worker-dist/
 
       - name: Upload binary (macOS)
         if: matrix.os == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
           name: tethys-macos
-          path: target/release/tethys
+          path: target/worker-dist/
 
       - name: Upload binary (Windows)
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         uses: actions/upload-artifact@v4
         with:
           name: tethys-windows
-          path: target/release/tethys.exe
+          path: target/worker-dist/
 
   release:
     name: Publish GitHub Release
@@ -136,9 +169,14 @@ jobs:
 
       - name: Stage release assets
         run: |
-          mv dist/tethys-linux/tethys tethys-linux
-          mv dist/tethys-macos/tethys tethys-macos
-          mv dist/tethys-windows/tethys.exe tethys-windows.exe
+          chmod +x dist/tethys-linux/tethys dist/tethys-macos/tethys
+          tar -czf tethys-linux.tar.gz -C dist/tethys-linux .
+          tar -czf tethys-macos.tar.gz -C dist/tethys-macos .
+          (cd dist/tethys-windows && zip -r ../../tethys-windows.zip .)
+          # Retain standalone Rust assets; complete bundles carry the companion.
+          cp dist/tethys-linux/tethys tethys-linux
+          cp dist/tethys-macos/tethys tethys-macos
+          cp dist/tethys-windows/tethys.exe tethys-windows.exe
 
       - name: Create GitHub release
         env:
@@ -147,4 +185,5 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --notes-file release-notes.md \
-            tethys-linux tethys-macos tethys-windows.exe
+            tethys-linux tethys-macos tethys-windows.exe \
+            tethys-linux.tar.gz tethys-macos.tar.gz tethys-windows.zip

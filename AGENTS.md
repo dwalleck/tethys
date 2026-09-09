@@ -59,9 +59,10 @@ For "what is X / how do I call X / how does process Y work", route via
 | `src/graph/` | Graph query result DTOs (public ones, e.g. `SymbolImpact`, re-export via `lib.rs`); concrete traversal queries live on `db::Index` |
 | `src/lsp/` | LSP client transport + providers (optional refinement) |
 | `src/cli/` | One module per CLI command + display/helpers |
+| `tools/tethys-msbuild-evaluate/` | Evaluation-only managed companion; selected SDK/VS MSBuild, bounded JSON protocol, no build targets (tethys-82a6) |
 | `tests/` | Integration tests, incl. `seam_lint.rs` (architectural invariant) |
 | `benches/` | Criterion benchmarks (`harness = false`) |
-| `docs/` | Historical design docs, plans, spikes — explanatory, not normative |
+| `docs/` | Reference guides, ADRs, and historical design/probe documents |
 
 ## Critical Patterns & Invariants
 
@@ -146,8 +147,10 @@ Things the pipeline enforces that an agent should not violate
   match, builds binaries, publishes the GitHub release).
 - **Tests run under `cargo nextest`** (multi-OS, stable + beta) plus doctests;
   use nextest locally to match CI.
-- **`cargo-deny`** restricts licenses to a fixed allow-list and pins sources to
-  crates.io — vet new dependencies against `deny.toml` before adding.
+- **`cargo-deny`** restricts Rust dependency licenses to a fixed allow-list and
+  pins sources to crates.io. Managed evaluator dependencies have a NuGet lockfile;
+  companion CI checks every resolved package against the same license allow-list.
+  See `docs/msbuild-evaluation.md` for trusted evaluation, protocol and packaging.
 - **MSRV `1.94.0`**, pinned in `rust-toolchain.toml` (edition 2024).
 
 ### Dogfood tethys for impact analysis
