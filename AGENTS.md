@@ -76,8 +76,9 @@ For "what is X / how do I call X / how does process Y work", route via
   physical source identity; selection, freshness and query callers remain neutral
   (tethys-82a6; see `.agents/summary/architecture.md`).
   `tests/seam_lint.rs` fails the build if language-specific logic leaks into the
-  drivers, or if `ModuleResolver` impls touch the database. Respect this when
-  editing resolution code.
+  drivers (`src/resolve.rs`, `src/indexing.rs`, `src/batch_writer.rs`, and
+  `src/lib.rs`), or if `ModuleResolver` impls touch the database. Respect this
+  when editing resolution code.
 - **Adding a language is a fixed 5-step procedure** documented at the top of
   `src/languages/mod.rs`: add a `Language` variant, create the module, implement
   `LanguageSupport`, register in `get_language_support`, then implement +
@@ -125,7 +126,14 @@ For "what is X / how do I call X / how does process Y work", route via
   discovery context. Bounded source-read/parse failures publish diagnostics without
   retaining stale file facts. Metadata withdrawal does not erase independent syntax.
   Queries hydrate published discovery without MSBuild; every index/update needs
-  fresh grants, even for validated cache reuse.
+  fresh grants, even for validated cache reuse. Discovery runs **before**
+  `BEGIN IMMEDIATE`, so the write lock covers only the database write phase.
+  Opening reads only the published crate list; the rest of the publication
+  hydrates on first `discovery_snapshot()`. Persisted discovery paths round-trip
+  byte-exactly through `types::path_wire` (native spelling, non-UTF-8 tagged),
+  and duplicated `Compile` items resolving to one physical file publish one
+  membership. `update()` grants no evaluation — use `update_with_options` to
+  keep a trusted publication.
 - `--rebuild` replaces schema and facts inside the same publication transaction;
   it preserves the previous schema and rows on failure rather than deleting files
   or WAL/SHM sidecars before open.

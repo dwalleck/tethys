@@ -66,6 +66,17 @@ Missing or unreadable source is diagnosed separately from metadata standing.
 An incomplete discovery directory inventory records `evaluation-failed` and
 cannot reuse or emit evaluation-cache entries.
 
+Discovery runs before the publication transaction. MSBuild evaluation and
+restore execute with no database write lock held, so a concurrent writer is not
+blocked by another run's evaluation; every write still lands in the single
+publication transaction. Persisted discovery paths round-trip exactly: the wire
+form keeps each path's native spelling and encodes non-UTF-8 paths byte-for-byte,
+so reopening reproduces the discovered paths on every platform. Several
+`Compile` items that resolve to one physical file publish one membership.
+Opening an index reads only the published crate list; the rest of the
+publication hydrates on first use, so commands that never read discovery do not
+pay for it.
+
 Query construction loads the published discovery context from the index and
 does not probe MSBuild, reevaluate projects, restore, or require the companion.
 It observes the published revision, not current project-file edits; run `index`
