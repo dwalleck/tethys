@@ -71,6 +71,7 @@ pub enum Error {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct IndexError {
     /// Path to the file that failed
+    #[serde(with = "crate::types::path_wire")]
     pub path: PathBuf,
     /// Category of the error
     pub kind: IndexErrorKind,

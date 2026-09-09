@@ -6,13 +6,14 @@ use std::path::PathBuf;
 use rusqlite::{Connection, params};
 use serde::{Serialize, de::DeserializeOwned};
 
-use super::{Index, files::normalize_path};
+use super::Index;
 use crate::discovery::{
     DeclaredAssemblyReference, DeclaredProjectReference, DiscoveryInputScope, DiscoveryIssue,
     DiscoverySnapshot, EvaluationCacheEntry, EvaluationUnit, EvaluationUnitKey, ProjectDiscovery,
     ProjectKey, SourceMembership,
 };
 use crate::error::{Error, IndexError, Result};
+use crate::types::{CrateInfo, path_wire};
 
 fn encode(value: &impl Serialize) -> Result<String> {
     serde_json::to_string(value)
@@ -20,8 +21,16 @@ fn encode(value: &impl Serialize) -> Result<String> {
 }
 
 fn decode<T: DeserializeOwned>(value: &str) -> Result<T> {
-    serde_json::from_str(value)
-        .map_err(|error| Error::Internal(format!("corrupt discovery metadata: {error}")))
+    serde_json::from_str(value).map_err(|error| {
+        Error::Internal(format!(
+            "corrupt discovery metadata: {error}; run `tethys index --rebuild` to replace it"
+        ))
+    })
+}
+
+/// Decode one persisted path, reporting corruption instead of substituting a value.
+fn decode_path(value: &str) -> Result<PathBuf> {
+    path_wire::decode(value).map_err(Error::Internal)
 }
 
 /// Borrow `SQLite` text while retaining the column identity in conversion errors.
@@ -53,6 +62,38 @@ impl Index {
         let cache = read_cache(&tx)?;
         tx.commit()?;
         Ok(cache)
+    }
+
+    /// Load only the published crate list, which every open needs.
+    ///
+    /// The rest of the publication stays unread until
+    /// [`Self::discovery_snapshot`] is asked for it.
+    pub(crate) fn discovery_crates(&self) -> Result<Option<Vec<CrateInfo>>> {
+        let mut conn = self.connection()?;
+        let tx = conn.savepoint()?;
+        let crates = {
+            let mut statement =
+                tx.prepare("SELECT crates_json FROM evaluation_context WHERE singleton = 1")?;
+            let mut rows = statement.query([])?;
+            match rows.next()? {
+                Some(row) => match decode::<Vec<CrateInfo>>(row_text(row, 0)?) {
+                    Ok(crates) => Some(crates),
+                    Err(error) => {
+                        // Crate roots are re-derivable from the manifests, so a
+                        // corrupt crate list must not block opening or indexing;
+                        // reading the publication still reports it.
+                        tracing::warn!(
+                            %error,
+                            "published crate list is unreadable; re-deriving from Cargo manifests"
+                        );
+                        None
+                    }
+                },
+                None => None,
+            }
+        };
+        tx.commit()?;
+        Ok(crates)
     }
 
     /// Hydrate one coherent active publication, including inside an owned revision.
@@ -114,7 +155,7 @@ impl Index {
             let mut rows = statement.query([])?;
             while let Some(row) = rows.next()? {
                 snapshot.issues.push(DiscoveryIssue {
-                    path: PathBuf::from(row.get::<_, String>(0)?),
+                    path: decode_path(row_text(row, 0)?)?,
                     failure: decode(row_text(row, 1)?)?,
                 });
             }
@@ -175,7 +216,7 @@ impl Index {
             for (ordinal, issue) in snapshot.issues.iter().enumerate() {
                 statement.execute(params![
                     ordinal,
-                    normalize_path(&issue.path),
+                    path_wire::encode(&issue.path),
                     encode(&issue.failure)?
                 ])?;
             }
@@ -186,7 +227,7 @@ impl Index {
             for (ordinal, error) in errors.iter().enumerate() {
                 statement.execute(params![
                     ordinal,
-                    normalize_path(&error.path),
+                    path_wire::encode(&error.path),
                     encode(error)?,
                     Option::<String>::None
                 ])?;
@@ -194,7 +235,7 @@ impl Index {
             for (ordinal, (path, reason)) in skipped_directories.iter().enumerate() {
                 statement.execute(params![
                     errors.len() + ordinal,
-                    normalize_path(path),
+                    path_wire::encode(path),
                     Option::<String>::None,
                     reason
                 ])?;
@@ -235,7 +276,7 @@ fn read_units(conn: &Connection, snapshot: &mut DiscoverySnapshot) -> Result<()>
             unit_mut(snapshot, &unit_positions, row_text(row, 0)?)?
                 .sources
                 .push(SourceMembership {
-                    path: PathBuf::from(row.get::<_, String>(1)?),
+                    path: decode_path(row_text(row, 1)?)?,
                     link: row.get(2)?,
                     metadata: decode(row_text(row, 3)?)?,
                 });
@@ -300,7 +341,7 @@ fn write_units(conn: &Connection, evaluation_units: &[EvaluationUnit]) -> Result
                 encode(&unit.restore)?
             ])?;
             for (ordinal, source) in unit.sources.iter().enumerate() {
-                let path = normalize_path(&source.path);
+                let path = path_wire::encode(&source.path);
                 sources.execute(params![
                     key,
                     path,
@@ -677,6 +718,68 @@ mod tests {
         assert_eq!(
             index.discovery_snapshot().expect("published old metadata"),
             Some(old)
+        );
+    }
+
+    fn issue_fixture(path: PathBuf) -> DiscoverySnapshot {
+        let mut snapshot = DiscoverySnapshot::default();
+        snapshot.issues.push(DiscoveryIssue {
+            path,
+            failure: DiscoveryFailure {
+                reason: DiscoveryFailureReason::EvaluationFailed,
+                diagnostics: Vec::new(),
+            },
+        });
+        snapshot
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_issue_path_round_trips_through_publication() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("index.db");
+        let path_with_invalid_bytes = PathBuf::from(OsString::from_vec(b"/repo/bad\xff".to_vec()));
+        assert!(path_with_invalid_bytes.to_str().is_none());
+        let snapshot = issue_fixture(path_with_invalid_bytes.clone());
+        let index = Index::open(&path).expect("index");
+        index
+            .replace_discovery_snapshot(&snapshot, &[], &[])
+            .expect("a non-UTF-8 issue path must not abort publication");
+        drop(index);
+        let reopened = Index::open(&path).expect("reopen");
+        let hydrated = reopened
+            .discovery_snapshot()
+            .expect("hydrate")
+            .expect("publication");
+        assert_eq!(
+            hydrated.issues[0].path, path_with_invalid_bytes,
+            "issue paths must round-trip byte-exactly"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn verbatim_issue_path_round_trips_through_publication() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("index.db");
+        let verbatim = PathBuf::from(r"\\?\C:\repo\hidden");
+        let snapshot = issue_fixture(verbatim.clone());
+        let index = Index::open(&path).expect("index");
+        index
+            .replace_discovery_snapshot(&snapshot, &[], &[])
+            .expect("publish");
+        drop(index);
+        let reopened = Index::open(&path).expect("reopen");
+        let hydrated = reopened
+            .discovery_snapshot()
+            .expect("hydrate")
+            .expect("publication");
+        assert_eq!(
+            hydrated.issues[0].path, verbatim,
+            "a verbatim prefix must survive the round trip"
         );
     }
 

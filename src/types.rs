@@ -24,6 +24,222 @@ use serde::{Deserialize, Serialize};
 use crate::discovery::{DiscoveryOptions, DiscoverySnapshot};
 use crate::error::IndexError;
 
+/// Lossless persistence for filesystem paths in discovery metadata.
+///
+/// `serde`'s `Path` implementation refuses a non-UTF-8 path, which would turn a
+/// legal workspace name into a fatal indexing error, while `to_string_lossy`
+/// silently rewrites the identity. Persisted paths therefore use this module: a
+/// UTF-8 path keeps its native spelling (byte-identical to the previous wire
+/// shape), and a non-UTF-8 path is tagged with a leading NUL, which no path can
+/// contain. Separators are never rewritten, so a path round-trips exactly.
+pub(crate) mod path_wire {
+    use std::ffi::{OsStr, OsString};
+    use std::fmt::Write as _;
+    use std::path::{Path, PathBuf};
+
+    use serde::de::Error as _;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    /// Tag introducing a byte-encoded path. NUL cannot occur inside a path.
+    const TAG: char = '\u{0}';
+
+    #[cfg(unix)]
+    fn units(value: &OsStr) -> Vec<u16> {
+        use std::os::unix::ffi::OsStrExt;
+        value
+            .as_bytes()
+            .iter()
+            .map(|byte| u16::from(*byte))
+            .collect()
+    }
+
+    #[cfg(unix)]
+    fn from_units(units: &[u16]) -> Option<OsString> {
+        use std::os::unix::ffi::OsStringExt;
+        let bytes = units
+            .iter()
+            .map(|unit| u8::try_from(*unit).ok())
+            .collect::<Option<Vec<u8>>>()?;
+        Some(OsString::from_vec(bytes))
+    }
+
+    #[cfg(windows)]
+    fn units(value: &OsStr) -> Vec<u16> {
+        use std::os::windows::ffi::OsStrExt;
+        value.encode_wide().collect()
+    }
+
+    #[cfg(windows)]
+    fn from_units(units: &[u16]) -> Option<OsString> {
+        use std::os::windows::ffi::OsStringExt;
+        Some(OsString::from_wide(units))
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    fn units(value: &OsStr) -> Vec<u16> {
+        value.to_string_lossy().encode_utf16().collect()
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    fn from_units(units: &[u16]) -> Option<OsString> {
+        String::from_utf16(units).ok().map(OsString::from)
+    }
+
+    /// Encode one path without losing bytes or separator spelling.
+    #[must_use]
+    pub(crate) fn encode(path: &Path) -> String {
+        let Some(text) = path.to_str() else {
+            let mut encoded = String::from(TAG);
+            for unit in units(path.as_os_str()) {
+                let _ = write!(encoded, "{unit:04x}");
+            }
+            return encoded;
+        };
+        text.to_owned()
+    }
+
+    /// Decode a path written by [`encode`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a message when a tagged value is malformed or cannot be rebuilt
+    /// on this platform.
+    pub(crate) fn decode(text: &str) -> Result<PathBuf, String> {
+        let Some(body) = text.strip_prefix(TAG) else {
+            return Ok(PathBuf::from(text));
+        };
+        if body.len() % 4 != 0 {
+            return Err(format!(
+                "encoded path has {} hex digits, not a whole number of units",
+                body.len()
+            ));
+        }
+        let mut units = Vec::with_capacity(body.len() / 4);
+        for chunk in body.as_bytes().chunks_exact(4) {
+            let digits = std::str::from_utf8(chunk)
+                .map_err(|error| format!("encoded path is not ASCII: {error}"))?;
+            units.push(
+                u16::from_str_radix(digits, 16)
+                    .map_err(|error| format!("encoded path unit is invalid: {error}"))?,
+            );
+        }
+        from_units(&units)
+            .map(PathBuf::from)
+            .ok_or_else(|| "encoded path is not representable on this platform".to_owned())
+    }
+
+    /// Serde adapter for one path field.
+    pub(crate) fn serialize<S: Serializer>(path: &Path, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&encode(path))
+    }
+
+    /// Serde adapter for one path field.
+    pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<PathBuf, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        decode(&text).map_err(D::Error::custom)
+    }
+
+    /// Serde adapter for `Option<PathBuf>` fields.
+    pub(crate) mod option {
+        use std::path::PathBuf;
+
+        use serde::de::Error as _;
+        use serde::{Deserialize, Deserializer, Serializer};
+
+        /// Serde adapter for `Option<PathBuf>` fields.
+        #[allow(
+            clippy::ref_option,
+            reason = "serde `with` requires the field's exact `&Option<PathBuf>` signature"
+        )]
+        pub(crate) fn serialize<S: Serializer>(
+            value: &Option<PathBuf>,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            match value {
+                Some(path) => serializer.serialize_some(&super::encode(path)),
+                None => serializer.serialize_none(),
+            }
+        }
+
+        /// Serde adapter for `Option<PathBuf>` fields.
+        pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<Option<PathBuf>, D::Error> {
+            let text = Option::<String>::deserialize(deserializer)?;
+            text.map(|text| super::decode(&text).map_err(D::Error::custom))
+                .transpose()
+        }
+    }
+
+    /// Serde adapter for `Vec<PathBuf>` fields.
+    pub(crate) mod paths {
+        use std::path::PathBuf;
+
+        use serde::de::Error as _;
+        use serde::ser::SerializeSeq as _;
+        use serde::{Deserialize, Deserializer, Serializer};
+
+        /// Serde adapter for `Vec<PathBuf>` fields.
+        pub(crate) fn serialize<S: Serializer>(
+            value: &[PathBuf],
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            let mut sequence = serializer.serialize_seq(Some(value.len()))?;
+            for path in value {
+                sequence.serialize_element(&super::encode(path))?;
+            }
+            sequence.end()
+        }
+
+        /// Serde adapter for `Vec<PathBuf>` fields.
+        pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<Vec<PathBuf>, D::Error> {
+            let raw = Vec::<String>::deserialize(deserializer)?;
+            raw.into_iter()
+                .map(|text| super::decode(&text).map_err(D::Error::custom))
+                .collect()
+        }
+    }
+
+    /// Serde adapter for `Vec<(String, PathBuf)>` fields.
+    pub(crate) mod named_paths {
+        use std::path::PathBuf;
+
+        use serde::de::Error as _;
+        use serde::ser::SerializeSeq as _;
+        use serde::{Deserialize, Deserializer, Serializer};
+
+        /// Serde adapter for `Vec<(String, PathBuf)>` fields.
+        pub(crate) fn serialize<S: Serializer>(
+            value: &[(String, PathBuf)],
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            let mut sequence = serializer.serialize_seq(Some(value.len()))?;
+            for (name, path) in value {
+                sequence.serialize_element(&(name, super::encode(path)))?;
+            }
+            sequence.end()
+        }
+
+        /// Serde adapter for `Vec<(String, PathBuf)>` fields.
+        pub(crate) fn deserialize<'de, D: Deserializer<'de>>(
+            deserializer: D,
+        ) -> Result<Vec<(String, PathBuf)>, D::Error> {
+            let raw = Vec::<(String, String)>::deserialize(deserializer)?;
+            raw.into_iter()
+                .map(|(name, text)| {
+                    super::decode(&text)
+                        .map(|path| (name, path))
+                        .map_err(D::Error::custom)
+                })
+                .collect()
+        }
+    }
+}
+
 /// A strongly-typed symbol ID to prevent mixing with file IDs.
 ///
 /// This newtype provides type safety for function signatures that accept
@@ -176,10 +392,13 @@ pub struct CrateInfo {
     /// Crate name from `[package].name`
     pub name: String,
     /// Path to the crate directory (contains Cargo.toml)
+    #[serde(with = "path_wire")]
     pub path: PathBuf,
     /// Library entry point relative to crate path (e.g., `src/lib.rs`)
+    #[serde(with = "path_wire::option")]
     pub lib_path: Option<PathBuf>,
     /// Binary entry points: (name, path relative to crate)
+    #[serde(with = "path_wire::named_paths")]
     pub bin_paths: Vec<(String, PathBuf)>,
 }
 
@@ -1023,12 +1242,6 @@ impl IndexOptions {
     pub fn with_discovery(mut self, options: DiscoveryOptions) -> Self {
         self.discovery = options;
         self
-    }
-
-    /// Get the requested discovery policy; indexing validates it before execution.
-    #[must_use]
-    pub fn discovery_options(&self) -> &DiscoveryOptions {
-        &self.discovery
     }
 
     /// Check if LSP-based resolution is enabled.
@@ -2834,5 +3047,72 @@ mod arch_type_tests {
         let i = metrics("p", afferent, efferent).instability();
         assert_eq!(i.to_bits(), expected.to_bits());
         assert!(!i.is_nan());
+    }
+}
+
+#[cfg(test)]
+mod path_wire_tests {
+    use super::{CrateInfo, path_wire};
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn utf8_paths_keep_the_plain_wire_shape() {
+        let path = Path::new("src/lib.rs");
+        assert_eq!(path_wire::encode(path), "src/lib.rs");
+        assert_eq!(path_wire::decode("src/lib.rs").expect("decode"), path);
+        let json = serde_json::to_string(&CrateInfo {
+            name: "app".into(),
+            path: PathBuf::from("src/lib.rs"),
+            lib_path: Some(PathBuf::from("src/lib.rs")),
+            bin_paths: vec![("tool".into(), PathBuf::from("src/main.rs"))],
+        })
+        .expect("serialize");
+        assert!(json.contains("\"src/lib.rs\""), "{json}");
+        let back: CrateInfo = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.path, PathBuf::from("src/lib.rs"));
+        assert_eq!(back.lib_path, Some(PathBuf::from("src/lib.rs")));
+        assert_eq!(
+            back.bin_paths,
+            vec![("tool".to_owned(), PathBuf::from("src/main.rs"))]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_paths_round_trip_without_aborting_serialization() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let path = PathBuf::from(OsString::from_vec(b"/repo/bad\xff.rs".to_vec()));
+        assert!(path.to_str().is_none(), "fixture must not be UTF-8");
+        let encoded = path_wire::encode(&path);
+        assert!(encoded.starts_with('\u{0}'), "tagged: {encoded:?}");
+        assert_eq!(path_wire::decode(&encoded).expect("decode"), path);
+        let json = serde_json::to_string(&CrateInfo {
+            name: "app".into(),
+            path: path.clone(),
+            lib_path: None,
+            bin_paths: Vec::new(),
+        })
+        .expect("a non-UTF-8 path must not abort the publication payload");
+        let back: CrateInfo = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.path, path);
+    }
+
+    #[test]
+    fn malformed_tagged_values_are_reported_not_substituted() {
+        assert!(path_wire::decode("\u{0}zz").is_err());
+        assert!(path_wire::decode("\u{0}zzzz").is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn verbatim_windows_spelling_survives_the_wire() {
+        let path = PathBuf::from(r"\\?\C:\repo\hidden");
+        assert_eq!(path_wire::encode(&path), r"\\?\C:\repo\hidden");
+        assert_eq!(
+            path_wire::decode(&path_wire::encode(&path)).expect("decode"),
+            path
+        );
     }
 }

@@ -8,6 +8,7 @@ use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 
+use crate::types::path_wire;
 use crate::{CrateInfo, Error, Result};
 
 /// A canonical workspace-relative C# project-file identity.
@@ -426,6 +427,7 @@ pub struct DiscoveryDiagnostic {
     /// Human-readable detail; never used to classify a failure.
     pub message: String,
     /// Native source path when available.
+    #[serde(with = "path_wire::option")]
     pub file: Option<PathBuf>,
     /// One-based native source line, or zero when unavailable.
     pub line: u32,
@@ -458,6 +460,7 @@ pub enum DiscoveryStanding {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiscoveryIssue {
     /// Candidate/container path associated with the issue.
+    #[serde(with = "path_wire")]
     pub path: PathBuf,
     /// Typed incomplete-coverage evidence.
     pub failure: DiscoveryFailure,
@@ -469,6 +472,7 @@ pub struct ProjectDiscovery {
     /// Canonical workspace-relative project-file identity.
     pub key: ProjectKey,
     /// Solutions and solution filters declaring membership, relative to the workspace.
+    #[serde(with = "path_wire::paths")]
     pub containers: Vec<PathBuf>,
     /// Aggregate standing, including failure before framework enumeration.
     pub standing: DiscoveryStanding,
@@ -507,6 +511,7 @@ pub struct HostProvenance {
     /// Evaluated host flavor (`sdk` or `framework`).
     pub kind: EvaluationHostKind,
     /// Canonical loaded `MSBuild` installation path.
+    #[serde(with = "path_wire")]
     pub path: PathBuf,
     /// Actual `MSBuild` file version.
     pub version: String,
@@ -533,6 +538,7 @@ pub struct RestoreProvenance {
     /// Required repository restore mechanism.
     pub style: DiscoveryRestoreStyle,
     /// Existing validated restore inputs, with absolute provenance paths where necessary.
+    #[serde(with = "path_wire::paths")]
     pub inputs: Vec<PathBuf>,
 }
 
@@ -540,6 +546,7 @@ pub struct RestoreProvenance {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceMembership {
     /// Canonical workspace-relative physical source path.
+    #[serde(with = "path_wire")]
     pub path: PathBuf,
     /// Evaluated Link spelling, when present.
     pub link: Option<String>,
@@ -611,8 +618,10 @@ pub struct DiscoveryCacheObservation {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EvaluationInput {
     /// Original path spelling captured by the evaluation scope.
+    #[serde(with = "path_wire")]
     pub path: PathBuf,
     /// Canonical absolute identity observed when the input was captured.
+    #[serde(with = "path_wire")]
     pub canonical_path: PathBuf,
     /// Observed byte length.
     pub length: u64,
