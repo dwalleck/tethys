@@ -133,6 +133,22 @@ def main():
                     failures.append(f"C13 {path}:{node.start_point.row+1}: forbidden function ownership")
             if node.type == "scoped_identifier" and text in ("Command::new", "std::process::Command::new"):
                 failures.append(f"C13 {path}:{node.start_point.row+1}: process launching in protected parent")
+            if path == "src/lib.rs":
+                for needle in (
+                    "resolve_module_path",
+                    '"crate"',
+                    '"self"',
+                    '"super"',
+                    '.join(".")',
+                ):
+                    if needle in text and not any(
+                        needle in source[child.start_byte:child.end_byte].decode()
+                        for child in node.named_children
+                    ):
+                        failures.append(
+                            f"C13 {path}:{node.start_point.row+1}: "
+                            f"forbidden neutral-driver needle '{needle}'"
+                        )
             if path == "src/batch_writer.rs" and node.type == "scoped_identifier" and text == "Index::open":
                 failures.append(f"C13 {path}:{node.start_point.row+1}: independent writer connection")
     identity = ledger["source_identity"]
