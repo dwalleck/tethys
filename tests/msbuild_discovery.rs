@@ -92,7 +92,12 @@ fn membership(connection: &Connection) -> Vec<(String, String, Option<String>)> 
 
 fn assert_reopened(root: &Path, expected: &DiscoverySnapshot) {
     let reopened = Tethys::new(root).expect("open persisted discovery without native options");
-    assert_eq!(reopened.discovery_snapshot(), expected);
+    assert_eq!(
+        reopened
+            .discovery_snapshot()
+            .expect("discovery publication"),
+        expected
+    );
 }
 
 fn failure(standing: &DiscoveryStanding) -> DiscoveryFailureReason {
@@ -437,7 +442,13 @@ fn evaluated_only_sources_share_publication_and_freshness_identity() {
     );
     fs::remove_file(root.path().join("Authored.csproj")).unwrap();
     index.index().unwrap();
-    assert!(index.discovery_snapshot().units.is_empty());
+    assert!(
+        index
+            .discovery_snapshot()
+            .expect("discovery publication")
+            .units
+            .is_empty()
+    );
     assert_eq!(
         strings(&sql, "SELECT name FROM symbols"),
         ["AuthoredChanged"]
@@ -448,4 +459,35 @@ fn evaluated_only_sources_share_publication_and_freshness_identity() {
         index.get_stale_files().unwrap().deleted,
         [PathBuf::from("obj/Authored.cs")]
     );
+}
+
+#[test]
+#[ignore = "requires packaged real worker and explicitly selected installed SDK"]
+fn duplicate_compile_items_publish_one_membership() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(root.path().join("App.cs"), "public class App {}\n").unwrap();
+    // MSBuild evaluates two `Compile` items that resolve to one physical file:
+    // the same source spelled with and without a leading `./`.
+    project(
+        root.path(),
+        "App.csproj",
+        "<ItemGroup><Compile Include=\"App.cs\" /><Compile Include=\".\\App.cs\" /></ItemGroup>",
+    );
+    let mut index = Tethys::new(root.path()).unwrap();
+    let stats = index
+        .index_with_options(native_options())
+        .expect("duplicate Compile items must not abort publication");
+    assert_eq!(stats.files_indexed, 1);
+    assert!(stats.discovery.is_complete(), "{:?}", stats.discovery);
+    let sql = observer(root.path());
+    assert_eq!(
+        strings(&sql, "SELECT path FROM file_participation"),
+        ["App.cs"],
+        "one physical file is one membership"
+    );
+    assert_eq!(
+        membership(&sql),
+        [("App.csproj".into(), "App.cs".into(), Some("App.cs".into()))]
+    );
+    assert_reopened(root.path(), &stats.discovery);
 }

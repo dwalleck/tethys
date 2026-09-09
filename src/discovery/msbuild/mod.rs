@@ -128,7 +128,14 @@ fn validate_snapshot(
 ) -> crate::Result<()> {
     // Exactly one final inventory, shared by every scope. Validated restore
     // inputs were present before authoritative reevaluation and are fingerprinted.
-    let after = candidates::inventory(&request.workspace_root)?;
+    // With no validated restore scope and no selected host, this run cannot have
+    // moved an input, so the second full walk is pure cost; reuse the first.
+    let after = if validations.is_empty() && hosts.is_empty() {
+        None
+    } else {
+        Some(candidates::inventory(&request.workspace_root)?)
+    };
+    let after = after.as_ref().unwrap_or(before);
     let before_paths: BTreeSet<_> = before.paths.iter().collect();
     let after_paths: BTreeSet<_> = after.paths.iter().collect();
     let mut restore_paths = BTreeMap::<ProjectKey, BTreeSet<_>>::new();
@@ -598,16 +605,26 @@ fn unit(
         ))
     };
     let mut sources = Vec::new();
+    let mut seen_sources = BTreeSet::new();
     let mut project_references = Vec::new();
     let mut assembly_references = Vec::new();
     if let Some(items) = evaluation.items.get("Compile") {
         for item in items {
             match candidates::relative_path(&request.workspace_root, &item.full_path, false) {
-                Ok(path) if item.full_path.is_file() => sources.push(SourceMembership {
-                    path,
-                    link: item.metadata_value("Link").map(str::to_owned),
-                    metadata: semantic_metadata(&item.metadata),
-                }),
+                Ok(path) if item.full_path.is_file() => {
+                    // MSBuild can evaluate one physical file through several
+                    // `Compile` items (a default glob plus an explicit include, a
+                    // repeated include, or a different spelling). Membership is
+                    // one row per unit and path, so keep the first item's
+                    // evidence rather than failing publication on the duplicate.
+                    if seen_sources.insert(path.clone()) {
+                        sources.push(SourceMembership {
+                            path,
+                            link: item.metadata_value("Link").map(str::to_owned),
+                            metadata: semantic_metadata(&item.metadata),
+                        });
+                    }
+                }
                 Ok(_) => {
                     standing = DiscoveryStanding::Indeterminate(failure(
                         DiscoveryFailureReason::MalformedInput,
