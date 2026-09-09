@@ -24,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use tethys::discovery::{
     discover_workspace, DiscoveryCacheObservation, DiscoveryCachePolicy,
     DiscoveryIssue, DiscoveryOptions, DiscoveryRequest, EvaluationContext,
-    EvaluationUnit, ProjectDiscovery,
+    EvaluationEnvironment, EvaluationUnit, ProjectDiscovery,
 };
 #[derive(Deserialize)]
 struct Input {
@@ -48,6 +48,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for line in io::stdin().lock().lines() {
         let input: Input = serde_json::from_str(&line?)?;
         let options = DiscoveryOptions {
+            // Diagnostic tracing settings are inherited and reach the evaluator;
+            // harness loader settings are dropped by name, not silently exempted.
+            environment: EvaluationEnvironment::inherited()
+                .without(EvaluationEnvironment::RUNTIME_CODE_EXTENSIONS),
             trust_msbuild: input.trust,
             companion_directory: Some(input.companion),
             msbuild_path: input.host,
@@ -157,12 +161,10 @@ def discovery(companion, host):
         # Outside the workspace: diagnostic writes must not mutate recipe inputs.
         # Set both names for pre-.NET 10 and .NET 10+ native hosts, including a
         # newer muxer loading an older runtime's hostpolicy.
-        # Remove test-harness loader search paths only from the public caller's
-        # environment; production does not silently exempt caller settings.
+        # The caller states the environment it evaluates under, so this harness
+        # passes its own through unfiltered.
         log = temporary / "host.trace"
-        loader_paths = ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH")
-        environment = {name: value for name, value in os.environ.items()
-                       if name not in loader_paths}
+        environment = dict(os.environ)
         environment.update(
             COREHOST_TRACE="1", COREHOST_TRACE_VERBOSITY="4",
             COREHOST_TRACEFILE=str(log), DOTNET_HOST_TRACE="1",
