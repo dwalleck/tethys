@@ -335,7 +335,7 @@ impl Tethys {
         let (mut packages, assignments) =
             crate::cargo::architecture_inputs(self.crates(), &files, &self.workspace_root);
         packages.extend(crate::discovery::architecture_packages(
-            &self.discovery_snapshot().units,
+            &self.discovery_snapshot()?.units,
         ));
         let inserts: Vec<_> = packages
             .iter()
