@@ -306,8 +306,38 @@ stays for the same reason plus the qualification oracle's read.
   `competing_writer_is_busy_until_revision_release` exclusivity fence. A
   one-shot prober measurement was not run in this pass.
 
-## Product decisions still open
+## Follow-up: the two open decisions
 
-1. Should a project-less (Rust-only) workspace exit 1 when the walk had issues
-   (F13)? Current behaviour is the documented contract.
-2. Should `--no-discovery-cache` also forbid restore-receipt reuse (F12 residual)?
+**F13 — project-less workspace exit status: implemented.** `tethys index` now
+maps to `FAILURE` only when evaluated coverage is incomplete — any indeterminate
+project or unit. Walk issues alone no longer fail a run, so a Rust-only tree with
+an unreadable directory publishes, prints the issue, and exits 0, while an
+untrusted C# candidate still exits 1. Fences:
+`tests/discovery_cli.rs::unreadable_directory_in_a_project_less_workspace_does_not_fail_the_run`
+(new; red under the previous mapping, restored green) and the existing
+`untrusted_index_publishes_source_only_with_nonzero_status`, which still passes.
+
+**F12 residual — withholding restore receipts under `--no-discovery-cache`:
+rejected on evidence; recommendation retracted.** The guard was implemented and
+four native restore fences failed
+(`authorized_restore_rechecks_metadata_before_confirmation`,
+`authorized_restore_corroborates_target_downloads_and_rejects_changed_imports`,
+`authorized_restore_preserves_multitarget_assets_with_target_assigned_versions`,
+`restore_receipt_property_names_ignore_case_but_values_do_not`), with the
+second-run units collapsing to `[]` because the run then reports
+`RestoreRequired`.
+
+The evidence shows a restore receipt is not evaluation cache: it records that
+restore already produced outputs for these exact input contents
+(`restore.rs::current_inputs` revalidates the receipt digest against
+`asset_inputs`), which is what lets a later run evaluate after the restore grant
+was given once (`tests/discovery_failures.rs`, the `granted_once` control).
+Withholding it turns the cache flag into an implicit revocation of the restore
+grant: `--no-discovery-cache` without `--allow-restore` would stop evaluating any
+package-backed project, and adding `--allow-restore` back would re-run restore —
+a side effect that was not requested and that can fail offline. `restore_entry`
+refusing to *write* new receipts under `Disabled` is the correct, narrower
+policy. The actual gap was documentation, not behaviour, so the flag's meaning is
+now stated in `docs/msbuild-evaluation.md` and the retraction is recorded here.
+
+## Product decisions still open
