@@ -49,27 +49,48 @@ def rust_golden(binary, environment):
 
 def assert_units(report, classic=False):
     rows = [row for row in report["packages"] if "evaluation_unit" in row]
-    expected = {("App/App.csproj", "net8.0"): [0, None, None],
-                ("Core/Core.csproj", "net8.0"): [None, 0, None],
-                ("Core/Core.csproj", "netstandard2.1"): [None, 0, None],
-                ("Isolated/Isolated.csproj", "net8.0"): [0, 0, 0.0]}
+    # An evaluation unit carries no file attribution, so a zero on either axis is
+    # the shape of the graph, not a measurement. Every axis is therefore withheld
+    # with the reason that explains it, never published as a confident 0.
+    unattributed = {"standing": "indeterminate", "reason": "unattributed_evaluation_unit"}
+    unselected = {"standing": "indeterminate", "reason": "unselected_project_reference"}
+    assembly = {"standing": "indeterminate", "reason": "unresolved_assembly_reference"}
+    unknown = [None, None, None]
+    expected = {
+        # App declares a *selected* project reference: no axis is measured, and
+        # neither is reported as an unselected reference.
+        ("App/App.csproj", "net8.0"): (unknown, [unattributed] * 3),
+        # Core is a declared target: its incoming count may be understated.
+        ("Core/Core.csproj", "net8.0"): (unknown, [unselected, unattributed, unselected]),
+        ("Core/Core.csproj", "netstandard2.1"): (unknown, [unselected, unattributed, unselected]),
+        ("Isolated/Isolated.csproj", "net8.0"): (unknown, [unattributed] * 3),
+    }
     if classic:
-        expected.update({("Classic48/App.csproj", None): [0, 0, 0.0],
-                         ("Twin/Twin.csproj", None): [0, 0, 0.0]})
+        # Classic48 carries a contributing assembly <Reference>, which the file
+        # graph can never account for; its Twin declaration is
+        # ReferenceOutputAssembly=false and therefore contributes nothing.
+        expected.update({
+            ("Classic48/App.csproj", None): (unknown, [unattributed, assembly, unattributed]),
+            ("Twin/Twin.csproj", None): (unknown, [unattributed] * 3),
+        })
+    expected_values = {identity: values for identity, (values, _) in expected.items()}
+    expected_evidence = {identity: evidence for identity, (_, evidence) in expected.items()}
     actual = {}
     identities = set()
     for row in rows:
         unit = row["evaluation_unit"]
         identity = (unit["project"], unit["target_framework"])
+        require(identity in expected, f"Unexpected evaluation unit: {identity}")
         actual[identity] = [row[field] for field in ("afferent", "efferent", "instability")]
+        require(actual[identity] == expected_values[identity],
+                f"C10 native manifest mismatch: {identity} {actual[identity]}")
         require(unit["standing"]["standing"] == "confirmed", f"Native unit unavailable: {unit}")
         require(row["name"] == f"msbuild:{unit['project']}:{unit['key']}", "Unit detail selector lost identity")
         identities.add(row["name"])
-        for field, value in zip(("afferent", "efferent", "instability"), actual[identity]):
-            evidence = ({"standing": "known"} if value is not None else
-                        {"standing": "indeterminate", "reason": "unselected_project_reference"})
-            require(row["metric_evidence"][field] == evidence, f"Incorrect metric evidence: {row}")
-    require(actual == expected and len(identities) == len(expected), f"C10 native manifest mismatch: {actual}")
+        for field, want in zip(("afferent", "efferent", "instability"), expected_evidence[identity]):
+            require(row["metric_evidence"][field] == want, f"Incorrect metric evidence: {row}")
+    require(actual == expected_values and len(identities) == len(expected_values),
+            f"C10 native manifest mismatch: {actual}")
     require({row["evaluation_unit"]["assembly_name"] for row in rows
              if row["evaluation_unit"]["project"] in ("Core/Core.csproj", "Isolated/Isolated.csproj")} == {"Shared"},
             "Assembly-name collision control did not reach evaluation")
