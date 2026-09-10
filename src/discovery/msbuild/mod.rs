@@ -777,11 +777,28 @@ fn failure(reason: DiscoveryFailureReason, message: &str) -> DiscoveryFailure {
     }
 }
 
+/// Metadata durable enough to publish: volatile timestamps and the indexing
+/// machine's absolute paths are dropped, authored semantic flags are kept.
+///
+/// `FullPath`, `RootDir`, `Directory`, `DefiningProjectFullPath` and
+/// `DefiningProjectDirectory` are `MSBuild`'s well-known absolute-path metadata;
+/// they describe the machine that ran discovery, not the workspace, and
+/// `tethys coupling` prints reference metadata verbatim.
 fn semantic_metadata(metadata: &BTreeMap<String, String>) -> BTreeMap<String, String> {
+    const VOLATILE_OR_MACHINE_LOCAL: [&str; 8] = [
+        "ModifiedTime",
+        "CreatedTime",
+        "AccessedTime",
+        "FullPath",
+        "RootDir",
+        "Directory",
+        "DefiningProjectFullPath",
+        "DefiningProjectDirectory",
+    ];
     metadata
         .iter()
         .filter(|(name, _)| {
-            !["ModifiedTime", "CreatedTime", "AccessedTime"]
+            !VOLATILE_OR_MACHINE_LOCAL
                 .iter()
                 .any(|volatile| volatile.eq_ignore_ascii_case(name))
         })
