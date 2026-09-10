@@ -32,9 +32,9 @@ fn dep_count(tethys: &tethys::Tethys, from: &str, to: &str) -> i64 {
     .expect("dep query")
 }
 
-#[test]
-fn cross_dir_deps_follow_using_corroboration() {
-    let (_dir, mut tethys) = workspace_with_files(&[
+/// The C# ground truth shared by both bucketing fences.
+fn cs_sources() -> Vec<(&'static str, &'static str)> {
+    vec![
         // Explicit virtual workspace with no members: workspace_with_files
         // would otherwise inject a root [package] Cargo.toml, making the
         // whole tree ONE crate bucket and short-circuiting the K-hybrid
@@ -90,7 +90,19 @@ namespace App.Services
 }
 ",
         ),
-    ]);
+    ]
+}
+
+#[test]
+fn cross_dir_deps_follow_using_corroboration() {
+    let mut files = vec![
+        // Explicit virtual workspace with no members. C# files are never
+        // Cargo-attributed (`CrateIndex::crate_for_file` is Rust-only), so this
+        // manifest is belt-and-braces; the fence below proves it.
+        ("Cargo.toml", "[workspace]\nmembers = []\n"),
+    ];
+    files.extend(cs_sources());
+    let (_dir, mut tethys) = workspace_with_files(&files);
     tethys.index().expect("index should succeed");
 
     // Corroborated cross-bucket edge: services -> models via `using

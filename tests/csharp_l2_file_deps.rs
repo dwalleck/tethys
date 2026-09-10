@@ -32,9 +32,9 @@ use common::{open_db, workspace_with_files};
 )]
 fn csharp_file_deps_are_l2_used_only() {
     let (_dir, mut tethys) = workspace_with_files(&[
-        // Virtual workspace, no members: keeps the C# files orphan-bucketed
-        // (workspace_with_files would otherwise inject a root [package]
-        // manifest — see tests/csharp_cross_dir_deps.rs for the trap).
+        // Virtual workspace, no members. C# is never Cargo-attributed
+        // (`CrateIndex::crate_for_file` is Rust-only), so this manifest is
+        // belt-and-braces; tests/csharp_cross_dir_deps.rs fences that guard.
         ("Cargo.toml", "[workspace]\nmembers = []\n"),
         (
             "src/App.cs",

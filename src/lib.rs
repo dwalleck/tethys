@@ -98,18 +98,6 @@ pub struct Tethys {
     discovery: OnceLock<Arc<DiscoverySnapshot>>,
 }
 
-/// Whether persisted crate roots still describe this workspace on disk.
-///
-/// A publication records absolute crate paths, so a copied, moved or pruned
-/// workspace silently loses Rust crate attribution until the next index. The
-/// crate list is the only discovery state every open reads, so it is cheap to
-/// re-derive when the persisted roots no longer exist under this root.
-fn crates_are_current(crates: &[CrateInfo], workspace_root: &Path) -> bool {
-    crates
-        .iter()
-        .all(|krate| krate.path.starts_with(workspace_root) && krate.path.is_dir())
-}
-
 /// The canonical on-disk location of a workspace's index:
 /// `.rivets/index/tethys.db` under the workspace root. Single source for
 /// [`Tethys::new`] and [`Tethys::remove_index_files`].
@@ -216,7 +204,7 @@ impl Tethys {
             cargo::discover_crates(&workspace_root)
         } else {
             db.discovery_crates()?
-                .filter(|crates| crates_are_current(crates, &workspace_root))
+                .filter(|crates| cargo::crates_are_current(crates, &workspace_root))
                 .unwrap_or_else(|| cargo::discover_crates(&workspace_root))
         };
 

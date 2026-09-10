@@ -497,6 +497,18 @@ impl<'a> CrateIndex<'a> {
     }
 }
 
+/// Whether persisted crate roots still describe this workspace on disk.
+///
+/// A publication records absolute crate paths, so a copied, moved or pruned
+/// workspace silently loses Rust crate attribution until the next index. The
+/// crate list is the only discovery state every open reads, so it is cheap to
+/// re-derive when the persisted roots no longer exist under this root.
+pub(crate) fn crates_are_current(crates: &[CrateInfo], workspace_root: &Path) -> bool {
+    crates
+        .iter()
+        .all(|krate| krate.path.starts_with(workspace_root) && krate.path.is_dir())
+}
+
 /// Cargo-only node attribution preserves logical Rust paths and discovery order.
 pub(crate) fn architecture_inputs<'a>(
     crates: &'a [CrateInfo],
@@ -510,12 +522,14 @@ pub(crate) fn architecture_inputs<'a>(
         .iter()
         .map(|info| crate::architecture::ArchitecturePackage {
             name: info.name.clone(),
+            // ProjectKey and every other stored path use forward slashes;
+            // match them so one column does not carry two spellings on Windows.
             path: info
                 .path
                 .strip_prefix(root)
                 .unwrap_or(&info.path)
                 .to_string_lossy()
-                .into_owned(),
+                .replace(std::path::MAIN_SEPARATOR, "/"),
             source: crate::PackageSource::Manifest,
             evaluation_unit_key: None,
         })
