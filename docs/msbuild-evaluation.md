@@ -33,17 +33,20 @@ Index-only discovery options:
 | `--msbuild-path PATH` | Select an installed MSBuild directory, not an installer or companion path |
 | `--import-profile strict` | Default: missing imports remain errors |
 | `--import-profile blank-vs-tools-path` | Request the approved `VSToolsPath=""` import-tolerance profile |
-| `--no-discovery-cache` | Force evaluation instead of validated evaluation-cache reuse |
+| `--no-discovery-cache` | Force evaluation instead of validated evaluation-cache reuse; completed restore evidence is unaffected |
 
 Explicit `--property` values take precedence over the context shorthand and
 import profile. The companion must already be packaged beside tethys as described
 below; indexing never builds or downloads it.
 
-Incomplete discovery publishes the available source revision, prints candidate,
-project, and unit diagnostics to stderr, and exits with status **1**. Successful
-sibling units remain available alongside failed framework selectors. This is
-incomplete coverage, not proof of an empty project. Infrastructure/publication
-failures instead leave the preceding revision intact.
+Incomplete **evaluated coverage** publishes the available source revision, prints
+candidate, project, and unit diagnostics to stderr, and exits with status **1**;
+an indeterminate project or unit keeps the non-zero status. A workspace with
+nothing to evaluate — a Rust-only tree with one unreadable directory, say — still
+reports the traversal issue but publishes and exits **0**, because no evaluation
+was left incomplete. Successful sibling units remain available alongside failed
+framework selectors. This is incomplete coverage, not proof of an empty project.
+Infrastructure/publication failures instead leave the preceding revision intact.
 
 ### Published metadata and source independence
 
