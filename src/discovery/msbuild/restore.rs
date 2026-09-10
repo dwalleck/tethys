@@ -1190,8 +1190,17 @@ fn receipt_digest(files: &[PathBuf]) -> crate::Result<String> {
     // path/content boundaries from aliasing one another. Older receipts also
     // lack the stable before/after source authority required by graph evidence.
     hash.update(b"tethys-restore-inputs-v4\0");
+    // One identity per file, in one order: the same input may be spelled with or
+    // without the extended-length prefix depending on whether an evaluated property
+    // or a relative fallback produced it, and the raw spellings sort differently.
+    let mut identities: Vec<PathBuf> = files
+        .iter()
+        .map(|path| dunce::simplified(path).to_path_buf())
+        .collect();
+    identities.sort();
+    identities.dedup();
     let mut chunk = [0_u8; 16_384];
-    for path in files {
+    for path in &identities {
         let path_bytes = path.as_os_str().as_encoded_bytes();
         hash.update((path_bytes.len() as u64).to_le_bytes());
         hash.update(path_bytes);
@@ -1950,6 +1959,23 @@ mod tests {
             Some("All"),
         )]);
         assert!(dependencies_match(&assets, &explicit, Some("net461"), true));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn receipt_digest_ignores_verbatim_spelling_and_order() {
+        let root = tempfile::tempdir().unwrap();
+        let first = root.path().join("a.txt");
+        let second = root.path().join("b.txt");
+        std::fs::write(&first, "one").unwrap();
+        std::fs::write(&second, "two").unwrap();
+        let verbatim = first.canonicalize().unwrap();
+        let ordinary = dunce::simplified(&verbatim).to_path_buf();
+        assert_ne!(verbatim, ordinary, "fixture must exercise both spellings");
+        assert_eq!(
+            receipt_digest(&[verbatim.clone(), second.clone()]).unwrap(),
+            receipt_digest(&[second, ordinary]).unwrap()
+        );
     }
 
     #[test]

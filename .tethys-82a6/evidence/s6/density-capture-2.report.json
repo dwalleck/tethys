@@ -1,0 +1,884 @@
+{
+  "acceptance_scope": "selected evidence lanes only, checked against the cadence roster; the cadence cap binds the aggregate runner invocation; calibrated ratios require a reviewed fourteen-observation authority; assembled S6 acceptance is separately reviewed",
+  "accounting": {
+    "aggregate_seconds": null,
+    "boundary": "argument validation through final lane: Runtime.prepare, every measured product invocation, same-root transparency controls and canonical projection",
+    "cadence_cap_seconds": 3600.0,
+    "lane_seconds": 0.0,
+    "preparation_seconds": 145.24924859701423,
+    "product_seconds": 0.0,
+    "runner_overhead_seconds": 0.0,
+    "status": "running",
+    "transparency_control_seconds": 0.0,
+    "transparency_replays": 0
+  },
+  "cadence": "qualification",
+  "cadence_assignment": {
+    "accounting_boundary": "argument validation through final lane: Runtime.prepare, every measured product invocation, same-root transparency controls and canonical projection",
+    "cadence": "qualification",
+    "cap_seconds": 3600.0,
+    "complete": true,
+    "explicit_shapes_required": false,
+    "missing_required_lanes": [],
+    "permitted_lanes": [
+      "capture_density",
+      "fixtures",
+      "cache",
+      "legacy",
+      "corpus",
+      "check_boundaries"
+    ],
+    "required_lanes": [],
+    "selected_lanes": [
+      "capture_density"
+    ]
+  },
+  "calibration": {
+    "ratio_acceptance": false,
+    "status": "not-established"
+  },
+  "claim": "C12",
+  "error": "RuntimeError: expected exit 0, got -15: ['/home/dwalleck/repos/tethys/target/qualification/density-capture-2/runtime/instrumentation/control-tethys-qualification-driver', '-w', '/home/dwalleck/repos/tethys/target/qualification/density-capture-2/work/capture_density/fixture-baseline-workspace']\n\n",
+  "identity": {
+    "corpus_sha256": "769422ed39b91e34b7df53143ea745a0c203ab4fc2cf3267e02223af231a067e",
+    "oracle_sha256": "c5e9c8a7490d42ee8742009e70970e67372043b61cfb58a3bc12d5638afb7e41",
+    "runner_sha256": "3df4ce2e47860b227e603e25af837f589e05fbb3d97a046b73f0cec5492a5185",
+    "toolchain_sha256": "1e13f6d51610af2a2961a1730f0645cdcfcb9bad9b7c816483e68daf382b57a4"
+  },
+  "identity_inputs": {
+    "corpus": {
+      "lanes": {
+        "capture_density": {
+          "allow_restore": true,
+          "host_kind": "sdk",
+          "manifest": {
+            "name": "tests/fixtures/msbuild/qualification/shapes.json",
+            "sha256": "444e879b97d6cb27fad342b816d014c1de6478a0ed3ee0dcc03e1784e520aec2"
+          },
+          "selected_shapes": [
+            "baseline",
+            "density-2x"
+          ]
+        }
+      },
+      "schema": 1
+    },
+    "oracle": [
+      {
+        "name": "qualification.py",
+        "sha256": "985d39d2bf236c387ad522041f2911e400fe9bff65c1ae0b7192dfd3d7a65a4a"
+      },
+      {
+        "name": "qualification_limits.py",
+        "sha256": "940621336ab28108bda05bf1fc4afc844ab248009d1621ed880346e21037306f"
+      },
+      {
+        "name": "qualification_runtime.py",
+        "sha256": "789aeffe204ad51ba59bbdd54d659ab02fd18c93bd8413aabef32d57223f6b2b"
+      },
+      {
+        "name": "qualification_environment.py",
+        "sha256": "59f2535eb28786ac62190c07f7a05cd10e22b768b89907fc959f8a1f14270108"
+      },
+      {
+        "name": "qualification_fixtures.py",
+        "sha256": "856736629ce47c843328b7441db19acb74cd60fca08fae7ba19970f5a5ba584f"
+      },
+      {
+        "name": "qualification_corpus.py",
+        "sha256": "f0bd56fb7cbbeed70bc19750062ae6ba9b4b1c2ed7a67eaf85c6534c0861be54"
+      },
+      {
+        "name": "qualification_driver.rs",
+        "sha256": "836741d426777816cc8055439f8c0ac6786d69b69c6777b3b4f7101b0d9575e1"
+      },
+      {
+        "name": "discovery_smoke.py",
+        "sha256": "448889da0ace85e4eb8830074df8a4772dfcbb4b8ea46fed62d31e0083c65618"
+      },
+      {
+        "name": "tests/fixtures/msbuild/qualification/limits.json",
+        "sha256": "1884f0b6ba0ba707d970a088949e95966cd4f1dd8f72bce51f5d59a1dfc82a37"
+      }
+    ]
+  },
+  "implementation_sha256": "385a740250b5f24ccb2e24760344850f0468bc354a8675e381fc6ab5155a289c",
+  "lanes": {},
+  "native_environment": {
+    "bytes": 1069978857,
+    "files": 10789,
+    "preflight": {
+      "ancestor_configs": [],
+      "authority": "https://github.com/NuGet/NuGet.Client/tree/5fe0c128b2d58335a60161c5141064be42dd8a6b/src/NuGet.Core",
+      "platform": "linux",
+      "plugins": "explicit empty protocol-plugin lists; Windows actual-profile plugin preflight",
+      "safe_configs": []
+    },
+    "schema": 1,
+    "scope": "package-content-and-isolated-home-config; excludes HTTP cache, temporary files and mtimes",
+    "sdk_bootstrap_sha256": "c393920c76bce7f25ee2b26f77fad45cd80f2b2ecedc12926457f1644e4aad4c",
+    "sha256": "94ff7a2cbb10900b42776807045213886c5ed2c342fed05cb223be1373cde6d5"
+  },
+  "platform": "Linux-7.2.0-1-cachyos-x86_64-with-glibc2.44",
+  "repeat": 2,
+  "runtime": {
+    "build_command": [
+      "cargo",
+      "build",
+      "--offline",
+      "--release",
+      "--manifest-path",
+      "/home/dwalleck/repos/tethys/target/qualification/density-capture-2/runtime/runtime-b2gklrx8/caller/Cargo.toml",
+      "--target-dir",
+      "/home/dwalleck/repos/tethys/target/qualification/density-capture-2/runtime/runtime-b2gklrx8/target"
+    ],
+    "build_environment_policy": "ambient snapshot used only for preparation; values not recorded",
+    "build_profile": {
+      "name": "release",
+      "offline": true
+    },
+    "cli_build_command": [
+      "cargo",
+      "build",
+      "--offline",
+      "--release",
+      "--bin",
+      "tethys",
+      "--manifest-path",
+      "/home/dwalleck/repos/tethys/target/qualification/density-capture-2/runtime/runtime-b2gklrx8/source/Cargo.toml",
+      "--target-dir",
+      "/home/dwalleck/repos/tethys/target/qualification/density-capture-2/runtime/runtime-b2gklrx8/target"
+    ],
+    "cli_sha256": "284b2cfc2bb80860c77f8024c3ed5552594798d389f0e1636ce3591e73a7ffa5",
+    "control_binary_sha256": "49ddd9fe18a412ca0d11c9df87ec5f8df0306045dd944d9a416fd4a2e2ae5a08",
+    "controls": [
+      {
+        "canonical_sha256": "cdc11c6c5ca01039be5699634f52b8aaf24d3a560cd1de89a39735771f5060a3",
+        "control_measurement": {
+          "command": [
+            "/home/dwalleck/repos/tethys/target/qualification/density-capture-2/runtime/instrumentation/control-tethys-qualification-driver",
+            "-w",
+            "/home/dwalleck/repos/tethys/target/qualification/density-capture-2/work/capture_density/fixture-baseline-workspace"
+          ],
+          "exit": 0,
+          "index_and_sidecar_bytes": 67342336,
+          "index_and_sidecar_sampled_peak_bytes": 135428528,
+          "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+          "process_tree_rss_status": "incomplete: one or more process-tree samples raced process exit",
+          "process_tree_sampled_peak_rss_bytes": 235155456,
+          "rss_bytes": 235155456,
+          "rss_status": "incomplete: one or more process-tree samples raced process exit",
+          "storage_bytes": 135428528,
+          "wait4_maxrss_native_units": 179596,
+          "wait4_status": "measured; KiB on Linux, bytes on macOS",
+          "wall_seconds": 573.2076286220108,
+          "windows_root_process_peak_working_set_bytes": null,
+          "windows_root_process_peak_working_set_status": "unavailable: Windows process API not applicable"
+        },
+        "evidence": "/home/dwalleck/repos/tethys/target/qualification/density-capture-2/runtime/run-00001",
+        "frozen_environment_checks": [
+          {
+            "after": {
+              "bytes": 1069978857,
+              "files": 10789,
+              "preflight": {
+                "ancestor_configs": [],
+                "authority": "https://github.com/NuGet/NuGet.Client/tree/5fe0c128b2d58335a60161c5141064be42dd8a6b/src/NuGet.Core",
+                "platform": "linux",
+                "plugins": "explicit empty protocol-plugin lists; Windows actual-profile plugin preflight",
+                "safe_configs": []
+              },
+              "schema": 1,
+              "scope": "package-content-and-isolated-home-config; excludes HTTP cache, temporary files and mtimes",
+              "sdk_bootstrap_sha256": "c393920c76bce7f25ee2b26f77fad45cd80f2b2ecedc12926457f1644e4aad4c",
+              "sha256": "94ff7a2cbb10900b42776807045213886c5ed2c342fed05cb223be1373cde6d5"
+            },
+            "before": {
+              "bytes": 1069978857,
+              "files": 10789,
+              "preflight": {
+                "ancestor_configs": [],
+                "authority": "https://github.com/NuGet/NuGet.Client/tree/5fe0c128b2d58335a60161c5141064be42dd8a6b/src/NuGet.Core",
+                "platform": "linux",
+                "plugins": "explicit empty protocol-plugin lists; Windows actual-profile plugin preflight",
+                "safe_configs": []
+              },
+              "schema": 1,
+              "scope": "package-content-and-isolated-home-config; excludes HTTP cache, temporary files and mtimes",
+              "sdk_bootstrap_sha256": "c393920c76bce7f25ee2b26f77fad45cd80f2b2ecedc12926457f1644e4aad4c",
+              "sha256": "94ff7a2cbb10900b42776807045213886c5ed2c342fed05cb223be1373cde6d5"
+            },
+            "binary": "instrumented-tethys-qualification-driver"
+          },
+          {
+            "after": {
+              "bytes": 1069978857,
+              "files": 10789,
+              "preflight": {
+                "ancestor_configs": [],
+                "authority": "https://github.com/NuGet/NuGet.Client/tree/5fe0c128b2d58335a60161c5141064be42dd8a6b/src/NuGet.Core",
+                "platform": "linux",
+                "plugins": "explicit empty protocol-plugin lists; Windows actual-profile plugin preflight",
+                "safe_configs": []
+              },
+              "schema": 1,
+              "scope": "package-content-and-isolated-home-config; excludes HTTP cache, temporary files and mtimes",
+              "sdk_bootstrap_sha256": "c393920c76bce7f25ee2b26f77fad45cd80f2b2ecedc12926457f1644e4aad4c",
+              "sha256": "94ff7a2cbb10900b42776807045213886c5ed2c342fed05cb223be1373cde6d5"
+            },
+            "before": {
+              "bytes": 1069978857,
+              "files": 10789,
+              "preflight": {
+                "ancestor_configs": [],
+                "authority": "https://github.com/NuGet/NuGet.Client/tree/5fe0c128b2d58335a60161c5141064be42dd8a6b/src/NuGet.Core",
+                "platform": "linux",
+                "plugins": "explicit empty protocol-plugin lists; Windows actual-profile plugin preflight",
+                "safe_configs": []
+              },
+              "schema": 1,
+              "scope": "package-content-and-isolated-home-config; excludes HTTP cache, temporary files and mtimes",
+              "sdk_bootstrap_sha256": "c393920c76bce7f25ee2b26f77fad45cd80f2b2ecedc12926457f1644e4aad4c",
+              "sha256": "94ff7a2cbb10900b42776807045213886c5ed2c342fed05cb223be1373cde6d5"
+            },
+            "binary": "control-tethys-qualification-driver"
+          }
+        ],
+        "label": "fixture-baseline-batch-1",
+        "status": "PASS"
+      },
+      {
+        "canonical_sha256": "cdc11c6c5ca01039be5699634f52b8aaf24d3a560cd1de89a39735771f5060a3",
+        "control_measurement": {
+          "command": [
+            "/home/dwalleck/repos/tethys/target/qualification/density-capture-2/runtime/instrumentation/control-tethys-qualification-driver",
+            "-w",
+            "/home/dwalleck/repos/tethys/target/qualification/density-capture-2/work/capture_density/fixture-baseline-workspace"
+          ],
+          "exit": 0,
+          "index_and_sidecar_bytes": 67342336,
+          "index_and_sidecar_sampled_peak_bytes": 135428528,
+          "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+          "process_tree_rss_status": "incomplete: one or more process-tree samples raced process exit",
+          "process_tree_sampled_peak_rss_bytes": 235757568,
+          "rss_bytes": 235757568,
+          "rss_status": "incomplete: one or more process-tree samples raced process exit",
+          "storage_bytes": 135428528,
+          "wait4_maxrss_native_units": 178360,
+          "wait4_status": "measured; KiB on Linux, bytes on macOS",
+          "wall_seconds": 573.6773142180173,
+          "windows_root_process_peak_working_set_bytes": null,
+          "windows_root_process_peak_working_set_status": "unavailable: Windows process API not applicable"
+        },
+        "evidence": "/home/dwalleck/repos/tethys/target/qualification/density-capture-2/runtime/run-00002",
+        "frozen_environment_checks": [
+          {
+            "after": {
+              "bytes": 1069978857,
+              "files": 10789,
+              "preflight": {
+                "ancestor_configs": [],
+                "authority": "https://github.com/NuGet/NuGet.Client/tree/5fe0c128b2d58335a60161c5141064be42dd8a6b/src/NuGet.Core",
+                "platform": "linux",
+                "plugins": "explicit empty protocol-plugin lists; Windows actual-profile plugin preflight",
+                "safe_configs": []
+              },
+              "schema": 1,
+              "scope": "package-content-and-isolated-home-config; excludes HTTP cache, temporary files and mtimes",
+              "sdk_bootstrap_sha256": "c393920c76bce7f25ee2b26f77fad45cd80f2b2ecedc12926457f1644e4aad4c",
+              "sha256": "94ff7a2cbb10900b42776807045213886c5ed2c342fed05cb223be1373cde6d5"
+            },
+            "before": {
+              "bytes": 1069978857,
+              "files": 10789,
+              "preflight": {
+                "ancestor_configs": [],
+                "authority": "https://github.com/NuGet/NuGet.Client/tree/5fe0c128b2d58335a60161c5141064be42dd8a6b/src/NuGet.Core",
+                "platform": "linux",
+                "plugins": "explicit empty protocol-plugin lists; Windows actual-profile plugin preflight",
+                "safe_configs": []
+              },
+              "schema": 1,
+              "scope": "package-content-and-isolated-home-config; excludes HTTP cache, temporary files and mtimes",
+              "sdk_bootstrap_sha256": "c393920c76bce7f25ee2b26f77fad45cd80f2b2ecedc12926457f1644e4aad4c",
+              "sha256": "94ff7a2cbb10900b42776807045213886c5ed2c342fed05cb223be1373cde6d5"
+            },
+            "binary": "instrumented-tethys-qualification-driver"
+          },
+          {
+            "after": {
+              "bytes": 1069978857,
+              "files": 10789,
+              "preflight": {
+                "ancestor_configs": [],
+                "authority": "https://github.com/NuGet/NuGet.Client/tree/5fe0c128b2d58335a60161c5141064be42dd8a6b/src/NuGet.Core",
+                "platform": "linux",
+                "plugins": "explicit empty protocol-plugin lists; Windows actual-profile plugin preflight",
+                "safe_configs": []
+              },
+              "schema": 1,
+              "scope": "package-content-and-isolated-home-config; excludes HTTP cache, temporary files and mtimes",
+              "sdk_bootstrap_sha256": "c393920c76bce7f25ee2b26f77fad45cd80f2b2ecedc12926457f1644e4aad4c",
+              "sha256": "94ff7a2cbb10900b42776807045213886c5ed2c342fed05cb223be1373cde6d5"
+            },
+            "before": {
+              "bytes": 1069978857,
+              "files": 10789,
+              "preflight": {
+                "ancestor_configs": [],
+                "authority": "https://github.com/NuGet/NuGet.Client/tree/5fe0c128b2d58335a60161c5141064be42dd8a6b/src/NuGet.Core",
+                "platform": "linux",
+                "plugins": "explicit empty protocol-plugin lists; Windows actual-profile plugin preflight",
+                "safe_configs": []
+              },
+              "schema": 1,
+              "scope": "package-content-and-isolated-home-config; excludes HTTP cache, temporary files and mtimes",
+              "sdk_bootstrap_sha256": "c393920c76bce7f25ee2b26f77fad45cd80f2b2ecedc12926457f1644e4aad4c",
+              "sha256": "94ff7a2cbb10900b42776807045213886c5ed2c342fed05cb223be1373cde6d5"
+            },
+            "binary": "control-tethys-qualification-driver"
+          }
+        ],
+        "label": "fixture-baseline-batch-2",
+        "status": "PASS"
+      }
+    ],
+    "driver_sha256": "836741d426777816cc8055439f8c0ac6786d69b69c6777b3b4f7101b0d9575e1",
+    "evaluation_environment_policy": "supplied environment used exactly, without ambient merging",
+    "identity_inputs": {
+      "runner": {
+        "architecture": "x86_64",
+        "boundary": "OS-reported hardware/resources; no cloud image or hardware attestation",
+        "cpu_model": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+        "cpu_model_status": "observed: /proc/cpuinfo",
+        "kernel_release": "7.2.0-1-cachyos",
+        "kernel_version": "#1 SMP PREEMPT_DYNAMIC Thu, 20 Aug 2026 06:06:30 +0000",
+        "logical_cpus": 32,
+        "os": "Linux",
+        "os_release": {
+          "BUILD_ID": "rolling",
+          "ID": "cachyos"
+        },
+        "os_release_status": "observed",
+        "physical_cpus": 16,
+        "resource_observer": {
+          "name": "psutil",
+          "version": "7.0.0"
+        },
+        "runner_image": null,
+        "runner_image_status": "unavailable",
+        "total_ram_bytes": 134287585280
+      },
+      "toolchain": {
+        "boundary": "Observed selected installation subtrees and frozen resolver bytes; arbitrary external custom-resolver inputs, OS native-library closure and compiler-wrapper behavior are not attested",
+        "dotnet": {
+          "closures": {
+            "host": {
+              "bytes": 906608,
+              "files": 3,
+              "sha256": "b804a682b92a7fa58d2b952d428f7fc56404c9ffb68c67a86b6f9d3965642e53"
+            },
+            "metadata": {
+              "bytes": 0,
+              "files": 0,
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "muxer": {
+              "bytes": 71808,
+              "files": 1,
+              "sha256": "6dec3b3c7d24b280495f71a81fb19e39551d50c9cab4509e4d0322d27341af76"
+            },
+            "packs": {
+              "bytes": 269113537,
+              "files": 2263,
+              "sha256": "9b20c1d494552c8df7a1ae98edf08102902882c4d5d342a3a98ab217d8f651c4"
+            },
+            "sdk-manifests": {
+              "bytes": 494003,
+              "files": 272,
+              "sha256": "e0579ed9622c02889fa685c465b5d2c397fa708626ca02c78518a9ee3fea7e05"
+            },
+            "selected-sdk": {
+              "bytes": 410481152,
+              "files": 3668,
+              "sha256": "b966dca18450214aecb0c9c4e8c1d773b0a0129260d4580841c95bd6786d4d8f"
+            },
+            "shared": {
+              "bytes": 307545729,
+              "files": 989,
+              "sha256": "0fe70bdce21674398dc353cdff1ea5392c379aaf11053536f0dc5f44fba5806c"
+            }
+          },
+          "selected_sdk": "10.0.102"
+        },
+        "resolver_state": {
+          "bytes": 1069978857,
+          "files": 10789,
+          "preflight": {
+            "ancestor_configs": [],
+            "authority": "https://github.com/NuGet/NuGet.Client/tree/5fe0c128b2d58335a60161c5141064be42dd8a6b/src/NuGet.Core",
+            "platform": "linux",
+            "plugins": "explicit empty protocol-plugin lists; Windows actual-profile plugin preflight",
+            "safe_configs": []
+          },
+          "schema": 1,
+          "scope": "package-content-and-isolated-home-config; excludes HTTP cache, temporary files and mtimes",
+          "sha256": "94ff7a2cbb10900b42776807045213886c5ed2c342fed05cb223be1373cde6d5"
+        },
+        "rust": {
+          "build_override_value_hashes": {},
+          "cargo_configuration": [],
+          "compiler": {
+            "LLVM version": "21.1.8",
+            "commit-date": "2026-03-02",
+            "commit-hash": "4a4ef493e3a1488c6e321570238084b38948f6db",
+            "host": "x86_64-unknown-linux-gnu",
+            "launcher_sha256": "4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10",
+            "release": "1.94.0"
+          },
+          "installed_closures": {
+            "compiler": {
+              "bytes": 656616,
+              "files": 1,
+              "sha256": "700b80e1c8c7507e76837f7808d1a97c75f0e367cb24bb955be8a9dc0c0ac850"
+            },
+            "compiler_support": {
+              "lib/libLLVM-21-rust-1.94.0-stable.so": {
+                "bytes": 42,
+                "files": 1,
+                "sha256": "137cebc43a8c60f0bb6d1843eedc8df2d17fb1b300576dcfa99dfb0866150fd1"
+              },
+              "lib/libLLVM.so.21.1-rust-1.94.0-stable": {
+                "bytes": 186846192,
+                "files": 1,
+                "sha256": "181cfff6c575ad706c1c04e7960786e42a75d3c0c14fd70666379249afa2b820"
+              },
+              "lib/librustc_driver-24b10b5e3eb5af70.so": {
+                "bytes": 153848688,
+                "files": 1,
+                "sha256": "b9e64a7bab85d53a813603b3f23c3857aebe589a0856c39bb550d308d3c79f78"
+              }
+            },
+            "host_libraries": {
+              "bytes": 164360922,
+              "files": 62,
+              "sha256": "622eab1edfaf106da589d75a83f161fcd7a047c803fbafbacd3434df9093c27c"
+            },
+            "target_libraries": {
+              "bytes": 164360922,
+              "files": 62,
+              "sha256": "622eab1edfaf106da589d75a83f161fcd7a047c803fbafbacd3434df9093c27c"
+            }
+          },
+          "profile": {
+            "cli_manifest": {
+              "codegen-units": 1,
+              "lto": "fat",
+              "strip": "symbols"
+            },
+            "driver_manifest": {},
+            "name": "release",
+            "offline": true
+          },
+          "target": "x86_64-unknown-linux-gnu"
+        }
+      }
+    },
+    "implementation_inputs": {
+      "build_contract": {
+        "cli": [
+          "cargo",
+          "build",
+          "--offline",
+          "--release",
+          "--bin",
+          "tethys",
+          "--manifest-path",
+          "$IMPLEMENTATION/Cargo.toml",
+          "--target-dir",
+          "$BUILD"
+        ],
+        "driver": [
+          "cargo",
+          "build",
+          "--offline",
+          "--release",
+          "--manifest-path",
+          "$CALLER/Cargo.toml",
+          "--target-dir",
+          "$BUILD"
+        ]
+      },
+      "caller_manifest": {
+        "dependencies": {
+          "serde": {
+            "features": [
+              "derive"
+            ],
+            "version": "1"
+          },
+          "serde_json": "1",
+          "tethys": {
+            "path": "$IMPLEMENTATION"
+          }
+        },
+        "package": {
+          "edition": "2024",
+          "name": "tethys-qualification-driver",
+          "version": "0.0.0"
+        },
+        "workspace": {}
+      },
+      "companion": {
+        "bytes": 835971,
+        "files": 7,
+        "sha256": "c169f53149f840527edd0b0b99b945645082fd07fe90f7987b8032520f49bac1"
+      },
+      "driver": {
+        "path": "qualification_driver.rs",
+        "sha256": "836741d426777816cc8055439f8c0ac6786d69b69c6777b3b4f7101b0d9575e1"
+      },
+      "rust_inputs": [
+        {
+          "path": "Cargo.lock",
+          "sha256": "18d483ed3ac639f99dc7613c514ab99f9cdfdc3e7436ee5911cfca9f15426f41"
+        },
+        {
+          "path": "Cargo.toml",
+          "sha256": "b88098ec767c4b889b36a6d87e82f78d333510f4d01f5793068f2d33ff41dfec"
+        },
+        {
+          "path": "rust-toolchain.toml",
+          "sha256": "474342a18df37f923f59df43b1b90e6c0b0d6758612462bbc0dadbe37fe2cadf"
+        },
+        {
+          "path": "src/architecture.rs",
+          "sha256": "a480493948085b29d16a25a2881affbbc2b2eb6c9dee18dd26bf51592d211977"
+        },
+        {
+          "path": "src/batch_writer.rs",
+          "sha256": "8a6087493be65e66e1157a4f23d601377dccb2da0f7c9216eb31af3417849c69"
+        },
+        {
+          "path": "src/cargo.rs",
+          "sha256": "82164c661bec1d1f763b7e43cc81d564d3060726cfbb11cb9eaee1fe7ad4bb39"
+        },
+        {
+          "path": "src/cli/affected_tests.rs",
+          "sha256": "215d12dad6caefee957d7baeb6d0860047ad223afa08e59d2ff33b1c4b313e6b"
+        },
+        {
+          "path": "src/cli/callers.rs",
+          "sha256": "55d86d5a7feab69bfe37a2ad1c4d310be378dda9058510a94ef24fc565e9fa55"
+        },
+        {
+          "path": "src/cli/coupling.rs",
+          "sha256": "cede5e052f94391fd10c726c763cf5d0764c06f210b68672e7dca695fcebb059"
+        },
+        {
+          "path": "src/cli/cycles.rs",
+          "sha256": "7fb681f023b612a9156ed2d987ecb7027de254f908893e428f6872b2e7dc2fc0"
+        },
+        {
+          "path": "src/cli/dead_code.rs",
+          "sha256": "95cb5f0f0b790d9f68698b278dc70f922634761905feac0928b0bdb7f60ea7c0"
+        },
+        {
+          "path": "src/cli/deprecated_callers.rs",
+          "sha256": "b121387bc2aa7fd5d365fd1aa3bfbbba7237fab5780c5a59824477e3df8afde0"
+        },
+        {
+          "path": "src/cli/display.rs",
+          "sha256": "19c65675beb6151468b9ed2bc670279c8ce63717d3918213d1127557ec19db39"
+        },
+        {
+          "path": "src/cli/hierarchy.rs",
+          "sha256": "902409aba3ab67b40d284c98f35951f7ffa5e0eee43abbeafb1681add7762970"
+        },
+        {
+          "path": "src/cli/impact.rs",
+          "sha256": "b61630a0e1477cae8ea049fe15403029553a42fbbb97c39c1b61190a6c24bc8e"
+        },
+        {
+          "path": "src/cli/index.rs",
+          "sha256": "1ad06671dbecfad76f8837aaeb99915a23f4a0ea54b4d1d56c45277e7241b11d"
+        },
+        {
+          "path": "src/cli/mod.rs",
+          "sha256": "800df0c2441de84649c9f9471cf03136ff0e085a2fdc6bd2d5b515dcec8ab6eb"
+        },
+        {
+          "path": "src/cli/panic_points.rs",
+          "sha256": "39bac72c1e2e5a1f36f20d7e33a55f5de0ffc1e66eb40f45c62e6e3b3dfa58bf"
+        },
+        {
+          "path": "src/cli/reachable.rs",
+          "sha256": "d0c6fa3f07539c089241a2d04b3fd13eec87eafbf053bcf4766483966a05cbc1"
+        },
+        {
+          "path": "src/cli/search.rs",
+          "sha256": "c2c753e753b40ee5bf22c51ec837d5b9252b1861316eadc046ad458069227337"
+        },
+        {
+          "path": "src/cli/stats.rs",
+          "sha256": "13878386f90c83615820dcb3b2e75b53b3e047035bfcd0b8d6dbd3063078635e"
+        },
+        {
+          "path": "src/cli/untested_code.rs",
+          "sha256": "c5f0e93f2d32fa6017be30bef01cf702dfe57ea9082f12921ca5b3b9c1d77455"
+        },
+        {
+          "path": "src/cli/unused_imports.rs",
+          "sha256": "edd0cb9df187fc1f900c70b1e986a8cf0dc4909a4a48f3dd5f4932bf7a1b9b14"
+        },
+        {
+          "path": "src/cli/visibility_tightening.rs",
+          "sha256": "f4a242e7822ac57164e4300eff4b01645be0f78ad1c188d9e2c8e629af265910"
+        },
+        {
+          "path": "src/db/architecture.rs",
+          "sha256": "d86bca360741bab66a893564206bbbc99300238d742c7634e872ee542a5ff4fc"
+        },
+        {
+          "path": "src/db/call_edges.rs",
+          "sha256": "16cc2d93ccb219b4542a0d3da01c4a761da139a7355114a33d107c8c06a687fb"
+        },
+        {
+          "path": "src/db/dead_code.rs",
+          "sha256": "7e831e3673412d537efeb38b667c90ac80ab3d3dc4f61557ed9ef57eaa051ffd"
+        },
+        {
+          "path": "src/db/deprecated.rs",
+          "sha256": "d122cae33676edbfcf9a209594bc67ddbfcf50edb183b56be95ede46d5dd3563"
+        },
+        {
+          "path": "src/db/discovery.rs",
+          "sha256": "9e5886439976766ddc41a23396451a3390723123870fa9b23f975240deb97c4e"
+        },
+        {
+          "path": "src/db/file_deps.rs",
+          "sha256": "ecdebd1d3aab5b7b933f34594579ca0906d8796dcb5db3e1dcccc746fb1696fd"
+        },
+        {
+          "path": "src/db/files.rs",
+          "sha256": "24fc5bdc4f0046894e3ddb38d7b5def3a8d56a8f95ea3175cd77f11914d83b1a"
+        },
+        {
+          "path": "src/db/graph.rs",
+          "sha256": "e43e2fbbcd0e0440baf415bd4189829363d2bbbd672f278fdf09dba791179ba6"
+        },
+        {
+          "path": "src/db/helpers.rs",
+          "sha256": "ef9c5125e359082f828427fa58c4caa803c8867138a7c78dc296a2d9c46d4e66"
+        },
+        {
+          "path": "src/db/hierarchy.rs",
+          "sha256": "7866032802335306f45477def1086b912330e83f5665a1e447bd17642a56c4e2"
+        },
+        {
+          "path": "src/db/imports.rs",
+          "sha256": "b374d82467878ba4babf47ce36a614132bf761c0e682035aa5ea9edb4b9d0dfb"
+        },
+        {
+          "path": "src/db/mod.rs",
+          "sha256": "5f55d380bf0fc72063fcccec32f867765e7d21b5285d90c125f8aba52c3791fc"
+        },
+        {
+          "path": "src/db/panic_points.rs",
+          "sha256": "ae35f688fc1e984d095fbec5f531cbd97b427e75bcdf6e5135b3b22fde83122a"
+        },
+        {
+          "path": "src/db/references.rs",
+          "sha256": "f31db0dffb7b5b52e8b52459de9d0bcb3216dfae135b4194ab5a093fef24e707"
+        },
+        {
+          "path": "src/db/revision.rs",
+          "sha256": "05c3e7f308d5064bc1906934cf4b6a5265eb8dbcb0b866bff36f6446559093a0"
+        },
+        {
+          "path": "src/db/schema.rs",
+          "sha256": "5d84d594b18fb989555a40f47192b768d20feab515a5003db5be3af6fc739516"
+        },
+        {
+          "path": "src/db/symbols.rs",
+          "sha256": "36a27fc413c3e1e03a58b6522440ec53ae0bb834498ce9905b97b8bdf5fb5349"
+        },
+        {
+          "path": "src/db/untested.rs",
+          "sha256": "23068b53d8506ed8b72df80509d78ebd10688bd207a298c73a093ccfdb3d44b0"
+        },
+        {
+          "path": "src/db/visibility.rs",
+          "sha256": "bfda90acde74e05389a5f127616ed2f9a028f8b0273e9eed2d0ca95962721edb"
+        },
+        {
+          "path": "src/dead_code.rs",
+          "sha256": "97a333bba75f20bab196228570fd92d005d19c5e32b26e2edcaa47c7f7ac9b81"
+        },
+        {
+          "path": "src/discovery/mod.rs",
+          "sha256": "bb9d1d6db3d9b7b417cb99d322bb379b2545263f4938bd227a7b9b897cb64e86"
+        },
+        {
+          "path": "src/discovery/msbuild/cache.rs",
+          "sha256": "7c8c2fe73659880a4307603448c2ead3e8759b78f7d01024cfc8cd05bf720d55"
+        },
+        {
+          "path": "src/discovery/msbuild/candidates.rs",
+          "sha256": "3a69b08a77b2d4074d834bf9e2d433ae8ef9b27b67dc845a43fd822518f3c907"
+        },
+        {
+          "path": "src/discovery/msbuild/host.rs",
+          "sha256": "bf63e12850a25c34077f2ef22e72560add78fe5255baa61ce9058a0cbaa42284"
+        },
+        {
+          "path": "src/discovery/msbuild/mod.rs",
+          "sha256": "fbd3605ad63bef38bddf390837b43d982b5d3eb66b4a1405b9377fa52ba0700f"
+        },
+        {
+          "path": "src/discovery/msbuild/restore/graph/dependencies.rs",
+          "sha256": "4c5b3c87f610294f389d17c28edb2214ff9defa6a32efa6e921ba94b52c320f5"
+        },
+        {
+          "path": "src/discovery/msbuild/restore/graph.rs",
+          "sha256": "7c458bc9e5ee46f80b09e30fab5e84d8f16fd5b1aebafd719d933acb2a99d987"
+        },
+        {
+          "path": "src/discovery/msbuild/restore.rs",
+          "sha256": "2c656543aa59f6c13c1d5422678557410a2e2b92dfcb768b34d0b6e983879557"
+        },
+        {
+          "path": "src/discovery/types.rs",
+          "sha256": "89537883d602f660442be2d04081e7c3c69a76dbbd95335dffd9f29db8e7c1ad"
+        },
+        {
+          "path": "src/error.rs",
+          "sha256": "cbb6ae2f34f7ad8b9e76f936d998638287203337b228582af45e2361813de475"
+        },
+        {
+          "path": "src/graph/mod.rs",
+          "sha256": "7df903ac9ab49640a2362511f28c6ff34f5e3f872becbc6c4b2183aa807f4589"
+        },
+        {
+          "path": "src/graph/types.rs",
+          "sha256": "bacf10a2f040299cdfcc92ae82e95f2370dfd6d61f99df7a94b578ee48e6de69"
+        },
+        {
+          "path": "src/indexing.rs",
+          "sha256": "7c1ae11672091fd17afb8ede865cb7d279251e808aa6cbe418ca332c1e15ed33"
+        },
+        {
+          "path": "src/languages/common.rs",
+          "sha256": "299244c44e609b21053e8b7b056afa5ce751e9965e8e8dcab84e0e754f5b9bb0"
+        },
+        {
+          "path": "src/languages/csharp.rs",
+          "sha256": "ebbf0958e71e61327abdd12807b5067bb246f463076dce6182b8d341c2dbe52e"
+        },
+        {
+          "path": "src/languages/mod.rs",
+          "sha256": "215e750c30db85812d5a41cf8bec84648af5ba219972d87e76a4d4baa30c7c62"
+        },
+        {
+          "path": "src/languages/module_resolver.rs",
+          "sha256": "6fc7d6d2d477589f28c196cf64f727171fd83a2b76a1b11912957d5f382dca9c"
+        },
+        {
+          "path": "src/languages/rust.rs",
+          "sha256": "93275abeb9643f672d4a3b2fd5939b60f41a5467845f29b290c23afd11cffa94"
+        },
+        {
+          "path": "src/languages/tree_sitter_utils.rs",
+          "sha256": "ed24b130984ec9590559f8519354184025dae2c035669e63fa6a276b52457c91"
+        },
+        {
+          "path": "src/lib.rs",
+          "sha256": "9675c5efe3b97a2c12d359f028a05c596c24c865fdec3acbf6a5579053f98054"
+        },
+        {
+          "path": "src/lsp/encoding.rs",
+          "sha256": "4875b24c13c49b08971c9e9de8d03df4266a20c16968b1d398e83d0ba4f169ce"
+        },
+        {
+          "path": "src/lsp/error.rs",
+          "sha256": "09b6cd0f531efe4655e16f0ba52dda63f1665cd2c6a0819f593087a7c8d5a9ad"
+        },
+        {
+          "path": "src/lsp/mod.rs",
+          "sha256": "75694c9e7e903191ffb1c91b031870a60fdb255de22164c2dd23297b52519c53"
+        },
+        {
+          "path": "src/lsp/provider.rs",
+          "sha256": "3b0cb7d3b836664de2f97853cd3f23be6f2ed88b437f712da6b9788c8015ede2"
+        },
+        {
+          "path": "src/lsp/status.rs",
+          "sha256": "7c52179cab6a19791437f79f031e880508bcfb849167a1abb0c04c24d633b0bf"
+        },
+        {
+          "path": "src/lsp/transport.rs",
+          "sha256": "19673625858c5d204cff908e9819f10d274223ab294ab6c10ce73bdb760c67a0"
+        },
+        {
+          "path": "src/main.rs",
+          "sha256": "ccc78468dfe5dd661a3a5ace87bc5b938199bb18ed07a464f161a2a6ba3239a1"
+        },
+        {
+          "path": "src/parallel.rs",
+          "sha256": "47c8483d213c0ca3c44b728c0f9b1d4be4131692287f843887327044948dbb37"
+        },
+        {
+          "path": "src/reindex.rs",
+          "sha256": "ad7b75d37fced6858903f69f28560b4e1d0cd0a6b20dda87c7e28a34f495993c"
+        },
+        {
+          "path": "src/resolve.rs",
+          "sha256": "eb6bf6faed6352a1c24a9393ff85838aab20d383abd745236d4d1538576367f9"
+        },
+        {
+          "path": "src/resolver.rs",
+          "sha256": "690c7127e0851d8709f1cd4dd1a9aadb60d8c2ede453fef3fcc2aeaa00c51aa4"
+        },
+        {
+          "path": "src/types.rs",
+          "sha256": "0fa087fa5f69f1c11f6fd332d88acff8be895720cae32768161f477c509a9432"
+        },
+        {
+          "path": "src/unused_imports.rs",
+          "sha256": "b54f061395bde52641b6fe537733e13b59f978713e00a0c3e409953b4f0180a5"
+        }
+      ],
+      "schema": 1,
+      "scope": "Uninstrumented copied Rust build inputs, public caller/build contract and supplied companion bytes; top-level tests/fixtures/benches/docs and temporary build paths excluded"
+    },
+    "implementation_sha256": "385a740250b5f24ccb2e24760344850f0468bc354a8675e381fc6ab5155a289c",
+    "instrumented_binary_sha256": "76d59e1d9fd4335f97c8f5e19e4d9bf0780d91954bde2241e6f7b3f7bdfd9805",
+    "instrumented_cli_sha256": "c7e8d1d6a97bb5824a2473dd7316ae9b9f5682b671e439536e1211b0c7bb2d99",
+    "patch_sha256": "50bc13f8a2974e6d1e239e2f02e0a4e65a57911fa2042fa77cac0c9d26cab160",
+    "provenance": "/home/dwalleck/repos/tethys/target/qualification/density-capture-2/runtime/instrumentation",
+    "rustc": {
+      "LLVM version": "21.1.8",
+      "commit-date": "2026-03-02",
+      "commit-hash": "4a4ef493e3a1488c6e321570238084b38948f6db",
+      "host": "x86_64-unknown-linux-gnu",
+      "launcher_sha256": "4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10",
+      "release": "1.94.0"
+    },
+    "sampler": {
+      "name": "psutil",
+      "version": "7.0.0"
+    },
+    "source_manifest_sha256": "d632bffe590c843ce21ab0ddf3532513ff1684fed6431a4cc150ccf394e54861",
+    "status": "prepared; transparency required for every index invocation"
+  },
+  "schema": 1,
+  "stable_inputs": {
+    "corpus_before_lanes_sha256": "769422ed39b91e34b7df53143ea745a0c203ab4fc2cf3267e02223af231a067e",
+    "oracle_after_prepare_sha256": "c5e9c8a7490d42ee8742009e70970e67372043b61cfb58a3bc12d5638afb7e41",
+    "oracle_before_prepare_sha256": "c5e9c8a7490d42ee8742009e70970e67372043b61cfb58a3bc12d5638afb7e41",
+    "oracle_preparation": "pass",
+    "status": "pending"
+  },
+  "status": "fail",
+  "work_root": "/home/dwalleck/repos/tethys/target/qualification/density-capture-2/work"
+}

@@ -55,6 +55,28 @@ TRUST = Fence('discovery_failures', 'trust_gate_precedes_host_and_restore', Fals
               ('assertion `left == right` failed', 'ToolchainUnavailable', 'TrustRequired'))
 RESTORE = Fence('discovery_failures', 'authorized_restore_rechecks_metadata_before_confirmation', True,
                 REASON, ('expected explicit incomplete coverage',))
+MULTITARGET_RESTORE = Fence(
+    'discovery_failures',
+    'authorized_restore_preserves_multitarget_assets_with_target_assigned_versions', True,
+    '''    assert_eq!(
+        restored.projects[0].standing,
+        DiscoveryStanding::Confirmed,
+        "{:?}",
+        restored.projects
+    );
+    assert_eq!(restored.units.len(), 2, "{:?}", restored.units);''',
+    ('assertion `left == right` failed', 'EvaluationFailed', 'Confirmed',
+     'Evaluation inputs changed during discovery; rerun with stable inputs'))
+# Both regressions reach their final exit-zero no-op control before reason()
+# panics on wrongly Confirmed standing. Earlier no-grant checks remain strict.
+TARGET_DOWNLOAD_GRAPH = Fence(
+    'discovery_failures',
+    'authorized_restore_corroborates_target_downloads_and_rejects_changed_imports', True,
+    REASON, ('expected explicit incomplete coverage',))
+TARGET_VERSION_GRAPH = Fence(
+    'discovery_failures',
+    'authorized_restore_preserves_multitarget_assets_with_target_assigned_versions', True,
+    REASON, ('expected explicit incomplete coverage',))
 GLOB = Fence('discovery_cache', 'cache_input_closure_matches_forced_and_invalidates_globs_content_context', True,
              '    assert_eq!(paths, names);', ('assertion `left == right` failed', 'src/First.cs', 'src/Second.cs'))
 HOOK = Fence('discovery_runtime', 'startup_hook_external_reads_never_reuse_literal_metadata', True,
@@ -202,16 +224,32 @@ MUTATIONS = (
     Mutation('C7-overwrite-restore-grant', 'src/discovery/types.rs',
              '    pub fn new(workspace_root: &Path, options: DiscoveryOptions) -> Result<Self> {\n        let workspace_root',
              '    pub fn new(workspace_root: &Path, mut options: DiscoveryOptions) -> Result<Self> {\n        options.allow_restore = true;\n        let workspace_root', (RESTORE,)),
+    # Restore must not inherit a discovery-only unit selector: both inner scopes
+    # share assets, and final snapshot validation must catch their clobbering.
+    Mutation('C7-inject-internal-restore-selector', 'src/discovery/msbuild/restore.rs',
+             '    let graph = match run_authorized_restore(request, project, host, style, inputs)? {',
+             '''    let mut restore_request = (*request).clone();
+    if let Some(framework) = target_framework
+        && !restore_request.options.context.effective_globals().keys()
+            .any(|name| name.eq_ignore_ascii_case("TargetFramework"))
+    {
+        restore_request.options.context.global_properties
+            .insert("TargetFramework".into(), framework.into());
+    }
+    let graph = match run_authorized_restore(&restore_request, project, host, style, inputs)? {''',
+             (MULTITARGET_RESTORE,)),
+    # Keep candidate/source/receipt validation intact; remove only the fresh
+    # graph authority gate so a native no-op can incorrectly bless stale inputs.
+    Mutation('C7-bypass-fresh-restore-graph', 'src/discovery/msbuild/restore.rs',
+             '    if !candidate.evaluated_dependencies {\n        let corroborated = match graph {',
+             '    if false && !candidate.evaluated_dependencies {\n        let corroborated = match graph {',
+             (TARGET_DOWNLOAD_GRAPH, TARGET_VERSION_GRAPH)),
     Mutation('C7-lexical-project-identity', 'src/discovery/msbuild/restore.rs',
              '        Ok(canonical) => Ok(canonical == project),',
              '        Ok(_canonical) => Ok(path == project),', (ALIAS,)),
     Mutation('C7-lexical-generated-identity', 'src/discovery/msbuild/restore.rs',
-             '''    let generated_identities = generated
-        .iter()
-        .map(|path| path.canonicalize())''',
-             '''    let generated_identities = generated
-        .iter()
-        .map(|path| Ok(path.clone()))''', (ALIAS,)),
+             '            generated_identities.push(path.canonicalize()?);',
+             '            generated_identities.push(path.clone());', (ALIAS,)),
     Mutation('C7-lexical-captured-restore', 'src/discovery/msbuild/cache.rs',
              '        .flat_map(|(path, stamp)| [dunce::simplified(path), dunce::simplified(&stamp.canonical)])',
              '        .flat_map(|(path, _stamp)| [dunce::simplified(path), dunce::simplified(path)])', (CAPTURED_RESTORE,)),

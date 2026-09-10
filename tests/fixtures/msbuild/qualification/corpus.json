@@ -1,0 +1,225 @@
+{
+  "schema": 1,
+  "approval": "tethys-umjq four public pins; S6/C12",
+  "primary_sources_checked": "2026-09-07",
+  "restore_policy": "User authorized isolated ordinary Restore preparation and measured ordinary restores as needed with --allow-restore; no ordinary builds, private credentials or authenticated feeds. Evaluation-only SDK prepass covers all four corpora. Only with explicit restore grant, warm_fixture_packages then prepares fixture packages and records provenance in sdk-bootstrap.json; a separate corpus Restore preparation pass follows before one combined package/config freeze. Qualification snapshots a pristine prepared checkout once and copy2-replays exact bytes/mtimes at the same path. Every runtime.index receives the explicit grant; no database receipts are seeded. Frozen external inputs and source/asset provenance remain checked, and native restore outcomes—not successful evaluation alone—govern reviewed standing.",
+  "capture_command": "python3 .tethys-82a6/oracles/qualification_corpus.py capture --manifest tests/fixtures/msbuild/qualification/corpus.json --dotnet /absolute/path/to/dotnet --sdk /absolute/path/to/sdk/10.0.300 --host-kind sdk --environment /absolute/new/resolver-environment --bootstrap-sdk-cache --allow-restore --output /absolute/new/capture-directory",
+  "capture_format": "Each <id>.<platform>.<host_kind>.capture.json.gz is deterministic gzip (mtime=0) over JSON; platform is linux/darwin/win32 and host_kind is sdk/framework. capture_digest hashes parsed JSON independent of compression. Successful queries retain full normalized metadata without duplicate stdout; failures retain native output/codes. Physical source inventory/count/digest remains independent of product output.",
+  "metadata_scope": "Direct capture queries evaluated properties and six item groups: Compile, ProjectReference, Reference, PackageReference, PackageDownload, PackageVersion. These queried values support metadata/restore authority; they do not claim complete import, glob-dependency or worker-protocol equivalence.",
+  "restore_observation_argv": ["-nologo", "-verbosity:quiet", "-t:Restore", "-getItem:_RestoreGraphEntryFiltered"],
+  "restore_graph_scope": "Observe _RestoreGraphEntryFiltered after ordinary Restore in the same invocation. Never use -getTargetResult or add helper targets, and never override repository static-graph policy. Preserve raw stdout/stderr. Stable graph projection sorts records, removes only synthetic GUID item identity-derived built-ins and normalizes paths/mtimes, retaining actual Type, project/framework bindings, DownloadDependency and all other dependency metadata. Missing, empty or non-JSON graph output remains explicit, not assumed success or fabricated coverage.",
+  "restore_currentness_schema": 1,
+  "restore_currentness_scope": "Authorized captures must retain final native assets project/restore/framework/dependency/log data, library identity/hash/path plus file-list digest, and target dependency shape, excluding large compile/runtime/file tables. Full dgspec/cache JSON (including native cache success and dgSpecHash) and bounded generated XML are reviewable. Exact raw/full-canonical hashes remain. Final package evidence records expectedPackageFiles, archive SHA512/SHA256, small native marker/metadata text, and extracted expected-file content inventory, plus project/framework-bound DownloadDependency locations; unavailable observations remain explicit and are not standing verdicts.",
+  "restore_overwrite_binding": "Each ordinary Restore records its invoked/native-graph output scopes and post-invocation raw/canonical input hashes. Final prepared inputs identify the last matching Restore observation (or explicit null); each earlier observation reports added, removed or overwritten inputs versus final state. Review final projections with the matching native graph, not a stale earlier exit-zero/graph. Authority rejects old captures without currentness schema, native projections, package observations or final-state binding. No timestamps or Tethys output establish currentness.",
+  "host_authority": "SDK mode invokes dotnet plus selected SDK MSBuild.dll. Framework mode requires actual Windows and --host-kind framework --host <VS MSBuild directory containing MSBuild.exe>, invoking that executable directly for metadata and authorized Restore. Captures record host kind/platform/path/binary digest plus SDK digest; evaluated MSBuildBinPath/runtime and product host provenance must agree. run_corpus accepts host/host_kind and passes the exact host to Runtime.index. Choose host/platform-specific authority through --manifest and {platform}/{host_kind} expectation names; Linux authority never substitutes for Windows proof.",
+  "public_acquisition": "Only fixed approved github.com HTTPS URLs; minimal fresh Git environment with empty disposable HOME, no ambient token/proxy/config variables, GIT_CONFIG_NOSYSTEM=1 and null global/system configs. Credential helpers, hooks, askpass/terminal prompts, redirects, SSH/file/non-HTTPS protocols and submodule recursion are disabled. Windows receives only necessary explicit OS paths. Git scratch remains on the caller-selected filesystem.",
+  "repetition_lifecycle": "Acquire pinned checkout, ordinary-restore and independent direct-capture once per repository; validate reviewed authority then snapshot the pristine prepared checkout with copy2. Serial batch/stream repetitions copy2-recreate that prepared tree at the same canonical workspace path, preserving raw restore bytes/mtimes, with new DB/process each run and unique external evidence labels. Per-run frozen environment/source/asset checks remain. Only owned successful workspaces/snapshots are deleted; failures retain both and preexisting paths reject. This is a fresh prepared-checkout copy, not repeated network acquisition or restore.",
+  "environment_policy": "For subsequent capture use --environment with the same frozen environment and omit --bootstrap-sdk-cache. Pass controlled_environment(environment_root, sdk) exactly as Runtime.environment; build tooling uses a separate original build environment. Provenance hashes package/user-config contents and preflighted external config bytes; HTTP cache responses, temporary files and mtimes are excluded. CoreCLR/desktop plugin override lists contain only the platform separator, selecting no plugins without falling back to defaults. Windows inspects actual known-folder user and machine configs/plugins; safe public nuget.org and existing local offline sources are allowed, credentials/uncontrolled sections or plugins reject. macOS /Library/Application Support/NuGet and Unix ancestors receive the same config preflight. Every capture/qualification checks frozen state before/after; changed authority requires explicit bootstrap and review.",
+  "environment_authority": "https://github.com/NuGet/NuGet.Client/tree/5fe0c128b2d58335a60161c5141064be42dd8a6b/src/NuGet.Core — NuGet.Common/PathUtil/NuGetEnvironment.cs, NuGet.Protocol/Plugins/PluginDiscoverer.cs, NuGet.Configuration/Settings/ConfigurationDefaults.cs",
+  "review_contract": {
+    "expected_projects": "Exact project roster {project, standing, reason/evidence when indeterminate, rationale, restore_input_status (current/not-required/missing/invalid/unavailable), restore_evidence}. Review native Restore outcomes and asset currentness independently under the declared measured restore grant. Pre-index missing assets alone do not force restore-required when measured Restore is authorized. Failed outer evaluations remain project-level; never fabricate unit slots or infer confirmation from direct evaluation alone.",
+    "expected_units": "Exact list of independently enumerated slots {project, target_framework (string or null), standing, reason/evidence when indeterminate, rationale}. Failed OUTER evaluation remains an indeterminate PROJECT, never a unit. Failed INNER evaluation retains its known selector. Direct evaluation-attempt baseline is not published-unit count; do not fabricate387 units from387 direct attempts. Source/project/attempt/published-unit counts remain separate.",
+    "expected_exit": "Explicit reviewed indexing status 0 or 1.",
+    "workflow": "Capture writes <id>.<platform>.<host_kind>.capture.json.gz and matching unreviewed expected JSON with null expected_projects/expected_units/expected_exit. Review raw restore outcomes, prepared asset currentness, outer/inner metadata and native failure evidence on that actual platform/host. Commit captures and expectations adjacent to the selected manifest. Successful evaluation alone never establishes standing; cross-platform/host or fingerprint substitution rejects."
+  },
+  "repositories": [
+    {
+      "id": "avalonia",
+      "url": "https://github.com/AvaloniaUI/Avalonia.git",
+      "tag": "11.3.7",
+      "sha": "0834dbbbb9252406b08f2e74e8f328cc5ba502ee",
+      "tag_authority": "https://api.github.com/repos/AvaloniaUI/Avalonia/git/ref/tags/11.3.7",
+      "license": {
+        "spdx": "MIT",
+        "path": "licence.md",
+        "authority": "https://github.com/AvaloniaUI/Avalonia/blob/0834dbbbb9252406b08f2e74e8f328cc5ba502ee/licence.md"
+      },
+      "sdk_context": {
+        "path": "global.json",
+        "global_json": {
+          "sdk": {
+            "version": "8.0.404",
+            "rollForward": "latestFeature"
+          },
+          "msbuild-sdks": {
+            "Microsoft.Build.Traversal": "4.1.0"
+          }
+        },
+        "authority": "https://github.com/AvaloniaUI/Avalonia/blob/0834dbbbb9252406b08f2e74e8f328cc5ba502ee/global.json",
+        "note": "Declared SDK policy, not an assertion of installed host compatibility. Capture records actual selected MSBuild binary. Newtonsoft has no root global.json; MSBuild has no sdk.version."
+      },
+      "submodule_policy": "pinned-gitlinks-uninitialized-no-recursion",
+      "source_policy": "Fresh detached checkout; every tracked edit rejected. Explicit Restore may add only captured exact NuGet assets under evaluated project extension directories/default obj: project.assets.json, project.nuget.cache, *.nuget.g.props, *.nuget.g.targets, *.nuget.dgspec.json. Raw file digests are checked before/after indexing; cross-root comparison uses full normalized content (derived dgSpecHash excluded, complete dgspec retained). Only additional .rivets/index/tethys.db and -wal/-shm are allowed after indexing. Unrelated obj/tracker/source changes reject. Gitlinks remain pinned/uninitialized.",
+      "properties": {
+        "Configuration": "Debug",
+        "Platform": "AnyCPU",
+        "VSToolsPath": ""
+      },
+      "oracle_argv": [
+        "-nologo",
+        "-verbosity:quiet",
+        "-getProperty:TargetFramework,TargetFrameworks,TargetFrameworkIdentifier,TargetFrameworkVersion,TargetFrameworkProfile,TargetFrameworkMoniker,TargetPlatformIdentifier,TargetPlatformVersion,Platform,PlatformTarget,Configuration,AssemblyName,RootNamespace,DefineConstants,LangVersion,Nullable,AllowUnsafeBlocks,OutputType,OutputPath,TargetPath,TargetFileName,MSBuildProjectFullPath,MSBuildProjectDirectory,MSBuildProjectExtensionsPath,ProjectAssetsFile,RestoreProjectStyle,NuGetPackageRoot,RestorePackagesPath,RestorePackagesConfig,RestoreRepositoryPath,RestoreConfigFile,ManagePackageVersionsCentrally,BaseIntermediateOutputPath,IntermediateOutputPath,RuntimeIdentifier,RuntimeIdentifiers,VSToolsPath,UsingMicrosoftNETSdk,MSBuildToolsVersion,MSBuildVersion,MSBuildFileVersion,NETCoreSdkVersion,MSBuildRuntimeType,MSBuildBinPath",
+        "-getItem:Compile,ProjectReference,Reference,PackageReference,PackageDownload,PackageVersion",
+        "-p:Configuration=Debug",
+        "-p:Platform=AnyCPU",
+        "-p:VSToolsPath="
+      ],
+      "expected_standing": {
+        "status": "unavailable-not-captured-or-reviewed",
+        "path": "avalonia.{platform}.{host_kind}.expected.json",
+        "authority": "Independent direct-MSBuild capture plus explicit human-reviewed per-project/framework standing/reason/evidence; never product output or assumed Confirmed. Commit both capture and reviewed expectation before qualification."
+      }
+    },
+    {
+      "id": "xunit",
+      "url": "https://github.com/xunit/xunit.git",
+      "tag": "v3-3.2.2",
+      "sha": "728c1dce012cd82193035dddfeaba184baaa88c6",
+      "tag_authority": "https://api.github.com/repos/xunit/xunit/git/ref/tags/v3-3.2.2",
+      "license": {
+        "spdx": "Apache-2.0 AND MIT",
+        "path": "LICENSE",
+        "authority": "https://github.com/xunit/xunit/blob/728c1dce012cd82193035dddfeaba184baaa88c6/LICENSE"
+      },
+      "sdk_context": {
+        "path": "global.json",
+        "global_json": {
+          "sdk": {
+            "version": "10.0.100",
+            "rollForward": "latestMinor"
+          },
+          "test": {
+            "runner": "Microsoft.Testing.Platform"
+          }
+        },
+        "authority": "https://github.com/xunit/xunit/blob/728c1dce012cd82193035dddfeaba184baaa88c6/global.json",
+        "note": "Declared SDK policy, not an assertion of installed host compatibility. Capture records actual selected MSBuild binary. Newtonsoft has no root global.json; MSBuild has no sdk.version."
+      },
+      "submodule_policy": "pinned-gitlinks-uninitialized-no-recursion",
+      "source_policy": "Fresh detached checkout; every tracked edit rejected. Explicit Restore may add only captured exact NuGet assets under evaluated project extension directories/default obj: project.assets.json, project.nuget.cache, *.nuget.g.props, *.nuget.g.targets, *.nuget.dgspec.json. Raw file digests are checked before/after indexing; cross-root comparison uses full normalized content (derived dgSpecHash excluded, complete dgspec retained). Only additional .rivets/index/tethys.db and -wal/-shm are allowed after indexing. Unrelated obj/tracker/source changes reject. Gitlinks remain pinned/uninitialized.",
+      "properties": {
+        "Configuration": "Debug",
+        "Platform": "AnyCPU",
+        "VSToolsPath": ""
+      },
+      "oracle_argv": [
+        "-nologo",
+        "-verbosity:quiet",
+        "-getProperty:TargetFramework,TargetFrameworks,TargetFrameworkIdentifier,TargetFrameworkVersion,TargetFrameworkProfile,TargetFrameworkMoniker,TargetPlatformIdentifier,TargetPlatformVersion,Platform,PlatformTarget,Configuration,AssemblyName,RootNamespace,DefineConstants,LangVersion,Nullable,AllowUnsafeBlocks,OutputType,OutputPath,TargetPath,TargetFileName,MSBuildProjectFullPath,MSBuildProjectDirectory,MSBuildProjectExtensionsPath,ProjectAssetsFile,RestoreProjectStyle,NuGetPackageRoot,RestorePackagesPath,RestorePackagesConfig,RestoreRepositoryPath,RestoreConfigFile,ManagePackageVersionsCentrally,BaseIntermediateOutputPath,IntermediateOutputPath,RuntimeIdentifier,RuntimeIdentifiers,VSToolsPath,UsingMicrosoftNETSdk,MSBuildToolsVersion,MSBuildVersion,MSBuildFileVersion,NETCoreSdkVersion,MSBuildRuntimeType,MSBuildBinPath",
+        "-getItem:Compile,ProjectReference,Reference,PackageReference,PackageDownload,PackageVersion",
+        "-p:Configuration=Debug",
+        "-p:Platform=AnyCPU",
+        "-p:VSToolsPath="
+      ],
+      "expected_standing": {
+        "status": "unavailable-not-captured-or-reviewed",
+        "path": "xunit.{platform}.{host_kind}.expected.json",
+        "authority": "Independent direct-MSBuild capture plus explicit human-reviewed per-project/framework standing/reason/evidence; never product output or assumed Confirmed. Commit both capture and reviewed expectation before qualification."
+      }
+    },
+    {
+      "id": "newtonsoft-json",
+      "url": "https://github.com/JamesNK/Newtonsoft.Json.git",
+      "tag": "13.0.4",
+      "sha": "4e13299d4b0ec96bd4df9954ef646bd2d1b5bf2a",
+      "tag_authority": "https://api.github.com/repos/JamesNK/Newtonsoft.Json/git/ref/tags/13.0.4",
+      "license": {
+        "spdx": "MIT",
+        "path": "LICENSE.md",
+        "authority": "https://github.com/JamesNK/Newtonsoft.Json/blob/4e13299d4b0ec96bd4df9954ef646bd2d1b5bf2a/LICENSE.md"
+      },
+      "sdk_context": {
+        "path": "Src/global.json",
+        "global_json": {
+          "sdk": {
+            "version": "9.0.300",
+            "rollForward": "latestFeature"
+          }
+        },
+        "authority": "https://github.com/JamesNK/Newtonsoft.Json/blob/4e13299d4b0ec96bd4df9954ef646bd2d1b5bf2a/Src/global.json",
+        "note": "Declared SDK policy, not an assertion of installed host compatibility. Capture records actual selected MSBuild binary. Newtonsoft has no root global.json; MSBuild has no sdk.version."
+      },
+      "submodule_policy": "pinned-gitlinks-uninitialized-no-recursion",
+      "source_policy": "Fresh detached checkout; every tracked edit rejected. Explicit Restore may add only captured exact NuGet assets under evaluated project extension directories/default obj: project.assets.json, project.nuget.cache, *.nuget.g.props, *.nuget.g.targets, *.nuget.dgspec.json. Raw file digests are checked before/after indexing; cross-root comparison uses full normalized content (derived dgSpecHash excluded, complete dgspec retained). Only additional .rivets/index/tethys.db and -wal/-shm are allowed after indexing. Unrelated obj/tracker/source changes reject. Gitlinks remain pinned/uninitialized.",
+      "properties": {
+        "Configuration": "Debug",
+        "Platform": "AnyCPU",
+        "VSToolsPath": ""
+      },
+      "oracle_argv": [
+        "-nologo",
+        "-verbosity:quiet",
+        "-getProperty:TargetFramework,TargetFrameworks,TargetFrameworkIdentifier,TargetFrameworkVersion,TargetFrameworkProfile,TargetFrameworkMoniker,TargetPlatformIdentifier,TargetPlatformVersion,Platform,PlatformTarget,Configuration,AssemblyName,RootNamespace,DefineConstants,LangVersion,Nullable,AllowUnsafeBlocks,OutputType,OutputPath,TargetPath,TargetFileName,MSBuildProjectFullPath,MSBuildProjectDirectory,MSBuildProjectExtensionsPath,ProjectAssetsFile,RestoreProjectStyle,NuGetPackageRoot,RestorePackagesPath,RestorePackagesConfig,RestoreRepositoryPath,RestoreConfigFile,ManagePackageVersionsCentrally,BaseIntermediateOutputPath,IntermediateOutputPath,RuntimeIdentifier,RuntimeIdentifiers,VSToolsPath,UsingMicrosoftNETSdk,MSBuildToolsVersion,MSBuildVersion,MSBuildFileVersion,NETCoreSdkVersion,MSBuildRuntimeType,MSBuildBinPath",
+        "-getItem:Compile,ProjectReference,Reference,PackageReference,PackageDownload,PackageVersion",
+        "-p:Configuration=Debug",
+        "-p:Platform=AnyCPU",
+        "-p:VSToolsPath="
+      ],
+      "expected_standing": {
+        "status": "unavailable-not-captured-or-reviewed",
+        "path": "newtonsoft-json.{platform}.{host_kind}.expected.json",
+        "authority": "Independent direct-MSBuild capture plus explicit human-reviewed per-project/framework standing/reason/evidence; never product output or assumed Confirmed. Commit both capture and reviewed expectation before qualification."
+      }
+    },
+    {
+      "id": "msbuild",
+      "url": "https://github.com/dotnet/msbuild.git",
+      "tag": "v18.8.2",
+      "sha": "ce25c01082c9c46cd02ad1ff3ff8f16fe5cc2f44",
+      "tag_authority": "https://api.github.com/repos/dotnet/msbuild/git/ref/tags/v18.8.2",
+      "license": {
+        "spdx": "MIT",
+        "path": "LICENSE",
+        "authority": "https://github.com/dotnet/msbuild/blob/ce25c01082c9c46cd02ad1ff3ff8f16fe5cc2f44/LICENSE"
+      },
+      "sdk_context": {
+        "path": "global.json",
+        "global_json": {
+          "sdk": {
+            "allowPrerelease": true,
+            "paths": [
+              "$host$"
+            ],
+            "errorMessage": "The .NET SDK could not be found, please run a command-line build with ./build.cmd."
+          },
+          "test": {
+            "runner": "Microsoft.Testing.Platform"
+          },
+          "tools": {
+            "dotnet": "10.0.300",
+            "vs": {
+              "version": "18.0"
+            },
+            "xcopy-msbuild": "18.0.0"
+          },
+          "msbuild-sdks": {
+            "Microsoft.DotNet.Arcade.Sdk": "10.0.0-beta.26269.10"
+          }
+        },
+        "authority": "https://github.com/dotnet/msbuild/blob/ce25c01082c9c46cd02ad1ff3ff8f16fe5cc2f44/global.json",
+        "note": "Declared SDK policy, not an assertion of installed host compatibility. Capture records actual selected MSBuild binary. Newtonsoft has no root global.json; MSBuild has no sdk.version."
+      },
+      "submodule_policy": "pinned-gitlinks-uninitialized-no-recursion",
+      "source_policy": "Fresh detached checkout; every tracked edit rejected. Explicit Restore may add only captured exact NuGet assets under evaluated project extension directories/default obj: project.assets.json, project.nuget.cache, *.nuget.g.props, *.nuget.g.targets, *.nuget.dgspec.json. Raw file digests are checked before/after indexing; cross-root comparison uses full normalized content (derived dgSpecHash excluded, complete dgspec retained). Only additional .rivets/index/tethys.db and -wal/-shm are allowed after indexing. Unrelated obj/tracker/source changes reject. Gitlinks remain pinned/uninitialized.",
+      "properties": {
+        "Configuration": "Debug",
+        "Platform": "AnyCPU",
+        "VSToolsPath": ""
+      },
+      "oracle_argv": [
+        "-nologo",
+        "-verbosity:quiet",
+        "-getProperty:TargetFramework,TargetFrameworks,TargetFrameworkIdentifier,TargetFrameworkVersion,TargetFrameworkProfile,TargetFrameworkMoniker,TargetPlatformIdentifier,TargetPlatformVersion,Platform,PlatformTarget,Configuration,AssemblyName,RootNamespace,DefineConstants,LangVersion,Nullable,AllowUnsafeBlocks,OutputType,OutputPath,TargetPath,TargetFileName,MSBuildProjectFullPath,MSBuildProjectDirectory,MSBuildProjectExtensionsPath,ProjectAssetsFile,RestoreProjectStyle,NuGetPackageRoot,RestorePackagesPath,RestorePackagesConfig,RestoreRepositoryPath,RestoreConfigFile,ManagePackageVersionsCentrally,BaseIntermediateOutputPath,IntermediateOutputPath,RuntimeIdentifier,RuntimeIdentifiers,VSToolsPath,UsingMicrosoftNETSdk,MSBuildToolsVersion,MSBuildVersion,MSBuildFileVersion,NETCoreSdkVersion,MSBuildRuntimeType,MSBuildBinPath",
+        "-getItem:Compile,ProjectReference,Reference,PackageReference,PackageDownload,PackageVersion",
+        "-p:Configuration=Debug",
+        "-p:Platform=AnyCPU",
+        "-p:VSToolsPath="
+      ],
+      "expected_standing": {
+        "status": "unavailable-not-captured-or-reviewed",
+        "path": "msbuild.{platform}.{host_kind}.expected.json",
+        "authority": "Independent direct-MSBuild capture plus explicit human-reviewed per-project/framework standing/reason/evidence; never product output or assumed Confirmed. Commit both capture and reviewed expectation before qualification."
+      }
+    }
+  ]
+}

@@ -1,0 +1,1138 @@
+{
+  "capture_digest": "49305d11923e9d082f222f80ec04f66f7dd8b97c2a5af809dc70ea8bfce2052f",
+  "capture_path": "msbuild.linux.sdk.capture.json.gz",
+  "expected_exit": 0,
+  "expected_projects": [
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NU1301', 'NU1605']; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-brwh544k/msbuild/eng/common/internal/Tools.csproj : error NU1301:   Response status code does not indicate success: 401 (Unauthorized).",
+      "project": "eng/common/internal/Tools.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NU1301', 'NU1605']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "eng/dependabot/dependabot.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation []",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Build.OM.UnitTests/Microsoft.Build.Engine.OM.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Build.UnitTests/Microsoft.Build.Engine.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Build.UnitTests/TestAssets/ExampleFrameworkTask/ExampleTaskX64/ExampleTaskX64.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Build.UnitTests/TestAssets/ExampleFrameworkTask/ExampleTaskX86/ExampleTaskX86.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Build.UnitTests/TestAssets/ExampleFrameworkTask/TestTask/TestTask.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation []",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/ExampleTask/ExampleTask.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4236']; $CORPUS/Directory.Build.props(3,31): error MSB4236: The SDK 'Microsoft.DotNet.Arcade.Sdk' specified could not be found.",
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestMSBuildTaskInNet/TestMSBuildTaskInNet.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (sdk-unresolved).",
+      "reason": "sdk-unresolved",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4236']; $CORPUS/Directory.Build.props(3,31): error MSB4236: The SDK 'Microsoft.DotNet.Arcade.Sdk' specified could not be found.",
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestNetTask/TestNetTask.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (sdk-unresolved).",
+      "reason": "sdk-unresolved",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4236']; $CORPUS/Directory.Build.props(3,31): error MSB4236: The SDK 'Microsoft.DotNet.Arcade.Sdk' specified could not be found.",
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestNetTaskBuildCallback/TestNetTaskBuildCallback.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (sdk-unresolved).",
+      "reason": "sdk-unresolved",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4236']; $CORPUS/Directory.Build.props(3,31): error MSB4236: The SDK 'Microsoft.DotNet.Arcade.Sdk' specified could not be found.",
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestNetTaskCallback/TestNetTaskCallback.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (sdk-unresolved).",
+      "reason": "sdk-unresolved",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4236']; $CORPUS/Directory.Build.props(3,31): error MSB4236: The SDK 'Microsoft.DotNet.Arcade.Sdk' specified could not be found.",
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestNetTaskHostReuse/TestNetTaskHostReuse.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (sdk-unresolved).",
+      "reason": "sdk-unresolved",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4236']; $CORPUS/Directory.Build.props(3,31): error MSB4236: The SDK 'Microsoft.DotNet.Arcade.Sdk' specified could not be found.",
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestNetTaskResourceCallback/TestNetTaskResourceCallback.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (sdk-unresolved).",
+      "reason": "sdk-unresolved",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4236']; $CORPUS/Directory.Build.props(3,31): error MSB4236: The SDK 'Microsoft.DotNet.Arcade.Sdk' specified could not be found.",
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/TestNetTaskWithImplicitParams/TestNetTaskWithImplicitParams.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (sdk-unresolved).",
+      "reason": "sdk-unresolved",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "src/Build.UnitTests/TestAssets/Net35WinFormsApp/TestNet35WinForms.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Build.UnitTests/TestAssets/TaskHostLifecycle/TaskHostLifecycleTestApp.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Build/Microsoft.Build.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/Microsoft.Build.BuildCheck.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NU1008', 'NU1507', 'NU1603', 'NU1605', 'NU5105', 'NU5131']; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-brwh544k/msbuild/src/BuildCheck.UnitTests/TestAssets/CheckCandidate/CheckCandidate.csproj : error NU1008: The following PackageReference items cannot define a value ",
+      "project": "src/BuildCheck.UnitTests/TestAssets/CheckCandidate/CheckCandidate.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NU1008', 'NU1507', 'NU1603', 'NU1605', 'NU5105', 'NU5131']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NU1008', 'NU1507', 'NU1603', 'NU1605', 'NU5105', 'NU5131']; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-brwh544k/msbuild/src/BuildCheck.UnitTests/TestAssets/CheckCandidateWithMultipleChecksInjected/CheckCandidateWithMultipleChecksInjected.csproj : error NU1008: The fol",
+      "project": "src/BuildCheck.UnitTests/TestAssets/CheckCandidateWithMultipleChecksInjected/CheckCandidateWithMultipleChecksInjected.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NU1008', 'NU1507', 'NU1603', 'NU1605', 'NU5105', 'NU5131']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4019']; $CORPUS/Directory.Packages.props(5,3): error MSB4019: The imported project \"$CORPUS/dependabot/Directory.Packages.props\" was not found. Confirm that the expression in the Import declaration \"$(RepositoryEngineeringDir)dependabot/Directory.P",
+      "project": "src/BuildCheck.UnitTests/TestAssets/CopyAlwaysTest/EntryProject/EntryProject.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (evaluation-failed).",
+      "reason": "evaluation-failed",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4019']; $CORPUS/Directory.Packages.props(5,3): error MSB4019: The imported project \"$CORPUS/dependabot/Directory.Packages.props\" was not found. Confirm that the expression in the Import declaration \"$(RepositoryEngineeringDir)dependabot/Directory.P",
+      "project": "src/BuildCheck.UnitTests/TestAssets/CopyAlwaysTest/ReferencedProject/ReferencedProject.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (evaluation-failed).",
+      "reason": "evaluation-failed",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/CustomCheck/CustomCheck.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/CustomCheck2/CustomCheck2.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['MSB4067']; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-brwh544k/msbuild/src/BuildCheck.UnitTests/TestAssets/EmbeddedResourceTest/ReferencedProject/ReferencedProject.csproj(15,3): error MSB4067: The element <#text> beneat",
+      "project": "src/BuildCheck.UnitTests/TestAssets/EmbeddedResourceTest/EntryProject/EntryProject.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['MSB4067']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4067']; $CORPUS/src/BuildCheck.UnitTests/TestAssets/EmbeddedResourceTest/ReferencedProject/ReferencedProject.csproj(15,3): error MSB4067: The element <#text> beneath element <ItemGroup> is unrecognized.",
+      "project": "src/BuildCheck.UnitTests/TestAssets/EmbeddedResourceTest/ReferencedProject/ReferencedProject.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (evaluation-failed).",
+      "reason": "evaluation-failed",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/ErrorCustomCheck/ErrorCustomCheck.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/InvalidCustomCheck/InvalidCustomCheck.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/SampleCheckIntegrationTest/Project1.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/SampleCheckIntegrationTest/Project2.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/SampleCheckIntegrationTest/PropsCheckTest.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation []",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/SampleCheckIntegrationTest/PropsCheckTestWithLimit.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation []",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4067']; $CORPUS/src/BuildCheck.UnitTests/TestAssets/TFMConfusionCheck/TFMConfusionCheck.csproj(3,4): error MSB4067: The element <#text> beneath element <PropertyGroup> is unrecognized.",
+      "project": "src/BuildCheck.UnitTests/TestAssets/TFMConfusionCheck/TFMConfusionCheck.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (evaluation-failed).",
+      "reason": "evaluation-failed",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "src/Framework.UnitTests/Microsoft.Build.Framework.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Framework/Microsoft.Build.Framework.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/MSBuild.Benchmarks/MSBuild.Benchmarks.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/MSBuild.Bootstrap.Utils/MSBuild.Bootstrap.Utils.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/MSBuild.Bootstrap/MSBuild.Bootstrap.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/MSBuild.EndToEnd.Tests/Microsoft.Build.EndToEnd.Tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/NonSdkProjectWithDependencies/ConsoleApp/ConsoleApp.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/NonSdkProjectWithDependencies/Library1/Library1.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/NonSdkProjectWithDependencies/Library2/Library2.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/NonSdkSingleProject/NonSdkSingleProject.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4236']; $CORPUS/Directory.Build.props(3,31): error MSB4236: The SDK 'Microsoft.DotNet.Arcade.Sdk' specified could not be found.",
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/ProjectWithDependencies/ConsoleApp/ConsoleApp.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (sdk-unresolved).",
+      "reason": "sdk-unresolved",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4236']; $CORPUS/Directory.Build.props(3,31): error MSB4236: The SDK 'Microsoft.DotNet.Arcade.Sdk' specified could not be found.",
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/ProjectWithDependencies/Library1/Library1.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (sdk-unresolved).",
+      "reason": "sdk-unresolved",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4236']; $CORPUS/Directory.Build.props(3,31): error MSB4236: The SDK 'Microsoft.DotNet.Arcade.Sdk' specified could not be found.",
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/ProjectWithDependencies/Library2/Library2.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (sdk-unresolved).",
+      "reason": "sdk-unresolved",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4236']; $CORPUS/Directory.Build.props(3,31): error MSB4236: The SDK 'Microsoft.DotNet.Arcade.Sdk' specified could not be found.",
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/ProjectWithDependencies/Library3/Library3.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (sdk-unresolved).",
+      "reason": "sdk-unresolved",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4236']; $CORPUS/Directory.Build.props(3,31): error MSB4236: The SDK 'Microsoft.DotNet.Arcade.Sdk' specified could not be found.",
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/ProjectWithDependencies/Library4/Library4.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (sdk-unresolved).",
+      "reason": "sdk-unresolved",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "direct outer evaluation exit 1; native codes ['MSB4236']; $CORPUS/Directory.Build.props(3,31): error MSB4236: The SDK 'Microsoft.DotNet.Arcade.Sdk' specified could not be found.",
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/SingleProject/SingleProject.csproj",
+      "rationale": "Native enumeration failed before any framework slot existed (sdk-unresolved).",
+      "reason": "sdk-unresolved",
+      "restore_evidence": "no framework slot reached restore",
+      "restore_input_status": "unavailable",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "src/MSBuild.UnitTests/Microsoft.Build.CommandLine.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NU1008', 'NU1507', 'NU1603', 'NU1605', 'NU5105', 'NU5131']; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-brwh544k/msbuild/src/MSBuild.UnitTests/TestAssets/MemberAccessException/LoggerProject/CustomLogger.csproj : error NU1008: The following PackageReference items cannot",
+      "project": "src/MSBuild.UnitTests/TestAssets/MemberAccessException/LoggerProject/CustomLogger.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NU1008', 'NU1507', 'NU1603', 'NU1605', 'NU5105', 'NU5131']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NU1008', 'NU1507', 'NU1603', 'NU1605', 'NU5105', 'NU5131']; /home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-brwh544k/msbuild/src/MSBuild.UnitTests/TestAssets/TargetInvocationException/LoggerProject/FaultyLogger.csproj : error NU1008: The following PackageReference items ca",
+      "project": "src/MSBuild.UnitTests/TestAssets/TargetInvocationException/LoggerProject/FaultyLogger.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NU1008', 'NU1507', 'NU1603', 'NU1605', 'NU5105', 'NU5131']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "src/MSBuild/MSBuild.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/MSBuildTaskHost/MSBuildTaskHost.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Package/DevDivPackage/DevDivPackage.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Package/Localization/Localization.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Package/MSBuild.VSSetup.Arm64/MSBuild.VSSetup.Arm64.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Package/MSBuild.VSSetup/MSBuild.VSSetup.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Package/Microsoft.Build.UnGAC/Microsoft.Build.UnGAC.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Samples/Dependency/Dependency.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Samples/MultiprocessBuild/1.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation []",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Samples/MultiprocessBuild/2.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation []",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Samples/PortableTask/PortableTask.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Samples/ProjectCachePlugin/ProjectCachePlugin.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Samples/TaskUsageLogger/TaskUsageLogger.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Samples/TaskWithDependency/TaskWithDependency.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Samples/XmlFileLogger/XmlFileLogger.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/StringTools.Benchmark/StringTools.Benchmark.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/StringTools.UnitTests/StringTools.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/StringTools.UnitTests/StringTools.UnitTests.net35.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/StringTools/StringTools.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Tasks.UnitTests/Microsoft.Build.Tasks.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Tasks.UnitTests/TestResources/CustomCulture/ProjectA.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Tasks.UnitTests/TestResources/CustomCulture/ProjectB.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Tasks.UnitTests/TestResources/Projects/Custom_COM/Custom_COM/Custom_COM.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Tasks/Microsoft.Build.Tasks.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/ThreadSafeTaskAnalyzer.Tests/ThreadSafeTaskAnalyzer.Tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/ThreadSafeTaskAnalyzer/ThreadSafeTaskAnalyzer.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/UnitTests.Shared/Microsoft.Build.UnitTests.Shared.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Utilities.UnitTests/Microsoft.Build.Utilities.UnitTests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Utilities/Microsoft.Build.Utilities.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/Xunit.NetCore.Extensions/Xunit.NetCore.Extensions.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "template_feed/Microsoft.Build.Templates.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "template_feed/content/Microsoft.CheckTemplate/Company.CheckTemplate.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    }
+  ],
+  "expected_units": [
+    {
+      "project": "eng/dependabot/dependabot.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity ; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": null
+    },
+    {
+      "project": "src/Build.OM.UnitTests/Microsoft.Build.Engine.OM.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 96 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Build.UnitTests/Microsoft.Build.Engine.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 241 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Build.UnitTests/TestAssets/ExampleFrameworkTask/ExampleTaskX64/ExampleTaskX64.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Build.UnitTests/TestAssets/ExampleFrameworkTask/ExampleTaskX86/ExampleTaskX86.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Build.UnitTests/TestAssets/ExampleFrameworkTask/TestTask/TestTask.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Build.UnitTests/TestAssets/ExampleNetTask/ExampleTask/ExampleTask.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 5 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Build.UnitTests/TestAssets/Net35WinFormsApp/TestNet35WinForms.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity v3.5; 6 Compile items.",
+      "standing": "confirmed",
+      "target_framework": null
+    },
+    {
+      "project": "src/Build.UnitTests/TestAssets/TaskHostLifecycle/TaskHostLifecycleTestApp.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Build/Microsoft.Build.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 704 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Build/Microsoft.Build.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 704 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/Microsoft.Build.BuildCheck.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 23 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/CustomCheck/CustomCheck.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/CustomCheck2/CustomCheck2.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/ErrorCustomCheck/ErrorCustomCheck.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/InvalidCustomCheck/InvalidCustomCheck.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/SampleCheckIntegrationTest/Project1.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/SampleCheckIntegrationTest/Project2.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/SampleCheckIntegrationTest/PropsCheckTest.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity ; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": null
+    },
+    {
+      "project": "src/BuildCheck.UnitTests/TestAssets/SampleCheckIntegrationTest/PropsCheckTestWithLimit.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity ; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": null
+    },
+    {
+      "project": "src/Framework.UnitTests/Microsoft.Build.Framework.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 45 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Framework/Microsoft.Build.Framework.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 305 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Framework/Microsoft.Build.Framework.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 323 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Framework/Microsoft.Build.Framework.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 301 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/MSBuild.Benchmarks/MSBuild.Benchmarks.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 7 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/MSBuild.Bootstrap.Utils/MSBuild.Bootstrap.Utils.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/MSBuild.Bootstrap/MSBuild.Bootstrap.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/MSBuild.EndToEnd.Tests/Microsoft.Build.EndToEnd.Tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 4 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/NonSdkProjectWithDependencies/ConsoleApp/ConsoleApp.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity v4.7.2; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": null
+    },
+    {
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/NonSdkProjectWithDependencies/Library1/Library1.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity v4.7.2; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": null
+    },
+    {
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/NonSdkProjectWithDependencies/Library2/Library2.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity v4.7.2; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": null
+    },
+    {
+      "project": "src/MSBuild.EndToEnd.Tests/TestAssets/NonSdkSingleProject/NonSdkSingleProject.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity v4.7.2; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": null
+    },
+    {
+      "project": "src/MSBuild.UnitTests/Microsoft.Build.CommandLine.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 14 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/MSBuild/MSBuild.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 52 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/MSBuildTaskHost/MSBuildTaskHost.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net35; 53 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net35"
+    },
+    {
+      "project": "src/Package/DevDivPackage/DevDivPackage.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Package/Localization/Localization.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Package/MSBuild.VSSetup.Arm64/MSBuild.VSSetup.Arm64.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Package/MSBuild.VSSetup/MSBuild.VSSetup.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Package/Microsoft.Build.UnGAC/Microsoft.Build.UnGAC.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net45; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net45"
+    },
+    {
+      "project": "src/Samples/Dependency/Dependency.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Samples/Dependency/Dependency.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Samples/Dependency/Dependency.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Samples/MultiprocessBuild/1.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity ; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": null
+    },
+    {
+      "project": "src/Samples/MultiprocessBuild/2.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity ; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": null
+    },
+    {
+      "project": "src/Samples/PortableTask/PortableTask.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Samples/ProjectCachePlugin/ProjectCachePlugin.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Samples/TaskUsageLogger/TaskUsageLogger.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Samples/TaskUsageLogger/TaskUsageLogger.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Samples/TaskUsageLogger/TaskUsageLogger.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Samples/TaskWithDependency/TaskWithDependency.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Samples/TaskWithDependency/TaskWithDependency.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Samples/TaskWithDependency/TaskWithDependency.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Samples/XmlFileLogger/XmlFileLogger.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 18 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Samples/XmlFileLogger/XmlFileLogger.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 18 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Samples/XmlFileLogger/XmlFileLogger.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 18 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/StringTools.Benchmark/StringTools.Benchmark.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/StringTools.UnitTests/StringTools.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 4 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/StringTools.UnitTests/StringTools.UnitTests.net35.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 4 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/StringTools/StringTools.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/StringTools/StringTools.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net35; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net35"
+    },
+    {
+      "project": "src/StringTools/StringTools.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/StringTools/StringTools.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Tasks.UnitTests/Microsoft.Build.Tasks.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 104 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Tasks.UnitTests/TestResources/CustomCulture/ProjectA.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Tasks.UnitTests/TestResources/CustomCulture/ProjectB.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Tasks.UnitTests/TestResources/Projects/Custom_COM/Custom_COM/Custom_COM.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity v4.7.2; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": null
+    },
+    {
+      "project": "src/Tasks/Microsoft.Build.Tasks.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 294 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Tasks/Microsoft.Build.Tasks.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 327 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Tasks/Microsoft.Build.Tasks.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 294 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/ThreadSafeTaskAnalyzer.Tests/ThreadSafeTaskAnalyzer.Tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 5 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/ThreadSafeTaskAnalyzer/ThreadSafeTaskAnalyzer.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/UnitTests.Shared/Microsoft.Build.UnitTests.Shared.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 22 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Utilities.UnitTests/Microsoft.Build.Utilities.UnitTests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 27 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Utilities/Microsoft.Build.Utilities.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 44 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/Utilities/Microsoft.Build.Utilities.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 44 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/Utilities/Microsoft.Build.Utilities.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 44 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/Xunit.NetCore.Extensions/Xunit.NetCore.Extensions.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "template_feed/Microsoft.Build.Templates.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 0 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "template_feed/content/Microsoft.CheckTemplate/Company.CheckTemplate.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    }
+  ],
+  "id": "msbuild",
+  "review": {
+    "rationale": null,
+    "reviewer": null,
+    "status": "proposed-awaiting-signoff"
+  },
+  "schema": 1,
+  "sha": "ce25c01082c9c46cd02ad1ff3ff8f16fe5cc2f44"
+}

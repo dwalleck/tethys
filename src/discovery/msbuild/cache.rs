@@ -170,6 +170,13 @@ pub(super) fn capture(paths: impl IntoIterator<Item = PathBuf>) -> std::io::Resu
         .collect()
 }
 
+/// Membership by one file identity: an evaluated path may be spelled with or without
+/// the extended-length prefix while the captured key keeps the other spelling.
+pub(super) fn contains_identity(inputs: &Inputs, path: &Path) -> bool {
+    let identity = dunce::simplified(path);
+    inputs.keys().any(|key| dunce::simplified(key) == identity)
+}
+
 pub(super) fn unchanged(inputs: &Inputs) -> bool {
     inputs.iter().all(|(path, old)| match stamp(path) {
         Ok(current) => current == *old,
@@ -186,7 +193,12 @@ pub(super) fn captured_restore_paths<'a>(
 ) -> BTreeSet<&'a Path> {
     restored
         .iter()
-        .filter_map(|path| inputs.get_key_value(path))
+        .filter_map(|path| {
+            let identity = dunce::simplified(path);
+            inputs
+                .iter()
+                .find(|(key, _)| dunce::simplified(key) == identity)
+        })
         .flat_map(|(path, stamp)| [dunce::simplified(path), dunce::simplified(&stamp.canonical)])
         .collect()
 }

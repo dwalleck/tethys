@@ -164,6 +164,56 @@ fn reason_matrix_native_failures_preserve_successful_siblings() {
 
 #[test]
 #[ignore = "requires packaged real worker and explicitly selected installed SDK"]
+fn explicit_host_is_not_rejected_by_a_conflicting_global_json() {
+    let root = TempDir::new().unwrap();
+    let selected = options();
+    let sdk = selected.msbuild_path.as_ref().unwrap();
+    let selected_version = sdk.file_name().unwrap().to_str().unwrap();
+    // An explicit installation selects its own muxer; only implicit discovery consults
+    // global.json policy. Pin a different installed SDK so the old conflict branch fired.
+    let muxer = sdk.parent().and_then(Path::parent).unwrap().join("dotnet");
+    let listed = std::process::Command::new(muxer)
+        .arg("--list-sdks")
+        .output()
+        .unwrap();
+    assert!(
+        listed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&listed.stderr)
+    );
+    let inventory: Vec<String> = String::from_utf8(listed.stdout)
+        .unwrap()
+        .lines()
+        .filter_map(|line| line.split_once(" [").map(|(version, _)| version.to_owned()))
+        .collect();
+    let pin = inventory
+        .iter()
+        .find(|version| version.as_str() != selected_version)
+        .cloned()
+        .unwrap_or_else(|| "0.0.1".to_owned());
+    write(
+        root.path(),
+        "global.json",
+        &serde_json::json!({"sdk": {"version": pin, "rollForward": "disable"}}).to_string(),
+    );
+    write(
+        root.path(),
+        "App.csproj",
+        &literal("<ItemGroup><Compile Include=\"App.cs\" /></ItemGroup>"),
+    );
+    write(root.path(), "App.cs", "class App {}\n");
+    let snapshot = discover(root.path(), selected);
+    assert_eq!(
+        snapshot.projects[0].standing,
+        DiscoveryStanding::Confirmed,
+        "{:?}",
+        snapshot.projects
+    );
+    assert_eq!(snapshot.units[0].sources[0].path, Path::new("App.cs"));
+}
+
+#[test]
+#[ignore = "requires packaged real worker and explicitly selected installed SDK"]
 fn partial_framework_failure_retains_selector_and_success() {
     let root = TempDir::new().unwrap();
     write(root.path(), "Shared.cs", "class Shared {}\n");
@@ -518,6 +568,14 @@ fn authorized_restore_corroborates_target_downloads_and_rejects_changed_imports(
 </Project>"#,
     );
     write(root.path(), "App.cs", "class App {}\n");
+    // Central package management needs a declared PackageVersion for VersionOverride to
+    // resolve identically on every supported SDK band; without it SDK 8 ignores the
+    // override and restores an older cached package, which fails NU1605.
+    write(
+        root.path(),
+        "Directory.Packages.props",
+        "<Project><ItemGroup><PackageVersion Include=\"Newtonsoft.Json\" Version=\"13.0.3\" /></ItemGroup></Project>",
+    );
     write(
         root.path(),
         "Restore.config",

@@ -553,11 +553,19 @@ mod tests {
     #[test]
     fn glob_member_expands_simple_pattern() {
         // This test uses the actual rivets workspace structure
-        let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
+        // A crate two directories below a filesystem root has no grandparent, so
+        // reach for the workspace instead of asserting one exists. This test already
+        // skips outside the rivets monorepo, and a checkout at `C:\tethys` or
+        // `/srv/tethys` is that same "not the monorepo" case rather than a failure.
+        let Some(workspace) = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
-            .expect("CARGO_MANIFEST_DIR should have parent directory")
-            .parent()
-            .expect("tethys crate should be nested under workspace");
+            .and_then(Path::parent)
+        else {
+            eprintln!(
+                "Skipping glob_member_expands_simple_pattern: crate is not nested under a workspace"
+            );
+            return;
+        };
 
         let results = glob_member(workspace, "crates/*").expect("glob should work");
 

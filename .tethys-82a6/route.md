@@ -1,45 +1,49 @@
 # Route: tethys-82a6
 
-Change: Evaluation-only MSBuild discovery adapter and evaluation-unit schema.
-Date: 2026-09-06
+Change: Evaluation-only MSBuild discovery; S6 performance-design amendment.
+Date: 2026-09-08
 
 ## Route tests
 
 | # | Test | Evidence | Verdict |
 |---|------|----------|---------|
-| 1 | Empirical premise | Current docs/2026-09-06-analysis-csharp-binding-model-review.md §4 G3/G4/G7 and tethys-chlt approved probe records establish evaluation-only SDK/classic metadata extraction and blank VSToolsPath tolerance on Linux. No premise assumes evaluation produces compiler bindings, framework-reference resolution, or arbitrary-host compatibility. Host capability detection and fail-closed unsupported-host outcomes are design requirements; successful Windows/classic qualification remains a mandatory implementation check, not an assumed result. Cache correctness requires a validated dependency/context/provenance closure or reevaluation, not faith in project-file mtimes alone. | no |
-| 2 | Structural module shape | src/cargo.rs owns Cargo discovery today; src/indexing.rs directly orchestrates it and arch attribution; src/reindex.rs tracks physical source changes. A new neutral discovery owner with Cargo/MSBuild adapters must supply precomputed context to database-free ModuleResolver. src/db/schema.rs has no snapshot/context/unit schema; arch_file_packages currently assigns each file exactly one package. src/db/architecture.rs and public Tethys/CLI query boundaries need unit-aware evidence. Protected parents: src/indexing.rs, src/resolve.rs, src/batch_writer.rs remain language-neutral; no MSBuild launching from ModuleResolver. Publication ownership must replace independent per-file/architecture commits with a coherent revision boundary. | yes |
-| 3 | Production-scale risk | Every index/reindex invocation reevaluates metadata or validates a cache entry. Existing 72-project Linux evaluation is 11.9 seconds versus 3.4-second source indexing (review §4 G7). Process lifetime/RSS, imported/glob inputs, multi-unit participation and coherent publication require measured cold/changed/cache-hit paths on corpus and legacy cluster. | yes |
-| 4 | Explicit behavior | Most behavior is approved by tethys-chlt and amended tethys-rvr5 and enumerated in tethys-82a6. One unresolved observable contract: coupling must report evaluation units and declared ProjectReference dependencies, but discovery does not establish referenced target-framework selection. tethys-chlt forbids guessing from equal TFMs; open tethys-rduz explicitly owns command aggregation. No source defines whether unselected references produce project-level aggregate metrics or indeterminate per-unit metrics. Resolve this before architecture. | no |
+| 1 | Empirical premise | P1–P9 are discharged in evidence.md. Process reuse leaks state; removing reevaluation loses byte proof; concurrency is fast on the bounded independent shape but changes side-effect order. The full warm repeat preserved output yet was slower, so no beneficial warm-run effect or representative baseline is assumed. Cadence authority separately assigns PR semantics and full-corpus timing work. | no — prior empirical evidence retained |
+| 2 | Structural module shape | The overall change alters public interface, schema, seams and responsibility owners per the approved design ledger (route T2 was already yes for the main change). The performance amendment itself adds **no** production module, interface or owner: it changes only the nonproduction qualification runner and its lane assignment/accounting. host.rs, Evaluation/Program/Contract, scope/cache/restore and the protected lib/indexing/resolve/batch_writer + Cargo owners are unchanged. | yes — overall change; amendment adds no production shape |
+| 3 | Production-scale risk | The approved240/401 and480/802 shapes, full corpus, repeated instrumented/control runs,60s evaluation deadline, qualification wall/RSS/storage caps and unchanged fresh-input behavior all remain binding. Process lifetime, concurrency and input-observation changes carry latency, memory and correctness risk. | yes |
+| 4 | Explicit behavior | Approved metadata, authority, grants, input closure, failures, cleanup, workloads, repetitions, cadence-specific time/RSS/storage gates and unchanged Rust behavior remain binding. The requester resolved the amendment on2026-09-08 by selecting **serial product evaluation** (verbatim: “Lets proceed with your recommendation”), so cross-project evaluation order is unchanged and no execution-order risk acceptance exists. | yes — behavior fully explicit |
 
-Unknown tests: none. T4 has a known unresolved scope/aggregation decision, not missing repository evidence.
+Unknown tests: none.
 
 ## Selected route
 
-Structural — public/schema/discovery/publication changes and scale risk; one unresolved query contract. Existing evaluation mechanisms support design without a new external-behavior premise.
+**Structural** — the main change alters public interface/schema/ownership (T2 yes) under production-scale risk (T3 yes); T1 has no remaining unverified premise (P1–P9 discharged). The performance amendment is resolved with **no product change**: serial evaluation retained, cadence orchestration corrected under Main's existing S6 ownership.
 
 ## Required artifacts
 
 | Artifact | Owner | Status |
 |---|---|---|
 | route.md | change-workflow | this file |
-| spec.md | interrogated-spec | required — resolve coupling aggregation/target-selection behavior and record requester approval |
-| evidence.md, probe.* | prove-it-prototype | N/A — no unverified design premise; existing probe limits remain explicit qualification gates |
-| design.md | falsifiable-design | required — discovery boundary, schema/publication, host/trust/cache and performance claims |
-| plan.md | budgeted-plan | required — independently green increments and module growth ledger |
+| spec.md | interrogated-spec | existing approved spec.md remains the behavior source; no new unresolved behavior (T4 yes) |
+| evidence.md, probe.* | prove-it-prototype | retained PASS — diagnostic P1–P9 and cadence authority; not calibration or suite acceptance |
+| design.md | falsifiable-design | approved architecture plus resolved performance amendment (no product change); orchestration correction recorded |
+| plan.md | budgeted-plan | existing slices retained; S6 cadence assignment/accounting contract recorded |
 
-Oracle checkpoint in checkpointed-build: required — Structural route.
+Oracle checkpoint in checkpointed-build: required after any approved implementation.
 
 ## Downstream sequence
 
-interrogated-spec → falsifiable-design → budgeted-plan → checkpointed-build
+falsifiable-design (amendment resolved, no product change) → budgeted-plan → checkpointed-build
 
 ## Terminal criterion
 
-Structural — every downstream artifact satisfies its owning stage's completion criterion, ending with no FAIL in checkpointed-build's recorded gate. All seven tethys-82a6 acceptance criteria remain required; no implementation or qualification criterion is waived.
+Structural — every downstream artifact satisfies its owning stage's completion criterion, ending with no FAIL in checkpointed-build's recorded gate. The performance amendment contributes no production change: serial evaluation is retained, the cadence orchestration correction is verified by `oracles/qualification_cadence_fence.py` (named mutation red, restored green), and the remaining S6 obligations are the assembled qualification under the correctly assigned cadence plus a reviewed fourteen-observation calibration authority. Retained P1–P9 are diagnostic evidence, not qualification or calibration.
 
 ## Evidence provenance
 
 Issue claimed with `rivets update tethys-82a6 -s in_progress` on 2026-09-06. Read current tethys-chlt, tethys-rvr5, tethys-cmlc and tethys-rduz. Read-only scouts DiscoveryMap, SnapshotMap and DecisionEvidence mapped implementation and prior evidence; no production changes or verification runs performed during routing. Existing unrelated dirty files are preserved.
 
 The blank VSToolsPath evaluation import-tolerance policy is distinct from cmlc's three-property compiler-input profile: targeting-pack injection and FrameworkPathOverride require target-execution authority and are not added to evaluation-only discovery.
+
+## Performance-design authorization
+
+On2026-09-08 the requester selected **“Design performance repair”**: preserve workloads, repetitions, transparency and caps; investigate evaluation costs, present a falsifiable design, and pause before production changes. This authorizes empirical/design work, not implementation or stack publication. Baseline evidence is retained at `target/qualification/baseline-f34-v1/phase-summary.json`; completed S6 authority observations remain separate from qualification acceptance.

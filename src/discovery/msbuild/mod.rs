@@ -567,7 +567,7 @@ impl ScopeRequest<'_, '_> {
             || !cache::unchanged(&scope.inputs)
             || cache::evaluation_paths(&scope.evaluation, &current.provenance)
                 .iter()
-                .any(|path| !scope.inputs.contains_key(path))
+                .any(|path| !cache::contains_identity(&scope.inputs, path))
         {
             return Ok(Err(failure(
                 DiscoveryFailureReason::EvaluationFailed,

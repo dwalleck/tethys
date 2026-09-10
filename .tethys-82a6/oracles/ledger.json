@@ -10,6 +10,19 @@
   },
   "owned_symbols": [
     {
+      "stage": "S3",
+      "owner": "src/discovery/msbuild/restore/graph.rs",
+      "symbols": ["RestoreGraphEvidence"],
+      "visibility": "pub(super)",
+      "impl_owner": true
+    },
+    {
+      "stage": "S3",
+      "owner": "src/discovery/msbuild/restore/graph/dependencies.rs",
+      "symbols": ["package_dependencies_match", "exact_version"],
+      "visibility": "pub(super)"
+    },
+    {
       "stage": "S4",
       "owner": "src/languages/module_resolver.rs",
       "symbols": ["ModuleResolver", "SourcePathIdentity", "source_path_identity"],
@@ -56,12 +69,42 @@
     "tools/tethys-msbuild-evaluate/Program.cs", "tools/tethys-msbuild-evaluate/Evaluation.cs",
     "tools/tethys-msbuild-evaluate/Contract.cs", "tools/tethys-msbuild-evaluate/Tethys.MSBuild.Evaluate.csproj"
   ],
+  "module_limits": [
+    {
+      "stage": "S3",
+      "path": "src/discovery/msbuild/restore.rs",
+      "max_production_lines": 1600
+    },
+    {
+      "stage": "S3",
+      "path": "src/discovery/msbuild/restore/graph/dependencies.rs",
+      "max_production_lines": 140,
+      "forbidden_identifiers": ["Command", "process", "Index", "Tethys", "HostSelection", "DiscoveryRequest", "Path", "PathBuf"]
+    },
+    {
+      "stage": "S3",
+      "path": "src/discovery/msbuild/restore/graph.rs",
+      "max_production_lines": 240,
+      "forbidden_identifiers": ["Command", "process", "Index", "Tethys", "HostSelection", "DiscoveryRequest"]
+    }
+  ],
   "required": {
     "S1": ["src/db/revision.rs", "tests/revision_publication.rs"],
     "S2": ["tools/tethys-msbuild-evaluate/Evaluation.cs"],
-    "S3": ["src/discovery/mod.rs", "src/discovery/types.rs", "src/discovery/msbuild/mod.rs"],
+    "S3": ["src/discovery/mod.rs", "src/discovery/types.rs", "src/discovery/msbuild/mod.rs", "src/discovery/msbuild/restore/graph.rs", "src/discovery/msbuild/restore/graph/dependencies.rs"],
     "S4": ["src/db/discovery.rs"],
     "S5": ["src/architecture.rs", "tests/csharp_coupling.rs"],
-    "S6": []
+    "S6": [
+      ".tethys-82a6/oracles/qualification.py",
+      ".tethys-82a6/oracles/qualification_limits.py",
+      ".tethys-82a6/oracles/qualification_runtime.py",
+      ".tethys-82a6/oracles/qualification_driver.rs",
+      ".tethys-82a6/oracles/qualification_fixtures.py",
+      ".tethys-82a6/oracles/qualification_corpus.py",
+      ".tethys-82a6/oracles/qualification_environment.py",
+      "tests/fixtures/msbuild/qualification/shapes.json",
+      "tests/fixtures/msbuild/qualification/corpus.json",
+      "tests/fixtures/msbuild/qualification/limits.json"
+    ]
   }
 }

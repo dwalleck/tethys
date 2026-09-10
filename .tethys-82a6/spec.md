@@ -67,6 +67,7 @@ Prior-art search: `rivets list -l csharp-support -n 100`; direct reads and read-
 - tethys-cmlc: classic profile authority distinction and unsupported packages.config restore.
 - tethys-rduz: unresolved architecture command aggregation; expressly not settled by chlt.
 - tethys-yjok and tethys-e2jx: semantic provider and ingestion ownership, not this discovery slice.
+- Performance execution-order prior-art check: bounded active/closed `csharp-support` lists, filtered for `side.effect|concurr|serial`, returned no matches. The existing authority decision permits evaluation-time code; its publication-serialization decision does not settle cross-project evaluation order. See evidence.md P7 for the new concrete counterexample.
 
 ## Decisions
 
@@ -80,6 +81,7 @@ Prior-art search: `rivets list -l csharp-support -n 100`; direct reads and read-
 | Cache invalidation? | Validate context/provenance/input closure each invocation; otherwise reevaluate | tethys-chlt cache amendment plus unchanged freshness contract | Project/import mtimes alone cannot justify reuse after source-glob, restore or host changes |
 | Which classic profile applies here? | Recorded blank VSToolsPath evaluation import-tolerance only | amended tethys-rvr5 and explicit tethys-82a6 scope | Targeting-pack injection and FrameworkPathOverride remain target-execution work |
 | Unselected referenced framework in coupling? | Preserve per-unit metrics; dependent metrics indeterminate; show declared reference separately | Requester approved the recommendation: “yes, I approve” on 2026-09-06 | No guessed unit edges, zero-valued unknowns or implicit project-level aggregation |
+| May different projects' evaluations overlap, changing evaluation-time side-effect order? | **No — serial product evaluation retained** | Requester decision 2026-09-08 (“Lets proceed with your recommendation”); evidence.md P7 shows overlap changes observable results | No concurrency, resident-worker reuse or execution-order change is authorized; the performance repair is cadence orchestration (Main-owned), not product evaluation |
 
 ## Edge checklist
 
@@ -100,10 +102,12 @@ Prior-art search: `rivets list -l csharp-support -n 100`; direct reads and read-
 
 ## Open-question queue
 
-Empty for observable behavior. Concrete APIs, schema layout, module placement, cache eligibility and qualification commands belong to falsifiable-design and require architecture approval.
+Empty for observable behavior. The 2026-09-08 execution-order question is decided (serial evaluation retained); cadence assignment/accounting is Main-owned orchestration recorded in plan.md, not a new observable behavior. Concrete APIs, schema layout, module placement, cache eligibility and qualification commands remain in falsifiable-design and plan.
 
 ## Approval
 
 Requester approval (verbatim): "yes, I approve"
 Date: 2026-09-06
 Approval scope: the presented coupling behavior and acceptance clarification. Existing model, authority and lifecycle decisions are adopted from the approved tracker records above; this does not approve an unseen implementation design.
+
+The 2026-09-08 performance execution-order decision is now covered: the requester selected serial product evaluation (verbatim above), so no behavior change and no risk acceptance is introduced. No concurrency architecture has been approved.

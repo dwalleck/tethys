@@ -1,0 +1,848 @@
+{
+  "capture_digest": "64a38f0496a2cbac417b6bffdc07326a80d8b687452176b35404991423703cac",
+  "capture_path": "xunit.linux.sdk.capture.json.gz",
+  "expected_exit": 0,
+  "expected_projects": [
+    {
+      "project": "src/xunit.v1.tests/xunit.v1.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v2.tests/xunit.v2.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.assert.aot.tests/xunit.v3.assert.aot.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.assert.aot/xunit.v3.assert.aot.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.all-off/xunit.v3.assert.all-off.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.all-on/xunit.v3.assert.all-on.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.aot.nullable-mixed/xunit.v3.assert.aot.nullable-mixed.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.immutable/xunit.v3.assert.immutable.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.nullable-mixed/xunit.v3.assert.nullable-mixed.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.nullable/xunit.v3.assert.nullable.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.span/xunit.v3.assert.span.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.assert.tests/xunit.v3.assert.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.assert.x86.tests/xunit.v3.assert.x86.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.assert/xunit.v3.assert.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.common.tests/xunit.v3.common.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.common.x86.tests/xunit.v3.common.x86.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.common/xunit.v3.common.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.core.tests/xunit.v3.core.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.core.x86.tests/xunit.v3.core.x86.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.core/xunit.v3.core.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.msbuildtasks/xunit.v3.msbuildtasks.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v1.tests/xunit.v3.mtp-v1.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v1.x86.tests/xunit.v3.mtp-v1.x86.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v1/xunit.v3.mtp-v1.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v2.tests/xunit.v3.mtp-v2.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v2.x86.tests/xunit.v3.mtp-v2.x86.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v2/xunit.v3.mtp-v2.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.common.tests/xunit.v3.runner.common.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.common.x86.tests/xunit.v3.runner.common.x86.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.common/xunit.v3.runner.common.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.console.tests/xunit.v3.runner.console.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.console.x86.tests/xunit.v3.runner.console.x86.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.console.x86/xunit.v3.runner.console.x86.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.console/xunit.v3.runner.console.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.inproc.console.tests/xunit.v3.runner.inproc.console.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.inproc.console.x86.tests/xunit.v3.runner.inproc.console.x86.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.inproc.console/xunit.v3.runner.inproc.console.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.msbuild.tests/xunit.v3.runner.msbuild.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.msbuild.x86.tests/xunit.v3.runner.msbuild.x86.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.msbuild/xunit.v3.runner.msbuild.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.utility.tests/xunit.v3.runner.utility.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.utility.x86.tests/xunit.v3.runner.utility.x86.tests.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "src/xunit.v3.runner.utility/xunit.v3.runner.utility.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NU1605']; /home/dwalleck/.local-dotnet/sdk/10.0.102/NuGet.targets(196,5): error : 'XUNIT_ANALYZERS_VERSION' is not a valid version string. [/home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-qfim6q68/xunit/src/xunit.v3.templat",
+      "project": "src/xunit.v3.templates/templates/project/xunit3-extension/cs/ExtensionProject.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NU1605']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "evidence": "authorized native Restore exit 1; codes ['NU1605']; /home/dwalleck/.local-dotnet/sdk/10.0.102/NuGet.targets(196,5): error : 'MICROSOFT_NET_TEST_SDK_VERSION' is not a valid version string. [/home/dwalleck/repos/tethys/target/qualification/corpus-capture-v6/capture-qfim6q68/xunit/src/xunit.v3.",
+      "project": "src/xunit.v3.templates/templates/project/xunit3/cs/TestProject.csproj",
+      "rationale": "Evaluation succeeded, but the authorized Restore failed for this project.",
+      "reason": "restore-failed",
+      "restore_evidence": "native Restore exit 1 with codes ['NU1605']",
+      "restore_input_status": "invalid",
+      "standing": "indeterminate"
+    },
+    {
+      "project": "src/xunit.v3.templates/xunit.v3.templates.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    },
+    {
+      "project": "tools/builder/build.csproj",
+      "rationale": "Every enumerated framework evaluated with exit 0 and the authorized Restore completed with unchanged final inputs.",
+      "restore_evidence": "native Restore exit 0; final input relation ['unchanged']",
+      "restore_input_status": "current",
+      "standing": "confirmed"
+    }
+  ],
+  "expected_units": [
+    {
+      "project": "src/xunit.v1.tests/xunit.v1.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net45; 91 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net45"
+    },
+    {
+      "project": "src/xunit.v2.tests/xunit.v2.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net452; 64 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net452"
+    },
+    {
+      "project": "src/xunit.v3.assert.aot.tests/xunit.v3.assert.aot.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 58 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/xunit.v3.assert.aot/xunit.v3.assert.aot.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net9.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net9.0"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.all-off/xunit.v3.assert.all-off.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.all-off/xunit.v3.assert.all-off.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.all-off/xunit.v3.assert.all-off.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.all-on/xunit.v3.assert.all-on.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.all-on/xunit.v3.assert.all-on.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.all-on/xunit.v3.assert.all-on.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net48; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net48"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.all-on/xunit.v3.assert.all-on.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net481; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net481"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.all-on/xunit.v3.assert.all-on.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net9.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net9.0"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.all-on/xunit.v3.assert.all-on.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.1; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.1"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.aot.nullable-mixed/xunit.v3.assert.aot.nullable-mixed.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net9.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net9.0"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.immutable/xunit.v3.assert.immutable.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.nullable-mixed/xunit.v3.assert.nullable-mixed.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.nullable-mixed/xunit.v3.assert.nullable-mixed.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.nullable-mixed/xunit.v3.assert.nullable-mixed.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.nullable/xunit.v3.assert.nullable.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/xunit.v3.assert.compat/xunit.v3.assert.span/xunit.v3.assert.span.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/xunit.v3.assert.tests/xunit.v3.assert.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 59 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.assert.tests/xunit.v3.assert.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 58 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.assert.x86.tests/xunit.v3.assert.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 59 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.assert.x86.tests/xunit.v3.assert.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 58 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.assert/xunit.v3.assert.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 2 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.assert/xunit.v3.assert.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 3 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/xunit.v3.common.tests/xunit.v3.common.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 50 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.common.tests/xunit.v3.common.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 49 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.common.x86.tests/xunit.v3.common.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 50 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.common.x86.tests/xunit.v3.common.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 49 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.common/xunit.v3.common.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 120 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/xunit.v3.core.tests/xunit.v3.core.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 106 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.core.tests/xunit.v3.core.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 105 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.core.x86.tests/xunit.v3.core.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 106 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.core.x86.tests/xunit.v3.core.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 105 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.core/xunit.v3.core.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 275 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/xunit.v3.msbuildtasks/xunit.v3.msbuildtasks.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 5 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.msbuildtasks/xunit.v3.msbuildtasks.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 4 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v1.tests/xunit.v3.mtp-v1.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 49 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v1.tests/xunit.v3.mtp-v1.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 48 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v1.x86.tests/xunit.v3.mtp-v1.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 49 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v1.x86.tests/xunit.v3.mtp-v1.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 48 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v1/xunit.v3.mtp-v1.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 21 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v1/xunit.v3.mtp-v1.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 20 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v2.tests/xunit.v3.mtp-v2.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 49 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v2.tests/xunit.v3.mtp-v2.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 48 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v2.x86.tests/xunit.v3.mtp-v2.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 49 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v2.x86.tests/xunit.v3.mtp-v2.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 48 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v2/xunit.v3.mtp-v2.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 22 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.mtp-v2/xunit.v3.mtp-v2.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 21 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.runner.common.tests/xunit.v3.runner.common.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 55 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.common.tests/xunit.v3.runner.common.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 54 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.runner.common.x86.tests/xunit.v3.runner.common.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 55 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.common.x86.tests/xunit.v3.runner.common.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 54 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.runner.common/xunit.v3.runner.common.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 201 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "src/xunit.v3.runner.console.tests/xunit.v3.runner.console.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 38 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.console.x86.tests/xunit.v3.runner.console.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 38 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.console.x86/xunit.v3.runner.console.x86.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.console.x86/xunit.v3.runner.console.x86.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net48; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net48"
+    },
+    {
+      "project": "src/xunit.v3.runner.console.x86/xunit.v3.runner.console.x86.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net481; 8 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net481"
+    },
+    {
+      "project": "src/xunit.v3.runner.console/xunit.v3.runner.console.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 9 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.console/xunit.v3.runner.console.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net48; 9 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net48"
+    },
+    {
+      "project": "src/xunit.v3.runner.console/xunit.v3.runner.console.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net481; 9 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net481"
+    },
+    {
+      "project": "src/xunit.v3.runner.inproc.console.tests/xunit.v3.runner.inproc.console.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 38 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.inproc.console.tests/xunit.v3.runner.inproc.console.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 37 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.runner.inproc.console.x86.tests/xunit.v3.runner.inproc.console.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 38 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.inproc.console.x86.tests/xunit.v3.runner.inproc.console.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 37 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.runner.inproc.console/xunit.v3.runner.inproc.console.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 12 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.inproc.console/xunit.v3.runner.inproc.console.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 11 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.runner.msbuild.tests/xunit.v3.runner.msbuild.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 41 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.msbuild.tests/xunit.v3.runner.msbuild.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 40 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.runner.msbuild.x86.tests/xunit.v3.runner.msbuild.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 41 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.msbuild.x86.tests/xunit.v3.runner.msbuild.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 40 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.runner.msbuild/xunit.v3.runner.msbuild.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 10 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.msbuild/xunit.v3.runner.msbuild.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 9 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.runner.utility.tests/xunit.v3.runner.utility.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 65 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.utility.tests/xunit.v3.runner.utility.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 64 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.runner.utility.x86.tests/xunit.v3.runner.utility.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 65 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.utility.x86.tests/xunit.v3.runner.utility.x86.tests.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 64 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.runner.utility/xunit.v3.runner.utility.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net472; 99 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net472"
+    },
+    {
+      "project": "src/xunit.v3.runner.utility/xunit.v3.runner.utility.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net8.0; 98 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net8.0"
+    },
+    {
+      "project": "src/xunit.v3.templates/xunit.v3.templates.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity netstandard2.0; 1 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "netstandard2.0"
+    },
+    {
+      "project": "tools/builder/build.csproj",
+      "rationale": "Direct selected-host evaluation exit 0; framework identity net10.0; 13 Compile items.",
+      "standing": "confirmed",
+      "target_framework": "net10.0"
+    }
+  ],
+  "id": "xunit",
+  "review": {
+    "rationale": null,
+    "reviewer": null,
+    "status": "proposed-awaiting-signoff"
+  },
+  "schema": 1,
+  "sha": "728c1dce012cd82193035dddfeaba184baaa88c6"
+}
