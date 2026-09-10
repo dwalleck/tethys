@@ -350,16 +350,19 @@ fn coupling_queries_read_published_units_without_launching_evaluation() {
     assert_eq!(parsed["count"], 1);
     let row = &parsed["packages"][0];
     assert_eq!(row["source"], "msbuild");
-    assert_eq!(row["afferent"], 0);
-    assert_eq!(row["efferent"], 0);
-    assert_eq!(row["instability"], 0.0);
+    // A published evaluation unit carries no file attribution, so its zero is
+    // the shape of the graph, not a measurement: the query reports unknown and
+    // names why, rather than publishing a confident 0.
+    assert_eq!(row["afferent"], serde_json::Value::Null);
+    assert_eq!(row["efferent"], serde_json::Value::Null);
+    assert_eq!(row["instability"], serde_json::Value::Null);
     assert_eq!(row["evaluation_unit"]["assembly_name"], "Before");
     assert_eq!(
         row["metric_evidence"],
         serde_json::json!({
-            "afferent": {"standing": "known"},
-            "efferent": {"standing": "known"},
-            "instability": {"standing": "known"}
+            "afferent": {"standing": "indeterminate", "reason": "unattributed_evaluation_unit"},
+            "efferent": {"standing": "indeterminate", "reason": "unattributed_evaluation_unit"},
+            "instability": {"standing": "indeterminate", "reason": "unattributed_evaluation_unit"}
         })
     );
     let selector = row["name"].as_str().unwrap();
