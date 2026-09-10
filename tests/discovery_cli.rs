@@ -155,3 +155,48 @@ fn missing_selected_host_publishes_toolchain_failure_even_on_rebuild() {
         assert_eq!(name, "Source");
     }
 }
+
+#[cfg(unix)]
+#[test]
+fn unreadable_directory_in_a_project_less_workspace_does_not_fail_the_run() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(root.path().join("src")).unwrap();
+    std::fs::write(root.path().join("src/lib.rs"), "pub fn kept() {}\n").unwrap();
+    let blocked = root.path().join("src/blocked");
+    std::fs::create_dir_all(&blocked).unwrap();
+    std::fs::write(blocked.join("hidden.rs"), "pub fn hidden() {}\n").unwrap();
+    let permissions = std::fs::metadata(&blocked).unwrap().permissions();
+    std::fs::set_permissions(&blocked, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let blocked_readable = std::fs::read_dir(&blocked).is_err();
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_tethys"))
+        .arg("-w")
+        .arg(root.path())
+        .arg("index")
+        .output()
+        .unwrap();
+    std::fs::set_permissions(&blocked, permissions).unwrap();
+    if !blocked_readable {
+        return; // Elevated users cannot exercise a directory-permission boundary.
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "a workspace with nothing to evaluate must publish without failing:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("blocked"),
+        "the unreadable directory must still be reported: {stderr}"
+    );
+    let reopened = tethys::Tethys::new(root.path()).expect("reopen published revision");
+    assert!(
+        reopened
+            .get_file(std::path::Path::new("src/lib.rs"))
+            .unwrap()
+            .is_some(),
+        "readable source must still be published"
+    );
+}

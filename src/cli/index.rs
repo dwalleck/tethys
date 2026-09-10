@@ -180,11 +180,30 @@ pub(crate) fn run(
     print_lsp_session_errors(&stats.lsp_sessions);
 
     print_discovery_failures(&stats.discovery);
-    Ok(if stats.discovery.is_complete() {
+    Ok(if evaluated_standings_are_confirmed(&stats.discovery) {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
     })
+}
+
+/// Whether every evaluated project and unit reached a confirmed standing.
+///
+/// Walk issues alone do not fail the command. A workspace with nothing to
+/// evaluate — a Rust-only tree with one unreadable directory, say — publishes a
+/// complete revision and still reports the issue, without claiming that
+/// evaluation was incomplete. Incomplete *evaluated* coverage, an indeterminate
+/// project or unit, keeps the non-zero status.
+#[must_use]
+fn evaluated_standings_are_confirmed(snapshot: &DiscoverySnapshot) -> bool {
+    snapshot
+        .projects
+        .iter()
+        .all(|project| project.standing == DiscoveryStanding::Confirmed)
+        && snapshot
+            .units
+            .iter()
+            .all(|unit| unit.standing == DiscoveryStanding::Confirmed)
 }
 
 /// Render typed incomplete coverage only after the source revision is published.
