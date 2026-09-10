@@ -22,13 +22,25 @@
         "MetricEvidence", "CouplingIndeterminacy", "EvaluationUnitCoupling",
         "ArchPhaseResult", "PackageId", "PackageSource", "Package",
         "CouplingMetrics", "CouplingSort", "PackageDependency", "CouplingDetail",
-        "ArchStats", "ArchitecturePackage", "run_architecture_phase", "apply_evidence"
+        "ArchStats"
       ]
     },
     {
       "stage": "S5",
+      "owner": "src/architecture.rs",
+      "symbols": ["ArchitecturePackage", "run_architecture_phase", "apply_evidence"],
+      "crate_private": true
+    },
+    {
+      "stage": "S5",
       "owner": "src/cargo.rs",
-      "symbols": ["CrateIndex", "architecture_inputs"]
+      "symbols": []
+    },
+    {
+      "stage": "S5",
+      "owner": "src/cargo.rs",
+      "symbols": ["CrateIndex", "architecture_inputs"],
+      "crate_private": true
     }
   ],
   "allowed_production": [

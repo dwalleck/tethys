@@ -77,11 +77,10 @@ def production_lines(parser, source):
 def main():
     args = argparse.ArgumentParser()
     args.add_argument("--stage", required=True, choices=[f"S{i}" for i in range(1, 7)])
-    args.add_argument("--base")
     options = args.parse_args()
     root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel"))
     ledger = json.loads((Path(__file__).parent / "ledger.json").read_text())
-    # Explicit baseline is pinned in the ledger; discover the actual tracking ref.
+    # Discover the actual tracking ref and require it to contain the pinned ledger baseline.
     try:
         upstream = git(root, "rev-parse", "--abbrev-ref", "@{upstream}")
     except subprocess.CalledProcessError:
@@ -93,10 +92,19 @@ def main():
             except subprocess.CalledProcessError:
                 continue
         if len(heads) != 1:
-            raise RuntimeError("C13 cannot uniquely discover upstream; pass --base")
+            raise RuntimeError("C13 cannot uniquely discover upstream tracking ref")
         upstream = heads[0]
-    base = options.base or ledger["baseline"]
-    git(root, "rev-parse", "--verify", base)
+    baseline = ledger["baseline"]
+    baseline_commit = git(root, "rev-parse", "--verify", f"{baseline}^{{commit}}")
+    upstream_commit = git(root, "rev-parse", "--verify", f"{upstream}^{{commit}}")
+    try:
+        git(root, "merge-base", "--is-ancestor", baseline_commit, upstream_commit)
+    except subprocess.CalledProcessError:
+        raise RuntimeError(
+            f"C13 ledger baseline {baseline_commit} is not an ancestor of discovered "
+            f"upstream {upstream} ({upstream_commit}); update the ledger baseline deliberately"
+        )
+    base = baseline_commit
     parser = tree_sitter.Parser(tree_sitter.Language(tree_sitter_rust.language()))
     failures = []
     changed = set(git(root, "diff", "--name-only", base, "--", "src", "tools").splitlines())
