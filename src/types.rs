@@ -2796,3 +2796,80 @@ mod tests {
         assert_eq!(ci.entry_point_file(), None);
     }
 }
+
+#[cfg(test)]
+mod index_stats_tests {
+    use super::IndexStats;
+
+    #[test]
+    fn index_stats_default_arch_phase_is_none() {
+        assert!(IndexStats::default().arch_phase.is_none());
+    }
+}
+
+#[cfg(test)]
+mod path_wire_tests {
+    use super::{CrateInfo, path_wire};
+    use std::path::{Path, PathBuf};
+
+    #[test]
+    fn utf8_paths_keep_the_plain_wire_shape() {
+        let path = Path::new("src/lib.rs");
+        assert_eq!(path_wire::encode(path), "src/lib.rs");
+        assert_eq!(path_wire::decode("src/lib.rs").expect("decode"), path);
+        let json = serde_json::to_string(&CrateInfo {
+            name: "app".into(),
+            path: PathBuf::from("src/lib.rs"),
+            lib_path: Some(PathBuf::from("src/lib.rs")),
+            bin_paths: vec![("tool".into(), PathBuf::from("src/main.rs"))],
+        })
+        .expect("serialize");
+        assert!(json.contains("\"src/lib.rs\""), "{json}");
+        let back: CrateInfo = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.path, PathBuf::from("src/lib.rs"));
+        assert_eq!(back.lib_path, Some(PathBuf::from("src/lib.rs")));
+        assert_eq!(
+            back.bin_paths,
+            vec![("tool".to_owned(), PathBuf::from("src/main.rs"))]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn non_utf8_paths_round_trip_without_aborting_serialization() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let path = PathBuf::from(OsString::from_vec(b"/repo/bad\xff.rs".to_vec()));
+        assert!(path.to_str().is_none(), "fixture must not be UTF-8");
+        let encoded = path_wire::encode(&path);
+        assert!(encoded.starts_with('\u{0}'), "tagged: {encoded:?}");
+        assert_eq!(path_wire::decode(&encoded).expect("decode"), path);
+        let json = serde_json::to_string(&CrateInfo {
+            name: "app".into(),
+            path: path.clone(),
+            lib_path: None,
+            bin_paths: Vec::new(),
+        })
+        .expect("a non-UTF-8 path must not abort the publication payload");
+        let back: CrateInfo = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.path, path);
+    }
+
+    #[test]
+    fn malformed_tagged_values_are_reported_not_substituted() {
+        assert!(path_wire::decode("\u{0}zz").is_err());
+        assert!(path_wire::decode("\u{0}zzzz").is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn verbatim_windows_spelling_survives_the_wire() {
+        let path = PathBuf::from(r"\\?\C:\repo\hidden");
+        assert_eq!(path_wire::encode(&path), r"\\?\C:\repo\hidden");
+        assert_eq!(
+            path_wire::decode(&path_wire::encode(&path)).expect("decode"),
+            path
+        );
+    }
+}

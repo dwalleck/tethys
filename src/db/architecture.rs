@@ -13,10 +13,10 @@ use crate::architecture::{
     ArchStats, CouplingDetail, CouplingMetrics, CouplingSort, Package, PackageDependency,
     PackageId, PackageSource,
 };
-use crate::architecture::{EvaluationUnitCoupling, MetricEvidence, apply_evidence};
-use crate::discovery::{
-    DeclaredProjectReference, DiscoveryStanding, EvaluationUnitKey, ProjectKey,
+use crate::architecture::{
+    DeclaredContext, EvaluationUnitCoupling, MetricEvidence, apply_evidence,
 };
+use crate::discovery::{DeclaredProjectReference, EvaluationUnitKey, ProjectKey};
 use crate::error::Result;
 use crate::types::FileId;
 
@@ -408,6 +408,7 @@ mod package_coupling_tests {
     use crate::types::Language;
     use std::path::Path;
     use tempfile::TempDir;
+    use tracing_test::traced_test;
 
     fn seeded_index() -> (TempDir, Index) {
         let dir = tempfile::tempdir().expect("temp dir");
@@ -882,6 +883,11 @@ mod package_coupling_tests {
     }
 
     /// A corrupt neighbour is omitted without losing a valid neighbour.
+    /// The documented contract is "silent skip + warn! log": the corrupt
+    /// neighbour is absent from the list *and* the skip is observable. If the
+    /// warn! is removed, this fails on the log assertion rather than silently
+    /// becoming "completely silent".
+    #[traced_test]
     #[test]
     fn fetch_neighbors_skips_neighbors_with_corrupt_source() {
         use rusqlite::Connection;
@@ -964,6 +970,10 @@ mod package_coupling_tests {
             neighbour_names,
             ["valid"],
             "corrupt-source neighbour should be skipped from outgoing list"
+        );
+        assert!(
+            logs_contain("unknown source value"),
+            "expected a warn! log mentioning the corrupt source value"
         );
     }
 }
@@ -1348,29 +1358,133 @@ fn decode_evidence<T: serde::de::DeserializeOwned>(text: &str) -> Result<T> {
     })
 }
 
-fn read_unit_evidence(
+/// Whether any discovery evidence is missing anywhere in the workspace.
+///
+/// Deliberately workspace-global: a traversal issue can hide a project or an
+/// input that no surviving row mentions, so no narrower scope can rule out an
+/// unconfirmed edge. Counted in SQL, so a targeted read never has to decode
+/// every unit to answer a single-package question.
+fn discovery_is_incomplete(conn: &Connection) -> Result<bool> {
+    conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM discovery_issues)
+             OR EXISTS(SELECT 1 FROM projects
+                       WHERE json_extract(standing_json, '$.standing') <> 'confirmed')
+             OR EXISTS(SELECT 1 FROM evaluation_units
+                       WHERE json_extract(standing_json, '$.standing') <> 'confirmed')",
+        [],
+        |row| row.get(0),
+    )
+    .map_err(Into::into)
+}
+
+/// Projects that own a confirmed evaluation unit, workspace-wide.
+fn selected_projects(conn: &Connection) -> Result<std::collections::HashSet<ProjectKey>> {
+    let mut statement = conn.prepare(
+        "SELECT DISTINCT project_key FROM evaluation_units
+         WHERE json_extract(standing_json, '$.standing') = 'confirmed'",
+    )?;
+    let rows = statement.query_map([], |row| Ok(ProjectKey(row.get(0)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// Targets named by a contributing declaration, workspace-wide.
+///
+/// `ReferenceOutputAssembly = false` is the same non-contribution rule the
+/// in-memory check uses, applied here so a targeted read still sees every
+/// declaration in the workspace.
+fn declared_targets(conn: &Connection) -> Result<std::collections::HashSet<ProjectKey>> {
+    let mut statement = conn.prepare(
+        "SELECT DISTINCT target_project_key FROM declared_project_references AS declaration
+         WHERE NOT EXISTS (
+             SELECT 1 FROM json_each(declaration.metadata_json) AS entry
+             WHERE lower(entry.key) = 'referenceoutputassembly'
+               AND lower(trim(entry.value)) = 'false'
+         )",
+    )?;
+    let rows = statement.query_map([], |row| Ok(ProjectKey(row.get(0)?)))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// One coupling row per package.
+const COUPLING_SQL: &str = "SELECT p.id, p.name, p.path, p.source, c.afferent, c.efferent, p.evaluation_unit_key \
+     FROM arch_coupling c JOIN arch_packages p ON p.id = c.package_id";
+
+/// Collect coupling rows, narrowed to one package when a target is given.
+///
+/// The targeted form is an indexed single-row fetch: it must not scan, and must
+/// not decode, rows that belong to other packages.
+fn collect_metrics(
     conn: &Connection,
-) -> Result<(HashMap<String, EvaluationUnitCoupling>, bool)> {
-    let mut units = HashMap::new();
-    let mut incomplete: bool =
-        conn.query_row("SELECT EXISTS(SELECT 1 FROM discovery_issues)", [], |row| {
-            row.get(0)
-        })?;
-    {
-        let mut statement = conn.prepare("SELECT standing_json FROM projects")?;
-        let mut rows = statement.query([])?;
-        while let Some(row) = rows.next()? {
-            let standing: DiscoveryStanding = decode_evidence(coupling_text(row, 0)?)?;
-            incomplete |= !matches!(standing, DiscoveryStanding::Confirmed);
-        }
+    target: Option<&str>,
+) -> Result<(Vec<CouplingMetrics>, Vec<Option<String>>)> {
+    // The first SELECT pins the caller's savepoint snapshot. All projections and
+    // neighbor reads stay on that same transaction even against WAL writers.
+    let mut metrics = Vec::new();
+    let mut keys = Vec::new();
+    let mut statement = match target {
+        Some(_) => conn.prepare(&format!("{COUPLING_SQL} WHERE p.name = ?1"))?,
+        None => conn.prepare(COUPLING_SQL)?,
+    };
+    let mut rows = match target {
+        Some(name) => statement.query([name])?,
+        None => statement.query([])?,
+    };
+    while let Some(row) = rows.next()? {
+        let name: String = row.get(1)?;
+        let source_text: String = row.get(3)?;
+        let Some(source) = PackageSource::parse(&source_text) else {
+            if target.is_some() {
+                return Err(crate::Error::Internal(format!(
+                    "package '{name}' has unknown source value '{source_text}'"
+                )));
+            }
+            tracing::warn!(
+                package_name = name,
+                source = source_text,
+                "skipping coupling row with unknown source"
+            );
+            continue;
+        };
+        let afferent =
+            MetricEvidence::Known(saturating_coupling_to_u32(row.get(4)?, &name, "afferent"));
+        let efferent =
+            MetricEvidence::Known(saturating_coupling_to_u32(row.get(5)?, &name, "efferent"));
+        keys.push(row.get::<_, Option<String>>(6)?);
+        metrics.push(CouplingMetrics {
+            package: Package {
+                id: PackageId::new(row.get(0)?),
+                name,
+                path: std::path::PathBuf::from(row.get::<_, String>(2)?),
+                source,
+            },
+            afferent,
+            efferent,
+            evaluation_unit: None,
+        });
     }
+    Ok((metrics, keys))
+}
+
+/// Load persisted evidence for exactly the requested units.
+fn read_units(
+    conn: &Connection,
+    keys: &[String],
+) -> Result<HashMap<String, EvaluationUnitCoupling>> {
+    let mut units: HashMap<String, EvaluationUnitCoupling> = HashMap::new();
+    if keys.is_empty() {
+        return Ok(units);
+    }
+    let placeholders = vec!["?"; keys.len()].join(",");
     {
-        let mut statement = conn.prepare("SELECT unit_key, project_key, target_framework, framework_json, standing_json, json_extract(properties_json, '$.AssemblyName') FROM evaluation_units ORDER BY ordinal")?;
-        let mut rows = statement.query([])?;
+        let statement_sql = format!(
+            "SELECT unit_key, project_key, target_framework, framework_json, standing_json, \
+             json_extract(properties_json, '$.AssemblyName') FROM evaluation_units \
+             WHERE unit_key IN ({placeholders}) ORDER BY ordinal"
+        );
+        let mut statement = conn.prepare(&statement_sql)?;
+        let mut rows = statement.query(rusqlite::params_from_iter(keys.iter()))?;
         while let Some(row) = rows.next()? {
             let key: String = row.get(0)?;
-            let standing: DiscoveryStanding = decode_evidence(coupling_text(row, 4)?)?;
-            incomplete |= !matches!(standing, DiscoveryStanding::Confirmed);
             units.insert(
                 key.clone(),
                 EvaluationUnitCoupling {
@@ -1378,16 +1492,22 @@ fn read_unit_evidence(
                     project: ProjectKey(row.get(1)?),
                     target_framework: row.get(2)?,
                     framework: decode_evidence(coupling_text(row, 3)?)?,
-                    standing,
+                    standing: decode_evidence(coupling_text(row, 4)?)?,
                     assembly_name: row.get(5)?,
                     declared_references: Vec::new(),
+                    unresolved_assembly_references: false,
                 },
             );
         }
     }
     {
-        let mut statement = conn.prepare("SELECT unit_key, target_project_key, include, metadata_json FROM declared_project_references ORDER BY unit_key, ordinal")?;
-        let mut rows = statement.query([])?;
+        let statement_sql = format!(
+            "SELECT unit_key, target_project_key, include, metadata_json FROM \
+             declared_project_references WHERE unit_key IN ({placeholders}) \
+             ORDER BY unit_key, ordinal"
+        );
+        let mut statement = conn.prepare(&statement_sql)?;
+        let mut rows = statement.query(rusqlite::params_from_iter(keys.iter()))?;
         while let Some(row) = rows.next()? {
             let key = coupling_text(row, 0)?;
             units
@@ -1403,52 +1523,43 @@ fn read_unit_evidence(
                 });
         }
     }
-    Ok((units, incomplete))
+    {
+        let statement_sql = format!(
+            "SELECT unit_key, metadata_json FROM declared_assembly_references \
+             WHERE unit_key IN ({placeholders}) ORDER BY unit_key, ordinal"
+        );
+        let mut statement = conn.prepare(&statement_sql)?;
+        let mut rows = statement.query(rusqlite::params_from_iter(keys.iter()))?;
+        while let Some(row) = rows.next()? {
+            let key = coupling_text(row, 0)?;
+            let metadata: std::collections::BTreeMap<String, String> =
+                decode_evidence(coupling_text(row, 1)?)?;
+            if !crate::architecture::contributes_metadata(&metadata) {
+                continue;
+            }
+            units
+                .get_mut(key)
+                .ok_or_else(|| {
+                    crate::Error::Internal(format!("orphaned coupling declaration: {key}"))
+                })?
+                .unresolved_assembly_references = true;
+        }
+    }
+    Ok(units)
 }
 
 fn read_metrics(conn: &Connection, strict_target: Option<&str>) -> Result<Vec<CouplingMetrics>> {
-    // The first SELECT pins the caller's savepoint snapshot. All projections and
-    // neighbor reads stay on that same transaction even against WAL writers.
-    let mut metrics = Vec::new();
-    let mut keys = Vec::new();
-    {
-        let mut statement = conn.prepare("SELECT p.id, p.name, p.path, p.source, c.afferent, c.efferent, p.evaluation_unit_key FROM arch_coupling c JOIN arch_packages p ON p.id = c.package_id")?;
-        let mut rows = statement.query([])?;
-        while let Some(row) = rows.next()? {
-            let name: String = row.get(1)?;
-            let source_text: String = row.get(3)?;
-            let Some(source) = PackageSource::parse(&source_text) else {
-                if strict_target == Some(name.as_str()) {
-                    return Err(crate::Error::Internal(format!(
-                        "package '{name}' has unknown source value '{source_text}'"
-                    )));
-                }
-                tracing::warn!(
-                    package_name = name,
-                    source = source_text,
-                    "skipping coupling row with unknown source"
-                );
-                continue;
-            };
-            let afferent =
-                MetricEvidence::Known(saturating_coupling_to_u32(row.get(4)?, &name, "afferent"));
-            let efferent =
-                MetricEvidence::Known(saturating_coupling_to_u32(row.get(5)?, &name, "efferent"));
-            keys.push(row.get::<_, Option<String>>(6)?);
-            metrics.push(CouplingMetrics {
-                package: Package {
-                    id: PackageId::new(row.get(0)?),
-                    name,
-                    path: std::path::PathBuf::from(row.get::<_, String>(2)?),
-                    source,
-                },
-                afferent,
-                efferent,
-                evaluation_unit: None,
-            });
-        }
+    let (mut metrics, keys) = collect_metrics(conn, strict_target)?;
+    if metrics.is_empty() {
+        return Ok(metrics);
     }
-    let (mut units, incomplete) = read_unit_evidence(conn)?;
+    let incomplete = discovery_is_incomplete(conn)?;
+    let context = DeclaredContext {
+        selected: selected_projects(conn)?,
+        declared_targets: declared_targets(conn)?,
+    };
+    let requested: Vec<String> = keys.iter().flatten().cloned().collect();
+    let mut units = read_units(conn, &requested)?;
     for (metric, key) in metrics.iter_mut().zip(keys) {
         if let Some(key) = key {
             metric.evaluation_unit = Some(units.remove(&key).ok_or_else(|| {
@@ -1456,7 +1567,7 @@ fn read_metrics(conn: &Connection, strict_target: Option<&str>) -> Result<Vec<Co
             })?);
         }
     }
-    apply_evidence(&mut metrics, incomplete);
+    apply_evidence(&mut metrics, incomplete, &context);
     Ok(metrics)
 }
 
@@ -1470,6 +1581,7 @@ fn coupling_text<'a>(row: &'a rusqlite::Row<'_>, column: usize) -> rusqlite::Res
 #[cfg(test)]
 mod coupling_snapshot_tests {
     use super::*;
+    use crate::architecture::CouplingIndeterminacy;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Mutex, mpsc};
     use std::time::Duration;
@@ -1482,7 +1594,7 @@ mod coupling_snapshot_tests {
     }
 
     fn snapshot_trace(sql: &str) {
-        if !sql.contains("FROM evaluation_units ORDER BY ordinal") {
+        if !sql.contains("FROM evaluation_units") {
             return;
         }
         let Some(barrier) = BARRIER.lock().expect("barrier mutex").take() else {
@@ -1548,9 +1660,14 @@ mod coupling_snapshot_tests {
         assert_eq!(COMMITS.load(Ordering::SeqCst), 1, "writer commit canary");
         assert!(BARRIER.lock().expect("barrier mutex").is_none());
         assert_eq!(before.metrics.package.path, std::path::Path::new("before"));
+        // An evaluation unit carries no file attribution, so a structural zero
+        // is published as unknown rather than as a measurement.
         assert_eq!(
             (before.metrics.afferent, before.metrics.efferent),
-            (MetricEvidence::Known(0), MetricEvidence::Known(0))
+            (
+                MetricEvidence::Indeterminate(CouplingIndeterminacy::UnattributedEvaluationUnit),
+                MetricEvidence::Indeterminate(CouplingIndeterminacy::UnattributedEvaluationUnit)
+            )
         );
         assert_eq!(
             before
@@ -1568,9 +1685,14 @@ mod coupling_snapshot_tests {
             .expect("new detail")
             .expect("unit");
         assert_eq!(after.metrics.package.path, std::path::Path::new("after"));
+        // A real graph edge is evidence: the measured count survives even
+        // though this unit still has no file attribution.
         assert_eq!(
             (after.metrics.afferent, after.metrics.efferent),
-            (MetricEvidence::Known(0), MetricEvidence::Known(1))
+            (
+                MetricEvidence::Indeterminate(CouplingIndeterminacy::UnattributedEvaluationUnit),
+                MetricEvidence::Known(1)
+            )
         );
         assert_eq!(
             after

@@ -5,7 +5,7 @@ use crate::discovery::{
 };
 use crate::{Result, Tethys};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 /// Availability of a coupling metric; unavailable evidence is never numeric zero.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,6 +24,14 @@ pub enum CouplingIndeterminacy {
     IncompleteDiscovery,
     /// A contributing declaration has no compiler-selected target unit.
     UnselectedProjectReference,
+    /// No file attribution exists for this evaluation unit, so the file graph
+    /// can neither confirm nor refute an edge. Reported instead of a structural
+    /// zero, which a reader would otherwise take for a measurement.
+    UnattributedEvaluationUnit,
+    /// A contributing assembly reference names a compiled artifact outside the
+    /// workspace. It is never an architecture node, so the file graph cannot
+    /// account for it.
+    UnresolvedAssemblyReference,
 }
 
 /// Lightweight persisted evidence for one architecture evaluation-unit node.
@@ -43,6 +51,8 @@ pub struct EvaluationUnitCoupling {
     pub assembly_name: Option<String>,
     /// Declarations including noncontributing references, never selected edges.
     pub declared_references: Vec<DeclaredProjectReference>,
+    /// Whether a contributing assembly `<Reference>` was recorded for this unit.
+    pub unresolved_assembly_references: bool,
 }
 
 /// Outcome of the architecture-analysis indexing phase.
@@ -180,7 +190,10 @@ impl CouplingMetrics {
                   precision in practice. The lint fires on the cast syntax alone."
     )]
     pub fn instability(&self) -> MetricEvidence<f64> {
-        use CouplingIndeterminacy::{IncompleteDiscovery, UnselectedProjectReference};
+        use CouplingIndeterminacy::{
+            IncompleteDiscovery, UnattributedEvaluationUnit, UnresolvedAssemblyReference,
+            UnselectedProjectReference,
+        };
         use MetricEvidence::{Indeterminate, Known};
         match (self.afferent, self.efferent) {
             (Indeterminate(IncompleteDiscovery), _) | (_, Indeterminate(IncompleteDiscovery)) => {
@@ -189,6 +202,14 @@ impl CouplingMetrics {
             (Indeterminate(UnselectedProjectReference), _)
             | (_, Indeterminate(UnselectedProjectReference)) => {
                 Indeterminate(UnselectedProjectReference)
+            }
+            (Indeterminate(UnresolvedAssemblyReference), _)
+            | (_, Indeterminate(UnresolvedAssemblyReference)) => {
+                Indeterminate(UnresolvedAssemblyReference)
+            }
+            (Indeterminate(UnattributedEvaluationUnit), _)
+            | (_, Indeterminate(UnattributedEvaluationUnit)) => {
+                Indeterminate(UnattributedEvaluationUnit)
             }
             (Known(ca), Known(ce)) => {
                 let denom = u64::from(ca) + u64::from(ce);
@@ -315,8 +336,18 @@ mod arch_type_tests {
         #[case] efferent: u32,
         #[case] expected: f64,
     ) {
-        let i = metrics("p", afferent, efferent).instability();
-        assert_eq!(i, MetricEvidence::Known(expected));
+        let MetricEvidence::Known(value) = metrics("p", afferent, efferent).instability() else {
+            panic!("boundary counts must produce a measured ratio");
+        };
+        // Bit-exact, not just `==`: the sort comparator uses `f64::total_cmp`,
+        // which orders -0.0 before 0.0 even though they compare equal.
+        assert_eq!(value.to_bits(), expected.to_bits());
+        assert!(!value.is_nan());
+    }
+
+    #[test]
+    fn coupling_sort_default_is_instability() {
+        assert_eq!(CouplingSort::default(), CouplingSort::Instability);
     }
 }
 
@@ -350,45 +381,84 @@ impl Tethys {
     }
 }
 
+/// Workspace-wide declaration context for one coupling read.
+///
+/// Both sets span the whole publication, not the rows being answered: a
+/// single-package query sees one metric, but "is this target selected?" is a
+/// question about every unit in the workspace.
+#[derive(Debug, Default)]
+pub(crate) struct DeclaredContext {
+    /// Projects that own a confirmed evaluation unit.
+    pub selected: HashSet<ProjectKey>,
+    /// Targets named by a contributing declaration anywhere in the workspace.
+    pub declared_targets: HashSet<ProjectKey>,
+}
+
 /// Propagate unavailable evidence by project identity without expanding target units.
-pub(crate) fn apply_evidence(metrics: &mut [CouplingMetrics], incomplete: bool) {
-    use CouplingIndeterminacy::{IncompleteDiscovery, UnselectedProjectReference};
-    use MetricEvidence::Indeterminate;
-    let mut targets = HashSet::new();
-    for metric in metrics.iter() {
-        if let Some(unit) = &metric.evaluation_unit {
-            for reference in &unit.declared_references {
-                if contributes(reference) && !targets.contains(&reference.target) {
-                    targets.insert(reference.target.clone());
-                }
-            }
-        }
-    }
+///
+/// Every branch reports *why* a metric is unavailable rather than publishing a
+/// number the evidence cannot support; a withheld axis is never paired with a
+/// measured one on the same row, because a reader would treat the pair as two
+/// measurements.
+pub(crate) fn apply_evidence(
+    metrics: &mut [CouplingMetrics],
+    incomplete: bool,
+    context: &DeclaredContext,
+) {
+    use CouplingIndeterminacy::{
+        IncompleteDiscovery, UnattributedEvaluationUnit, UnresolvedAssemblyReference,
+        UnselectedProjectReference,
+    };
+    use MetricEvidence::{Indeterminate, Known};
+
     for metric in metrics {
         let Some(unit) = &metric.evaluation_unit else {
             continue;
         };
-        if !matches!(unit.standing, DiscoveryStanding::Confirmed) {
+        if !matches!(unit.standing, DiscoveryStanding::Confirmed) || incomplete {
+            // Incomplete discovery can hide a project or an input that no
+            // surviving row mentions, so neither axis is trustworthy.
             metric.afferent = Indeterminate(IncompleteDiscovery);
             metric.efferent = Indeterminate(IncompleteDiscovery);
             continue;
         }
-        if incomplete {
-            metric.afferent = Indeterminate(IncompleteDiscovery);
-        } else if targets.contains(&unit.project) {
+        if context.declared_targets.contains(&unit.project) {
             metric.afferent = Indeterminate(UnselectedProjectReference);
         }
-        if unit.declared_references.iter().any(contributes) {
+        if unit
+            .declared_references
+            .iter()
+            .filter(|reference| contributes(reference))
+            .any(|reference| !context.selected.contains(&reference.target))
+        {
             metric.efferent = Indeterminate(UnselectedProjectReference);
+        } else if unit.unresolved_assembly_references {
+            metric.efferent = Indeterminate(UnresolvedAssemblyReference);
+        }
+        if metric.package.source == PackageSource::MsBuild {
+            // Evaluation units carry no file attribution, so a zero here is the
+            // shape of the graph, not a measurement. A non-zero count can only
+            // come from real edges and is left as measured evidence.
+            if metric.afferent == Known(0) {
+                metric.afferent = Indeterminate(UnattributedEvaluationUnit);
+            }
+            if metric.efferent == Known(0) {
+                metric.efferent = Indeterminate(UnattributedEvaluationUnit);
+            }
         }
     }
 }
 
-fn contributes(reference: &DeclaredProjectReference) -> bool {
-    !reference.metadata.iter().any(|(name, value)| {
+/// Whether a declaration's metadata marks it as producing no referenced output.
+pub(crate) fn contributes_metadata(metadata: &BTreeMap<String, String>) -> bool {
+    !metadata.iter().any(|(name, value)| {
         name.eq_ignore_ascii_case("ReferenceOutputAssembly")
             && value.trim().eq_ignore_ascii_case("false")
     })
+}
+
+fn contributes(reference: &DeclaredProjectReference) -> bool {
+    contributes_metadata(&reference.metadata)
 }
 
 #[cfg(test)]
@@ -430,7 +500,7 @@ mod instability_property_tests {
         // CASCADE deletes) are exercised under the same semantics in tests.
         conn.pragma_update(None, "foreign_keys", "ON")
             .expect("enable fks");
-        conn.execute_batch(crate::db::SCHEMA).expect("schema");
+        crate::db::install_schema(&conn).expect("schema");
 
         for i in 0..n {
             conn.execute(

@@ -166,6 +166,24 @@ fn indeterminacy_label(reason: CouplingIndeterminacy) -> &'static str {
     match reason {
         CouplingIndeterminacy::IncompleteDiscovery => "incomplete_discovery",
         CouplingIndeterminacy::UnselectedProjectReference => "unselected_project_reference",
+        CouplingIndeterminacy::UnattributedEvaluationUnit => "unattributed_evaluation_unit",
+        CouplingIndeterminacy::UnresolvedAssemblyReference => "unresolved_assembly_reference",
+    }
+}
+
+/// Count column rendering: a narrow marker, because the reason is a long label.
+///
+/// `CountText` keeps the full label for prose and JSON; a table column three
+/// characters wide cannot carry it without pushing every neighbouring row out
+/// of alignment.
+struct TableCount(MetricEvidence<u32>);
+
+impl std::fmt::Display for TableCount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.0 {
+            MetricEvidence::Known(value) => value.fmt(f),
+            MetricEvidence::Indeterminate(_) => f.write_str("?"),
+        }
     }
 }
 
@@ -296,6 +314,9 @@ pub(crate) fn write_detail_text<W: Write>(out: &mut W, d: &CouplingDetail) -> io
 }
 
 // Keep the established Rust JSON shape; evaluated units add evidence and metadata.
+// NOTE: the JSON shape is hand-rolled. The architecture types don't yet derive
+// `Serialize` (tracked: rivets-4srr) — until that lands, new fields on
+// `CouplingDetail` / `CouplingMetrics` / `Package` will NOT auto-propagate here.
 pub(crate) fn write_detail_json<W: Write>(out: &mut W, d: &CouplingDetail) -> io::Result<()> {
     let dep_json = |p: &PackageDependency| {
         serde_json::json!({
@@ -407,8 +428,8 @@ pub(crate) fn write_table_text<W: Write>(
                     "  {name:width$}  {ca:>3}  {ce:>3}   {bar}  {instability:>4.2}",
                     name = m.package.name,
                     width = max_name_len,
-                    ca = CountText(m.afferent),
-                    ce = CountText(m.efferent),
+                    ca = TableCount(m.afferent),
+                    ce = TableCount(m.efferent),
                     bar = instability_color(instability, &bar),
                 )?;
             }
@@ -418,14 +439,11 @@ pub(crate) fn write_table_text<W: Write>(
                     "  {name:width$}  {ca:>3}  {ce:>3}   indeterminate ({reason})",
                     name = m.package.name,
                     width = max_name_len,
-                    ca = CountText(m.afferent),
-                    ce = CountText(m.efferent),
+                    ca = TableCount(m.afferent),
+                    ce = TableCount(m.efferent),
                     reason = indeterminacy_label(reason),
                 )?;
             }
-        }
-        if let Some(unit) = &m.evaluation_unit {
-            write_unit_text(out, unit)?;
         }
     }
 
@@ -440,6 +458,19 @@ pub(crate) fn write_table_text<W: Write>(
         )
         .dimmed()
     )?;
+    // Unit evidence is a block, not a column: emitting it between rows would
+    // break the table for every consumer that reads it as one.
+    let mut units = metrics
+        .iter()
+        .filter_map(|metric| metric.evaluation_unit.as_ref())
+        .peekable();
+    if units.peek().is_some() {
+        writeln!(out)?;
+        writeln!(out, "  {}", "Evaluation units".white().bold())?;
+        for unit in units {
+            write_unit_text(out, unit)?;
+        }
+    }
     writeln!(out)?;
     Ok(())
 }
@@ -774,6 +805,7 @@ mod detail_tests {
                 include: "../Lib/Lib.csproj".into(),
                 metadata: [("ReferenceOutputAssembly".into(), "false".into())].into(),
             }],
+            unresolved_assembly_references: false,
         };
         let mut package = pkg("msbuild:App/App.csproj:unit-net8");
         package.source = tethys::PackageSource::MsBuild;
@@ -1026,5 +1058,22 @@ mod run_detail_tests {
             matches!(err, tethys::Error::PackageNotFound(ref n) if n == "no-such-pkg"),
             "BrokenPipe on the `null` write must not mask the PackageNotFound error: got {err:?}"
         );
+    }
+
+    #[test]
+    fn table_text_for_empty_metrics_prints_friendly_message() {
+        let mut buf = Vec::new();
+        write_table_text(&mut buf, &[], SortFlag::Instability).expect("write");
+        let s = String::from_utf8(buf).expect("utf-8");
+        assert!(s.contains("No packages discovered"));
+    }
+
+    #[test]
+    fn run_detail_text_mode_succeeds_when_package_exists() {
+        let (_dir, tethys) = single_crate_workspace("only");
+        let mut buf: Vec<u8> = Vec::new();
+        run_detail_to(&tethys, "only", false, &mut buf).expect("should succeed");
+        let s = String::from_utf8(buf).expect("utf-8");
+        assert!(s.contains("only"), "output should mention package name");
     }
 }

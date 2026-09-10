@@ -65,7 +65,10 @@ fn declarations_do_not_select_either_framework_or_an_assembly_name_collision() {
     db.execute_batch(
         "INSERT INTO declared_project_references VALUES ('app-net8', 1, 'Core/Core.csproj', '../Core/./Core.csproj', '{}');",
     ).unwrap();
-    let unknown = MetricEvidence::Indeterminate(CouplingIndeterminacy::UnselectedProjectReference);
+    let unattributed =
+        MetricEvidence::Indeterminate(CouplingIndeterminacy::UnattributedEvaluationUnit);
+    let unselected =
+        MetricEvidence::Indeterminate(CouplingIndeterminacy::UnselectedProjectReference);
     let rows = tethys.get_coupling_metrics(CouplingSort::Name).unwrap();
     assert_eq!(
         rows.iter()
@@ -73,22 +76,28 @@ fn declarations_do_not_select_either_framework_or_an_assembly_name_collision() {
             .collect::<Vec<_>>(),
         [APP, CORE8, CORE9, ISOLATED]
     );
+    // No evaluation unit carries file attribution, so every zero here is the
+    // shape of the graph, never a measurement; the reason is the observable.
+    // The declaration targets Core, a selected project, so it reports neither an
+    // unselected-reference reason nor a count.
     for (name, ca, ce) in [
-        (APP, MetricEvidence::Known(0), unknown),
-        (CORE8, unknown, MetricEvidence::Known(0)),
-        (CORE9, unknown, MetricEvidence::Known(0)),
-        (ISOLATED, MetricEvidence::Known(0), MetricEvidence::Known(0)),
+        (APP, unattributed, unattributed),
+        // Core is a declared target: its incoming count may be understated.
+        (CORE8, unselected, unattributed),
+        (CORE9, unselected, unattributed),
+        (ISOLATED, unattributed, unattributed),
     ] {
         let detail = tethys.get_package_coupling(name).unwrap().unwrap();
         assert_eq!(detail.metrics.afferent, ca, "{name} incoming");
         assert_eq!(detail.metrics.efferent, ce, "{name} outgoing");
+        // Instability is unavailable with either axis; the incoming reason leads.
         assert_eq!(
             detail.metrics.instability(),
-            if name == ISOLATED {
-                MetricEvidence::Known(0.0)
-            } else {
-                MetricEvidence::Indeterminate(CouplingIndeterminacy::UnselectedProjectReference)
-            }
+            MetricEvidence::Indeterminate(match ca {
+                MetricEvidence::Indeterminate(reason) => reason,
+                MetricEvidence::Known(_) => panic!("{name}: fixture expects unavailable evidence"),
+            }),
+            "{name} instability"
         );
         assert!(
             detail.incoming.is_empty(),
@@ -126,28 +135,44 @@ fn declarations_do_not_select_either_framework_or_an_assembly_name_collision() {
 }
 
 #[test]
-fn noncontributing_reference_is_retained_without_poisoning_either_count() {
+fn noncontributing_reference_never_reports_an_unselected_edge() {
     let (_root, tethys, db) = fixture();
-    db.execute_batch("UPDATE declared_project_references SET metadata_json = '{\"ReferenceOutputAssembly\":\"false\"}';").unwrap();
-    for row in tethys.get_coupling_metrics(CouplingSort::Name).unwrap() {
-        assert_eq!(row.afferent, MetricEvidence::Known(0));
-        assert_eq!(row.efferent, MetricEvidence::Known(0));
-        assert_eq!(row.instability(), MetricEvidence::Known(0.0));
-    }
+    // A reference to a project with no unit is genuinely unselected, so this
+    // fixture would report an unselected edge if the reference contributed.
+    db.execute_batch(
+        "INSERT INTO declared_project_references VALUES ('app-net8', 1, 'Missing/Missing.csproj', '../Missing/Missing.csproj', '{\"ReferenceOutputAssembly\":\"false\"}');",
+    )
+    .unwrap();
     let detail = tethys.get_package_coupling(APP).unwrap().unwrap();
-    assert!(detail.outgoing.is_empty());
+    assert_eq!(
+        detail.metrics.efferent,
+        MetricEvidence::Indeterminate(CouplingIndeterminacy::UnattributedEvaluationUnit),
+        "a reference that produces no output must not report an unselected edge"
+    );
     let declarations = &detail
         .metrics
         .evaluation_unit
         .as_ref()
         .unwrap()
         .declared_references;
-    assert_eq!(declarations.len(), 1);
-    assert_eq!(declarations[0].metadata["ReferenceOutputAssembly"], "false");
+    assert_eq!(declarations.len(), 2);
+    assert_eq!(declarations[1].metadata["ReferenceOutputAssembly"], "false");
+
+    // Control: the same target, contributing, does report the reason.
+    db.execute_batch(
+        "UPDATE declared_project_references SET metadata_json = '{}' WHERE ordinal = 1;",
+    )
+    .unwrap();
+    let detail = tethys.get_package_coupling(APP).unwrap().unwrap();
+    assert_eq!(
+        detail.metrics.efferent,
+        MetricEvidence::Indeterminate(CouplingIndeterminacy::UnselectedProjectReference),
+        "a contributing reference to an unselected project withholds the outgoing count"
+    );
 }
 
 #[test]
-fn incomplete_project_issue_and_failed_unit_each_withhold_csharp_incoming_only() {
+fn incomplete_project_issue_or_failed_unit_withholds_both_csharp_axes() {
     for evidence in ["project", "issue", "unit"] {
         let (_root, tethys, db) = fixture();
         db.execute_batch("INSERT INTO arch_packages (name,path,source) VALUES ('rust-isolated','rust','manifest');").unwrap();
@@ -171,20 +196,20 @@ fn incomplete_project_issue_and_failed_unit_each_withhold_csharp_incoming_only()
             }
             _ => unreachable!(),
         }
-        let incomplete = MetricEvidence::Indeterminate(CouplingIndeterminacy::IncompleteDiscovery);
+        let incomplete: MetricEvidence<u32> =
+            MetricEvidence::Indeterminate(CouplingIndeterminacy::IncompleteDiscovery);
+        let incomplete_ratio: MetricEvidence<f64> =
+            MetricEvidence::Indeterminate(CouplingIndeterminacy::IncompleteDiscovery);
+        // An incomplete inventory can hide a project or an input, so neither
+        // axis is published: one withheld axis beside a measured one would read
+        // as a measurement.
         let isolated = tethys.get_package_coupling(ISOLATED).unwrap().unwrap();
         assert_eq!(isolated.metrics.afferent, incomplete, "{evidence}");
-        assert_eq!(isolated.metrics.efferent, MetricEvidence::Known(0));
+        assert_eq!(isolated.metrics.efferent, incomplete, "{evidence}");
         let app = tethys.get_package_coupling(APP).unwrap().unwrap();
         assert_eq!(app.metrics.afferent, incomplete);
-        assert_eq!(
-            app.metrics.efferent,
-            MetricEvidence::Indeterminate(CouplingIndeterminacy::UnselectedProjectReference)
-        );
-        assert_eq!(
-            app.metrics.instability(),
-            MetricEvidence::Indeterminate(CouplingIndeterminacy::IncompleteDiscovery)
-        );
+        assert_eq!(app.metrics.efferent, incomplete);
+        assert_eq!(app.metrics.instability(), incomplete_ratio);
         if evidence == "unit" {
             let failed = tethys.get_package_coupling(CORE9).unwrap().unwrap();
             assert_eq!(failed.metrics.afferent, incomplete);
@@ -200,22 +225,65 @@ fn incomplete_project_issue_and_failed_unit_each_withhold_csharp_incoming_only()
     }
 }
 
+/// One measured edge, so unknown-ranked rows are distinguishable from measured ones.
+fn insert_measured_edge(db: &Connection) {
+    db.execute_batch(
+        "INSERT INTO arch_packages (name, path, source) VALUES ('rust-hub', 'hub', 'manifest');
+         INSERT INTO arch_packages (name, path, source) VALUES ('rust-leaf', 'leaf', 'manifest');
+         INSERT INTO arch_package_deps (source_pkg, target_pkg, dep_count)
+             SELECT hub.id, leaf.id, 2 FROM arch_packages hub, arch_packages leaf
+             WHERE hub.name = 'rust-hub' AND leaf.name = 'rust-leaf';",
+    )
+    .unwrap();
+}
+
 #[test]
-fn numeric_sorts_place_unknown_after_known_zero_with_name_ties() {
-    let (_root, tethys, _db) = fixture();
-    for (sort, expected) in [
-        (CouplingSort::Afferent, [APP, ISOLATED, CORE8, CORE9]),
-        (CouplingSort::Efferent, [CORE8, CORE9, ISOLATED, APP]),
-        (CouplingSort::Instability, [ISOLATED, APP, CORE8, CORE9]),
-    ] {
-        assert_eq!(
-            tethys
-                .get_coupling_metrics(sort)
-                .unwrap()
-                .iter()
-                .map(|row| row.package.name.as_str())
-                .collect::<Vec<_>>(),
-            expected
-        );
-    }
+fn a_declared_reference_does_not_replace_a_real_edge() {
+    let (_root, tethys, db) = fixture();
+    insert_measured_edge(&db);
+    // Positive control: the neighbor query demonstrably returns rows, so the
+    // emptiness assertions below are falsifiable rather than merely unfalsified.
+    let leaf = tethys.get_package_coupling("rust-leaf").unwrap().unwrap();
+    assert_eq!(leaf.metrics.afferent, MetricEvidence::Known(1));
+    assert_eq!(
+        leaf.incoming
+            .iter()
+            .map(|edge| (edge.package.name.as_str(), edge.dep_count))
+            .collect::<Vec<_>>(),
+        [("rust-hub", 2)]
+    );
+    let app = tethys.get_package_coupling(APP).unwrap().unwrap();
+    assert!(
+        app.outgoing.is_empty(),
+        "a declaration is not an edge even when the edge query works"
+    );
+    assert!(app.incoming.is_empty());
+}
+
+#[test]
+fn numeric_sorts_place_measured_counts_before_unknown_ones() {
+    let (_root, tethys, db) = fixture();
+    insert_measured_edge(&db);
+    let names = |sort| {
+        tethys
+            .get_coupling_metrics(sort)
+            .unwrap()
+            .iter()
+            .map(|row| row.package.name.clone())
+            .collect::<Vec<_>>()
+    };
+    // rust-leaf is the only package with a measured incoming count; rust-hub the
+    // only one with a measured outgoing count. Both outrank the unattributed
+    // units, which tie and fall back to the name break.
+    assert_eq!(
+        names(CouplingSort::Afferent).first().map(String::as_str),
+        Some("rust-leaf")
+    );
+    assert_eq!(
+        names(CouplingSort::Efferent).first().map(String::as_str),
+        Some("rust-hub")
+    );
+    let instability = names(CouplingSort::Instability);
+    assert_eq!(instability.first().map(String::as_str), Some("rust-hub"));
+    assert_eq!(instability.get(1).map(String::as_str), Some("rust-leaf"));
 }
