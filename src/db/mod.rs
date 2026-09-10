@@ -53,7 +53,7 @@ pub(crate) use helpers::{
     FILES_COLUMNS, REFS_COLUMNS, SYMBOLS_COLUMNS, parse_language, parse_symbol_kind, row_to_import,
     row_to_indexed_file, row_to_reference, row_to_symbol,
 };
-pub(crate) use schema::SCHEMA;
+pub(crate) use schema::install_schema;
 
 // Test-only re-exports: fixture helper for authoring ref rows directly,
 // and the canonical qualified-name builder (production callers reach it
@@ -125,7 +125,7 @@ impl Index {
             revision::configure_connection(&conn)?;
             if initialize {
                 let tx = conn.savepoint()?;
-                tx.execute_batch(SCHEMA)?;
+                install_schema(&tx)?;
                 tx.commit()?;
             }
         }
