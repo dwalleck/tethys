@@ -1,0 +1,8 @@
+{
+  "path": "src/architecture.rs",
+  "before": "            metric.efferent = Indeterminate(UnselectedProjectReference);",
+  "after": "            metric.efferent = MetricEvidence::Known(0);",
+  "tests": [
+    "declarations_do_not_select_either_framework_or_an_assembly_name_collision"
+  ]
+}

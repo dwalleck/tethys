@@ -1,6 +1,6 @@
 //! Integration tests for module path computation during indexing.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tethys::cargo::{compute_module_path, discover_crates, get_crate_for_file};
 use tethys::{CrateInfo, SymbolKind, Tethys};
@@ -9,12 +9,17 @@ use tethys::{CrateInfo, SymbolKind, Tethys};
 ///
 /// Returns `(workspace_path, discovered_crates)` if successful, or prints skip message.
 fn get_workspace_with_crates() -> Option<(PathBuf, Vec<CrateInfo>)> {
-    let workspace = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    // No grandparent when the crate sits two directories below a filesystem root;
+    // report that as a skip like every other unusable-workspace case here.
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let Some(workspace) = manifest
         .parent()
-        .expect("tethys should be in crates/")
-        .parent()
-        .expect("crates/ should be in workspace root")
-        .to_path_buf();
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+    else {
+        eprintln!("Skipping test: crate is not nested under a workspace");
+        return None;
+    };
 
     let crates = discover_crates(&workspace);
 

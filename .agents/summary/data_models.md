@@ -10,7 +10,7 @@ between tree-sitter and the domain model.
 
 ## Database Schema
 
-Schema **2** publishes discovery and source facts under one `index_revision`.
+Schema **3** publishes discovery and source facts under one `index_revision`.
 Incompatible schemas require a transactional `index --rebuild`; ordinary open
 refuses them without mutation. The discovery tables hold one active result, not
 a revision history.
@@ -32,6 +32,7 @@ erDiagram
     projects ||--o{ evaluation_units : "project_key"
     projects ||--o{ evaluation_inputs : "project_key"
     evaluation_units ||--o{ file_participation : "unit_key"
+    evaluation_units |o--o| arch_packages : "nullable unique evaluation_unit_key"
     files |o--o{ file_participation : "nullable file_id"
     evaluation_units ||--o{ declared_project_references : "unit_key"
     evaluation_units ||--o{ declared_assembly_references : "unit_key"
@@ -170,7 +171,8 @@ erDiagram
         int id PK
         text name UK
         text path
-        text source "manifest|directory"
+        text source "manifest|directory|msbuild"
+        text evaluation_unit_key FK,UK "NULL for Cargo"
     }
     arch_file_packages {
         int file_id PK,FK
@@ -235,8 +237,11 @@ erDiagram
   `name` is the attribute path's leading identifier; `args` is raw text inside
   the outermost parens (NULL for marker attributes).
 - **arch_packages / arch_file_packages / arch_package_deps** — architecture
-  analysis: packages, file→package assignment (one package per file), and
-  cross-package edges rolled up from `file_deps` (self-edges excluded).
+  analysis nodes for crates or evaluation units. `evaluation_unit_key` uniquely
+  links MSBuild nodes to persisted metadata. File assignment remains one crate
+  per Rust file; C# memberships stay many-to-many in `file_participation`.
+  Rust cross-crate edges roll up from `file_deps` (self-edges excluded);
+  project declarations never manufacture selected-unit edges.
 - **arch_coupling** (VIEW) — computes afferent (Ca) and efferent (Ce) coupling
   via `LEFT JOIN`s so zero-edge packages stay visible. Instability is **not**
   computed in SQL.
@@ -283,11 +288,14 @@ erDiagram
 | `StalenessReport` / `IndexUpdate` | Reindex inputs/outputs. |
 | `FileAnalysis` | Per-file analysis result. |
 
-### Architecture types
+### Architecture types (`src/architecture.rs`)
 
-`Package`, `CouplingMetrics` (Ca, Ce, `instability` = Ce/(Ca+Ce)),
-`CouplingDetail` (drill-down with neighbors), `PackageDependency`, `ArchStats`,
-`ArchPhaseResult`.
+`Package`, `PackageId`, `CouplingSort`, `CouplingMetrics`, `CouplingDetail`,
+`PackageDependency`, `ArchStats`, and `ArchPhaseResult` are re-exported from
+the library root. Counts and derived instability use `MetricEvidence<T>`:
+`Known(T)` or `Indeterminate(CouplingIndeterminacy)`. `EvaluationUnitCoupling`
+retains unit/project identity, framework, standing, assembly metadata and
+separate declared references.
 
 ### LSP types
 

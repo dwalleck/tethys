@@ -33,6 +33,7 @@
 //! # Ok::<(), tethys::Error>(())
 //! ```
 
+mod architecture;
 mod batch_writer;
 pub mod cargo;
 mod db;
@@ -50,6 +51,11 @@ mod resolver;
 mod types;
 mod unused_imports;
 
+pub use architecture::{
+    ArchPhaseResult, ArchStats, CouplingDetail, CouplingIndeterminacy, CouplingMetrics,
+    CouplingSort, EvaluationUnitCoupling, MetricEvidence, Package, PackageDependency, PackageId,
+    PackageSource,
+};
 pub use cargo::discover_crates;
 pub use db::{
     Demotion, DeprecatedFinding, DeprecatedSymbol, HierarchyDirection, HierarchyNode,
@@ -59,14 +65,13 @@ pub use dead_code::{DeadCodeFinding, DeadCodeReport, DeadCodeSummary};
 pub use error::{Error, IndexError, IndexErrorKind, Result};
 pub use graph::{FileImpact, FileImpactDependent, SymbolImpact, SymbolImpactCaller};
 pub use types::{
-    AffectedTestsReport, ArchPhaseResult, ArchStats, CallEdgeSelection, Caller, CallerMode,
-    CouplingDetail, CouplingMetrics, CouplingSort, CrateInfo, Cycle, DatabaseStats, FileAnalysis,
-    FileId, FunctionSignature, Import, IndexOptions, IndexStats, IndexUpdate, IndexedFile,
-    Language, LspCompletedSession, LspOutcome, LspSessionResult, Package, PackageDependency,
-    PackageId, PackageSource, PanicKind, PanicPoint, Parameter, ParameterKind, QueryStanding,
-    ReachabilityDirection, ReachabilityResult, ReachablePath, Reference, ReferenceKind,
-    ResolutionStrategy, Span, StalenessReport, StandingReason, StandingReasonKind, Symbol,
-    SymbolId, SymbolKind, UnresolvedRefForLsp, Visibility,
+    AffectedTestsReport, CallEdgeSelection, Caller, CallerMode, CrateInfo, Cycle, DatabaseStats,
+    FileAnalysis, FileId, FunctionSignature, Import, IndexOptions, IndexStats, IndexUpdate,
+    IndexedFile, Language, LspCompletedSession, LspOutcome, LspSessionResult, PanicKind,
+    PanicPoint, Parameter, ParameterKind, QueryStanding, ReachabilityDirection, ReachabilityResult,
+    ReachablePath, Reference, ReferenceKind, ResolutionStrategy, Span, StalenessReport,
+    StandingReason, StandingReasonKind, Symbol, SymbolId, SymbolKind, UnresolvedRefForLsp,
+    Visibility,
 };
 pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 
@@ -91,18 +96,6 @@ pub struct Tethys {
     db: Index,
     crates: Vec<CrateInfo>,
     discovery: OnceLock<Arc<DiscoverySnapshot>>,
-}
-
-/// Whether persisted crate roots still describe this workspace on disk.
-///
-/// A publication records absolute crate paths, so a copied, moved or pruned
-/// workspace silently loses Rust crate attribution until the next index. The
-/// crate list is the only discovery state every open reads, so it is cheap to
-/// re-derive when the persisted roots no longer exist under this root.
-fn crates_are_current(crates: &[CrateInfo], workspace_root: &Path) -> bool {
-    crates
-        .iter()
-        .all(|krate| krate.path.starts_with(workspace_root) && krate.path.is_dir())
 }
 
 /// The canonical on-disk location of a workspace's index:
@@ -211,7 +204,7 @@ impl Tethys {
             cargo::discover_crates(&workspace_root)
         } else {
             db.discovery_crates()?
-                .filter(|crates| crates_are_current(crates, &workspace_root))
+                .filter(|crates| cargo::crates_are_current(crates, &workspace_root))
                 .unwrap_or_else(|| cargo::discover_crates(&workspace_root))
         };
 
@@ -1212,33 +1205,33 @@ impl Tethys {
 
     // === Architecture ===
 
-    /// List all packages discovered during the last index run.
-    /// Empty for non-Rust workspaces or before any index has run.
+    /// List crate and evaluation-unit architecture nodes from the last index run.
+    /// Empty before architecture facts have been published.
     ///
     /// # Errors
     /// Returns an error if the database query fails.
-    pub fn get_packages(&self) -> Result<Vec<types::Package>> {
+    pub fn get_packages(&self) -> Result<Vec<Package>> {
         self.db.get_packages()
     }
 
     /// Coupling metrics for every package, sorted per the requested key.
+    /// Evaluated-unit metrics distinguish known counts from unavailable evidence.
+    /// Counts and metadata are read from one published `SQLite` snapshot.
     ///
     /// # Errors
     /// Returns an error if the database query fails.
-    pub fn get_coupling_metrics(
-        &self,
-        sort: types::CouplingSort,
-    ) -> Result<Vec<types::CouplingMetrics>> {
+    pub fn get_coupling_metrics(&self, sort: CouplingSort) -> Result<Vec<CouplingMetrics>> {
         self.db.get_coupling_metrics(sort)
     }
 
-    /// Detailed coupling for one package by exact name.
-    /// Returns `Ok(None)` when no package matches.
+    /// Detailed coupling for one architecture node by exact [`Package::name`].
+    /// Evaluated-unit names include project and unit keys, never just assembly name.
+    /// Returns `Ok(None)` when no node matches; component reads share one snapshot.
     ///
     /// # Errors
     /// Returns an error if the database query fails or if the matched
     /// package row has a corrupt `source` column.
-    pub fn get_package_coupling(&self, name: &str) -> Result<Option<types::CouplingDetail>> {
+    pub fn get_package_coupling(&self, name: &str) -> Result<Option<CouplingDetail>> {
         self.db.get_package_coupling(name)
     }
 }

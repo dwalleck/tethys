@@ -229,7 +229,40 @@ def discovery(companion, host):
               "zero-evaluation hit, glob/project mutations, cached/forced equivalence")
 
 
-def measured_cli(binary, root, arguments, environment, expected, timeout):
+def windows_root_high_water(child):
+    """Read OS root-process working-set high-water while Popen owns its handle."""
+    if os.name != "nt":
+        return None, "unavailable: Windows process API not applicable"
+    import ctypes
+    from ctypes import wintypes
+
+    class ProcessMemoryCounters(ctypes.Structure):
+        _fields_ = [
+            ("cb", wintypes.DWORD), ("PageFaultCount", wintypes.DWORD),
+            ("PeakWorkingSetSize", ctypes.c_size_t), ("WorkingSetSize", ctypes.c_size_t),
+            ("QuotaPeakPagedPoolUsage", ctypes.c_size_t), ("QuotaPagedPoolUsage", ctypes.c_size_t),
+            ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t), ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+            ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t),
+        ]
+
+    try:
+        query = ctypes.WinDLL("psapi", use_last_error=True).GetProcessMemoryInfo
+        query.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessMemoryCounters), wintypes.DWORD]
+        query.restype = wintypes.BOOL
+        counters = ProcessMemoryCounters()
+        counters.cb = ctypes.sizeof(counters)
+        if not query(wintypes.HANDLE(int(child._handle)), ctypes.byref(counters), counters.cb):
+            return None, f"unavailable: GetProcessMemoryInfo failed with Windows error {ctypes.get_last_error()}"
+        if counters.PeakWorkingSetSize <= 0:
+            return None, "unavailable: GetProcessMemoryInfo returned no positive working-set high-water"
+        return int(counters.PeakWorkingSetSize), (
+            "measured: GetProcessMemoryInfo PeakWorkingSetSize bytes; root-process scope, not sampled tree RSS")
+    except (OSError, AttributeError) as error:
+        return None, f"unavailable: Windows root-process API {type(error).__name__}"
+
+
+def measured_cli(binary, root, arguments, environment, expected, timeout, *,
+                 input_text=None, capture=None):
     """Sample DB/sidecars and optional tree RSS; keep wait4 accounting separate."""
     started = time.monotonic()
     command = [str(binary), "-w", str(root), *map(str, arguments)]
@@ -253,9 +286,14 @@ def measured_cli(binary, root, arguments, environment, expected, timeout):
     tree_peak = None
     tree_status = "unavailable: optional psutil is not installed"
     database_peak = database_bytes()
+    sampling_incomplete = False
     known_descendants = {}
-    with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
-        child = subprocess.Popen(command, cwd=root, env=environment, stdout=stdout, stderr=stderr)
+    with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr, tempfile.TemporaryFile() as stdin:
+        if input_text is not None:
+            stdin.write(input_text.encode())
+            stdin.seek(0)
+        child = subprocess.Popen(command, cwd=root, env=environment, stdout=stdout, stderr=stderr,
+                                 stdin=stdin if input_text is not None else subprocess.DEVNULL)
         tree = None
         try:
             if psutil:
@@ -271,9 +309,12 @@ def measured_cli(binary, root, arguments, environment, expected, timeout):
                         known_descendants.update((process.pid, process) for process in descendants)
                         rss = sum(process.memory_info().rss for process in [tree, *descendants])
                         tree_peak = max(tree_peak or 0, rss)
-                        tree_status = "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)"
+                        tree_status = ("incomplete: one or more process-tree samples raced process exit"
+                                       if sampling_incomplete else
+                                       "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)")
                     except psutil.NoSuchProcess:
-                        pass  # Normal sampling race with an exiting native child.
+                        sampling_incomplete = True
+                        tree_status = "incomplete: process exited during RSS sampling"
                     except psutil.AccessDenied:
                         tree_status = "unavailable: process-tree access denied"
                         tree = None
@@ -312,9 +353,13 @@ def measured_cli(binary, root, arguments, environment, expected, timeout):
                     if child.returncode is None:
                         child.kill()
                         child.wait()
+        process_wall_seconds = time.monotonic() - started
+        windows_peak, windows_peak_status = windows_root_high_water(child)
         stdout.seek(0)
         stderr.seek(0)
         output, errors = stdout.read().decode(), stderr.read().decode()
+        if capture is not None:
+            capture.update(stdout=output, stderr=errors, exit_code=child.returncode)
     final_database_bytes = database_bytes()
     database_peak = max(database_peak, final_database_bytes)
     if tree_peak == 0:
@@ -323,9 +368,11 @@ def measured_cli(binary, root, arguments, environment, expected, timeout):
     require(child.returncode == expected,
             f"expected exit {expected}, got {child.returncode}: {command}\n{output}\n{errors}")
     measurement = {
-        "command": command, "exit": child.returncode, "wall_seconds": time.monotonic() - started,
+        "command": command, "exit": child.returncode, "wall_seconds": process_wall_seconds,
         "wait4_maxrss_native_units": usage.ru_maxrss if usage else None,
         "wait4_status": "measured; KiB on Linux, bytes on macOS" if usage else "unavailable on this platform",
+        "windows_root_process_peak_working_set_bytes": windows_peak,
+        "windows_root_process_peak_working_set_status": windows_peak_status,
         "process_tree_sampled_peak_rss_bytes": tree_peak,
         "process_tree_rss_status": tree_status,
         "index_and_sidecar_sampled_peak_bytes": database_peak,

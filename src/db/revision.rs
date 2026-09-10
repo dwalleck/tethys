@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use rusqlite::Connection;
 
 use super::Index;
-use super::schema::{DROP_SCHEMA, SCHEMA, SCHEMA_VERSION};
+use super::schema::{DROP_SCHEMA, SCHEMA_VERSION, install_schema};
 use crate::error::{Error, Result};
 
 /// An unpublished revision on the index's shared connection.
@@ -56,7 +56,7 @@ impl Index {
             let conn = self.connection()?;
             conn.flush_prepared_statement_cache();
             conn.execute_batch(DROP_SCHEMA)?;
-            conn.execute_batch(SCHEMA)?;
+            install_schema(&conn)?;
         }
         Ok(revision)
     }

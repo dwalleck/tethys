@@ -628,8 +628,10 @@ impl<'a> HostSelector<'a> {
     ) -> Result<(PathBuf, String), DiscoveryFailure> {
         let unavailable =
             |error: io::Error| failure(Reason::ToolchainUnavailable, error.to_string());
-        // The installed muxer is the authority for global.json, prerelease and roll-forward.
-        let selected_version = if explicit.is_none() || policy.is_some() {
+        // The installed muxer is the authority for global.json, prerelease and roll-forward,
+        // but only implicit discovery consults it: an explicit installation selects its own
+        // muxer (docs/msbuild-evaluation.md), so a repo-level SDK pin must not reject it.
+        let selected_version = if explicit.is_none() {
             let output =
                 self.probe(Command::new(dotnet).arg("--version").current_dir(directory))?;
             if !output.status.success() {
@@ -677,12 +679,6 @@ impl<'a> HostSelector<'a> {
                     || selected_version.as_deref() == Some(version),
                     |path| path == candidate,
                 ) {
-                    if policy.is_some() && selected_version.as_deref() != Some(version) {
-                        return Err(failure(
-                            Reason::SdkUnresolved,
-                            "explicit MSBuild SDK conflicts with the SDK selected by global.json",
-                        ));
-                    }
                     matched = Some((candidate, version.to_owned()));
                 }
             }

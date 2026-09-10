@@ -1,0 +1,26 @@
+{
+  "claim": "C10",
+  "repair": "F33",
+  "authority": [
+    "/home/dwalleck/.local-dotnet/dotnet",
+    "/home/dwalleck/.local-dotnet/sdk/8.0.417/MSBuild.dll"
+  ],
+  "source_sha256": "1ab9669755e4add4ba10f54ac2efd742cbf69cafcdd0edcddd984fed0fe99126",
+  "raw_worker_fixture": {
+    "TargetFrameworkIdentifier": "",
+    "TargetFrameworkVersion": ""
+  },
+  "complete_coupling_fixture": {
+    "TargetFrameworkIdentifier": ".NETFramework",
+    "TargetFrameworkVersion": "v4.8"
+  },
+  "missing_targets_control": {
+    "TargetFrameworkIdentifier": "",
+    "TargetFrameworkVersion": "v4.8"
+  },
+  "restored": {
+    "TargetFrameworkIdentifier": ".NETFramework",
+    "TargetFrameworkVersion": "v4.8"
+  },
+  "scope": "Direct Linux selected-SDK MSBuild evaluation of actual generated fixture bytes; not Windows platform acceptance."
+}

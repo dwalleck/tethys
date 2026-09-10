@@ -4,6 +4,7 @@
 //! Cargo.toml manifest files. It supports workspaces, single crates,
 //! and virtual workspaces.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use cargo_toml::Manifest;
@@ -441,6 +442,109 @@ fn glob_member(workspace_root: &Path, pattern: &str) -> std::io::Result<Vec<Path
     Ok(results)
 }
 
+/// Pre-built file→crate assignment index for O(depth) ancestor-walk lookups.
+///
+/// Shared by [`Tethys::run_architecture_phase`] and
+/// [`Tethys::build_file_crate_map`] (idxperf claim C8): the alternative —
+/// `cargo::get_crate_for_file` — costs an O(crates) linear scan plus a
+/// `canonicalize()` syscall per file. Skipping the canonicalize here is safe
+/// because both `workspace_root` (canonicalized in `Tethys::new`) and each
+/// `CrateInfo::path` (canonicalized in crate discovery) are canonical at
+/// construction time.
+pub(crate) struct CrateIndex<'a> {
+    by_path: HashMap<&'a Path, &'a crate::types::CrateInfo>,
+}
+
+impl<'a> CrateIndex<'a> {
+    pub(crate) fn new(crates: &'a [crate::types::CrateInfo]) -> Self {
+        Self {
+            by_path: crates.iter().map(|c| (c.path.as_path(), c)).collect(),
+        }
+    }
+
+    /// Longest-prefix crate match for an absolute file path.
+    ///
+    /// `Path::ancestors()` yields the path itself first, then progressively
+    /// shorter parents, so the first hit IS the longest-prefix match —
+    /// matching `get_crate_for_file`'s nested-crate semantics (a file in
+    /// `foo-utils/` must map to `foo-utils`, never to a sibling `foo`).
+    fn crate_for(&self, abs: &Path) -> Option<&'a crate::types::CrateInfo> {
+        abs.ancestors().find_map(|p| self.by_path.get(p).copied())
+    }
+
+    /// Longest-prefix crate match for a stored file path.
+    ///
+    /// Resolves the (workspace-relative) `file_path` to absolute against
+    /// `workspace_root` before the ancestor walk, tolerating an
+    /// already-absolute stored path. Both callers store the identical
+    /// resolution rule here so it can never drift between them.
+    pub(crate) fn crate_for_file(
+        &self,
+        file: &crate::IndexedFile,
+        workspace_root: &Path,
+    ) -> Option<&'a crate::types::CrateInfo> {
+        if file.language != crate::Language::Rust {
+            tracing::trace!(path = %file.path.display(), "non-Rust file has no Cargo attribution");
+            return None;
+        }
+        let file_path = &file.path;
+        let abs = if file_path.is_absolute() {
+            std::borrow::Cow::Borrowed(file_path.as_path())
+        } else {
+            std::borrow::Cow::Owned(workspace_root.join(file_path))
+        };
+        self.crate_for(&abs)
+    }
+}
+
+/// Whether persisted crate roots still describe this workspace on disk.
+///
+/// A publication records absolute crate paths, so a copied, moved or pruned
+/// workspace silently loses Rust crate attribution until the next index. The
+/// crate list is the only discovery state every open reads, so it is cheap to
+/// re-derive when the persisted roots no longer exist under this root.
+pub(crate) fn crates_are_current(crates: &[CrateInfo], workspace_root: &Path) -> bool {
+    crates
+        .iter()
+        .all(|krate| krate.path.starts_with(workspace_root) && krate.path.is_dir())
+}
+
+/// Cargo-only node attribution preserves logical Rust paths and discovery order.
+pub(crate) fn architecture_inputs<'a>(
+    crates: &'a [CrateInfo],
+    files: &[crate::IndexedFile],
+    root: &Path,
+) -> (
+    Vec<crate::architecture::ArchitecturePackage>,
+    Vec<(crate::FileId, &'a str)>,
+) {
+    let packages = crates
+        .iter()
+        .map(|info| crate::architecture::ArchitecturePackage {
+            name: info.name.clone(),
+            // ProjectKey and every other stored path use forward slashes;
+            // match them so one column does not carry two spellings on Windows.
+            path: info
+                .path
+                .strip_prefix(root)
+                .unwrap_or(&info.path)
+                .to_string_lossy()
+                .replace(std::path::MAIN_SEPARATOR, "/"),
+            source: crate::PackageSource::Manifest,
+            evaluation_unit_key: None,
+        })
+        .collect();
+    let index = CrateIndex::new(crates);
+    let assignments = files
+        .iter()
+        .filter_map(|file| {
+            index
+                .crate_for_file(file, root)
+                .map(|info| (file.id, info.name.as_str()))
+        })
+        .collect();
+    (packages, assignments)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -449,11 +553,19 @@ mod tests {
     #[test]
     fn glob_member_expands_simple_pattern() {
         // This test uses the actual rivets workspace structure
-        let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
+        // A crate two directories below a filesystem root has no grandparent, so
+        // reach for the workspace instead of asserting one exists. This test already
+        // skips outside the rivets monorepo, and a checkout at `C:\tethys` or
+        // `/srv/tethys` is that same "not the monorepo" case rather than a failure.
+        let Some(workspace) = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
-            .expect("CARGO_MANIFEST_DIR should have parent directory")
-            .parent()
-            .expect("tethys crate should be nested under workspace");
+            .and_then(Path::parent)
+        else {
+            eprintln!(
+                "Skipping glob_member_expands_simple_pattern: crate is not nested under a workspace"
+            );
+            return;
+        };
 
         let results = glob_member(workspace, "crates/*").expect("glob should work");
 

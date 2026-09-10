@@ -8,11 +8,54 @@
     "src/batch_writer.rs": {"growth": 100, "forbidden_functions": ["evaluate_msbuild", "parse_solution", "restore_project", "cache_key"]},
     "src/main.rs": {"growth": 100, "forbidden_functions": ["evaluate_msbuild", "parse_solution", "restore_project", "cache_key"]}
   },
-  "source_identity": {
-    "stage": "S4",
-    "owner": "src/languages/module_resolver.rs",
-    "symbols": ["ModuleResolver", "SourcePathIdentity", "source_path_identity"]
-  },
+  "owned_symbols": [
+    {
+      "stage": "S3",
+      "owner": "src/discovery/msbuild/restore/graph.rs",
+      "symbols": ["RestoreGraphEvidence"],
+      "visibility": "pub(super)",
+      "impl_owner": true
+    },
+    {
+      "stage": "S3",
+      "owner": "src/discovery/msbuild/restore/graph/dependencies.rs",
+      "symbols": ["package_dependencies_match", "exact_version"],
+      "visibility": "pub(super)"
+    },
+    {
+      "stage": "S4",
+      "owner": "src/languages/module_resolver.rs",
+      "symbols": ["ModuleResolver", "SourcePathIdentity", "source_path_identity"],
+      "crate_private": true
+    },
+    {
+      "stage": "S5",
+      "owner": "src/architecture.rs",
+      "symbols": [
+        "MetricEvidence", "CouplingIndeterminacy", "EvaluationUnitCoupling",
+        "ArchPhaseResult", "PackageId", "PackageSource", "Package",
+        "CouplingMetrics", "CouplingSort", "PackageDependency", "CouplingDetail",
+        "ArchStats"
+      ]
+    },
+    {
+      "stage": "S5",
+      "owner": "src/architecture.rs",
+      "symbols": ["ArchitecturePackage", "run_architecture_phase", "apply_evidence"],
+      "crate_private": true
+    },
+    {
+      "stage": "S5",
+      "owner": "src/cargo.rs",
+      "symbols": []
+    },
+    {
+      "stage": "S5",
+      "owner": "src/cargo.rs",
+      "symbols": ["CrateIndex", "architecture_inputs"],
+      "crate_private": true
+    }
+  ],
   "allowed_production": [
     "src/lib.rs", "src/indexing.rs", "src/reindex.rs", "src/batch_writer.rs", "src/cargo.rs",
     "src/languages/module_resolver.rs", "src/resolve.rs", "src/unused_imports.rs", "src/db/mod.rs", "src/db/revision.rs",
@@ -26,12 +69,42 @@
     "tools/tethys-msbuild-evaluate/Program.cs", "tools/tethys-msbuild-evaluate/Evaluation.cs",
     "tools/tethys-msbuild-evaluate/Contract.cs", "tools/tethys-msbuild-evaluate/Tethys.MSBuild.Evaluate.csproj"
   ],
+  "module_limits": [
+    {
+      "stage": "S3",
+      "path": "src/discovery/msbuild/restore.rs",
+      "max_production_lines": 1600
+    },
+    {
+      "stage": "S3",
+      "path": "src/discovery/msbuild/restore/graph/dependencies.rs",
+      "max_production_lines": 140,
+      "forbidden_identifiers": ["Command", "process", "Index", "Tethys", "HostSelection", "DiscoveryRequest", "Path", "PathBuf"]
+    },
+    {
+      "stage": "S3",
+      "path": "src/discovery/msbuild/restore/graph.rs",
+      "max_production_lines": 240,
+      "forbidden_identifiers": ["Command", "process", "Index", "Tethys", "HostSelection", "DiscoveryRequest"]
+    }
+  ],
   "required": {
     "S1": ["src/db/revision.rs", "tests/revision_publication.rs"],
     "S2": ["tools/tethys-msbuild-evaluate/Evaluation.cs"],
-    "S3": ["src/discovery/mod.rs", "src/discovery/types.rs", "src/discovery/msbuild/mod.rs"],
+    "S3": ["src/discovery/mod.rs", "src/discovery/types.rs", "src/discovery/msbuild/mod.rs", "src/discovery/msbuild/restore/graph.rs", "src/discovery/msbuild/restore/graph/dependencies.rs"],
     "S4": ["src/db/discovery.rs"],
     "S5": ["src/architecture.rs", "tests/csharp_coupling.rs"],
-    "S6": []
+    "S6": [
+      ".tethys-82a6/oracles/qualification.py",
+      ".tethys-82a6/oracles/qualification_limits.py",
+      ".tethys-82a6/oracles/qualification_runtime.py",
+      ".tethys-82a6/oracles/qualification_driver.rs",
+      ".tethys-82a6/oracles/qualification_fixtures.py",
+      ".tethys-82a6/oracles/qualification_corpus.py",
+      ".tethys-82a6/oracles/qualification_environment.py",
+      "tests/fixtures/msbuild/qualification/shapes.json",
+      "tests/fixtures/msbuild/qualification/corpus.json",
+      "tests/fixtures/msbuild/qualification/limits.json"
+    ]
   }
 }

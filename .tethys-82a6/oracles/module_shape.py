@@ -77,11 +77,10 @@ def production_lines(parser, source):
 def main():
     args = argparse.ArgumentParser()
     args.add_argument("--stage", required=True, choices=[f"S{i}" for i in range(1, 7)])
-    args.add_argument("--base")
     options = args.parse_args()
     root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel"))
     ledger = json.loads((Path(__file__).parent / "ledger.json").read_text())
-    # Explicit baseline is pinned in the ledger; discover the actual tracking ref.
+    # Discover the actual tracking ref and require it to contain the pinned ledger baseline.
     try:
         upstream = git(root, "rev-parse", "--abbrev-ref", "@{upstream}")
     except subprocess.CalledProcessError:
@@ -93,10 +92,19 @@ def main():
             except subprocess.CalledProcessError:
                 continue
         if len(heads) != 1:
-            raise RuntimeError("C13 cannot uniquely discover upstream; pass --base")
+            raise RuntimeError("C13 cannot uniquely discover upstream tracking ref")
         upstream = heads[0]
-    base = options.base or ledger["baseline"]
-    git(root, "rev-parse", "--verify", base)
+    baseline = ledger["baseline"]
+    baseline_commit = git(root, "rev-parse", "--verify", f"{baseline}^{{commit}}")
+    upstream_commit = git(root, "rev-parse", "--verify", f"{upstream}^{{commit}}")
+    try:
+        git(root, "merge-base", "--is-ancestor", baseline_commit, upstream_commit)
+    except subprocess.CalledProcessError:
+        raise RuntimeError(
+            f"C13 ledger baseline {baseline_commit} is not an ancestor of discovered "
+            f"upstream {upstream} ({upstream_commit}); update the ledger baseline deliberately"
+        )
+    base = baseline_commit
     parser = tree_sitter.Parser(tree_sitter.Language(tree_sitter_rust.language()))
     failures = []
     changed = set(git(root, "diff", "--name-only", base, "--", "src", "tools").splitlines())
@@ -119,6 +127,24 @@ def main():
             for path in paths:
                 if not (root / path).is_file():
                     failures.append(f"C13 {path}: required by {stage}")
+    for rule in ledger.get("module_limits", []):
+        if int(rule["stage"][1:]) > int(options.stage[1:]):
+            continue
+        path = rule["path"]
+        if not (root / path).is_file():
+            failures.append(f"C13 {path}: required bounded owner is absent")
+            continue
+        source = (root / path).read_bytes()
+        count = len(production_lines(parser, source))
+        if count > rule["max_production_lines"]:
+            failures.append(f"C13 {path}: production footprint {count} exceeds {rule['max_production_lines']}")
+        forbidden = set(rule.get("forbidden_identifiers", []))
+        if forbidden:
+            for node in source_nodes(parser, source, path):
+                if node.type in ("identifier", "type_identifier"):
+                    name = source[node.start_byte:node.end_byte].decode()
+                    if name in forbidden:
+                        failures.append(f"C13 {path}:{node.start_point.row+1}: forbidden responsibility identifier {name}")
     for path, rule in ledger["protected"].items():
         source = (root / path).read_bytes()
         baseline = subprocess.check_output(["git", "-C", str(root), "show", f"{base}:{path}"])
@@ -151,9 +177,14 @@ def main():
                         )
             if path == "src/batch_writer.rs" and node.type == "scoped_identifier" and text == "Index::open":
                 failures.append(f"C13 {path}:{node.start_point.row+1}: independent writer connection")
-    identity = ledger["source_identity"]
-    if int(options.stage[1:]) >= int(identity["stage"][1:]):
-        expected = set(identity["symbols"])
+    ownership = {
+        name: rule
+        for rule in ledger["owned_symbols"]
+        if int(options.stage[1:]) >= int(rule["stage"][1:])
+        for name in rule["symbols"]
+    }
+    if ownership:
+        expected = set(ownership)
         spellings = tuple(name.encode() for name in expected)
         found = set()
         for path in sorted((root / "src").rglob("*.rs")):
@@ -165,7 +196,18 @@ def main():
                 continue
             relative = path.relative_to(root).as_posix()
             for node in source_nodes(parser, source, relative):
-                if node.type not in ("enum_item", "trait_item", "function_item", "function_signature_item"):
+                if node.type == "impl_item":
+                    type_node = node.child_by_field_name("type")
+                    if type_node is not None:
+                        name = source[type_node.start_byte:type_node.end_byte].decode().rsplit("::", 1)[-1]
+                        rule = ownership.get(name)
+                        if rule and rule.get("impl_owner") and relative != rule["owner"]:
+                            failures.append(f"C13 {relative}:{node.start_point.row+1}: forbidden implementation owner of {name}; expected {rule['owner']}")
+                    continue
+                if node.type not in (
+                    "struct_item", "enum_item", "trait_item", "type_item", "associated_type",
+                    "function_item", "function_signature_item",
+                ):
                     continue
                 name_node = node.child_by_field_name("name")
                 if name_node is None:
@@ -173,16 +215,27 @@ def main():
                 name = source[name_node.start_byte:name_node.end_byte].decode().removeprefix("r#")
                 if name not in expected:
                     continue
-                found.add(name)
-                if relative != identity["owner"]:
-                    failures.append(f"C13 {relative}:{node.start_point.row+1}: forbidden owner of {name}; expected {identity['owner']}")
-                for child in node.named_children:
-                    if child.type == "visibility_modifier":
-                        visibility = source[child.start_byte:child.end_byte]
-                        if visibility != b"pub(crate)":
-                            failures.append(f"C13 {relative}:{node.start_point.row+1}: {name} must remain crate-private")
+                rule = ownership[name]
+                if relative != rule["owner"]:
+                    failures.append(f"C13 {relative}:{node.start_point.row+1}: forbidden owner of {name}; expected {rule['owner']}")
+                else:
+                    found.add(name)
+                if "visibility" in rule:
+                    visibility = next(
+                        (source[child.start_byte:child.end_byte].decode()
+                         for child in node.named_children if child.type == "visibility_modifier"),
+                        "",
+                    )
+                    if visibility != rule["visibility"]:
+                        failures.append(f"C13 {relative}:{node.start_point.row+1}: {name} must remain {rule['visibility']}")
+                if rule.get("crate_private", False):
+                    for child in node.named_children:
+                        if child.type == "visibility_modifier":
+                            visibility = source[child.start_byte:child.end_byte]
+                            if visibility != b"pub(crate)":
+                                failures.append(f"C13 {relative}:{node.start_point.row+1}: {name} must remain crate-private")
         for name in sorted(expected - found):
-            failures.append(f"C13 {identity['owner']}: required source-identity symbol {name} is absent")
+            failures.append(f"C13 {ownership[name]['owner']}: required owned symbol {name} is absent")
     for directory in (root / "src/discovery",):
         if directory.exists():
             for path in directory.rglob("*.rs"):

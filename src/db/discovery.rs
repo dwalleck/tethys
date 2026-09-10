@@ -733,6 +733,67 @@ mod tests {
         snapshot
     }
 
+    #[test]
+    fn metadata_only_replacement_detaches_units_without_destroying_architecture() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("index.db");
+        let index = Index::open(&path).expect("index");
+        {
+            let conn = index.connection().expect("connection");
+            conn.execute_batch(
+                "INSERT INTO projects VALUES ('App.csproj', 0, '[]', '{\"standing\":\"confirmed\"}');
+                 INSERT INTO evaluation_units VALUES ('app-unit', 'App.csproj', 0, 'net8.0', 'null', '{\"standing\":\"confirmed\"}', '{}', 'null', '{\"style\":\"none\",\"inputs\":[]}');
+                 INSERT INTO arch_packages (id, name, path, source, evaluation_unit_key)
+                     VALUES (1, 'msbuild:App.csproj:app-unit', 'app', 'msbuild', 'app-unit');
+                 INSERT INTO arch_packages (id, name, path, source) VALUES (2, 'rust-dep', 'dep', 'manifest');
+                 INSERT INTO arch_package_deps VALUES (1, 2, 3);",
+            )
+            .expect("fixture");
+        }
+        index
+            .replace_discovery_snapshot(&DiscoverySnapshot::default(), &[], &[])
+            .expect("replacing discovery metadata alone must succeed");
+        let conn = index.connection().expect("connection");
+        let packages: i64 = conn
+            .query_row("SELECT COUNT(*) FROM arch_packages", [], |row| row.get(0))
+            .expect("packages");
+        assert_eq!(
+            packages, 2,
+            "architecture nodes survive a metadata replacement"
+        );
+        let edges: i64 = conn
+            .query_row("SELECT COUNT(*) FROM arch_package_deps", [], |row| {
+                row.get(0)
+            })
+            .expect("edges");
+        assert_eq!(
+            edges, 1,
+            "a metadata replacement must not delete architecture edges"
+        );
+        let detached: Option<String> = conn
+            .query_row(
+                "SELECT evaluation_unit_key FROM arch_packages WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .expect("unit key");
+        assert_eq!(
+            detached, None,
+            "a withdrawn unit is detached from its node, not cascaded through it"
+        );
+        let afferent: i64 = conn
+            .query_row(
+                "SELECT afferent FROM arch_coupling WHERE package_id = 2",
+                [],
+                |row| row.get(0),
+            )
+            .expect("coupling view");
+        assert_eq!(
+            afferent, 1,
+            "the neighbour's measured afferent count is unchanged"
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn non_utf8_issue_path_round_trips_through_publication() {

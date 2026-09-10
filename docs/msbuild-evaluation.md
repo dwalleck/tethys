@@ -85,11 +85,39 @@ does not probe MSBuild, reevaluate projects, restore, or require the companion.
 It observes the published revision, not current project-file edits; run `index`
 with fresh grants to refresh that evidence. Before the first publication, the
 library exposes only its Cargo-discovery fallback. Evaluation metadata does not
-add C# compiler bindings or evaluation-unit coupling analysis.
+add C# compiler bindings or prove selected-unit dependencies.
+
+### Evidence-aware coupling
+
+`tethys coupling` includes one row per recorded evaluation unit alongside Cargo
+crates. Rust-only output is unchanged. Evaluated rows expose project and unit
+identity, framework, discovery standing, assembly metadata and separate declared
+project references. Assembly names are metadata, not lookup keys.
+
+Use the exact row `name` with `coupling --package NAME`; evaluated-unit names
+have the form `msbuild:<project-key>:<unit-key>`. This preserves distinct
+frameworks and projects even when their assembly names match.
+
+An unselected compiler-contributing project reference makes source Ce and every
+candidate target-project unit's Ca indeterminate. It creates no selected edge.
+`ReferenceOutputAssembly=false` remains visible as a declaration without
+contributing to those counts. Failed units have unavailable counts; incomplete
+discovery also withholds potentially affected C# incoming counts. Confirmed,
+independent units retain known zero. Instability is unavailable when either
+required count is unavailable.
+
+JSON retains the existing `packages` container and numeric field names.
+Evaluated rows add `evaluation_unit` and `metric_evidence`; unavailable numbers
+are `null`, with `incomplete_discovery` or `unselected_project_reference`
+reasons. Human output says `indeterminate`. Numeric sorts (`--sort ca`, `ce`,
+or `instability`) put unavailable values after known values.
+
+Coupling reads persisted evidence without evaluation, and each table/detail
+query pins one SQLite snapshot across counts, metadata and neighbors.
 
 ### Schema compatibility and recovery
 
-The active index schema is **2**. Opening an incompatible index refuses it
+The active index schema is **3**. Opening an incompatible index refuses it
 without mutation; recover with `tethys index --rebuild`, adding the evaluation
 and restore grants required for that run. Rebuild replaces schema and facts
 inside the publication transaction rather than deleting the database or its
@@ -144,7 +172,7 @@ Response fields:
 
 - `protocol_version`, `success`, and `project_path` identify the result.
 - `host` records actual runtime kind, loaded toolchain path, full MSBuild file version and runtime; failures before loading may have no host.
-- `properties` contains evaluated framework, assembly, compiler-option, output, restore-location and toolchain metadata, plus explicitly requested global-property keys. It is not a dump of ambient environment variables.
+- `properties` contains evaluated framework, assembly, compiler-option, output, restore-location/configuration and toolchain metadata, plus explicitly requested global-property keys. It is not a dump of ambient environment variables.
 - `items` has `Compile`, `ProjectReference`, `Reference`, `PackageReference`, `PackageVersion`, and `PackageDownload` arrays. Each item contains `include`, `full_path`, and evaluated `metadata`. Authored metadata spelling is retained; known names such as `Link`, `HintPath`, and package versions are interpreted case-insensitively, as MSBuild does. Filesystem timestamps (`ModifiedTime`, `CreatedTime`, `AccessedTime`) are excluded so an unchanged project produces an identical response.
 - `imports` lists imported project paths. `glob_patterns` records defining project, item type and include/exclude/remove expressions.
 - `diagnostics` carries severity, native code, exception type, message, file and source position where available. Human message substrings are not failure categories.
@@ -186,6 +214,23 @@ Malformed or oversized NuGet configuration withholds the affected project rather
 than aborting unrelated candidates; operational I/O failures remain fatal.
 
 Restore metadata must identify the same canonical project, not merely use the same path spelling. Native Windows spelling and symlink aliases can identify that project; valid artifacts for a different project cannot establish its currentness.
+
+Downloads and package versions introduced by ordinary Restore targets are not
+necessarily present in evaluation-time `PackageDownload` or `PackageReference`
+metadata. A separately authorized Restore can establish their currentness only
+when native target-derived graph evidence matches the assets for the same
+canonical project and frameworks, including dependency identities, version
+ranges and asset flags, with unchanged source, import and configuration inputs.
+Evaluated explicit or central package versions must still agree with the assets.
+Project-defined `RestoreConfigFile` is captured before a cold Restore. Later
+invocations must validate the retained receipt against current input contents;
+an exit-zero command or artifact timestamps alone cannot establish target-derived
+authority (`tethys-82a6`).
+
+Ordinary Restore retains the project's full target-framework set: discovery does
+not inject its internal inner-evaluation selector into that command and overwrite
+shared assets one framework at a time. Explicit caller globals, including
+`TargetFramework`, still constrain Restore through the normal property policy.
 
 Legacy restore retains the actual solution behind a solution filter and supplies its directory to NuGet. A repository `repositoryPath` takes precedence over the solution's default `packages` directory; multiple solution directories are not resolved by choosing the first or searching arbitrary ancestor folders. Applicable user/machine configuration files participate in currentness checks. When their destination cannot be established, or a repository path requires environment expansion that is not qualified, discovery declines rather than accepting a guessed directory. A nearer repository configuration assignment or explicit `<config><clear /></config>` can establish policy; tethys never writes that override itself.
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""S3/S4 named falsifiers, run only against a disposable bounded source copy.
+"""S3/S4/S5 named falsifiers, run only against a disposable bounded source copy.
 
 Usage: discovery_mutations.py --repo /path/to/current/tethys
 Requires cargo-nextest, TETHYS_SDK_MSBUILD_PATH and TETHYS_WORKER_DISTRIBUTION.
@@ -55,6 +55,28 @@ TRUST = Fence('discovery_failures', 'trust_gate_precedes_host_and_restore', Fals
               ('assertion `left == right` failed', 'ToolchainUnavailable', 'TrustRequired'))
 RESTORE = Fence('discovery_failures', 'authorized_restore_rechecks_metadata_before_confirmation', True,
                 REASON, ('expected explicit incomplete coverage',))
+MULTITARGET_RESTORE = Fence(
+    'discovery_failures',
+    'authorized_restore_preserves_multitarget_assets_with_target_assigned_versions', True,
+    '''    assert_eq!(
+        restored.projects[0].standing,
+        DiscoveryStanding::Confirmed,
+        "{:?}",
+        restored.projects
+    );
+    assert_eq!(restored.units.len(), 2, "{:?}", restored.units);''',
+    ('assertion `left == right` failed', 'EvaluationFailed', 'Confirmed',
+     'Evaluation inputs changed during discovery; rerun with stable inputs'))
+# Both regressions reach their final exit-zero no-op control before reason()
+# panics on wrongly Confirmed standing. Earlier no-grant checks remain strict.
+TARGET_DOWNLOAD_GRAPH = Fence(
+    'discovery_failures',
+    'authorized_restore_corroborates_target_downloads_and_rejects_changed_imports', True,
+    REASON, ('expected explicit incomplete coverage',))
+TARGET_VERSION_GRAPH = Fence(
+    'discovery_failures',
+    'authorized_restore_preserves_multitarget_assets_with_target_assigned_versions', True,
+    REASON, ('expected explicit incomplete coverage',))
 GLOB = Fence('discovery_cache', 'cache_input_closure_matches_forced_and_invalidates_globs_content_context', True,
              '    assert_eq!(paths, names);', ('assertion `left == right` failed', 'src/First.cs', 'src/Second.cs'))
 HOOK = Fence('discovery_runtime', 'startup_hook_external_reads_never_reuse_literal_metadata', True,
@@ -95,6 +117,53 @@ REAPED_GROUP = Fence(
     '        terminate_and_reap(&mut child).expect("an exited group must be reaped successfully");',
     ('an exited group must be reaped successfully', 'PermissionDenied'),
     'src/discovery/msbuild/host.rs')
+UNKNOWN_COUPLING = Fence(
+    'csharp_coupling', 'declarations_do_not_select_either_framework_or_an_assembly_name_collision', False,
+    '        assert_eq!(detail.metrics.efferent, ce, "{name} outgoing");',
+    ('assertion `left == right` failed', 'outgoing', 'Known(0)',
+     'Indeterminate(UnselectedProjectReference)'))
+COUPLING_SNAPSHOT = Fence(
+    None, 'db::architecture::coupling_snapshot_tests::coupling_detail_uses_one_snapshot_across_wal_publication', False,
+    '        assert_eq!(\n            before\n                .metrics\n                .evaluation_unit\n                .expect("old metadata")',
+    ('assertion `left == right` failed', 'Some("After")', 'Some("Before")'),
+    'src/db/architecture.rs')
+QUERY_EVALUATION = Fence(
+    'discovery_cli', 'coupling_queries_read_published_units_without_launching_evaluation', True,
+    '        assert_eq!(\n            (output.status.code(), output.stdout, output.stderr),\n            *expected,',
+    ('assertion `left == right` failed', '["coupling", "--json"] must read the unchanged publication'))
+
+# Remove only the detail read transaction, retaining the original metric,
+# metadata and both neighbor reads. Do not remove the writer's transaction or
+# replace the connection with a fake savepoint: the WAL fence must see real skew.
+DETAIL_READ = '''    pub fn get_package_coupling(&self, name: &str) -> Result<Option<CouplingDetail>> {
+        let mut conn = self.connection()?;
+        let tx = conn.savepoint()?;
+        let metrics = read_metrics(&tx, Some(name))?
+            .into_iter()
+            .find(|metric| metric.package.name == name);
+        let Some(metrics) = metrics else {
+            tracing::debug!(
+                package_name = name,
+                "no architecture package matches selector"
+            );
+            tx.commit()?;
+            return Ok(None);
+        };
+        let outgoing = Self::fetch_neighbors(&tx, metrics.package.id, Direction::Outgoing)?;
+        let incoming = Self::fetch_neighbors(&tx, metrics.package.id, Direction::Incoming)?;
+        tx.commit()?;
+        Ok(Some(CouplingDetail {
+            metrics,
+            incoming,
+            outgoing,
+        }))
+    }'''
+UNPINNED_DETAIL_READ = (DETAIL_READ
+    .replace('let mut conn =', 'let conn =')
+    .replace('        let tx = conn.savepoint()?;\n', '')
+    .replace('            tx.commit()?;\n', '')
+    .replace('        tx.commit()?;\n', '')
+    .replace('&tx', '&conn'))
 
 # Keep the replacement compilable and transactional: only old, removed projects
 # survive. Shift ordinals into a disjoint range before inserting current rows;
@@ -155,16 +224,32 @@ MUTATIONS = (
     Mutation('C7-overwrite-restore-grant', 'src/discovery/types.rs',
              '    pub fn new(workspace_root: &Path, options: DiscoveryOptions) -> Result<Self> {\n        let workspace_root',
              '    pub fn new(workspace_root: &Path, mut options: DiscoveryOptions) -> Result<Self> {\n        options.allow_restore = true;\n        let workspace_root', (RESTORE,)),
+    # Restore must not inherit a discovery-only unit selector: both inner scopes
+    # share assets, and final snapshot validation must catch their clobbering.
+    Mutation('C7-inject-internal-restore-selector', 'src/discovery/msbuild/restore.rs',
+             '    let graph = match run_authorized_restore(request, project, host, style, inputs)? {',
+             '''    let mut restore_request = (*request).clone();
+    if let Some(framework) = target_framework
+        && !restore_request.options.context.effective_globals().keys()
+            .any(|name| name.eq_ignore_ascii_case("TargetFramework"))
+    {
+        restore_request.options.context.global_properties
+            .insert("TargetFramework".into(), framework.into());
+    }
+    let graph = match run_authorized_restore(&restore_request, project, host, style, inputs)? {''',
+             (MULTITARGET_RESTORE,)),
+    # Keep candidate/source/receipt validation intact; remove only the fresh
+    # graph authority gate so a native no-op can incorrectly bless stale inputs.
+    Mutation('C7-bypass-fresh-restore-graph', 'src/discovery/msbuild/restore.rs',
+             '    if !candidate.evaluated_dependencies {\n        let corroborated = match graph {',
+             '    if false && !candidate.evaluated_dependencies {\n        let corroborated = match graph {',
+             (TARGET_DOWNLOAD_GRAPH, TARGET_VERSION_GRAPH)),
     Mutation('C7-lexical-project-identity', 'src/discovery/msbuild/restore.rs',
              '        Ok(canonical) => Ok(canonical == project),',
              '        Ok(_canonical) => Ok(path == project),', (ALIAS,)),
     Mutation('C7-lexical-generated-identity', 'src/discovery/msbuild/restore.rs',
-             '''    let generated_identities = generated
-        .iter()
-        .map(|path| path.canonicalize())''',
-             '''    let generated_identities = generated
-        .iter()
-        .map(|path| Ok(path.clone()))''', (ALIAS,)),
+             '            generated_identities.push(path.canonicalize()?);',
+             '            generated_identities.push(path.clone());', (ALIAS,)),
     Mutation('C7-lexical-captured-restore', 'src/discovery/msbuild/cache.rs',
              '        .flat_map(|(path, stamp)| [dunce::simplified(path), dunce::simplified(&stamp.canonical)])',
              '        .flat_map(|(path, _stamp)| [dunce::simplified(path), dunce::simplified(path)])', (CAPTURED_RESTORE,)),
@@ -194,6 +279,28 @@ MUTATIONS = (
     Mutation('C6-reject-zombie-group-reaping', 'src/discovery/msbuild/host.rs',
              'if cfg!(target_os = "macos")',
              'if false', (REAPED_GROUP,), platform='darwin'),
+    Mutation('C10-unknown-coupling-to-zero', 'src/architecture.rs',
+             '            metric.efferent = Indeterminate(UnselectedProjectReference);',
+             '            metric.efferent = MetricEvidence::Known(0);', (UNKNOWN_COUPLING,)),
+    Mutation('C11-remove-detail-read-savepoint', 'src/db/architecture.rs',
+             DETAIL_READ, UNPINNED_DETAIL_READ, (COUPLING_SNAPSHOT,)),
+    # Invoke the shipping library with the same explicitly selected SDK as the
+    # native positive control. No CLI output is fabricated: changed project
+    # input forces evaluation and publishes After before the real query reads.
+    Mutation('C11-query-invokes-authorized-indexing', 'src/cli/coupling.rs',
+             '    let tethys = Tethys::new(workspace)?;\n\n    if let Some(name) = package {',
+             '''    let mut tethys = Tethys::new(workspace)?;
+    let sdk = std::env::var_os("TETHYS_SDK_MSBUILD_PATH")
+        .ok_or_else(|| tethys::Error::Config("mutation requires explicit SDK host".into()))?;
+    tethys.index_with_options(tethys::IndexOptions::default().with_discovery(
+        tethys::discovery::DiscoveryOptions {
+            trust_msbuild: true,
+            msbuild_path: Some(std::path::PathBuf::from(sdk)),
+            ..tethys::discovery::DiscoveryOptions::default()
+        },
+    ))?;
+
+    if let Some(name) = package {''', (QUERY_EVALUATION,)),
 )
 
 
@@ -276,6 +383,19 @@ def run_fence(tree, evidence, env, fence, label, timeout, mutated):
             require(re.search(rf'left:\s+String\("{prefix}_ONE"\)', text)
                     and re.search(rf'right:\s+"{prefix}_TWO"', text),
                     f'{label}: runtime failure was not stale ONE versus current TWO; {log}')
+        if fence == QUERY_EVALUATION:
+            # The inventory fence compares exit status/stdout/stderr together.
+            # Accept only successful real JSON reads with changed persisted
+            # metadata, never an index/setup failure at that same assertion.
+            for side, assembly in (('left', 'After'), ('right', 'Before')):
+                output = re.search(
+                    rf'{side}:\s+\(Some\(0\), \[([0-9, ]*)\], \[[0-9, ]*\]\)', text)
+                require(output is not None,
+                        f'{label}: {side} query did not exit successfully; {log}')
+                payload = json.loads(bytes(
+                    int(value.strip()) for value in output.group(1).split(',') if value.strip()))
+                require(payload['packages'][0]['evaluation_unit']['assembly_name'] == assembly,
+                        f'{label}: {side} query did not publish {assembly}; {log}')
         record['assertion'] = f'{source_path}:{line}'
         record['evidence'] = fence.evidence
     record['result'] = 'FALSIFIED' if mutated else ('RESTORED_PASS' if label.endswith('-restored') else 'BASELINE_PASS')

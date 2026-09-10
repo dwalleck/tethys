@@ -359,6 +359,15 @@ jobs:
         run: python .tethys-82a6/oracles/discovery_smoke.py
       - name: Prove published discovery through packaged CLI
         run: python .tethys-82a6/oracles/discovery_smoke.py --index
+      - name: Prove unit coupling and frozen Rust output
+        shell: python {0}
+        run: |
+          import os, subprocess, sys
+          args = [sys.executable, ".tethys-82a6/oracles/coupling_smoke.py",
+                  "--output", "target/worker-dist/coupling-evidence.json"]
+          if os.name == "nt":
+              args += ["--classic-host", os.environ["TETHYS_VS_MSBUILD_PATH"]]
+          subprocess.run(args, check=True)
       - uses: actions/upload-artifact@v4
         with:
           name: managed-worker-${{ matrix.os }}

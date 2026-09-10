@@ -567,7 +567,7 @@ impl ScopeRequest<'_, '_> {
             || !cache::unchanged(&scope.inputs)
             || cache::evaluation_paths(&scope.evaluation, &current.provenance)
                 .iter()
-                .any(|path| !scope.inputs.contains_key(path))
+                .any(|path| !cache::contains_identity(&scope.inputs, path))
         {
             return Ok(Err(failure(
                 DiscoveryFailureReason::EvaluationFailed,
@@ -777,14 +777,50 @@ fn failure(reason: DiscoveryFailureReason, message: &str) -> DiscoveryFailure {
     }
 }
 
+/// Metadata durable enough to publish: volatile timestamps and the indexing
+/// machine's absolute paths are dropped, authored semantic flags are kept.
+///
+/// `FullPath`, `RootDir`, `Directory`, `DefiningProjectFullPath` and
+/// `DefiningProjectDirectory` are `MSBuild`'s well-known absolute-path metadata;
+/// they describe the machine that ran discovery, not the workspace, and
+/// `tethys coupling` prints reference metadata verbatim.
 fn semantic_metadata(metadata: &BTreeMap<String, String>) -> BTreeMap<String, String> {
+    const VOLATILE_OR_MACHINE_LOCAL: [&str; 8] = [
+        "ModifiedTime",
+        "CreatedTime",
+        "AccessedTime",
+        "FullPath",
+        "RootDir",
+        "Directory",
+        "DefiningProjectFullPath",
+        "DefiningProjectDirectory",
+    ];
     metadata
         .iter()
         .filter(|(name, _)| {
-            !["ModifiedTime", "CreatedTime", "AccessedTime"]
+            !VOLATILE_OR_MACHINE_LOCAL
                 .iter()
                 .any(|volatile| volatile.eq_ignore_ascii_case(name))
         })
         .map(|(name, value)| (name.clone(), value.clone()))
+        .collect()
+}
+
+/// One node per recorded outcome; `AssemblyName` never supplies identity.
+pub(crate) fn architecture_packages(
+    units: &[crate::discovery::EvaluationUnit],
+) -> Vec<crate::architecture::ArchitecturePackage> {
+    units
+        .iter()
+        .map(|unit| crate::architecture::ArchitecturePackage {
+            name: format!("msbuild:{}:{}", unit.project.as_str(), unit.key.as_str()),
+            path: std::path::Path::new(unit.project.as_str())
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new(""))
+                .to_string_lossy()
+                .into_owned(),
+            source: crate::PackageSource::MsBuild,
+            evaluation_unit_key: Some(unit.key.clone()),
+        })
         .collect()
 }

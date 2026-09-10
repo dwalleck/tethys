@@ -1,6 +1,6 @@
 # Design: Evaluation-only discovery and coherent publication
 
-Status: proposed for architecture approval; production implementation has not started.
+Status: architecture approved 2026-09-06; F23 amendment approved 2026-09-07; performance amendment resolved 2026-09-08 with **no product change** (serial evaluation retained). S1–S5 implemented and reviewed; assembled S6 qualification and reviewed calibration remain pending.
 
 ## Route and inputs
 
@@ -199,7 +199,7 @@ Every new source has baseline zero. Required test owners: existing Cargo/golden/
 
 Deletion test: removing discovery spreads host/grant/cache rules into CLI/index/reindex; removing revision spreads commit/error/lifetime rules into every phase; removing architecture spreads unknown-metric propagation into CLI/DB. All earn depth. Interface test: production callers and fixtures use discover/index/coupling, not private maps. Adapter test: discovery has two real adapters; SQLite revision is a concrete intrinsic lifetime owner, not a generic store. Locality test: one owner per ledger responsibility; records have a canonical definition and one lib re-export.
 
-Mechanical fence C13: `python3 .tethys-82a6/oracles/module_shape.py --base <discovered-upstream-ref>` checks an issue-local ledger manifest: exact production path allowlist, declared imports/visibility, forbidden process/MSBuild ownership, absence of second writer connection, protected-parent added-symbol allowlists, and production growth tripwires. Baseline/upstream is discovered from Git, not hard-coded. Planned new parent-body additions beyond wiring are errors; numeric growth within an unchanged responsibility triggers inspection, not arbitrary splitting. The parser-based census includes production after inline test modules. Each diagnostic names C13/path/symbol/delta. No production code reads this oracle.
+Mechanical fence C13: `python3 .tethys-82a6/oracles/module_shape.py --stage S5` checks an issue-local ledger manifest: exact production path allowlist, declared imports/visibility, forbidden process/MSBuild ownership, absence of second writer connection, protected-parent added-symbol allowlists, and production growth tripwires. The tracking upstream is discovered from Git and must contain the ledger's pinned baseline as an ancestor; the oracle rejects baseline drift and accepts no baseline override. Planned new parent-body additions beyond wiring are errors; numeric growth within an unchanged responsibility triggers inspection, not arbitrary splitting. The parser-based census includes production after inline test modules. Each diagnostic names C13/path/symbol/delta. No production code reads this oracle.
 
 Projected cumulative change is above 4,000 lines: approximately 5,500–8,000 including implementation, managed companion, fixtures and docs, plus 25% churn margin (6,875–10,000). This is a review-size signal, not an implementation quota. The approved-design planning stage must produce independently green/mergeable increments; internal-only increments cannot claim the issue complete. Exact slice growth and order belong to plan.md after approval.
 
@@ -324,3 +324,16 @@ Run new mutation red/restored-green checks, the complete ordinary/native suites,
 
 **Requester amendment approval (verbatim): "Approve existing seam"**
 Date:2026-09-07. Selected alternative A and its ledger/falsification obligations. No new risk waiver. Main updates the affected S4 plan before production edits.
+
+## Performance amendment — resolved with no product change
+
+Decision: **retain serial product evaluation.** Concurrent project evaluation, resident-worker reuse, skipped validation, removed reevaluation and any narrowed workload are **not** selected. Cross-project evaluation-time side effects keep their existing order, so no execution-order risk acceptance is requested or granted. The product discovery path, evaluator protocol, publication transaction and Rust behavior are unchanged by this amendment.
+
+Evidence (`evidence.md` P1–P9): process reuse leaks environment state, so a resident worker cannot replace fresh processes (P2); provisional path/stat observations do not prove which bytes produced the metadata (P3); fresh concurrency is fast on the bounded independent shape but reorders cross-project side effects, and result-publication ordering cannot repair a reader that already evaluated too early (P5/P7); core-only prewarming reaches only about 1.30× (P6); cache/qualification bookkeeping is not the dominant evaluator cost (P8); the retained full-workload observation is an n=1 diagnostic whose warm repeat was slower, so neither is a baseline (P9).
+
+Selected repair: **cadence orchestration**, owned by Main under plan S6 and recorded in `plan.md`. The qualification runner now enforces a per-cadence lane roster before any runtime work, binds the cadence cap to the aggregate invocation from argument validation through the final lane, reports preparation/lane/product/transparency-control/overhead seconds separately, and declares that the eligible-cache sequence does not apply `--repeat` and is excluded from ratio grouping. Fence: `oracles/qualification_cadence_fence.py` (8 cases), with its named mutation red and restored-green proof; boundary arithmetic remains fenced by `tests/fixtures/msbuild/qualification/limits.json`.
+
+Remaining obligations, unchanged: full assembled S6 qualification under the correctly assigned cadence, and a reviewed fourteen-observation calibration authority before any ratio acceptance. Neither the first full-workload observation nor its warm repeat supplies either.
+
+**Requester approval (verbatim): "Lets proceed with your recommendation"**
+Date: 2026-09-08. Approved risk acceptances: **None** — the approved recommendation preserves serial evaluation order and does not waive correctness, qualification or resource gates. Architecture, interfaces and accepted risk are unchanged; the approved architecture and F23 approvals remain in force.

@@ -1,0 +1,657 @@
+{
+  "binary_sha256": "d602bff16eeec6f5c89493102baeabae308e35cf3d4c826a2bc06f5f5a122768",
+  "platform": "Linux-7.2.0-1-cachyos-x86_64-with-glibc2.44",
+  "selected_sdk": "/home/dwalleck/.local-dotnet/sdk/8.0.417",
+  "classic_host": null,
+  "rust": {
+    "claim": "C10",
+    "frozen_rust_queries": 16,
+    "source_revision": "89ea3d1",
+    "result": "PASS"
+  },
+  "units": {
+    "claim": "C10",
+    "result": "PASS",
+    "native_units": 4,
+    "classic": false,
+    "native_report": {
+      "count": 5,
+      "packages": [
+        {
+          "afferent": 0,
+          "efferent": 0,
+          "instability": 0.0,
+          "name": "coupling-rust-control",
+          "path": "",
+          "source": "manifest"
+        },
+        {
+          "afferent": 0,
+          "efferent": 0,
+          "evaluation_unit": {
+            "assembly_name": "Shared",
+            "declared_references": [],
+            "framework": {
+              "identifier": ".NETCoreApp",
+              "platform_identifier": "",
+              "platform_version": "",
+              "profile": "",
+              "short_name": "net8.0",
+              "version": "v8.0"
+            },
+            "key": "445117692dfcb3453ddd1606e8d31381f1c83dd51d915d4add6e304a727677ed",
+            "project": "Isolated/Isolated.csproj",
+            "standing": {
+              "standing": "confirmed"
+            },
+            "target_framework": "net8.0"
+          },
+          "instability": 0.0,
+          "metric_evidence": {
+            "afferent": {
+              "standing": "known"
+            },
+            "efferent": {
+              "standing": "known"
+            },
+            "instability": {
+              "standing": "known"
+            }
+          },
+          "name": "msbuild:Isolated/Isolated.csproj:445117692dfcb3453ddd1606e8d31381f1c83dd51d915d4add6e304a727677ed",
+          "path": "Isolated",
+          "source": "msbuild"
+        },
+        {
+          "afferent": 0,
+          "efferent": null,
+          "evaluation_unit": {
+            "assembly_name": "App",
+            "declared_references": [
+              {
+                "include": "../Core/Core.csproj",
+                "metadata": {
+                  "DefiningProjectDirectory": "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace/App/",
+                  "DefiningProjectExtension": ".csproj",
+                  "DefiningProjectFullPath": "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace/App/App.csproj",
+                  "DefiningProjectName": "App",
+                  "Directory": "home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace/Core/",
+                  "Extension": ".csproj",
+                  "Filename": "Core",
+                  "FullPath": "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace/Core/Core.csproj",
+                  "Identity": "../Core/Core.csproj",
+                  "OutputItemType": "",
+                  "RecursiveDir": "",
+                  "ReferenceSourceTarget": "ProjectReference",
+                  "RelativeDir": "../Core/",
+                  "RootDir": "/",
+                  "Targets": ""
+                },
+                "target": "Core/Core.csproj"
+              }
+            ],
+            "framework": {
+              "identifier": ".NETCoreApp",
+              "platform_identifier": "",
+              "platform_version": "",
+              "profile": "",
+              "short_name": "net8.0",
+              "version": "v8.0"
+            },
+            "key": "348c004ae7ad7b6e2404f5b7787a21c7a332491b159d79a7fb360e8b63350de7",
+            "project": "App/App.csproj",
+            "standing": {
+              "standing": "confirmed"
+            },
+            "target_framework": "net8.0"
+          },
+          "instability": null,
+          "metric_evidence": {
+            "afferent": {
+              "standing": "known"
+            },
+            "efferent": {
+              "reason": "unselected_project_reference",
+              "standing": "indeterminate"
+            },
+            "instability": {
+              "reason": "unselected_project_reference",
+              "standing": "indeterminate"
+            }
+          },
+          "name": "msbuild:App/App.csproj:348c004ae7ad7b6e2404f5b7787a21c7a332491b159d79a7fb360e8b63350de7",
+          "path": "App",
+          "source": "msbuild"
+        },
+        {
+          "afferent": null,
+          "efferent": 0,
+          "evaluation_unit": {
+            "assembly_name": "Shared",
+            "declared_references": [],
+            "framework": {
+              "identifier": ".NETStandard",
+              "platform_identifier": "Windows",
+              "platform_version": "7.0",
+              "profile": "",
+              "short_name": "netstandard2.1",
+              "version": "v2.1"
+            },
+            "key": "5792163b6923ff0e3a462de4d0bce12ee07e915b121569b736fc173f02bfe59a",
+            "project": "Core/Core.csproj",
+            "standing": {
+              "standing": "confirmed"
+            },
+            "target_framework": "netstandard2.1"
+          },
+          "instability": null,
+          "metric_evidence": {
+            "afferent": {
+              "reason": "unselected_project_reference",
+              "standing": "indeterminate"
+            },
+            "efferent": {
+              "standing": "known"
+            },
+            "instability": {
+              "reason": "unselected_project_reference",
+              "standing": "indeterminate"
+            }
+          },
+          "name": "msbuild:Core/Core.csproj:5792163b6923ff0e3a462de4d0bce12ee07e915b121569b736fc173f02bfe59a",
+          "path": "Core",
+          "source": "msbuild"
+        },
+        {
+          "afferent": null,
+          "efferent": 0,
+          "evaluation_unit": {
+            "assembly_name": "Shared",
+            "declared_references": [],
+            "framework": {
+              "identifier": ".NETCoreApp",
+              "platform_identifier": "",
+              "platform_version": "",
+              "profile": "",
+              "short_name": "net8.0",
+              "version": "v8.0"
+            },
+            "key": "bbf9e208752e94ee3aa1aa6eaeddd5e33f80e0917f43b0d69e97d88d535008f9",
+            "project": "Core/Core.csproj",
+            "standing": {
+              "standing": "confirmed"
+            },
+            "target_framework": "net8.0"
+          },
+          "instability": null,
+          "metric_evidence": {
+            "afferent": {
+              "reason": "unselected_project_reference",
+              "standing": "indeterminate"
+            },
+            "efferent": {
+              "standing": "known"
+            },
+            "instability": {
+              "reason": "unselected_project_reference",
+              "standing": "indeterminate"
+            }
+          },
+          "name": "msbuild:Core/Core.csproj:bbf9e208752e94ee3aa1aa6eaeddd5e33f80e0917f43b0d69e97d88d535008f9",
+          "path": "Core",
+          "source": "msbuild"
+        }
+      ],
+      "sort": "instability"
+    },
+    "human_output": "\nTethys Coupling Metrics\n\n  PACKAGE                                                                                             Ca   Ce   INSTABILITY\n  coupling-rust-control                                                                                0    0   \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591  0.00\n  msbuild:Isolated/Isolated.csproj:445117692dfcb3453ddd1606e8d31381f1c83dd51d915d4add6e304a727677ed    0    0   \u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591\u2591  0.00\n    Evaluation unit: 445117692dfcb3453ddd1606e8d31381f1c83dd51d915d4add6e304a727677ed\n    Project: Isolated/Isolated.csproj\n    Target framework: net8.0\n    Framework: {\"short_name\":\"net8.0\",\"identifier\":\".NETCoreApp\",\"version\":\"v8.0\",\"profile\":\"\",\"platform_identifier\":\"\",\"platform_version\":\"\"}\n    Discovery: {\"standing\":\"confirmed\"}\n    Assembly name: Shared\n    Declared project references (not confirmed edges):\n      (none recorded)\n  msbuild:App/App.csproj:348c004ae7ad7b6e2404f5b7787a21c7a332491b159d79a7fb360e8b63350de7              0  indeterminate (unselected_project_reference)   indeterminate (unselected_project_reference)\n    Evaluation unit: 348c004ae7ad7b6e2404f5b7787a21c7a332491b159d79a7fb360e8b63350de7\n    Project: App/App.csproj\n    Target framework: net8.0\n    Framework: {\"short_name\":\"net8.0\",\"identifier\":\".NETCoreApp\",\"version\":\"v8.0\",\"profile\":\"\",\"platform_identifier\":\"\",\"platform_version\":\"\"}\n    Discovery: {\"standing\":\"confirmed\"}\n    Assembly name: App\n    Declared project references (not confirmed edges):\n      {\"target\":\"Core/Core.csproj\",\"include\":\"../Core/Core.csproj\",\"metadata\":{\"DefiningProjectDirectory\":\"/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace/App/\",\"DefiningProjectExtension\":\".csproj\",\"DefiningProjectFullPath\":\"/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace/App/App.csproj\",\"DefiningProjectName\":\"App\",\"Directory\":\"home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace/Core/\",\"Extension\":\".csproj\",\"Filename\":\"Core\",\"FullPath\":\"/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace/Core/Core.csproj\",\"Identity\":\"../Core/Core.csproj\",\"OutputItemType\":\"\",\"RecursiveDir\":\"\",\"ReferenceSourceTarget\":\"ProjectReference\",\"RelativeDir\":\"../Core/\",\"RootDir\":\"/\",\"Targets\":\"\"}}\n  msbuild:Core/Core.csproj:5792163b6923ff0e3a462de4d0bce12ee07e915b121569b736fc173f02bfe59a          indeterminate (unselected_project_reference)    0   indeterminate (unselected_project_reference)\n    Evaluation unit: 5792163b6923ff0e3a462de4d0bce12ee07e915b121569b736fc173f02bfe59a\n    Project: Core/Core.csproj\n    Target framework: netstandard2.1\n    Framework: {\"short_name\":\"netstandard2.1\",\"identifier\":\".NETStandard\",\"version\":\"v2.1\",\"profile\":\"\",\"platform_identifier\":\"Windows\",\"platform_version\":\"7.0\"}\n    Discovery: {\"standing\":\"confirmed\"}\n    Assembly name: Shared\n    Declared project references (not confirmed edges):\n      (none recorded)\n  msbuild:Core/Core.csproj:bbf9e208752e94ee3aa1aa6eaeddd5e33f80e0917f43b0d69e97d88d535008f9          indeterminate (unselected_project_reference)    0   indeterminate (unselected_project_reference)\n    Evaluation unit: bbf9e208752e94ee3aa1aa6eaeddd5e33f80e0917f43b0d69e97d88d535008f9\n    Project: Core/Core.csproj\n    Target framework: net8.0\n    Framework: {\"short_name\":\"net8.0\",\"identifier\":\".NETCoreApp\",\"version\":\"v8.0\",\"profile\":\"\",\"platform_identifier\":\"\",\"platform_version\":\"\"}\n    Discovery: {\"standing\":\"confirmed\"}\n    Assembly name: Shared\n    Declared project references (not confirmed edges):\n      (none recorded)\n\n  5 packages \u2014 sorted by instability (descending)\n\n",
+    "authored_read_fixture": {
+      "projects": 480,
+      "units": 802
+    },
+    "query_p95_seconds": 0.075410728022689,
+    "query_max_seconds": 0.08620115101803094,
+    "measurements": [
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "instability"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.08620115101803094,
+        "wait4_maxrss_native_units": 35644,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37482496,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "instability",
+        "repetition": 0
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "instability"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.06626137901912443,
+        "wait4_maxrss_native_units": 35648,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37425152,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "instability",
+        "repetition": 1
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "instability"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.050268152001081035,
+        "wait4_maxrss_native_units": 35796,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37580800,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "instability",
+        "repetition": 2
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "instability"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.06669617499574088,
+        "wait4_maxrss_native_units": 35740,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37449728,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "instability",
+        "repetition": 3
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "instability"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.04875948702101596,
+        "wait4_maxrss_native_units": 36324,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37699584,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "instability",
+        "repetition": 4
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "ca"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.0668051709944848,
+        "wait4_maxrss_native_units": 36336,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37548032,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "ca",
+        "repetition": 0
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "ca"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.0688777549949009,
+        "wait4_maxrss_native_units": 35636,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37421056,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "ca",
+        "repetition": 1
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "ca"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.06584830200881697,
+        "wait4_maxrss_native_units": 36524,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37699584,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "ca",
+        "repetition": 2
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "ca"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.05014561099233106,
+        "wait4_maxrss_native_units": 36136,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37543936,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "ca",
+        "repetition": 3
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "ca"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.06691261197556742,
+        "wait4_maxrss_native_units": 36404,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37552128,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "ca",
+        "repetition": 4
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "ce"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.06658490601694211,
+        "wait4_maxrss_native_units": 36048,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37564416,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "ce",
+        "repetition": 0
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "ce"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.06762609299039468,
+        "wait4_maxrss_native_units": 36236,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37588992,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "ce",
+        "repetition": 1
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "ce"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.06607668098877184,
+        "wait4_maxrss_native_units": 36084,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37687296,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "ce",
+        "repetition": 2
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "ce"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.075410728022689,
+        "wait4_maxrss_native_units": 35324,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37560320,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "ce",
+        "repetition": 3
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "ce"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.06683244099258445,
+        "wait4_maxrss_native_units": 36124,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37662720,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "ce",
+        "repetition": 4
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "name"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.06394792199716903,
+        "wait4_maxrss_native_units": 36052,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37666816,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "name",
+        "repetition": 0
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "name"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.05207711999537423,
+        "wait4_maxrss_native_units": 36308,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37625856,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "name",
+        "repetition": 1
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "name"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.06667140900390223,
+        "wait4_maxrss_native_units": 36088,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37687296,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "name",
+        "repetition": 2
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "name"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.0678525380208157,
+        "wait4_maxrss_native_units": 36364,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37597184,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "name",
+        "repetition": 3
+      },
+      {
+        "command": [
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/package/tethys",
+          "-w",
+          "/home/dwalleck/.claude/tmp/tethys-coupling-native-2hjrxw_o/workspace",
+          "coupling",
+          "--json",
+          "--sort",
+          "name"
+        ],
+        "exit": 0,
+        "wall_seconds": 0.06964334199437872,
+        "wait4_maxrss_native_units": 36616,
+        "wait4_status": "measured; KiB on Linux, bytes on macOS",
+        "process_tree_sampled_peak_rss_bytes": 37765120,
+        "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+        "index_and_sidecar_sampled_peak_bytes": 11427840,
+        "index_and_sidecar_bytes": 11395072,
+        "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+        "sort": "name",
+        "repetition": 4
+      }
+    ]
+  }
+}

@@ -1,7 +1,26 @@
 //! Database schema definition for Tethys.
 
+use rusqlite::Connection;
+
+use crate::error::Result;
+
+/// Install the schema and stamp its identity from the single version constant.
+///
+/// The version deliberately does not appear inside [`SCHEMA`]: three hand-synced
+/// copies (the constant, `index_revision.schema_version`, `PRAGMA user_version`)
+/// drift silently until the next open refuses the index.
+pub(crate) fn install_schema(conn: &Connection) -> Result<()> {
+    conn.execute_batch(SCHEMA)?;
+    conn.execute(
+        "INSERT OR IGNORE INTO index_revision VALUES (1, ?1, 0)",
+        [SCHEMA_VERSION],
+    )?;
+    conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+    Ok(())
+}
+
 /// Explicit cache schema identity; older layouts require a transactional rebuild.
-pub(crate) const SCHEMA_VERSION: i64 = 2;
+pub(crate) const SCHEMA_VERSION: i64 = 3;
 
 /// Child-first replacement keeps foreign-key enforcement enabled during rebuild.
 pub(crate) const DROP_SCHEMA: &str = r"
@@ -15,12 +34,12 @@ DROP TABLE IF EXISTS evaluation_inputs;
 DROP TABLE IF EXISTS declared_assembly_references;
 DROP TABLE IF EXISTS declared_project_references;
 DROP TABLE IF EXISTS file_participation;
-DROP TABLE IF EXISTS evaluation_units;
-DROP TABLE IF EXISTS projects;
-DROP TABLE IF EXISTS evaluation_context;
 DROP TABLE IF EXISTS arch_package_deps;
 DROP TABLE IF EXISTS arch_file_packages;
 DROP TABLE IF EXISTS arch_packages;
+DROP TABLE IF EXISTS evaluation_units;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS evaluation_context;
 DROP TABLE IF EXISTS attributes;
 DROP TABLE IF EXISTS call_edges;
 DROP TABLE IF EXISTS imports;
@@ -38,8 +57,6 @@ CREATE TABLE IF NOT EXISTS index_revision (
     schema_version INTEGER NOT NULL,
     revision INTEGER NOT NULL CHECK(revision >= 0)
 );
-INSERT OR IGNORE INTO index_revision VALUES (1, 2, 0);
-PRAGMA user_version = 2;
 
 -- Indexed source files
 CREATE TABLE IF NOT EXISTS files (
@@ -266,12 +283,20 @@ CREATE INDEX IF NOT EXISTS idx_attributes_name ON attributes(name);
 
 -- === Architecture analysis ===
 
--- One row per discovered package. v1: only source = 'manifest'.
+-- One row per Cargo package or recorded evaluation-unit outcome.
+--
+-- `ON DELETE SET NULL`, never CASCADE: `replace_discovery_snapshot` deletes
+-- `projects`, which cascades into `evaluation_units`, and a cascading FK would
+-- reach through this column into `arch_packages` and its two child tables —
+-- destroying part of the architecture graph from a function whose contract is
+-- to replace discovery metadata alone. Detaching the unit identity keeps the
+-- node and its edges until the architecture phase rebuilds them.
 CREATE TABLE IF NOT EXISTS arch_packages (
     id     INTEGER PRIMARY KEY,
     name   TEXT NOT NULL UNIQUE,
     path   TEXT NOT NULL,
-    source TEXT NOT NULL CHECK(source IN ('manifest','directory'))
+    source TEXT NOT NULL CHECK(source IN ('manifest','directory','msbuild')),
+    evaluation_unit_key TEXT UNIQUE REFERENCES evaluation_units(unit_key) ON DELETE SET NULL
 );
 
 -- No index on arch_packages(path): every read goes through `id` (FK joins

@@ -1,0 +1,66 @@
+{
+  "source": "accepted S4 binary and pre-change repository index refreshed before S5 edits",
+  "index_files": 164,
+  "callers": {
+    "CouplingMetrics::instability": {
+      "precision": {
+        "exit": 0,
+        "stdout": "No callers found for \"CouplingMetrics::instability\"\n",
+        "stderr": ""
+      },
+      "recall": {
+        "exit": 0,
+        "stdout": "Callers of \"CouplingMetrics::instability\":\n\n  src/cli/coupling.rs:\n    \u2022 write_detail_text\n    \u2022 write_table_text\n  src/db/architecture.rs:\n    \u2022 Index::get_coupling_metrics\n    \u2022 instability_of\n  src/types.rs:\n    \u2022 instability_boundary_cases\n\nTotal: 5 direct callers across 3 files\n",
+        "stderr": ""
+      }
+    },
+    "Tethys::get_coupling_metrics": {
+      "precision": {
+        "exit": 0,
+        "stdout": "Callers of \"Tethys::get_coupling_metrics\":\n\n  src/cli/coupling.rs:\n    \u2022 run_table\n\nTotal: 1 direct callers across 1 files\n",
+        "stderr": ""
+      },
+      "recall": {
+        "exit": 0,
+        "stdout": "Callers of \"Tethys::get_coupling_metrics\":\n\n  src/cli/coupling.rs:\n    \u2022 run_table\n\nTotal: 1 direct callers across 1 files\n",
+        "stderr": ""
+      }
+    },
+    "Tethys::get_package_coupling": {
+      "precision": {
+        "exit": 0,
+        "stdout": "Callers of \"Tethys::get_package_coupling\":\n\n  src/cli/coupling.rs:\n    \u2022 run_detail_to\n\nTotal: 1 direct callers across 1 files\n",
+        "stderr": ""
+      },
+      "recall": {
+        "exit": 0,
+        "stdout": "Callers of \"Tethys::get_package_coupling\":\n\n  src/cli/coupling.rs:\n    \u2022 run_detail_to\n\nTotal: 1 direct callers across 1 files\n",
+        "stderr": ""
+      }
+    },
+    "Tethys::run_architecture_phase": {
+      "precision": {
+        "exit": 0,
+        "stdout": "Callers of \"Tethys::run_architecture_phase\":\n\n  src/indexing.rs:\n    \u2022 Tethys::index_discovered_revision\n\nTotal: 1 direct callers across 1 files\n",
+        "stderr": ""
+      },
+      "recall": {
+        "exit": 0,
+        "stdout": "Callers of \"Tethys::run_architecture_phase\":\n\n  src/indexing.rs:\n    \u2022 Tethys::index_discovered_revision\n\nTotal: 1 direct callers across 1 files\n",
+        "stderr": ""
+      }
+    },
+    "CrateIndex::crate_for_file": {
+      "precision": {
+        "exit": 0,
+        "stdout": "No callers found for \"CrateIndex::crate_for_file\"\n",
+        "stderr": ""
+      },
+      "recall": {
+        "exit": 0,
+        "stdout": "Callers of \"CrateIndex::crate_for_file\":\n\n  src/indexing.rs:\n    \u2022 Tethys::build_file_crate_map\n    \u2022 Tethys::run_architecture_phase\n\nTotal: 2 direct callers across 1 files\n",
+        "stderr": ""
+      }
+    }
+  }
+}

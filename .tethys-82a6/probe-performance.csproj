@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseAppHost>false</UseAppHost>
+    <ProbeEvaluation Condition="'$(ProbeEvaluation)' == ''">../tools/tethys-msbuild-evaluate/Evaluation.cs</ProbeEvaluation>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="probe-performance.cs" />
+    <Compile Include="$(ProbeEvaluation)" Link="Evaluation.cs" />
+    <Compile Include="../tools/tethys-msbuild-evaluate/Contract.cs" Link="Contract.cs" />
+    <Reference Include="Microsoft.Build"><HintPath>$(ProbeSdk)/Microsoft.Build.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Microsoft.Build.Framework"><HintPath>$(ProbeSdk)/Microsoft.Build.Framework.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Microsoft.Build.Locator"><HintPath>$(ProbeWorker)/Microsoft.Build.Locator.dll</HintPath></Reference>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(ProbeWorker)/Newtonsoft.Json.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>
