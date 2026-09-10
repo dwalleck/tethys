@@ -23,7 +23,11 @@ graph TB
     GRAPH --> DB
     ARCH --> DB
     RESOLVE --> DB
-    LIB --> CARGO["Crate discovery (cargo.rs)"]
+    IDX --> DISC["Workspace discovery (discovery/)"]
+    DISC --> CARGO["Cargo attribution (cargo.rs)"]
+    DISC -.explicit trust.-> MSBUILD["MSBuild evaluation companion"]
+    LIB --> CONTEXT["Immutable published discovery context"]
+    DB --> CONTEXT
 ```
 
 ## Layers
@@ -45,7 +49,7 @@ graph TD
         D1["indexing.rs / reindex.rs / batch_writer.rs"]
         D2["resolve.rs / resolver.rs"]
         D3["languages/* (LanguageSupport, ModuleResolver)"]
-        D4["cargo.rs"]
+        D4["discovery/ — Cargo + MSBuild discovery"]
     end
     subgraph Persistence
         E1["db/* — Index + SQL"]
@@ -73,8 +77,13 @@ Language-specific logic is isolated behind two traits, dispatched by `Language`:
   imports from a tree-sitter tree. Implemented by `RustLanguage` and
   `CSharpLanguage`.
 - `ModuleResolver` (`languages/module_resolver.rs`) — translates module paths to
-  files, provides per-file anchors, and defines the stored-import separator
-  (`::` for Rust, `.` for C#).
+  files, provides per-file anchors, defines the stored-import separator
+  (`::` for Rust, `.` for C#), and owns the private language-path identity policy
+  `source_path_identity() -> SourcePathIdentity::{Logical, Physical}`
+  (tethys-82a6). Rust selects logical identities; C# selects contained physical
+  identities. Neutral source-selection, freshness and query-path callers consume
+  this policy through the existing resolver registry; no public API or module
+  is added.
 
 ```mermaid
 classDiagram
@@ -95,6 +104,7 @@ classDiagram
         +resolve_import_files()
         +file_anchor()
         +import_separator()
+        +source_path_identity()
     }
     class RustModuleResolver
     class CSharpModuleResolver
@@ -117,6 +127,32 @@ Graph traversal (callers, callees, transitive impact, cycle detection, path
 finding) is implemented as concrete `db::Index` operations in `db/graph.rs`
 using SQLite recursive common table expressions. `Tethys` is the external
 graph-analysis seam; there is no speculative adapter trait or in-memory graph.
+
+### Discovery and publication
+
+Every index/update invokes workspace discovery with fresh options and persisted
+cache receipts before source extraction. Evaluation and restore require separate
+invocation-local grants; published grants never become authority for another run.
+Qualified cache reuse validates current inputs and still requires evaluation trust.
+See [MSBuild discovery operations](../../docs/msbuild-evaluation.md) for CLI flags,
+host policy, cache restrictions and incomplete-coverage handling.
+
+The facade exposes an immutable `DiscoverySnapshot`; query construction hydrates
+the published context from SQLite without probing MSBuild or running evaluation.
+One revision transaction publishes discovery metadata, memberships, input scopes,
+cache evidence and diagnostics with source, resolution and architecture facts.
+Failure restores both the previous database revision and in-memory context.
+Schema 2 rebuild uses that same transaction, preserving the previous schema on
+failure rather than deleting the index before opening it.
+
+Source selection merges walked sources, retained indexed sources still on disk,
+and current evaluated sources under the resolver's identity policy. Rust keeps
+distinct logical aliases, including links to external targets; C# canonicalizes
+and deduplicates physical files within the workspace. Many C# evaluation units
+can share one syntax file; metadata withdrawal does not remove independent
+syntax. Candidate/project/unit failures publish explicit incomplete coverage
+alongside available source; the CLI exits 1 after that publication. Discovery
+metadata is not C# compiler binding or evaluation-unit coupling.
 
 ### Two-pass deferred dependency resolution
 
@@ -161,7 +197,8 @@ sequenceDiagram
     participant TS as tree-sitter
     participant LANG as LanguageSupport
     participant DB as SQLite
-    FS->>IDX: discover source files
+    IDX->>IDX: discover workspace with fresh grants and validated cache
+    FS->>IDX: merge walked, retained and evaluated physical sources
     IDX->>TS: parse (parallel, rayon)
     TS->>LANG: syntax tree
     LANG-->>IDX: symbols, refs, imports
@@ -169,6 +206,8 @@ sequenceDiagram
     IDX->>IDX: resolve references (pass 2+)
     IDX->>DB: populate call_edges, file_deps
     IDX->>DB: architecture phase (packages, coupling)
+    IDX->>DB: replace discovery metadata and diagnostics
+    IDX->>DB: commit whole-run revision
 ```
 
 ## Concurrency Model

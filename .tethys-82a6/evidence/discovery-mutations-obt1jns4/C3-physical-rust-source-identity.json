@@ -1,0 +1,8 @@
+{
+  "path": "src/languages/module_resolver.rs",
+  "before": "    fn source_path_identity(&self) -> SourcePathIdentity {\n        SourcePathIdentity::Logical\n    }",
+  "after": "    fn source_path_identity(&self) -> SourcePathIdentity {\n        SourcePathIdentity::Physical\n    }",
+  "tests": [
+    "symlink_to_file_outside_workspace_is_indexed_through_logical_path"
+  ]
+}

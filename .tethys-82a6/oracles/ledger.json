@@ -8,9 +8,14 @@
     "src/batch_writer.rs": {"growth": 100, "forbidden_functions": ["evaluate_msbuild", "parse_solution", "restore_project", "cache_key"]},
     "src/main.rs": {"growth": 100, "forbidden_functions": ["evaluate_msbuild", "parse_solution", "restore_project", "cache_key"]}
   },
+  "source_identity": {
+    "stage": "S4",
+    "owner": "src/languages/module_resolver.rs",
+    "symbols": ["ModuleResolver", "SourcePathIdentity", "source_path_identity"]
+  },
   "allowed_production": [
     "src/lib.rs", "src/indexing.rs", "src/reindex.rs", "src/batch_writer.rs", "src/cargo.rs",
-    "src/languages/module_resolver.rs", "src/resolve.rs", "src/db/mod.rs", "src/db/revision.rs",
+    "src/languages/module_resolver.rs", "src/resolve.rs", "src/unused_imports.rs", "src/db/mod.rs", "src/db/revision.rs",
     "src/db/files.rs", "src/db/references.rs", "src/db/call_edges.rs", "src/db/schema.rs", "src/db/discovery.rs",
     "src/db/architecture.rs", "src/architecture.rs", "src/types.rs", "src/main.rs", "src/cli/index.rs",
     "src/cli/coupling.rs", "src/cli/mod.rs", "src/error.rs", "src/discovery/mod.rs", "src/discovery/types.rs",

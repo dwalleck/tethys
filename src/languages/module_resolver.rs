@@ -6,8 +6,8 @@
 //! language-specific: Rust has `crate`/`self`/`super` anchors, Cargo crate
 //! roots, and an implicit-crate retry for bare paths; C# namespaces map
 //! one-to-many onto files via [`ModuleContext::namespaces`]. This trait
-//! contains those rules so the drivers in `resolve.rs` and `indexing.rs`
-//! stay language-neutral.
+//! contains those rules and declares source-path identity so the drivers in
+//! `resolve.rs`, `indexing.rs`, and query normalization stay language-neutral.
 //!
 //! Two separators exist, deliberately:
 //!
@@ -49,15 +49,24 @@ pub(crate) type NamespaceMap = HashMap<String, Vec<PathBuf>>;
 /// Built once per file being resolved. `anchor` is the per-file anchor
 /// produced by [`ModuleResolver::file_anchor`] (for Rust, the containing
 /// crate's source root; `None` for languages without one) — computed once
-/// per file so resolvers don't rescan `crates` on every call.
+/// per file so resolvers don't rescan the immutable discovery context.
 pub(crate) struct ModuleContext<'a> {
     pub current_file: &'a Path,
-    pub crates: &'a [CrateInfo],
+    pub discovery: &'a crate::discovery::DiscoverySnapshot,
     pub anchor: Option<PathBuf>,
     /// Namespace→files map for namespace-import languages (C#). `None` is a
     /// documented refusal: resolvers treat it exactly like an empty map and
     /// decline (never panic) — Rust contexts always pass `None`.
     pub namespaces: Option<&'a NamespaceMap>,
+}
+
+/// Source identity shared by publication, freshness, and file queries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SourcePathIdentity {
+    /// Preserve workspace-relative aliases, including external symlink targets.
+    Logical,
+    /// Use one canonical physical path, contained within the workspace.
+    Physical,
 }
 
 /// How the Pass-2 glob-import arm consumes a language's candidates.
@@ -109,8 +118,11 @@ pub(crate) struct QualifiedSplit {
     pub tail: String,
 }
 
-/// Language-specific module-path→file translation.
+/// Language-specific source identity and module-path→file translation.
 pub(crate) trait ModuleResolver: Send + Sync {
+    /// Identity policy for source selection and query-path normalization.
+    fn source_path_identity(&self) -> SourcePathIdentity;
+
     /// Separator used in this language's **stored import** `source_module`
     /// strings (`"::"` for Rust, `"."` for C#). Single source of truth for
     /// the storage-side joins and for [`ModuleResolver::resolve_import`].
@@ -254,6 +266,10 @@ pub(crate) fn rust_src_root_for(
 pub(crate) struct RustModuleResolver;
 
 impl ModuleResolver for RustModuleResolver {
+    fn source_path_identity(&self) -> SourcePathIdentity {
+        SourcePathIdentity::Logical
+    }
+
     fn import_separator(&self) -> &'static str {
         "::"
     }
@@ -273,7 +289,7 @@ impl ModuleResolver for RustModuleResolver {
         ctx: &ModuleContext<'_>,
     ) -> Option<PathBuf> {
         let anchor = ctx.anchor.as_deref()?;
-        resolve_module_path(segments, ctx.current_file, anchor, ctx.crates)
+        resolve_module_path(segments, ctx.current_file, anchor, &ctx.discovery.crates)
     }
 
     /// Candidate enumeration for qualified references, longest prefix
@@ -307,15 +323,19 @@ impl ModuleResolver for RustModuleResolver {
                 let mut with_crate: Vec<String> = Vec::with_capacity(prefix.len() + 1);
                 with_crate.push("crate".to_string());
                 with_crate.extend(prefix.iter().map(|s| (*s).to_string()));
-                if let Some(p) =
-                    resolve_module_path(&with_crate, ctx.current_file, anchor, ctx.crates)
-                {
+                if let Some(p) = resolve_module_path(
+                    &with_crate,
+                    ctx.current_file,
+                    anchor,
+                    &ctx.discovery.crates,
+                ) {
                     files.push(p);
                 }
             }
 
             let as_written: Vec<String> = prefix.iter().map(|s| (*s).to_string()).collect();
-            if let Some(p) = resolve_module_path(&as_written, ctx.current_file, anchor, ctx.crates)
+            if let Some(p) =
+                resolve_module_path(&as_written, ctx.current_file, anchor, &ctx.discovery.crates)
                 && !files.contains(&p)
             {
                 files.push(p);
@@ -341,6 +361,10 @@ impl ModuleResolver for RustModuleResolver {
 pub(crate) struct CSharpModuleResolver;
 
 impl ModuleResolver for CSharpModuleResolver {
+    fn source_path_identity(&self) -> SourcePathIdentity {
+        SourcePathIdentity::Physical
+    }
+
     fn import_separator(&self) -> &'static str {
         "."
     }
@@ -416,10 +440,13 @@ mod tests {
 
     use super::*;
 
+    static EMPTY_DISCOVERY: std::sync::LazyLock<crate::discovery::DiscoverySnapshot> =
+        std::sync::LazyLock::new(crate::discovery::DiscoverySnapshot::default);
+
     fn ctx(root: &Path) -> ModuleContext<'_> {
         ModuleContext {
             current_file: root,
-            crates: &[],
+            discovery: &EMPTY_DISCOVERY,
             anchor: None,
             namespaces: None,
         }
@@ -457,7 +484,7 @@ mod tests {
     fn ns_ctx<'a>(root: &'a Path, map: &'a NamespaceMap) -> ModuleContext<'a> {
         ModuleContext {
             current_file: root,
-            crates: &[],
+            discovery: &EMPTY_DISCOVERY,
             anchor: None,
             namespaces: Some(map),
         }
@@ -602,7 +629,11 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let crates = vec![make_crate(dir.path(), "app", &["db.rs"])];
         let current = dir.path().join("app/src/lib.rs");
-        let c = rust_ctx(&current, dir.path(), &crates);
+        let discovery = crate::discovery::DiscoverySnapshot {
+            crates,
+            ..Default::default()
+        };
+        let c = rust_ctx(&current, dir.path(), &discovery);
         assert_eq!(
             RustModuleResolver.resolve_import_files("crate::db", &c),
             vec![dir.path().join("app/src/db.rs")]
@@ -689,12 +720,13 @@ mod tests {
     fn rust_ctx<'a>(
         current_file: &'a Path,
         workspace_root: &'a Path,
-        crates: &'a [CrateInfo],
+        discovery: &'a crate::discovery::DiscoverySnapshot,
     ) -> ModuleContext<'a> {
-        let anchor = RustModuleResolver.file_anchor(current_file, workspace_root, crates);
+        let anchor =
+            RustModuleResolver.file_anchor(current_file, workspace_root, &discovery.crates);
         ModuleContext {
             current_file,
-            crates,
+            discovery,
             namespaces: None,
             anchor,
         }
@@ -717,7 +749,11 @@ mod tests {
             make_crate(dir.path(), "helper", &[]),
         ];
         let current = dir.path().join("app/src/lib.rs");
-        let ctx = rust_ctx(&current, dir.path(), &crates);
+        let discovery = crate::discovery::DiscoverySnapshot {
+            crates,
+            ..Default::default()
+        };
+        let ctx = rust_ctx(&current, dir.path(), &discovery);
 
         let splits = RustModuleResolver.qualified_splits("helper::do_thing", &ctx);
         assert_eq!(splits.len(), 1, "two segments give exactly one split");
@@ -739,7 +775,11 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let crates = vec![make_crate(dir.path(), "app", &["db.rs"])];
         let current = dir.path().join("app/src/lib.rs");
-        let ctx = rust_ctx(&current, dir.path(), &crates);
+        let discovery = crate::discovery::DiscoverySnapshot {
+            crates,
+            ..Default::default()
+        };
+        let ctx = rust_ctx(&current, dir.path(), &discovery);
 
         let splits = RustModuleResolver.qualified_splits("crate::db::open", &ctx);
         assert_eq!(
@@ -765,7 +805,11 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let crates = vec![make_crate(dir.path(), "app", &["a.rs", "a/b.rs"])];
         let current = dir.path().join("app/src/lib.rs");
-        let ctx = rust_ctx(&current, dir.path(), &crates);
+        let discovery = crate::discovery::DiscoverySnapshot {
+            crates,
+            ..Default::default()
+        };
+        let ctx = rust_ctx(&current, dir.path(), &discovery);
 
         let splits = RustModuleResolver.qualified_splits("a::b::c", &ctx);
         assert_eq!(splits.len(), 2);
@@ -782,7 +826,11 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let crates = vec![make_crate(dir.path(), "app", &[])];
         let current = dir.path().join("app/src/lib.rs");
-        let ctx = rust_ctx(&current, dir.path(), &crates);
+        let discovery = crate::discovery::DiscoverySnapshot {
+            crates,
+            ..Default::default()
+        };
+        let ctx = rust_ctx(&current, dir.path(), &discovery);
         assert!(
             RustModuleResolver
                 .qualified_splits("lonely", &ctx)
@@ -796,7 +844,11 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let crates = vec![make_crate(dir.path(), "app", &["db.rs"])];
         let current = dir.path().join("app/src/lib.rs");
-        let ctx = rust_ctx(&current, dir.path(), &crates);
+        let discovery = crate::discovery::DiscoverySnapshot {
+            crates,
+            ..Default::default()
+        };
+        let ctx = rust_ctx(&current, dir.path(), &discovery);
         assert_eq!(
             RustModuleResolver.resolve_import("crate::db", &ctx),
             Some(dir.path().join("app/src/db.rs"))
@@ -814,7 +866,11 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let crates = vec![make_crate(dir.path(), "app", &["db.rs"])];
         let current = dir.path().join("app/src/lib.rs");
-        let ctx = rust_ctx(&current, dir.path(), &crates);
+        let discovery = crate::discovery::DiscoverySnapshot {
+            crates,
+            ..Default::default()
+        };
+        let ctx = rust_ctx(&current, dir.path(), &discovery);
 
         // The OTHER language's separator: one opaque segment, no crate match.
         assert_eq!(

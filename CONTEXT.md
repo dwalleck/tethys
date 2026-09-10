@@ -10,15 +10,19 @@ several distinct operations that all get called "resolve."
 ### The index
 
 **Index**:
-The SQLite store of symbols, references, imports, call edges, and file dependencies
-for one workspace, at `.rivets/index/tethys.db` — a *rebuildable cache* of parsed
-source (derived, disposable via `--rebuild`, never the source of truth). "Index" is
-the canonical noun; also used as a verb (building it).
+The rebuildable store of source facts and workspace discovery evidence for one
+workspace; a derived cache, never the source of truth. "Index" is also used as a
+verb for building it.
 _Avoid_: database (when you mean the tethys index specifically)
 
 **Workspace**:
 The root directory tethys indexes; for Rust, the Cargo workspace and its member
 crates. Every indexed path is stored relative to it.
+
+**Source identity** (tethys-82a6):
+The path identity of indexed syntax. Rust uses logical paths: aliases remain
+distinct, including links to external targets. C# uses physical paths within the
+workspace: aliases share one file identity.
 
 **Crate**:
 Cargo's unit of compilation, discovered from a `Cargo.toml`. Prefer "crate" over
@@ -45,8 +49,9 @@ _Avoid_: build configuration (when you mean the complete context)
 
 **Evaluation unit**:
 One C# project for one target framework under an evaluation context, with its own
-effective source membership and semantic facts. Framework identity includes
-applicable version, profile, and platform distinctions, not just SDK shorthand.
+effective source membership and evaluated metadata, distinct from compiler-bound
+semantic facts. Framework identity includes version, profile, and platform, not
+just SDK shorthand.
 _Avoid_: compilation (a compiler invocation), compilation unit (ambiguous with a
 source syntax root), assembly (when you mean the evaluation scope)
 
@@ -56,8 +61,8 @@ assembly name; distinct projects may share that name.
 _Avoid_: project identity, assembly name (as a unique project key)
 
 **Source membership**:
-A physical source file's participation in an evaluation unit; the same file may
-participate in several units without becoming several files.
+A physical C# source file's participation in an evaluation unit; the same file
+may participate in several units without becoming several files.
 _Avoid_: file ownership (when it implies exactly one project)
 
 **Source-only scope**:
@@ -81,6 +86,19 @@ _Avoid_: empty project, nonexistent project (when discovery could not establish 
 An evaluated project's declaration of a dependency on another project, without
 proof of which target evaluation unit was selected.
 _Avoid_: selected unit edge, compiler binding
+
+**Discovery snapshot** (tethys-82a6):
+An immutable discovery result containing the recorded evaluation context and grants,
+project and unit standing, memberships, declared references, and input evidence.
+_Avoid_: index revision (which also includes syntax and analysis facts)
+
+**Discovery grants** (tethys-82a6):
+Invocation-local authority for project evaluation and, separately, restore;
+recorded grants are evidence of past authority, not permission for a later run.
+
+**Discovery input scope** (tethys-82a6):
+A captured set of evaluation inputs for one project observation, distinct from
+proof that those inputs remain current or permit cache reuse.
 
 ### C# binding model (approved roadmap vocabulary, tethys-07eh)
 
@@ -238,19 +256,18 @@ speculative edge is an *unverified* one.
 ### Indexing lifecycle
 
 **Indexing**:
-The pipeline that parses source, extracts symbols and references, stores them, and
-runs reference resolution.
+The pipeline that establishes workspace discovery evidence, extracts source facts,
+and performs reference resolution before publishing an index revision.
 
 **Index revision** (tethys-82a6):
-A coherently published set of workspace facts from one indexing run. A failed
-publication leaves the preceding revision visible; reported source failures may
-leave a successful revision incomplete, but do not preserve stale file facts.
+A coherently published set of discovery, syntax, and analysis facts from one
+indexing run. Failed publication leaves the preceding revision visible; reported
+discovery or source failures can leave a published revision incomplete.
 _Avoid_: snapshot (when you mean the published index revision), batch
 
 **Extraction**:
 Pulling symbols and references out of one parsed file for one language, behind the
-`LanguageSupport` trait. Together with module-path resolution, the only
-language-aware step of indexing.
+`LanguageSupport` trait, distinct from workspace discovery and reference resolution.
 
 **Pass 1 / Pass 2**:
 The two phases of indexing. Pass 1 stores symbols and unresolved references; Pass 2
@@ -261,8 +278,8 @@ A cross-file dependency not yet resolvable, queued and retried until a pass make
 no further progress. How indexing tolerates forward and circular references.
 
 **Reindex**:
-Re-running indexing over only the files whose mtime changed since the last index,
-rather than the whole workspace.
+An indexing run that refreshes workspace discovery while reusing unchanged source
+facts and updating changed files, rather than rebuilding the whole index.
 _Avoid_: incremental index (say "reindex" or "incremental update")
 
 **Staleness**:

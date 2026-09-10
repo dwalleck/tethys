@@ -118,6 +118,29 @@ fn cache_input_closure_matches_forced_and_invalidates_globs_content_context() {
     );
     semantic_eq(&hit, &forced);
     assert!(forced.cache.is_empty());
+    assert!(forced.is_complete());
+    assert_eq!(fresh.inputs, forced.inputs);
+    let project_identity = fs::canonicalize(root.path().join("App.csproj")).unwrap();
+    let captured_project = forced
+        .inputs
+        .iter()
+        .find(|scope| scope.project.as_str() == "App.csproj")
+        .unwrap()
+        .inputs
+        .iter()
+        .find(|input| input.canonical_path == project_identity)
+        .unwrap();
+    let metadata = fs::metadata(root.path().join("App.csproj")).unwrap();
+    assert_eq!(
+        captured_project.path,
+        fs::canonicalize(root.path()).unwrap().join("App.csproj")
+    );
+    assert_eq!(captured_project.length, metadata.len());
+    assert_eq!(captured_project.modified, metadata.modified().unwrap());
+    assert_eq!(
+        captured_project.digest,
+        format!("{:x}", <sha2::Sha256 as sha2::Digest>::digest(project("")))
+    );
     fs::write(root.path().join("src/Second.cs"), "class Second {}\n").unwrap();
     let changed = discover(root.path(), options(), hit.cache);
     assert_authored(&changed, &["src/First.cs", "src/Second.cs"]);
@@ -648,4 +671,49 @@ fn caller_runtime_code_extension_never_publishes_evidence() {
         "{:?}",
         extended.cache_observations
     );
+}
+
+#[cfg(unix)]
+#[test]
+#[ignore = "requires packaged real worker and explicitly selected installed SDK"]
+fn incomplete_inventory_cannot_reuse_or_publish_evaluation_receipts() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let root = fixture();
+    let hidden = root.path().join("hidden");
+    fs::create_dir(&hidden).unwrap();
+    let fresh = discover(root.path(), options(), vec![]);
+    assert!(!fresh.cache.is_empty());
+    let permissions = fs::metadata(&hidden).unwrap().permissions();
+    fs::set_permissions(&hidden, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read_dir(&hidden).is_ok() {
+        fs::set_permissions(&hidden, permissions).unwrap();
+        return; // Elevated users cannot exercise a directory-permission boundary.
+    }
+    let result = MsBuildDiscovery.discover(
+        &DiscoveryRequest::new(root.path(), options())
+            .unwrap()
+            .with_cache(fresh.cache),
+    );
+    fs::set_permissions(&hidden, permissions).unwrap();
+    let snapshot = result.unwrap();
+    assert_authored(&snapshot, &["src/First.cs"]);
+    assert!(!snapshot.is_complete());
+    assert_eq!(
+        snapshot.issues[0].failure.reason,
+        DiscoveryFailureReason::EvaluationFailed
+    );
+    assert!(snapshot.cache.is_empty());
+    assert!(
+        snapshot
+            .cache_observations
+            .iter()
+            .all(|observation| !observation.reused)
+    );
+    assert!(snapshot.cache_observations.iter().any(|observation| {
+        observation
+            .bypass_reasons
+            .iter()
+            .any(|reason| reason == "incomplete_workspace_inventory")
+    }));
 }

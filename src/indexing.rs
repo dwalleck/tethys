@@ -7,10 +7,10 @@
 //! - File-level dependency computation
 //! - Pending dependency resolution passes
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Instant, UNIX_EPOCH};
 
 use rayon::prelude::*;
@@ -19,14 +19,32 @@ use tracing::{debug, info, trace, warn};
 use crate::Tethys;
 use crate::batch_writer::BatchWriter;
 use crate::db::SymbolData;
+use crate::discovery::{DiscoveryRequest, DiscoverySnapshot, discover_workspace};
 use crate::error::{Error, IndexError, IndexErrorKind, Result};
-use crate::languages::module_resolver::{ModuleContext, NamespaceMap, get_module_resolver};
+use crate::languages::module_resolver::{
+    ModuleContext, NamespaceMap, SourcePathIdentity, get_module_resolver,
+};
 use crate::languages::{self, common};
 use crate::lsp;
 use crate::parallel::{OwnedSymbolData, ParsedFileData};
 use crate::types::{
-    ArchPhaseResult, FileId, Import, IndexOptions, IndexStats, Language, SymbolKind,
+    ArchPhaseResult, CrateInfo, FileId, Import, IndexOptions, IndexStats, Language, SymbolKind,
 };
+
+/// Keep the loaded context aligned with SQL rollback, including unwinding.
+struct DiscoveryRun<'a> {
+    owner: &'a mut Tethys,
+    previous: Option<(Vec<CrateInfo>, Option<Arc<DiscoverySnapshot>>)>,
+}
+
+impl Drop for DiscoveryRun<'_> {
+    fn drop(&mut self) {
+        if let Some((crates, publication)) = self.previous.take() {
+            self.owner.crates = crates;
+            self.owner.discovery = publication.map_or_else(OnceLock::new, OnceLock::from);
+        }
+    }
+}
 
 /// Pre-built file→crate assignment index for O(depth) ancestor-walk lookups.
 ///
@@ -161,41 +179,64 @@ impl Tethys {
         self.index_in_revision(options, false)
     }
 
+    pub(crate) fn index_in_revision(
+        &mut self,
+        mut options: IndexOptions,
+        rebuild: bool,
+    ) -> Result<IndexStats> {
+        let start = Instant::now();
+        // Discovery runs before the write transaction: it spawns MSBuild
+        // evaluation and restore, which touch no database state, and holding
+        // `BEGIN IMMEDIATE` across that work starves every other writer.
+        let cache = if rebuild {
+            Vec::new()
+        } else {
+            self.db.discovery_cache()?
+        };
+        let request =
+            DiscoveryRequest::new(&self.workspace_root, std::mem::take(&mut options.discovery))?
+                .with_cache(cache);
+        let discovery = Arc::new(discover_workspace(&request)?);
+        let revision = self.db.begin_revision(rebuild)?;
+        let previous = self.discovery.take();
+        let previous_crates = std::mem::replace(&mut self.crates, discovery.crates.clone());
+        let _ = self.discovery.set(Arc::clone(&discovery));
+        let mut run = DiscoveryRun {
+            owner: self,
+            previous: Some((previous_crates, previous)),
+        };
+        let mut stats = run.owner.index_discovered_revision(&options, start)?;
+        revision.commit()?;
+        run.previous = None;
+        stats.duration = start.elapsed();
+        Ok(stats)
+    }
+
     #[expect(
         clippy::too_many_lines,
         reason = "orchestration method with sequential indexing phases"
     )]
-    pub(crate) fn index_in_revision(
+    fn index_discovered_revision(
         &mut self,
-        options: IndexOptions,
-        rebuild: bool,
+        options: &IndexOptions,
+        start: Instant,
     ) -> Result<IndexStats> {
-        let revision = self.db.begin_revision(rebuild)?;
-        let start = Instant::now();
         let mut files_indexed = 0;
         let mut symbols_found = 0;
         let mut references_found = 0;
-        let mut files_skipped = 0;
         let mut directories_skipped = Vec::new();
         let mut errors = Vec::new();
+        // Source-identity failures are reported, never treated as deletion
+        // evidence: an unreadable path is not proof that its facts are stale.
+        let mut source_errors = Vec::new();
         let mut pending: Vec<PendingDependency> = Vec::new();
 
-        // Walk the workspace and find source files
-        let all_files = self.discover_files(&mut directories_skipped)?;
-
-        // Filter to supported languages and count skipped files
-        let source_files: Vec<(PathBuf, Language)> = all_files
-            .into_iter()
-            .filter_map(|file_path| {
-                let ext = file_path.extension().and_then(|e| e.to_str()).unwrap_or("");
-                if let Some(language) = Language::from_extension(ext) {
-                    Some((file_path, language))
-                } else {
-                    files_skipped += 1;
-                    None
-                }
-            })
-            .collect();
+        let indexed_files = self.db.list_all_files()?;
+        let (source_files, files_skipped) = self.discover_files(
+            indexed_files.iter().map(|file| file.path.as_path()),
+            &mut directories_skipped,
+            &mut source_errors,
+        )?;
 
         let total_files = source_files.len();
         let workspace_root = self.workspace_root.clone();
@@ -411,6 +452,8 @@ impl Tethys {
             );
         }
 
+        errors.extend(source_errors);
+
         // Resolution passes: retry pending dependencies until stable
         let mut prev_count = pending.len() + 1;
         let mut pass = 0;
@@ -535,6 +578,10 @@ impl Tethys {
             );
         }
 
+        let publication = self.discovery_snapshot()?;
+        self.db
+            .replace_discovery_snapshot(publication, &errors, &directories_skipped)?;
+
         // Update query planner statistics after bulk writes
         self.db.analyze()?;
 
@@ -546,7 +593,6 @@ impl Tethys {
             "architecture phase complete"
         );
         let arch_phase = Some(ArchPhaseResult::Completed(arch));
-        revision.commit()?;
 
         Ok(IndexStats {
             files_indexed,
@@ -559,6 +605,7 @@ impl Tethys {
             unresolved_dependencies,
             lsp_sessions,
             arch_phase,
+            discovery: self.publication_arc()?,
         })
     }
 
@@ -589,7 +636,7 @@ impl Tethys {
     /// `orphan:<filename>`). The pseudo-crate prefix is centralized as
     /// [`crate::db::ORPHAN_PSEUDO_CRATE_PREFIX`].
     fn build_file_crate_map(&self) -> Result<HashMap<crate::types::FileId, String>> {
-        let crate_index = CrateIndex::new(&self.crates);
+        let crate_index = CrateIndex::new(self.crates());
         let map = self
             .db
             .list_all_files()?
@@ -844,7 +891,7 @@ impl Tethys {
         let resolver = get_module_resolver(language);
         let module_ctx = ModuleContext {
             current_file,
-            crates: self.crates(),
+            discovery: self.discovery_snapshot()?,
             anchor: resolver.file_anchor(current_file, &self.workspace_root, self.crates()),
             namespaces: None,
         };
@@ -1033,7 +1080,7 @@ impl Tethys {
         let resolver = get_module_resolver(language);
         let module_ctx = ModuleContext {
             current_file,
-            crates: self.crates(),
+            discovery: self.discovery_snapshot()?,
             anchor: resolver.file_anchor(current_file, &self.workspace_root, self.crates()),
             namespaces: None,
         };
@@ -1162,14 +1209,87 @@ impl Tethys {
         Ok(still_pending)
     }
 
-    /// Discover source files in the workspace.
-    pub(crate) fn discover_files(
+    /// Select language-declared source identities for publication and read-only analysis.
+    ///
+    /// Existing indexed syntax remains a source candidate independently of current
+    /// project participation. Missing retained files are left to orphan/staleness
+    /// classification. Returns supported sources and the unsupported-file count.
+    pub(crate) fn discover_files<'a>(
         &self,
+        indexed_paths: impl Iterator<Item = &'a Path>,
         directories_skipped: &mut Vec<(PathBuf, String)>,
-    ) -> Result<Vec<PathBuf>> {
+        errors: &mut Vec<IndexError>,
+    ) -> Result<(Vec<(PathBuf, Language)>, usize)> {
         let mut files = Vec::new();
         Self::walk_dir(&self.workspace_root, &mut files, directories_skipped)?;
-        Ok(files)
+        let retained = indexed_paths
+            .map(|path| self.workspace_root.join(path))
+            // Unknown existence is retried at the canonical/read boundary, where
+            // an actual failure is diagnosed rather than interpreted as deletion.
+            .filter(|path| !matches!(path.try_exists(), Ok(false)));
+        let publication = self.discovery_snapshot()?;
+        let evaluated = publication
+            .units
+            .iter()
+            .flat_map(|unit| &unit.sources)
+            .map(|source| self.workspace_root.join(&source.path));
+        let mut sources = Vec::new();
+        // `seen` holds canonical identities that produced a source; `attempted`
+        // holds raw spellings already processed, so a physical source is
+        // canonicalized once per spelling instead of once per occurrence.
+        let mut seen = HashSet::new();
+        let mut attempted = HashSet::new();
+        let mut failed = HashSet::new();
+        let mut skipped = 0;
+        for path in files.into_iter().chain(retained).chain(evaluated) {
+            if !attempted.insert(path.clone()) {
+                continue;
+            }
+            let Some(language) = path
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .and_then(Language::from_extension)
+            else {
+                skipped += 1;
+                continue;
+            };
+            let path = match get_module_resolver(language).source_path_identity() {
+                SourcePathIdentity::Logical => path,
+                SourcePathIdentity::Physical => match path.canonicalize() {
+                    Ok(path) if path.starts_with(&self.workspace_root) => path,
+                    result => {
+                        let message = match result {
+                            Err(error) => error.to_string(),
+                            Ok(_) => "source resolves outside the workspace".into(),
+                        };
+                        warn!(path = %path.display(), %message, "Skipping unresolvable source");
+                        if failed.insert(path.clone()) {
+                            errors.push(IndexError {
+                                path,
+                                kind: IndexErrorKind::IoError,
+                                message,
+                            });
+                        }
+                        continue;
+                    }
+                },
+            };
+            // The set owns its deduplication key independently of the ordered
+            // source vector; keep the first encounter's publication order.
+            if !seen.insert(path.clone()) {
+                continue;
+            }
+            let Some(language) = path
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .and_then(Language::from_extension)
+            else {
+                skipped += 1;
+                continue;
+            };
+            sources.push((path, language));
+        }
+        Ok((sources, skipped))
     }
 
     /// Recursively walk a directory, collecting source files.
@@ -1241,9 +1361,8 @@ impl Tethys {
     /// `parent_name` is the name of the directory containing `name`, used for
     /// context-aware exclusions: `bin` is .NET build output everywhere EXCEPT
     /// under `src`, where it is Cargo's binary-target source directory
-    /// (`src/bin/*.rs`). `obj` stays excluded unconditionally — .NET `obj`
-    /// directories contain *generated* `.cs` sources that must never be
-    /// indexed, and no language convention places real sources there.
+    /// (`src/bin/*.rs`). These are automatic-walk exclusions; explicitly evaluated
+    /// Compile inputs and retained physical sources are selected independently.
     fn is_excluded_dir(name: &str, parent_name: Option<&str>) -> bool {
         match name {
             "bin" => parent_name != Some("src"),
@@ -1261,7 +1380,7 @@ impl Tethys {
 
         // Non-Rust workspaces have no crates; succeed with all-zero stats.
         // Real architecture failures abort the enclosing revision.
-        if self.crates.is_empty() {
+        if self.crates().is_empty() {
             return Ok(crate::types::ArchStats::default());
         }
 
@@ -1269,13 +1388,13 @@ impl Tethys {
         // them as `&str` — `Cow::into_owned` drops the borrow that `PackageInsert`
         // requires, so we need an owning backing vec that outlives `packages`.
         let package_paths: Vec<String> = self
-            .crates
+            .crates()
             .iter()
             .map(|c| self.relative_path(&c.path).to_string_lossy().into_owned())
             .collect();
 
         let packages: Vec<PackageInsert<'_>> = self
-            .crates
+            .crates()
             .iter()
             .zip(package_paths.iter())
             .map(|(c, p)| PackageInsert {
@@ -1287,7 +1406,7 @@ impl Tethys {
 
         // Map each file to its containing crate via the shared CrateIndex
         // ancestor walk: O(files × depth), zero syscalls.
-        let crate_index = CrateIndex::new(&self.crates);
+        let crate_index = CrateIndex::new(self.crates());
 
         let mut file_to_package: Vec<(crate::types::FileId, &str)> = Vec::new();
         for file in self.db.list_all_files()? {

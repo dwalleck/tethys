@@ -1,0 +1,1 @@
+- `tethys index` exits 0 for a workspace with no evaluated projects, while still reporting any unreadable directory; incomplete evaluated coverage still exits 1.

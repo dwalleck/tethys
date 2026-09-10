@@ -1,0 +1,77 @@
+    Finished `test` profile [optimized + debuginfo] target(s) in 0.05s
+────────────
+ Nextest run ID a8e3651d-704f-4b64-a35e-1ef8b148a694 with nextest profile: default
+    Starting 1 test across 1 binary (14 tests skipped)
+        SKIP [         ] tethys::concurrency_and_filesystem canonical_publication_resolves_relative_and_absolute_file_aliases
+        SKIP [         ] tethys::concurrency_and_filesystem concurrent_searches_after_indexing_return_consistent_results
+        SKIP [         ] tethys::concurrency_and_filesystem concurrent_symbol_and_file_queries_after_indexing
+        SKIP [         ] tethys::concurrency_and_filesystem empty_subdirectories_do_not_cause_errors
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_files_in_deeply_nested_directories
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_files_with_spaces_in_path
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_files_with_unicode_in_path
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_large_file_with_many_symbols
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_many_files_in_single_directory
+        SKIP [         ] tethys::concurrency_and_filesystem needs_update_returns_true
+        SKIP [         ] tethys::concurrency_and_filesystem rebuild_clears_and_reindexes_cleanly
+        SKIP [         ] tethys::concurrency_and_filesystem reindex_produces_same_symbol_count
+        SKIP [         ] tethys::concurrency_and_filesystem unreadable_directory_is_skipped_gracefully
+        SKIP [         ] tethys::concurrency_and_filesystem update_maps_index_stats_to_index_update_fields
+        FAIL [   0.015s] tethys::concurrency_and_filesystem csharp_external_file_and_directory_aliases_are_not_published
+  stdout ───
+
+    running 1 test
+    test csharp_external_file_and_directory_aliases_are_not_published ... FAILED
+
+    failures:
+
+    failures:
+        csharp_external_file_and_directory_aliases_are_not_published
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.01s
+
+  stderr ───
+
+    thread 'csharp_external_file_and_directory_aliases_are_not_published' (35191) panicked at tests/concurrency_and_filesystem.rs:529:5:
+    assertion `left == right` failed
+      left: 3
+     right: 1
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+────────────
+     Summary [   0.015s] 1 test run: 0 passed, 1 failed, 14 skipped
+        SKIP [         ] tethys::concurrency_and_filesystem canonical_publication_resolves_relative_and_absolute_file_aliases
+        SKIP [         ] tethys::concurrency_and_filesystem concurrent_searches_after_indexing_return_consistent_results
+        SKIP [         ] tethys::concurrency_and_filesystem concurrent_symbol_and_file_queries_after_indexing
+        SKIP [         ] tethys::concurrency_and_filesystem empty_subdirectories_do_not_cause_errors
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_files_in_deeply_nested_directories
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_files_with_spaces_in_path
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_files_with_unicode_in_path
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_large_file_with_many_symbols
+        SKIP [         ] tethys::concurrency_and_filesystem indexes_many_files_in_single_directory
+        SKIP [         ] tethys::concurrency_and_filesystem needs_update_returns_true
+        SKIP [         ] tethys::concurrency_and_filesystem rebuild_clears_and_reindexes_cleanly
+        SKIP [         ] tethys::concurrency_and_filesystem reindex_produces_same_symbol_count
+        SKIP [         ] tethys::concurrency_and_filesystem unreadable_directory_is_skipped_gracefully
+        SKIP [         ] tethys::concurrency_and_filesystem update_maps_index_stats_to_index_update_fields
+        FAIL [   0.015s] tethys::concurrency_and_filesystem csharp_external_file_and_directory_aliases_are_not_published
+  stdout ───
+
+    running 1 test
+    test csharp_external_file_and_directory_aliases_are_not_published ... FAILED
+
+    failures:
+
+    failures:
+        csharp_external_file_and_directory_aliases_are_not_published
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.01s
+
+  stderr ───
+
+    thread 'csharp_external_file_and_directory_aliases_are_not_published' (35191) panicked at tests/concurrency_and_filesystem.rs:529:5:
+    assertion `left == right` failed
+      left: 3
+     right: 1
+    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+error: test run failed

@@ -30,6 +30,44 @@ struct Cli {
     command: Commands,
 }
 
+/// Explicit index-only discovery authority and evaluation context.
+#[derive(clap::Args)]
+pub(crate) struct DiscoveryArgs {
+    /// Permit `MSBuild` project evaluation (executes repository code)
+    #[arg(long)]
+    trust_msbuild: bool,
+    /// Separately permit the repository's normal restore policy
+    #[arg(long)]
+    allow_restore: bool,
+    /// Requested Configuration (explicit --property wins)
+    #[arg(long)]
+    configuration: Option<String>,
+    /// Requested Platform (explicit --property wins)
+    #[arg(long)]
+    platform: Option<String>,
+    /// Requested `RuntimeIdentifier` (explicit --property wins)
+    #[arg(long)]
+    runtime_identifier: Option<String>,
+    /// Explicit global property; repeat for multiple properties
+    #[arg(long, value_name = "NAME=VALUE", value_parser = cli::index::parse_property)]
+    property: Vec<(String, String)>,
+    /// Select an installed `MSBuild` directory; never installs a host
+    #[arg(long)]
+    msbuild_path: Option<PathBuf>,
+    /// Evaluation import policy (explicit --property wins)
+    #[arg(long, value_enum, default_value = "strict")]
+    import_profile: ImportProfile,
+    /// Force fresh evaluation instead of validated cache reuse
+    #[arg(long)]
+    no_discovery_cache: bool,
+}
+
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum ImportProfile {
+    Strict,
+    BlankVsToolsPath,
+}
+
 #[derive(Subcommand)]
 enum Commands {
     /// Index source files in the workspace
@@ -45,6 +83,9 @@ enum Commands {
         /// Timeout in seconds for LSP solution loading (default: 60, env: `TETHYS_LSP_TIMEOUT`)
         #[arg(long)]
         lsp_timeout: Option<u64>,
+
+        #[command(flatten)]
+        discovery: DiscoveryArgs,
     },
 
     /// Search for symbols by name
@@ -270,12 +311,18 @@ fn main() -> ExitCode {
         },
     };
 
-    // affected-tests owns its exit code (0 confirmed / 2 indeterminate /
-    // 1 error — tethys-09wx); every other command maps Ok(()) -> SUCCESS.
+    // affected-tests owns confirmed/indeterminate/error status (tethys-09wx);
+    // index also reports incomplete discovery. Other commands map Ok(()) to success.
     let result = match cli.command {
         Commands::AffectedTests { files, names_only } => {
             cli::affected_tests::run(&workspace, &files, names_only)
         }
+        Commands::Index {
+            rebuild,
+            lsp,
+            lsp_timeout,
+            discovery,
+        } => cli::index::run(&workspace, rebuild, lsp, lsp_timeout, discovery),
         command => run_command(&workspace, command).map(|()| ExitCode::SUCCESS),
     };
 
@@ -296,11 +343,7 @@ fn main() -> ExitCode {
 
 fn run_command(workspace: &Path, command: Commands) -> Result<(), tethys::Error> {
     match command {
-        Commands::Index {
-            rebuild,
-            lsp,
-            lsp_timeout,
-        } => cli::index::run(workspace, rebuild, lsp, lsp_timeout),
+        Commands::Index { .. } => unreachable!("Index is dispatched before run_command"),
         Commands::Search { query, kind, limit } => {
             cli::search::run(workspace, &query, kind.as_deref(), limit)
         }

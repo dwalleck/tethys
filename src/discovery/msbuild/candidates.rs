@@ -25,6 +25,7 @@ pub(super) struct Candidate {
 pub(super) struct WorkspaceInventory {
     pub paths: Vec<PathBuf>,
     pub has_symlinks: bool,
+    pub issues: Vec<DiscoveryIssue>,
 }
 
 pub(super) struct Candidates {
@@ -45,6 +46,27 @@ fn failure(
             file: Some(path.to_path_buf()),
             ..DiscoveryDiagnostic::default()
         }],
+    }
+}
+
+impl WorkspaceInventory {
+    /// Retain traversal uncertainty without hiding readable siblings.
+    fn observe<T>(&mut self, path: &Path, result: std::io::Result<T>) -> Option<T> {
+        match result {
+            Ok(value) => Some(value),
+            Err(error) => {
+                tracing::warn!(path = %path.display(), %error, "Incomplete discovery inventory");
+                self.issues.push(DiscoveryIssue {
+                    path: path.to_path_buf(),
+                    failure: failure(
+                        path,
+                        DiscoveryFailureReason::EvaluationFailed,
+                        error.to_string(),
+                    ),
+                });
+                None
+            }
+        }
     }
 }
 
@@ -203,58 +225,80 @@ fn symlink_target(root: &Path, path: &Path) -> Option<PathBuf> {
     }
 }
 
-fn walk(root: &Path) -> crate::Result<(WorkspaceInventory, Vec<PathBuf>)> {
-    enum Frame {
-        Enter {
-            logical: PathBuf,
-            physical: PathBuf,
-            generated: bool,
-        },
-        Leave(PathBuf),
-    }
-    let mut inventory = WorkspaceInventory {
-        paths: Vec::new(),
-        has_symlinks: false,
-    };
-    let mut candidates = Vec::new();
-    let mut ancestors = std::collections::HashSet::new();
-    let mut pending = vec![Frame::Enter {
-        logical: root.to_path_buf(),
-        physical: root.to_path_buf(),
-        generated: false,
-    }];
+enum WalkFrame {
+    Enter {
+        logical: PathBuf,
+        physical: PathBuf,
+        generated: bool,
+    },
+    Leave(PathBuf),
+}
+
+/// Advance depth-first traversal while keeping only physical ancestors active.
+fn next_directory(
+    pending: &mut Vec<WalkFrame>,
+    ancestors: &mut std::collections::HashSet<PathBuf>,
+) -> Option<(PathBuf, PathBuf, bool)> {
     while let Some(frame) = pending.pop() {
-        let (directory, physical_directory, generated) = match frame {
-            Frame::Leave(physical) => {
+        match frame {
+            WalkFrame::Leave(physical) => {
                 ancestors.remove(&physical);
-                continue;
             }
-            Frame::Enter {
+            WalkFrame::Enter {
                 logical,
                 physical,
                 generated,
             } => {
-                if !ancestors.insert(physical.clone()) {
-                    continue;
+                if ancestors.insert(physical.clone()) {
+                    pending.push(WalkFrame::Leave(physical.clone()));
+                    return Some((logical, physical, generated));
                 }
-                pending.push(Frame::Leave(physical.clone()));
-                (logical, physical, generated)
             }
+        }
+    }
+    None
+}
+
+fn walk(root: &Path) -> crate::Result<(WorkspaceInventory, Vec<PathBuf>)> {
+    let mut inventory = WorkspaceInventory {
+        paths: Vec::new(),
+        has_symlinks: false,
+        issues: Vec::new(),
+    };
+    let mut candidates = Vec::new();
+    let mut ancestors = std::collections::HashSet::new();
+    let mut pending = vec![WalkFrame::Enter {
+        logical: root.to_path_buf(),
+        physical: root.to_path_buf(),
+        generated: false,
+    }];
+    while let Some((directory, physical_directory, generated)) =
+        next_directory(&mut pending, &mut ancestors)
+    {
+        let Some(entries) = inventory.observe(&directory, fs::read_dir(&directory)) else {
+            continue;
         };
-        for entry in fs::read_dir(&directory)? {
-            let entry = entry?;
-            let name = entry.file_name();
-            if directory_name_matches(&directory, &name, ".git")?
-                || directory_name_matches(&directory, &name, ".rivets")?
-            {
+        for entry in entries {
+            let Some(entry) = inventory.observe(&directory, entry) else {
                 continue;
+            };
+            let name = entry.file_name();
+            let excluded = (|| {
+                Ok(directory_name_matches(&directory, &name, ".git")?
+                    || directory_name_matches(&directory, &name, ".rivets")?)
+            })();
+            match inventory.observe(&entry.path(), excluded) {
+                Some(false) => {}
+                Some(true) | None => continue,
             }
             let path = entry.path();
             let relative = path
                 .strip_prefix(root)
                 .map_err(|error| crate::Error::Config(error.to_string()))?
                 .to_path_buf();
-            let kind = entry.file_type()?;
+            let Some(kind) = inventory.observe(&path, entry.file_type()) else {
+                continue;
+            };
             let automatic_candidate = candidate_path(&path) && !generated && !kind.is_dir();
             let physical = if kind.is_symlink() {
                 inventory.has_symlinks = true;
@@ -262,7 +306,11 @@ fn walk(root: &Path) -> crate::Result<(WorkspaceInventory, Vec<PathBuf>)> {
             } else {
                 Some(physical_directory.join(&name))
             };
-            let metadata = physical.as_ref().map(fs::metadata).transpose()?;
+            let Some(metadata) =
+                inventory.observe(&path, physical.as_ref().map(fs::metadata).transpose())
+            else {
+                continue;
+            };
             if kind.is_symlink()
                 && let (Some(physical), Some(metadata)) = (&physical, &metadata)
             {
@@ -271,8 +319,9 @@ fn walk(root: &Path) -> crate::Result<(WorkspaceInventory, Vec<PathBuf>)> {
                 } else {
                     physical.parent().unwrap_or(root)
                 };
-                if excluded_physical_ancestry(root, directory)? {
-                    continue;
+                match inventory.observe(&path, excluded_physical_ancestry(root, directory)) {
+                    Some(false) => {}
+                    Some(true) | None => continue,
                 }
             }
             // Keep unresolved/outside candidate aliases so discovery emits its
@@ -284,11 +333,16 @@ fn walk(root: &Path) -> crate::Result<(WorkspaceInventory, Vec<PathBuf>)> {
                 continue;
             };
             if metadata.is_dir() {
-                let generated = generated
-                    || directory_name_matches(&directory, &name, "bin")?
-                    || directory_name_matches(&directory, &name, "obj")?
-                    || directory_name_matches(&directory, &name, "target")?;
-                pending.push(Frame::Enter {
+                let generated = (|| {
+                    Ok(generated
+                        || directory_name_matches(&directory, &name, "bin")?
+                        || directory_name_matches(&directory, &name, "obj")?
+                        || directory_name_matches(&directory, &name, "target")?)
+                })();
+                let Some(generated) = inventory.observe(&path, generated) else {
+                    continue;
+                };
+                pending.push(WalkFrame::Enter {
                     logical: path,
                     physical,
                     generated,
@@ -299,6 +353,9 @@ fn walk(root: &Path) -> crate::Result<(WorkspaceInventory, Vec<PathBuf>)> {
         }
     }
     inventory.paths.sort();
+    inventory
+        .issues
+        .sort_by(|left, right| left.path.cmp(&right.path));
     candidates.sort();
     Ok((inventory, candidates))
 }
@@ -527,7 +584,7 @@ fn filter_membership(
 pub(super) fn discover(root: &Path) -> crate::Result<Candidates> {
     let (inventory, paths) = walk(root)?;
     let mut projects = BTreeMap::<ProjectKey, Candidate>::new();
-    let mut issues = Vec::new();
+    let mut issues = inventory.issues.clone();
     let mut add = |path: &Path, origin: Option<(&Path, &Path)>| -> Result<(), DiscoveryFailure> {
         // Do not validate paths for unsupported solution project kinds. This
         // is also a defensive guard for path-based solution formats.

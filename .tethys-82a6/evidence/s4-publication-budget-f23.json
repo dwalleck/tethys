@@ -1,0 +1,31 @@
+{
+  "claim": "C8",
+  "source_state": "F23 implementation, assembled proof artifact737; later cleanup changes only docs/comments and unrelated test removal/rename",
+  "measurement": ".tethys-82a6/evidence/s4-publication-scale-f23.json",
+  "workload": {
+    "units": 802,
+    "physical_files": 15124,
+    "memberships": 15925
+  },
+  "checks": [
+    {
+      "metric": "wall_seconds",
+      "observed": 377.8375398509961,
+      "limit": 1800,
+      "result": "PASS"
+    },
+    {
+      "metric": "sampled_process_tree_rss_bytes",
+      "observed": 180072448,
+      "limit": 6442450944,
+      "result": "PASS"
+    },
+    {
+      "metric": "sampled_database_and_sidecars_bytes",
+      "observed": 111104976,
+      "limit": 10737418240,
+      "result": "PASS"
+    }
+  ],
+  "sampling": "10ms process-tree/DB-sidecar sampling; not exact high-water marks"
+}

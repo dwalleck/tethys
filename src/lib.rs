@@ -72,8 +72,11 @@ pub use unused_imports::{UnusedImport, UnusedImportConfidence};
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
 
 use db::Index;
+use discovery::DiscoverySnapshot;
+use languages::module_resolver::{SourcePathIdentity, get_module_resolver};
 use tracing::{debug, trace, warn};
 
 /// Code intelligence cache and query interface.
@@ -87,6 +90,19 @@ pub struct Tethys {
     db_path: PathBuf,
     db: Index,
     crates: Vec<CrateInfo>,
+    discovery: OnceLock<Arc<DiscoverySnapshot>>,
+}
+
+/// Whether persisted crate roots still describe this workspace on disk.
+///
+/// A publication records absolute crate paths, so a copied, moved or pruned
+/// workspace silently loses Rust crate attribution until the next index. The
+/// crate list is the only discovery state every open reads, so it is cheap to
+/// re-derive when the persisted roots no longer exist under this root.
+fn crates_are_current(crates: &[CrateInfo], workspace_root: &Path) -> bool {
+    crates
+        .iter()
+        .all(|krate| krate.path.starts_with(workspace_root) && krate.path.is_dir())
 }
 
 /// The canonical on-disk location of a workspace's index:
@@ -191,7 +207,13 @@ impl Tethys {
             Index::open(&db_path)?
         };
 
-        let crates = cargo::discover_crates(&workspace_root);
+        let crates = if rebuild {
+            cargo::discover_crates(&workspace_root)
+        } else {
+            db.discovery_crates()?
+                .filter(|crates| crates_are_current(crates, &workspace_root))
+                .unwrap_or_else(|| cargo::discover_crates(&workspace_root))
+        };
 
         debug_assert!(
             {
@@ -207,6 +229,7 @@ impl Tethys {
             db_path,
             db,
             crates,
+            discovery: OnceLock::new(),
         })
     }
 
@@ -246,10 +269,10 @@ impl Tethys {
             }
         };
 
-        let Some(crate_info) = cargo::get_crate_for_file(&canonical, &self.crates) else {
+        let Some(crate_info) = cargo::get_crate_for_file(&canonical, self.crates()) else {
             debug!(
                 file = %canonical.display(),
-                crate_count = self.crates.len(),
+                crate_count = self.crates().len(),
                 "File not within any known crate"
             );
             return String::new();
@@ -275,26 +298,49 @@ impl Tethys {
 
     /// Get the path relative to the workspace root.
     ///
-    /// Handles symlink differences (e.g., `/var` -> `/private/var` on macOS) by
-    /// attempting canonicalization when the initial `strip_prefix` fails on
-    /// absolute paths. Relative inputs are the documented "relative to
-    /// workspace root" form: they are lexically normalized (`./` dropped,
-    /// intra-path `..` resolved) so every spelling of the same file matches
-    /// the same DB row (tethys-xetb), and they never warn (tethys-vk3z).
-    /// Returns `Cow::Borrowed` for the common fast path, `Cow::Owned` only
-    /// when canonicalization or normalization rewrote the path.
+    /// Logical sources retain aliases; physical sources resolve to the canonical
+    /// contained identity used by publication. Missing inputs retain lexical
+    /// lookup so deleted files remain queryable.
+    /// Relative paths are interpreted against the workspace, not the process cwd.
     pub(crate) fn relative_path<'a>(&self, path: &'a Path) -> Cow<'a, Path> {
+        let physical = path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .and_then(Language::from_extension)
+            .is_some_and(|language| {
+                get_module_resolver(language).source_path_identity() == SourcePathIdentity::Physical
+            });
+        if !physical {
+            if let Ok(relative) = path.strip_prefix(&self.workspace_root) {
+                return lexically_normalize(relative);
+            }
+            if !path.is_absolute() {
+                return lexically_normalize(path);
+            }
+            // Preserve the absolute-root spelling fallback (e.g. /var versus
+            // /private/var on macOS) when the workspace prefix does not match.
+        }
+        let absolute = if path.is_absolute() {
+            Cow::Borrowed(path)
+        } else {
+            Cow::Owned(self.workspace_root.join(path))
+        };
+        if let Ok(canonical) = absolute.canonicalize()
+            && let Ok(relative) = canonical.strip_prefix(&self.workspace_root)
+        {
+            let original = path.strip_prefix(&self.workspace_root).unwrap_or(path);
+            return if original.as_os_str() == relative.as_os_str() {
+                Cow::Borrowed(original)
+            } else {
+                Cow::Owned(relative.to_path_buf())
+            };
+        }
+
         if let Ok(relative) = path.strip_prefix(&self.workspace_root) {
-            return Cow::Borrowed(relative);
+            return lexically_normalize(relative);
         }
 
         if path.is_absolute() {
-            // Try canonicalizing to resolve symlinks
-            if let Ok(canonical) = path.canonicalize()
-                && let Ok(relative) = canonical.strip_prefix(&self.workspace_root)
-            {
-                return Cow::Owned(relative.to_path_buf());
-            }
             // An unindexable input, not an anomaly: query standing reports
             // these as `unindexed` rather than a log line shouting about it.
             debug!(
@@ -643,6 +689,49 @@ impl Tethys {
         &self.crates
     }
 
+    /// Discovery context loaded from the index or published by this instance.
+    ///
+    /// Opening never evaluates `MSBuild` and reads only the crate list; the rest
+    /// of the publication is hydrated on first use and retained for this
+    /// instance. Before a fresh index's first publication this contains only the
+    /// existing Cargo discovery fallback.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when a published row cannot be decoded; the message names
+    /// the recovery command. `--rebuild` replaces the publication without reading it.
+    pub fn discovery_snapshot(&self) -> Result<&DiscoverySnapshot> {
+        self.ensure_publication()?;
+        self.discovery
+            .get()
+            .map(Arc::as_ref)
+            .ok_or_else(|| Error::Internal("discovery publication was not retained".to_owned()))
+    }
+
+    /// Retained publication handle for callers that must outlive the borrow.
+    pub(crate) fn publication_arc(&self) -> Result<Arc<DiscoverySnapshot>> {
+        self.ensure_publication()?;
+        self.discovery
+            .get()
+            .cloned()
+            .ok_or_else(|| Error::Internal("discovery publication was not retained".to_owned()))
+    }
+
+    fn ensure_publication(&self) -> Result<()> {
+        if self.discovery.get().is_none() {
+            let publication = self.load_publication()?;
+            let _ = self.discovery.set(publication);
+        }
+        Ok(())
+    }
+
+    /// Hydrate the full publication, or the Cargo fallback when none exists.
+    fn load_publication(&self) -> Result<Arc<DiscoverySnapshot>> {
+        let mut snapshot = self.db.discovery_snapshot()?.unwrap_or_default();
+        snapshot.crates.clone_from(&self.crates);
+        Ok(Arc::new(snapshot))
+    }
+
     /// Find the crate that contains a given file path.
     ///
     /// Returns the crate whose `path` is a prefix of the given file path.
@@ -665,7 +754,7 @@ impl Tethys {
             }
         };
 
-        self.crates
+        self.crates()
             .iter()
             .filter(|c| file_path.starts_with(&c.path))
             .max_by_key(|c| c.path.components().count())

@@ -1,0 +1,33 @@
+{
+  "claim": "C8",
+  "mode": "stress",
+  "result": "PASS",
+  "units": 802,
+  "physical_files": 15124,
+  "membership_rows": 15925,
+  "budget_verdict": "not evaluated; measurements only",
+  "runs": [
+    {
+      "command": [
+        "/home/dwalleck/.claude/tmp/tethys-index-discovery-m6in1ymf/package/tethys",
+        "-w",
+        "/home/dwalleck/.claude/tmp/tethys-index-discovery-m6in1ymf/workspace",
+        "index",
+        "--trust-msbuild",
+        "--msbuild-path",
+        "/home/dwalleck/.local-dotnet/sdk/8.0.417"
+      ],
+      "exit": 0,
+      "wall_seconds": 377.8375398509961,
+      "wait4_maxrss_native_units": 127516,
+      "wait4_status": "measured; KiB on Linux, bytes on macOS",
+      "process_tree_sampled_peak_rss_bytes": 180072448,
+      "process_tree_rss_status": "measured: sampled process-tree sum, 10ms interval (not an exact high-water mark)",
+      "index_and_sidecar_sampled_peak_bytes": 111104976,
+      "index_and_sidecar_bytes": 55263232,
+      "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+      "phase": "stress-index",
+      "native_worker_launches": 1604
+    }
+  ]
+}

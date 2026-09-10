@@ -1,0 +1,21 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-gyg6ubqc)
+    Finished `test` profile [optimized + debuginfo] target(s) in 3.29s
+────────────
+ Nextest run ID 99a63820-8ecf-4202-ab49-70ffb4f3294c with nextest profile: default
+    Starting 1 test across 1 binary (6 tests skipped)
+        SKIP [         ] tethys::symlink_boundary circular_symlink_does_not_cause_infinite_loop
+        SKIP [         ] tethys::symlink_boundary dangling_symlink_does_not_cause_error
+        SKIP [         ] tethys::symlink_boundary mutual_circular_symlinks_do_not_cause_infinite_loop
+        SKIP [         ] tethys::symlink_boundary nested_symlink_chain_is_followed
+        SKIP [         ] tethys::symlink_boundary symlink_to_directory_outside_workspace_is_traversed
+        SKIP [         ] tethys::symlink_boundary symlink_within_workspace_indexes_through_link_path
+        PASS [   0.017s] tethys::symlink_boundary symlink_to_file_outside_workspace_is_indexed_through_logical_path
+────────────
+     Summary [   0.018s] 1 test run: 1 passed, 6 skipped
+        PASS [   0.017s] tethys::symlink_boundary symlink_to_file_outside_workspace_is_indexed_through_logical_path
+        SKIP [         ] tethys::symlink_boundary circular_symlink_does_not_cause_infinite_loop
+        SKIP [         ] tethys::symlink_boundary dangling_symlink_does_not_cause_error
+        SKIP [         ] tethys::symlink_boundary mutual_circular_symlinks_do_not_cause_infinite_loop
+        SKIP [         ] tethys::symlink_boundary nested_symlink_chain_is_followed
+        SKIP [         ] tethys::symlink_boundary symlink_to_directory_outside_workspace_is_traversed
+        SKIP [         ] tethys::symlink_boundary symlink_within_workspace_indexes_through_link_path

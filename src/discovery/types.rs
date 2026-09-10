@@ -4,10 +4,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use serde::{Deserialize, Serialize};
 
+use crate::types::path_wire;
 use crate::{CrateInfo, Error, Result};
 
 /// A canonical workspace-relative C# project-file identity.
@@ -276,6 +277,15 @@ pub enum DiscoveryCachePolicy {
     Disabled,
 }
 
+/// Explicit authority granted for this discovery invocation.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiscoveryGrants {
+    /// Permission to execute project evaluation code.
+    pub trust_msbuild: bool,
+    /// Separate permission to use the repository's normal restore policy.
+    pub allow_restore: bool,
+}
+
 /// Authority, context and installed-tool selection for discovery.
 #[derive(Debug, Clone)]
 pub struct DiscoveryOptions {
@@ -417,6 +427,7 @@ pub struct DiscoveryDiagnostic {
     /// Human-readable detail; never used to classify a failure.
     pub message: String,
     /// Native source path when available.
+    #[serde(with = "path_wire::option")]
     pub file: Option<PathBuf>,
     /// One-based native source line, or zero when unavailable.
     pub line: u32,
@@ -449,6 +460,7 @@ pub enum DiscoveryStanding {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiscoveryIssue {
     /// Candidate/container path associated with the issue.
+    #[serde(with = "path_wire")]
     pub path: PathBuf,
     /// Typed incomplete-coverage evidence.
     pub failure: DiscoveryFailure,
@@ -460,6 +472,7 @@ pub struct ProjectDiscovery {
     /// Canonical workspace-relative project-file identity.
     pub key: ProjectKey,
     /// Solutions and solution filters declaring membership, relative to the workspace.
+    #[serde(with = "path_wire::paths")]
     pub containers: Vec<PathBuf>,
     /// Aggregate standing, including failure before framework enumeration.
     pub standing: DiscoveryStanding,
@@ -498,6 +511,7 @@ pub struct HostProvenance {
     /// Evaluated host flavor (`sdk` or `framework`).
     pub kind: EvaluationHostKind,
     /// Canonical loaded `MSBuild` installation path.
+    #[serde(with = "path_wire")]
     pub path: PathBuf,
     /// Actual `MSBuild` file version.
     pub version: String,
@@ -524,6 +538,7 @@ pub struct RestoreProvenance {
     /// Required repository restore mechanism.
     pub style: DiscoveryRestoreStyle,
     /// Existing validated restore inputs, with absolute provenance paths where necessary.
+    #[serde(with = "path_wire::paths")]
     pub inputs: Vec<PathBuf>,
 }
 
@@ -531,6 +546,7 @@ pub struct RestoreProvenance {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SourceMembership {
     /// Canonical workspace-relative physical source path.
+    #[serde(with = "path_wire")]
     pub path: PathBuf,
     /// Evaluated Link spelling, when present.
     pub link: Option<String>,
@@ -598,13 +614,115 @@ pub struct DiscoveryCacheObservation {
     pub bypass_reasons: Vec<String>,
 }
 
+/// A captured evaluation input, not evidence of cache eligibility or currentness.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EvaluationInput {
+    /// Original path spelling captured by the evaluation scope.
+    #[serde(with = "path_wire")]
+    pub path: PathBuf,
+    /// Canonical absolute identity observed when the input was captured.
+    #[serde(with = "path_wire")]
+    pub canonical_path: PathBuf,
+    /// Observed byte length.
+    pub length: u64,
+    /// Observed filesystem modification time.
+    #[serde(with = "system_time")]
+    pub modified: SystemTime,
+    /// Digest of the bytes observed by the existing input fingerprint.
+    pub digest: String,
+}
+
+/// Lossless signed-epoch serialization for the public [`SystemTime`] field.
+///
+/// Positive timestamps retain serde's existing wire shape. Pre-epoch values use
+/// an explicit signed-offset shape because serde's `SystemTime` serializer rejects
+/// them rather than encoding the side of the epoch.
+mod system_time {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct PositiveTime {
+        secs_since_epoch: u64,
+        nanos_since_epoch: u32,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct OffsetTime {
+        before_epoch: bool,
+        duration: Duration,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum WireTime {
+        Positive(PositiveTime),
+        Offset(OffsetTime),
+    }
+
+    pub fn serialize<S>(value: &SystemTime, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match value.duration_since(UNIX_EPOCH) {
+            Ok(duration) => PositiveTime {
+                secs_since_epoch: duration.as_secs(),
+                nanos_since_epoch: duration.subsec_nanos(),
+            }
+            .serialize(serializer),
+            Err(error) => OffsetTime {
+                before_epoch: true,
+                duration: error.duration(),
+            }
+            .serialize(serializer),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<SystemTime, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let time = match WireTime::deserialize(deserializer)? {
+            WireTime::Positive(value) => {
+                if value.nanos_since_epoch >= 1_000_000_000 {
+                    return Err(serde::de::Error::custom(
+                        "invalid nanoseconds in persisted SystemTime",
+                    ));
+                }
+                UNIX_EPOCH.checked_add(Duration::new(
+                    value.secs_since_epoch,
+                    value.nanos_since_epoch,
+                ))
+            }
+            WireTime::Offset(value) if value.before_epoch => UNIX_EPOCH.checked_sub(value.duration),
+            WireTime::Offset(value) => UNIX_EPOCH.checked_add(value.duration),
+        };
+        time.ok_or_else(|| serde::de::Error::custom("persisted SystemTime is out of range"))
+    }
+}
+
+/// One captured evaluation scope, retained even if later validation invalidates it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiscoveryInputScope {
+    /// Owning project identity.
+    pub project: ProjectKey,
+    /// Captured observations; distinct outer and inner scopes remain separate.
+    pub inputs: Vec<EvaluationInput>,
+}
+
 /// Owned discovery output; publication belongs to the index revision owner.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiscoverySnapshot {
     /// Cargo attribution in its existing order, with unchanged Cargo semantics.
     pub crates: Vec<CrateInfo>,
     /// One requested context; actual host/restore provenance belongs to its unit outcomes.
     pub context: EvaluationContext,
+    /// Explicit evaluation and restore authority for this invocation.
+    pub grants: DiscoveryGrants,
+    /// Captured input scopes, independent of cache eligibility and final standing.
+    pub inputs: Vec<DiscoveryInputScope>,
     /// Project candidates and aggregate outcomes.
     pub projects: Vec<ProjectDiscovery>,
     /// Successful and explicitly failed framework outcomes.
@@ -617,6 +735,24 @@ pub struct DiscoverySnapshot {
     pub cache_observations: Vec<DiscoveryCacheObservation>,
 }
 
+impl DiscoverySnapshot {
+    /// Whether all discovered coverage has confirmed standing and no top-level issues.
+    ///
+    /// This checks only observed projects and units; it does not invent coverage
+    /// for projects that were not discovered.
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.issues.is_empty()
+            && self
+                .projects
+                .iter()
+                .all(|project| project.standing == DiscoveryStanding::Confirmed)
+            && self
+                .units
+                .iter()
+                .all(|unit| unit.standing == DiscoveryStanding::Confirmed)
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::EvaluationEnvironment;

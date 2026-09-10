@@ -64,6 +64,14 @@ fn symlink_to_file_outside_workspace_is_indexed_through_logical_path() {
         1,
         "should find symbol from symlinked external file"
     );
+    let logical_path = std::path::Path::new("src/linked.rs");
+    let file = tethys.get_file(logical_path).unwrap().unwrap();
+    assert_eq!(file.path, logical_path);
+    assert_eq!(symbols[0].file_id, file.id);
+    assert_eq!(
+        tethys.list_symbols(logical_path).unwrap()[0].id,
+        symbols[0].id
+    );
 }
 
 #[cfg(unix)]
@@ -85,7 +93,8 @@ fn symlink_to_directory_outside_workspace_is_traversed() {
         .expect("should create dir symlink");
 
     let mut tethys = Tethys::new(workspace.path()).expect("should create Tethys");
-    let _stats = tethys.index().expect("index should succeed");
+    let stats = tethys.index().expect("index should succeed");
+    assert_eq!(stats.files_indexed, 1);
 
     // Current behavior: the symlinked directory outside the workspace is
     // traversed and its files are indexed through the logical path
@@ -93,9 +102,19 @@ fn symlink_to_directory_outside_workspace_is_traversed() {
     let symbols = tethys
         .search_symbols("secret_function")
         .expect("search should succeed");
-    assert!(
-        !symbols.is_empty(),
-        "symlinked directory outside workspace is currently traversed"
+    let logical_path = std::path::Path::new("src/external/secret.rs");
+    let file = tethys.get_file(logical_path).unwrap().unwrap();
+    assert_eq!(file.path, logical_path);
+    assert_eq!(
+        symbols
+            .iter()
+            .map(|symbol| (symbol.name.as_str(), symbol.file_id))
+            .collect::<Vec<_>>(),
+        [("secret_function", file.id)]
+    );
+    assert_eq!(
+        tethys.list_symbols(logical_path).unwrap()[0].id,
+        symbols[0].id
     );
 }
 
@@ -268,9 +287,41 @@ fn symlink_within_workspace_indexes_through_link_path() {
 
     // Both the original and the symlink are discovered as separate directory
     // entries, so both are indexed
-    assert!(
-        stats.files_indexed >= 2,
-        "should index both the original and symlinked file, got {}",
-        stats.files_indexed
-    );
+    assert_eq!(stats.files_indexed, 2);
+    let original_path = std::path::Path::new("lib/utils.rs");
+    let link_path = std::path::Path::new("src/utils_link.rs");
+    let original = tethys.get_file(original_path).unwrap().unwrap();
+    let linked = tethys.get_file(link_path).unwrap().unwrap();
+    assert_eq!(original.path, original_path);
+    assert_eq!(linked.path, link_path);
+    assert_ne!(original.id, linked.id);
+
+    let original_symbols = tethys.list_symbols(original_path).unwrap();
+    let linked_symbols = tethys.list_symbols(link_path).unwrap();
+    for (symbols, file_id) in [
+        (&original_symbols, original.id),
+        (&linked_symbols, linked.id),
+    ] {
+        assert_eq!(
+            symbols
+                .iter()
+                .map(|symbol| (symbol.name.as_str(), symbol.file_id))
+                .collect::<Vec<_>>(),
+            [("utility_function", file_id)]
+        );
+    }
+    assert_ne!(original_symbols[0].id, linked_symbols[0].id);
+    let mut found = tethys
+        .search_symbols("utility_function")
+        .unwrap()
+        .iter()
+        .map(|symbol| (symbol.id, symbol.file_id))
+        .collect::<Vec<_>>();
+    found.sort_unstable_by_key(|(symbol, file)| (symbol.as_i64(), file.as_i64()));
+    let mut expected = vec![
+        (original_symbols[0].id, original.id),
+        (linked_symbols[0].id, linked.id),
+    ];
+    expected.sort_unstable_by_key(|(symbol, file)| (symbol.as_i64(), file.as_i64()));
+    assert_eq!(found, expected);
 }

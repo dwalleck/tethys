@@ -2,19 +2,74 @@
 
 use std::io::{self, Write};
 use std::path::Path;
+use std::process::ExitCode;
 
 use colored::Colorize;
+use tethys::discovery::{
+    DiscoveryCachePolicy, DiscoveryFailure, DiscoveryOptions, DiscoverySnapshot, DiscoveryStanding,
+    EvaluationContext, ImportToleranceProfile,
+};
 use tethys::{ArchPhaseResult, IndexOptions, Tethys};
 
 use super::ensure_lsp_if_requested;
 
+/// Parse an explicit global property, trimming its name without losing empty values or embedded `=`.
+pub(crate) fn parse_property(value: &str) -> Result<(String, String), String> {
+    let (name, value) = value
+        .split_once('=')
+        .filter(|(name, _)| !name.trim().is_empty() && !name.contains('\0'))
+        .ok_or_else(|| "expected NAME=VALUE with a nonempty property name".to_owned())?;
+    Ok((name.trim().to_owned(), value.to_owned()))
+}
+
+#[cfg(test)]
+mod parse_property_tests {
+    use super::parse_property;
+
+    #[test]
+    fn trims_padded_property_names() {
+        assert_eq!(
+            parse_property(" Configuration =Release").expect("valid property"),
+            ("Configuration".to_owned(), "Release".to_owned())
+        );
+        assert_eq!(
+            parse_property(" TargetFramework =net8.0").expect("valid property"),
+            ("TargetFramework".to_owned(), "net8.0".to_owned())
+        );
+    }
+
+    #[test]
+    fn preserves_value_spacing_and_embedded_equals() {
+        assert_eq!(
+            parse_property("Configuration=  Release  ").expect("valid property"),
+            ("Configuration".to_owned(), "  Release  ".to_owned())
+        );
+        assert_eq!(
+            parse_property("Configuration=").expect("empty value is valid"),
+            ("Configuration".to_owned(), String::new())
+        );
+        assert_eq!(
+            parse_property("A=b=c").expect("embedded equals are valid"),
+            ("A".to_owned(), "b=c".to_owned())
+        );
+    }
+
+    #[test]
+    fn rejects_missing_or_invalid_property_names() {
+        assert!(parse_property("").is_err());
+        assert!(parse_property("=x").is_err());
+        assert!(parse_property("A\0=x").is_err());
+    }
+}
+
 /// Run the index command.
-pub fn run(
+pub(crate) fn run(
     workspace: &Path,
     rebuild: bool,
     lsp: bool,
     lsp_timeout: Option<u64>,
-) -> Result<(), tethys::Error> {
+    discovery: crate::DiscoveryArgs,
+) -> Result<ExitCode, tethys::Error> {
     ensure_lsp_if_requested(lsp)?;
 
     println!("{} {}...", "Indexing".cyan().bold(), workspace.display());
@@ -29,7 +84,28 @@ pub fn run(
         opts
     } else {
         IndexOptions::default()
-    };
+    }
+    .with_discovery(DiscoveryOptions {
+        trust_msbuild: discovery.trust_msbuild,
+        allow_restore: discovery.allow_restore,
+        context: EvaluationContext {
+            configuration: discovery.configuration,
+            platform: discovery.platform,
+            runtime_identifier: discovery.runtime_identifier,
+            global_properties: discovery.property.into_iter().collect(),
+            import_profile: match discovery.import_profile {
+                crate::ImportProfile::Strict => ImportToleranceProfile::Strict,
+                crate::ImportProfile::BlankVsToolsPath => ImportToleranceProfile::BlankVsToolsPath,
+            },
+        },
+        msbuild_path: discovery.msbuild_path,
+        cache_policy: if discovery.no_discovery_cache {
+            DiscoveryCachePolicy::Disabled
+        } else {
+            DiscoveryCachePolicy::Enabled
+        },
+        ..DiscoveryOptions::default()
+    });
 
     let stats = if rebuild {
         println!("{}", "Rebuilding index from scratch".yellow());
@@ -103,7 +179,70 @@ pub fn run(
         .map_err(tethys::Error::Io)?;
     print_lsp_session_errors(&stats.lsp_sessions);
 
-    Ok(())
+    print_discovery_failures(&stats.discovery);
+    Ok(if evaluated_standings_are_confirmed(&stats.discovery) {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    })
+}
+
+/// Whether every evaluated project and unit reached a confirmed standing.
+///
+/// Walk issues alone do not fail the command. A workspace with nothing to
+/// evaluate — a Rust-only tree with one unreadable directory, say — publishes a
+/// complete revision and still reports the issue, without claiming that
+/// evaluation was incomplete. Incomplete *evaluated* coverage, an indeterminate
+/// project or unit, keeps the non-zero status.
+#[must_use]
+fn evaluated_standings_are_confirmed(snapshot: &DiscoverySnapshot) -> bool {
+    snapshot
+        .projects
+        .iter()
+        .all(|project| project.standing == DiscoveryStanding::Confirmed)
+        && snapshot
+            .units
+            .iter()
+            .all(|unit| unit.standing == DiscoveryStanding::Confirmed)
+}
+
+/// Render typed incomplete coverage only after the source revision is published.
+fn print_discovery_failures(snapshot: &DiscoverySnapshot) {
+    for issue in &snapshot.issues {
+        print_discovery_failure("candidate", &issue.path.display(), &issue.failure);
+    }
+    for project in &snapshot.projects {
+        if let DiscoveryStanding::Indeterminate(failure) = &project.standing {
+            print_discovery_failure("project", &project.key.as_str(), failure);
+        }
+    }
+    for unit in &snapshot.units {
+        if let DiscoveryStanding::Indeterminate(failure) = &unit.standing {
+            print_discovery_failure("unit", &unit.key.as_str(), failure);
+        }
+    }
+}
+
+fn print_discovery_failure(
+    kind: &str,
+    identity: &dyn std::fmt::Display,
+    failure: &DiscoveryFailure,
+) {
+    eprintln!("discovery {kind} {identity}: {:?}", failure.reason);
+    for diagnostic in &failure.diagnostics {
+        eprintln!("  {:?}: {}", diagnostic.severity, diagnostic.message);
+        if let Some(code) = &diagnostic.code {
+            eprintln!("    code: {code}");
+        }
+        if let Some(file) = &diagnostic.file {
+            eprintln!(
+                "    {}:{}:{}",
+                file.display(),
+                diagnostic.line,
+                diagnostic.column
+            );
+        }
+    }
 }
 
 /// Print architecture-phase outcome to `out`, if any. Success path is silent.

@@ -1,0 +1,8 @@
+{
+  "path": "src/db/discovery.rs",
+  "before": "        tx.execute_batch(\"DELETE FROM projects; DELETE FROM evaluation_context; DELETE FROM evaluation_cache; DELETE FROM discovery_issues; DELETE FROM source_diagnostics;\")?;\n        tx.execute(\n            \"INSERT INTO evaluation_context VALUES (1, ?1, ?2, ?3, ?4)\",\n            params![\n                encode(&snapshot.crates)?,\n                encode(&snapshot.context)?,\n                encode(&snapshot.grants)?,\n                encode(&snapshot.cache_observations)?,\n            ],\n        )?;\n        {\n            let mut statement = tx.prepare(\"INSERT INTO projects VALUES (?1, ?2, ?3, ?4)\")?;\n            for (ordinal, project) in snapshot.projects.iter().enumerate() {",
+  "after": "        tx.execute_batch(\"UPDATE projects SET ordinal = ordinal + 1000000; UPDATE evaluation_units SET ordinal = ordinal + 1000000; UPDATE evaluation_inputs SET ordinal = ordinal + 1000000; DELETE FROM evaluation_context; DELETE FROM evaluation_cache; DELETE FROM discovery_issues; DELETE FROM source_diagnostics;\")?;\n        tx.execute(\n            \"INSERT INTO evaluation_context VALUES (1, ?1, ?2, ?3, ?4)\",\n            params![\n                encode(&snapshot.crates)?,\n                encode(&snapshot.context)?,\n                encode(&snapshot.grants)?,\n                encode(&snapshot.cache_observations)?,\n            ],\n        )?;\n        {\n            let mut statement = tx.prepare(\"INSERT INTO projects VALUES (?1, ?2, ?3, ?4)\")?;\n            for (ordinal, project) in snapshot.projects.iter().enumerate() {\n                tx.execute(\"DELETE FROM projects WHERE project_key = ?1\", params![project.key.as_str()])?;",
+  "tests": [
+    "membership_replacement"
+  ]
+}

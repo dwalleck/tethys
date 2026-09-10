@@ -1,13 +1,23 @@
 //! Database schema definition for Tethys.
 
 /// Explicit cache schema identity; older layouts require a transactional rebuild.
-pub(crate) const SCHEMA_VERSION: i64 = 1;
+pub(crate) const SCHEMA_VERSION: i64 = 2;
 
 /// Child-first replacement keeps foreign-key enforcement enabled during rebuild.
 pub(crate) const DROP_SCHEMA: &str = r"
 DROP VIEW IF EXISTS arch_coupling;
 DROP VIEW IF EXISTS refs_banded;
 DROP VIEW IF EXISTS refs_named;
+DROP TABLE IF EXISTS source_diagnostics;
+DROP TABLE IF EXISTS discovery_issues;
+DROP TABLE IF EXISTS evaluation_cache;
+DROP TABLE IF EXISTS evaluation_inputs;
+DROP TABLE IF EXISTS declared_assembly_references;
+DROP TABLE IF EXISTS declared_project_references;
+DROP TABLE IF EXISTS file_participation;
+DROP TABLE IF EXISTS evaluation_units;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS evaluation_context;
 DROP TABLE IF EXISTS arch_package_deps;
 DROP TABLE IF EXISTS arch_file_packages;
 DROP TABLE IF EXISTS arch_packages;
@@ -28,8 +38,8 @@ CREATE TABLE IF NOT EXISTS index_revision (
     schema_version INTEGER NOT NULL,
     revision INTEGER NOT NULL CHECK(revision >= 0)
 );
-INSERT OR IGNORE INTO index_revision VALUES (1, 1, 0);
-PRAGMA user_version = 1;
+INSERT OR IGNORE INTO index_revision VALUES (1, 2, 0);
+PRAGMA user_version = 2;
 
 -- Indexed source files
 CREATE TABLE IF NOT EXISTS files (
@@ -44,6 +54,83 @@ CREATE TABLE IF NOT EXISTS files (
 
 CREATE INDEX IF NOT EXISTS idx_files_path ON files(path);
 CREATE INDEX IF NOT EXISTS idx_files_language ON files(language);
+
+-- One active discovery publication, replaced in the same revision as syntax.
+CREATE TABLE IF NOT EXISTS evaluation_context (
+    singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
+    crates_json TEXT NOT NULL,
+    context_json TEXT NOT NULL,
+    grants_json TEXT NOT NULL,
+    cache_observations_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS projects (
+    project_key TEXT PRIMARY KEY NOT NULL,
+    ordinal INTEGER NOT NULL UNIQUE,
+    containers_json TEXT NOT NULL,
+    standing_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS evaluation_units (
+    unit_key TEXT PRIMARY KEY NOT NULL,
+    project_key TEXT NOT NULL REFERENCES projects(project_key) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL UNIQUE,
+    target_framework TEXT,
+    framework_json TEXT NOT NULL,
+    standing_json TEXT NOT NULL,
+    properties_json TEXT NOT NULL,
+    host_json TEXT NOT NULL,
+    restore_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_evaluation_units_project ON evaluation_units(project_key);
+CREATE TABLE IF NOT EXISTS file_participation (
+    unit_key TEXT NOT NULL REFERENCES evaluation_units(unit_key) ON DELETE CASCADE,
+    path TEXT NOT NULL,
+    file_id INTEGER REFERENCES files(id) ON DELETE SET NULL,
+    ordinal INTEGER NOT NULL,
+    link TEXT,
+    metadata_json TEXT NOT NULL,
+    PRIMARY KEY(unit_key, path),
+    UNIQUE(unit_key, ordinal)
+);
+CREATE INDEX IF NOT EXISTS idx_file_participation_file ON file_participation(file_id);
+CREATE TABLE IF NOT EXISTS declared_project_references (
+    unit_key TEXT NOT NULL REFERENCES evaluation_units(unit_key) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    target_project_key TEXT NOT NULL,
+    include TEXT NOT NULL,
+    metadata_json TEXT NOT NULL,
+    PRIMARY KEY(unit_key, ordinal)
+);
+CREATE TABLE IF NOT EXISTS declared_assembly_references (
+    unit_key TEXT NOT NULL REFERENCES evaluation_units(unit_key) ON DELETE CASCADE,
+    ordinal INTEGER NOT NULL,
+    include TEXT NOT NULL,
+    metadata_json TEXT NOT NULL,
+    PRIMARY KEY(unit_key, ordinal)
+);
+-- A scope is an observation, not a deduplicated set of path stamps.
+CREATE TABLE IF NOT EXISTS evaluation_inputs (
+    ordinal INTEGER PRIMARY KEY,
+    project_key TEXT NOT NULL REFERENCES projects(project_key) ON DELETE CASCADE,
+    inputs_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_evaluation_inputs_project ON evaluation_inputs(project_key);
+CREATE TABLE IF NOT EXISTS evaluation_cache (
+    ordinal INTEGER PRIMARY KEY,
+    cache_key TEXT NOT NULL,
+    payload TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS discovery_issues (
+    ordinal INTEGER PRIMARY KEY,
+    path TEXT NOT NULL,
+    failure_json TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS source_diagnostics (
+    ordinal INTEGER PRIMARY KEY,
+    path TEXT NOT NULL,
+    error_json TEXT,
+    directory_reason TEXT,
+    CHECK((error_json IS NOT NULL) != (directory_reason IS NOT NULL))
+);
 
 -- Symbol definitions
 CREATE TABLE IF NOT EXISTS symbols (

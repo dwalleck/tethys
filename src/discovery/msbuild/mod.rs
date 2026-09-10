@@ -9,10 +9,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::{
     DeclaredAssemblyReference, DeclaredProjectReference, DiscoveryCacheObservation,
-    DiscoveryDiagnostic, DiscoveryFailure, DiscoveryFailureReason, DiscoveryRequest,
-    DiscoverySnapshot, DiscoveryStanding, EvaluationUnit, EvaluationUnitKey, FrameworkIdentity,
-    HostProvenance, ProjectDiscovery, ProjectKey, RestoreProvenance, SourceMembership,
-    WorkspaceDiscovery,
+    DiscoveryDiagnostic, DiscoveryFailure, DiscoveryFailureReason, DiscoveryGrants,
+    DiscoveryRequest, DiscoverySnapshot, DiscoveryStanding, EvaluationUnit, EvaluationUnitKey,
+    FrameworkIdentity, HostProvenance, ProjectDiscovery, ProjectKey, RestoreProvenance,
+    SourceMembership, WorkspaceDiscovery,
 };
 use cache::Inputs;
 use candidates::Candidate;
@@ -38,9 +38,16 @@ impl WorkspaceDiscovery for MsBuildDiscovery {
         let found = candidates::discover(&request.workspace_root)?;
         let mut snapshot = DiscoverySnapshot {
             context: request.options.context.clone(),
+            grants: DiscoveryGrants {
+                trust_msbuild: request.options.trust_msbuild,
+                allow_restore: request.options.allow_restore,
+            },
             issues: found.issues,
             ..DiscoverySnapshot::default()
         };
+        if found.projects.is_empty() {
+            return Ok(snapshot);
+        }
         let cache = cache::Cache::new(request, &found.inventory)?;
         let mut selector = HostSelector::new(request);
         let mut validations = Vec::new();
@@ -81,6 +88,10 @@ impl WorkspaceDiscovery for MsBuildDiscovery {
             &hosts,
             &mut snapshot,
         )?;
+        snapshot.inputs = validations
+            .into_iter()
+            .map(|(project, inputs)| cache::input_scope(project, inputs))
+            .collect::<crate::Result<Vec<_>>>()?;
         Ok(snapshot)
     }
 }
@@ -117,7 +128,14 @@ fn validate_snapshot(
 ) -> crate::Result<()> {
     // Exactly one final inventory, shared by every scope. Validated restore
     // inputs were present before authoritative reevaluation and are fingerprinted.
-    let after = candidates::inventory(&request.workspace_root)?;
+    // With no validated restore scope and no selected host, this run cannot have
+    // moved an input, so the second full walk is pure cost; reuse the first.
+    let after = if validations.is_empty() && hosts.is_empty() {
+        None
+    } else {
+        Some(candidates::inventory(&request.workspace_root)?)
+    };
+    let after = after.as_ref().unwrap_or(before);
     let before_paths: BTreeSet<_> = before.paths.iter().collect();
     let after_paths: BTreeSet<_> = after.paths.iter().collect();
     let mut restore_paths = BTreeMap::<ProjectKey, BTreeSet<_>>::new();
@@ -137,12 +155,30 @@ fn validate_snapshot(
         .symmetric_difference(&after_paths)
         .map(|path| request.workspace_root.join(path))
         .collect();
+    let uncertainty_changed = before.issues != after.issues;
+    // Both inventories order traversal issues by path. Merge observations
+    // without rescanning every earlier diagnostic for each final failure.
+    let mut earlier = before.issues.iter().peekable();
+    for issue in &after.issues {
+        while earlier.peek().is_some_and(|old| old.path < issue.path) {
+            earlier.next();
+        }
+        let duplicate = earlier.peek().is_some_and(|old| old.path == issue.path)
+            && earlier.next() == Some(issue);
+        if !duplicate {
+            snapshot.issues.push(issue.clone());
+        }
+    }
+    if !before.issues.is_empty() || !after.issues.is_empty() {
+        snapshot.cache.clear();
+    }
     let mut invalid = BTreeSet::new();
     for (project, inputs) in validations {
         // An artifact observed by a later project's restore cannot excuse a
         // changed glob in an earlier scope. Each scope must have fingerprinted
         // this exact input before its own authoritative evaluation.
         let inventory_changed = before.has_symlinks != after.has_symlinks
+            || uncertainty_changed
             || (!changed_paths.is_empty() && {
                 let captured_restore_paths = restore_paths
                     .get(project)
@@ -569,16 +605,26 @@ fn unit(
         ))
     };
     let mut sources = Vec::new();
+    let mut seen_sources = BTreeSet::new();
     let mut project_references = Vec::new();
     let mut assembly_references = Vec::new();
     if let Some(items) = evaluation.items.get("Compile") {
         for item in items {
             match candidates::relative_path(&request.workspace_root, &item.full_path, false) {
-                Ok(path) if item.full_path.is_file() => sources.push(SourceMembership {
-                    path,
-                    link: item.metadata_value("Link").map(str::to_owned),
-                    metadata: semantic_metadata(&item.metadata),
-                }),
+                Ok(path) if item.full_path.is_file() => {
+                    // MSBuild can evaluate one physical file through several
+                    // `Compile` items (a default glob plus an explicit include, a
+                    // repeated include, or a different spelling). Membership is
+                    // one row per unit and path, so keep the first item's
+                    // evidence rather than failing publication on the duplicate.
+                    if seen_sources.insert(path.clone()) {
+                        sources.push(SourceMembership {
+                            path,
+                            link: item.metadata_value("Link").map(str::to_owned),
+                            metadata: semantic_metadata(&item.metadata),
+                        });
+                    }
+                }
                 Ok(_) => {
                     standing = DiscoveryStanding::Indeterminate(failure(
                         DiscoveryFailureReason::MalformedInput,

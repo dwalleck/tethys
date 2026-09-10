@@ -1,0 +1,17 @@
+   Compiling tethys v0.1.0 (/home/dwalleck/.claude/tmp/tethys-discovery-mutations-yka0qbjm)
+    Finished `test` profile [optimized + debuginfo] target(s) in 3.83s
+────────────
+ Nextest run ID ad64c049-dc2c-4440-ab5d-7027ec010eaa with nextest profile: default
+    Starting 1 test across 1 binary (4 tests skipped)
+        SKIP [         ] tethys::msbuild_discovery bounded_failures_replace_confirmed_units
+        SKIP [         ] tethys::msbuild_discovery evaluated_only_sources_share_publication_and_freshness_identity
+        SKIP [         ] tethys::msbuild_discovery sdk_classic_metadata
+        SKIP [         ] tethys::msbuild_discovery untrusted_publication_retains_source_only_facts
+        PASS [   3.602s] tethys::msbuild_discovery membership_replacement
+────────────
+     Summary [   3.602s] 1 test run: 1 passed, 4 skipped
+        PASS [   3.602s] tethys::msbuild_discovery membership_replacement
+        SKIP [         ] tethys::msbuild_discovery bounded_failures_replace_confirmed_units
+        SKIP [         ] tethys::msbuild_discovery evaluated_only_sources_share_publication_and_freshness_identity
+        SKIP [         ] tethys::msbuild_discovery sdk_classic_metadata
+        SKIP [         ] tethys::msbuild_discovery untrusted_publication_retains_source_only_facts

@@ -12,6 +12,7 @@ const RESOLVE_RS: &str = include_str!("../src/resolve.rs");
 const INDEXING_RS: &str = include_str!("../src/indexing.rs");
 const BATCH_WRITER_RS: &str = include_str!("../src/batch_writer.rs");
 const MODULE_RESOLVER_RS: &str = include_str!("../src/languages/module_resolver.rs");
+const LIB_RS: &str = include_str!("../src/lib.rs");
 
 /// C4: the Pass-2 driver is language-neutral. Rust module semantics —
 /// direct `resolve_module_path` calls, `CrateInfo` handling, and the
@@ -87,6 +88,7 @@ fn import_joins_go_through_the_seam() {
         ("src/resolve.rs", RESOLVE_RS),
         ("src/indexing.rs", INDEXING_RS),
         ("src/batch_writer.rs", BATCH_WRITER_RS),
+        ("src/lib.rs", LIB_RS),
     ] {
         assert!(
             !src.contains(".join(\".\")"),

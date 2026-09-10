@@ -90,16 +90,17 @@ impl Tethys {
     /// which this analysis skips by design.
     pub fn find_unused_imports(&self) -> Result<Vec<UnusedImport>> {
         let mut skipped_dirs = Vec::new();
-        let files = self.discover_files(&mut skipped_dirs)?;
+        let mut source_errors = Vec::new();
+        let indexed_files = self.db.list_all_files()?;
+        let (files, _) = self.discover_files(
+            indexed_files.iter().map(|file| file.path.as_path()),
+            &mut skipped_dirs,
+            &mut source_errors,
+        )?;
 
         let rust_files: Vec<PathBuf> = files
             .into_iter()
-            .filter(|f| {
-                f.extension()
-                    .and_then(|e| e.to_str())
-                    .and_then(Language::from_extension)
-                    == Some(Language::Rust)
-            })
+            .filter_map(|(path, language)| (language == Language::Rust).then_some(path))
             .collect();
 
         debug!(
@@ -177,7 +178,7 @@ impl Tethys {
         let full_path = self.workspace_root.join(&file.relative_path);
         let module_ctx = ModuleContext {
             current_file: &full_path,
-            crates: self.crates(),
+            discovery: self.discovery_snapshot()?,
             anchor: resolver.file_anchor(&full_path, &self.workspace_root, self.crates()),
             namespaces: None,
         };

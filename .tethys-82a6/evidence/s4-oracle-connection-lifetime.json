@@ -1,0 +1,22 @@
+{
+  "finding": "F27",
+  "red": {
+    "real_observer_queryable_after_sql_manifest_return": [
+      [
+        1
+      ]
+    ]
+  },
+  "green": [
+    {
+      "path": "success",
+      "observer_closed_before_workspace_cleanup": true
+    },
+    {
+      "path": "query_error",
+      "observer_closed_before_workspace_cleanup": true
+    }
+  ],
+  "control": "Separate real connections remain queryable; successful manifest is unchanged; workspace cleanup succeeds.",
+  "native_windows": "Pending original --index smoke rerun; local Linux deletion alone is not Windows qualification."
+}

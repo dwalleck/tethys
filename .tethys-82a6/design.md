@@ -49,7 +49,7 @@ This is partly subtractive: remove the one-package-per-physical-file assumption 
 - A coupling node has unselected outgoing references: numeric zero cannot encode unknown (C10).
 - A query overlaps publication: one composite query must pin a SQLite read snapshot; separate invocations may legitimately observe different revisions (C1/C11).
 
-Readers/mutators identified: `index_parsed_file_atomic`, `delete_files`, `apply_resolutions`, `populate_file_deps_from_call_edges`, `repopulate_architecture`; indexing's direct clear/insert calls; BatchWriter's separate Index open; Tethys coupling wrappers and both JSON writers. Current `rebuild`/CLI `--rebuild` delete the index before indexing: that must be removed, not wrapped in a transaction after deletion (C2). Source-only facts still have physical-file identity: this invariant stays intact.
+Readers/mutators identified: `index_parsed_file_atomic`, `delete_files`, `apply_resolutions`, `populate_file_deps_from_call_edges`, `repopulate_architecture`; indexing's direct clear/insert calls; BatchWriter's separate Index open; Tethys coupling wrappers and both JSON writers. Current `rebuild`/CLI `--rebuild` delete the index before indexing: that must be removed, not wrapped in a transaction after deletion (C2). The original assumption that all pre-existing source-only facts used physical-file identity was falsified during S4 (F23): Rust retains logical symlink identities. The approved F23 amendment below preserves C3 while enforcing C# physical identity.
 
 ## Placement
 
@@ -123,6 +123,7 @@ The baseline census is recorded below; counts are physical source footprint sign
 | src/cargo.rs | 426 | Crate discovery/module attribution; filesystem/Cargo manifest; cargo_discovery/module_path_integration | retain as real adapter implementation |
 | src/languages/module_resolver.rs | 412 | DB-free ModuleResolver/ModuleContext; Cargo/filesystem context; seam_lint/mixed dispatch | deepen context only |
 | src/resolve.rs | 1337 | Neutral DB candidate lookup and resolver delegation; pass2 fixtures | retain protected driver |
+| src/unused_imports.rs | 350 | Rust unused-import query already constructs ModuleContext and selects source files; current351 in S4 census | retain Rust query algorithm; migrate context and canonical source-selection callers |
 | src/db/mod.rs | 358 | Index connection Mutex, schema open/reset; gated reexports excluded (spans 1–58, 69–368); all DB callers | move revision lifecycle to concrete DB owner |
 | src/db/files.rs | 572 | Atomic per-file mutations/delete; gated helper excluded (spans 1–57, 80–594); batch+stream callers | retain owner; nested savepoints/shared borrowing |
 | src/db/references.rs | 266 | Apply reference resolutions atomically; includes gated test helper; resolve caller | retain; nested savepoint |
@@ -175,10 +176,11 @@ The baseline census is recorded below; counts are physical source footprint sign
 | src/architecture.rs | architecture inputs→report | architecture-specific records, evidence propagation, phase assembly | DB query and existing instability formula | project parsing/host policy | neutral discovery inputs | coupling report | create; move existing cluster |
 | src/batch_writer.rs | scoped writer send/finish | channel/lifetime/write batching | borrowed Index | opening DB, commit owner, discovery | N/A — intrinsic actor seam | streaming index | deepen |
 | src/lib.rs; src/indexing.rs; src/reindex.rs; src/resolve.rs | existing facade/drivers | existing neutral orchestration | new deep owners | new MSBuild/schema/cache bodies | existing language resolvers | library/CLI | retain wiring; move architecture body |
-| src/languages/module_resolver.rs | ModuleContext/ModuleResolver | DB-free precomputed language context | snapshot/CrateInfo | SQL/processes | Rust/CSharp existing implementations | seam+dispatch | deepen context |
+| src/languages/module_resolver.rs | ModuleContext/ModuleResolver, private SourcePathIdentity policy | DB-free precomputed language context and language-path identity policy | snapshot/CrateInfo, existing Rust/CSharp static registry | SQL/processes | Rust/CSharp existing implementations | seam+dispatch and public file/freshness/dependency queries | deepen context and approved F23 identity policy |
+| src/unused_imports.rs | existing unused-import query | existing Rust query analysis | precomputed ModuleContext and shared language-aware source selection | discovery execution, new language policy | existing Rust resolver | unused-import query fixtures | retain; caller migration only |
 | src/types.rs | shared records | existing shared domain, IndexOptions | discovery/architecture-owned records | new architecture implementation | N/A — data | consumers | move architecture declarations; options cutover |
 | src/main.rs; src/cli/index.rs; src/cli/coupling.rs; src/cli/mod.rs | command parse/render/exit | CLI presentation | library interfaces | direct host invocation for discovery | N/A — CLI | actual CLI smoke | deepen presentation, protected main |
-| src/error.rs | Error/Result | fatal error representation only | typed discovery cause | unit standing policy | N/A — error type | consumer error handling | narrow extension if required |
+| src/error.rs | Error/Result/IndexError | fatal and bounded source-error representation | existing categories and serde | unit standing policy | N/A — error type | consumer/storage error handling | representation extension only |
 | Cargo.toml; managed lock/runtime files; .github/workflows/ci.yml; .github/workflows/release.yml | build/package configuration | dependencies and qualification/distribution | existing Rust gates | runtime policy | OS release packages | clean-install qualification | deepen |
 
 Every new source has baseline zero. Required test owners: existing Cargo/golden/architecture suites plus tests/discovery_candidates.rs, tests/msbuild_discovery.rs, tests/discovery_failures.rs, tests/discovery_cache.rs, tests/revision_publication.rs, tests/csharp_coupling.rs and tests/discovery_cli.rs. The issue-local structural oracle is not a production behavioral test.
@@ -276,3 +278,49 @@ Date: 2026-09-06.
 Approved scope: the module ledger, protected parents, whole-run transaction/scoped writer, managed evaluation companion and packaging, explicit metric-evidence contract, conservative cache eligibility, and the stated verification gates.
 
 Approved risk acceptances: **None that waive correctness or qualification.** Approved operational tradeoffs: longer serialized writer lifetime (readers continue via WAL), added managed companion distribution, possible cache bypass for arbitrary MSBuild code, and public Rust options/coupling type changes with complete caller migration. Planning and checkpointed implementation may proceed under this design.
+
+## Approved F23 amendment — language-specific source identity
+
+**Approved and implemented; local qualification PASS, committed native platform acceptance pending.** The original approval above remains valid for unaffected decisions. The final local checkpoint and evidence disposition are recorded in review-decisions.md; S5 remains blocked until native S4 acceptance.
+
+### Evidence and unchanged requirements
+
+The global canonicalization added to S4 fails three existing Rust symlink fences (artifact714). The untouched pre-S4 tree2c002f5 passes all seven original symlink fences (artifact722). This is the cheapest falsifier of the assumed pre-existing identity model; logical Rust identity, not global physical identity, survives that comparison. C3's Rust compatibility requirement and C7/C8's C# containment/physical-membership requirements are unchanged.
+
+Relevant input shapes: Rust/C#; relative/absolute and lexically equivalent spelling; ordinary file, in-root file alias, non-cyclic directory alias, outside-root target, missing target; one/multiple memberships and retained syntax after membership withdrawal. Existing loop/dangling-link behavior remains covered by the Rust baseline. Unknown extensions retain unsupported-source/query handling, rather than selecting a language by guess. All are covered by C3/C7/C8 and their additional fences below.
+
+### Inventory and alternatives
+
+Read-only inventory: S4IdentityInventory. `module_resolver.rs` is416 production lines with a crate-private trait and nonallocating static Rust/CSharp dispatch; `discovery/mod.rs` is43 lines with a public trait and aggregate dispatcher; `cargo.rs` is443 lines; `discovery/msbuild/mod.rs` is772 lines. `languages/mod.rs` is74 lines with a public syntax-only trait and nonallocating static extraction dispatch. Counts follow the C13 exclusion convention. No existing general source-file identity policy was found. Rejected extraction-owner whole-file counts were not established; those files are not proposed for mutation.
+
+| Alternative | Interface and caller | Hidden policy/adapters | Tradeoff |
+|---|---|---|---|
+| A — existing language-path seam, proposed | Private `ModuleResolver::source_path_identity() -> SourcePathIdentity`; source selection and query normalization consume `get_module_resolver(language).source_path_identity()` | Rust returns Logical; CSharp returns Physical. Follows the existing GlobPolicy pattern; registry already has both real adapters and allocates nothing. | Smallest interface change; keeps language-path rules local, but explicitly expands the resolver's documented responsibility beyond import-path translation. |
+| B — discovery adapters | Add a source-identity operation to WorkspaceDiscovery and a language-specific discovery dispatcher; selection calls the dispatcher | Cargo and MSBuild adapters own their respective file-identity rules | Keeps intake policy with discovery; widens the public discovery interface and adds another dispatch path alongside aggregate metadata discovery. |
+| C — extraction seam | Add source-identity policy to LanguageSupport; selection calls the static language registry | RustLanguage/CSharpLanguage choose logical/physical identity | Straightforward for parsers, but gives the syntax-only interface workspace-path responsibilities and expands the changed owner set to both extraction implementations. |
+
+Proposed A passes the seam tests: deletion would duplicate the language distinction across publication/freshness/query callers; consumer-facing file/dependency/freshness tests exercise the same policy as production; two existing adapters implement it; one module owns the distinction. No new module, generic adapter, allocation-bearing factory, database access or process call is introduced.
+
+### Proposed ledger delta
+
+| Module/path | Interface | Owns | Reuses | Must not own | Adapters / tests | Change |
+|---|---|---|---|---|---|---|
+| src/languages/module_resolver.rs | Existing private trait plus SourcePathIdentity and source_path_identity | DB-free language-path identity policy as well as existing resolution semantics | Existing static registry and language implementations | SQL, evaluator execution, run publication | Rust/CSharp; public file/dependency/freshness fences | Deepen;416 current, approximately430–470 projected |
+| src/indexing.rs | Existing discover_files | Existing shared candidate selection, applying the declared identity policy | Existing walker, canonicalization, diagnostics and resolver registry | Rust/CSharp branches or a duplicate policy | Index/reindex/source freshness | Neutral wiring only;1395 current, approximately1405–1440 projected |
+| src/lib.rs | Existing relative_path and public queries | Existing lexical normalization and query-path conversion, applying the same identity policy | Existing lexical normalizer and resolver registry | Rust/CSharp branches or a duplicate policy | Relative/absolute file and dependency queries | Neutral wiring only;1183 current, approximately1190–1220 projected |
+| src/reindex.rs; src/unused_imports.rs | Existing shared-selection callers | Existing freshness / Rust unused-import behavior | discover_files | Discovery execution or another identity rule | Existing freshness/unused-import fences | Retain caller contract |
+
+Protected-parent limits do not increase: indexing remains within baseline1313+150 and lib within baseline1143+100. Other ledger rows, schemas, transaction ownership, discovery grants, metadata evaluation and module-path binding are unchanged. No repository-wide Rust symlink hardening is added: preserving existing external Rust targets is an explicit compatibility requirement, not a new C# escape allowance.
+
+### Additional falsification obligations
+
+| Claim | Falsifier and independent oracle | Named mutation | Regression fence | Cost / status |
+|---|---|---|---|---|
+| C3 — preserve logical Rust identities | Compare ordinary/aliased/external Rust files with the pre-S4 filesystem manifest; distinct logical aliases stay distinct and known external symbols remain available. Relative/absolute and dotted spellings identify the expected logical row. | In the Rust resolver implementation, return Physical instead of Logical; expect the external-target or distinct-alias assertion to fail. | Existing tests/symlink_boundary.rs and affected_tests_cli::path_forms_equivalent; strengthen alias identity assertions rather than changing them to canonical behavior. | Local; baseline PASS artifact722, implementation PENDING — Main/S4 repair |
+| C7/C8 — retain physical contained C# identities | Hand-authored C# file/directory aliases share one physical row, symbol set and dependency identity; an outside-root C# twin is absent while an inside-root positive control is present. Native evaluated-only membership/freshness still agrees with SQL. | In the CSharp resolver implementation, return Logical instead of Physical; expect duplicate alias identity or escaped-source assertion to fail. | Convert the newly introduced Rust-canonical fixture in concurrency_and_filesystem.rs into the intended C# identity fence; retain native msbuild_discovery membership/freshness fences. | Local/native; PENDING — Main/S4 repair |
+| C13 — keep the policy at the approved seam | Source/dependency census and existing language-neutral seam lint reject policy ownership outside module_resolver.rs; public entry points remain unchanged. | Move effective source_path_identity policy into src/lib.rs and route consumers through it; expect the shape fence to identify that exact forbidden owner. | Extend .tethys-82a6/oracles/module_shape.py ownership check; existing seam_lint.rs | Local; PENDING — Main/S4 repair |
+
+Run new mutation red/restored-green checks, the complete ordinary/native suites, affected packaged CLI/SQL and production-scale checks, and renewed isolated conformance before reconciling all nine S4 gates. Retain prior evidence only with explicit applicability under the workflow contract. Keep the full S5/S6 scope and all platform/resource limits.
+
+**Requester amendment approval (verbatim): "Approve existing seam"**
+Date:2026-09-07. Selected alternative A and its ledger/falsification obligations. No new risk waiver. Main updates the affected S4 plan before production edits.

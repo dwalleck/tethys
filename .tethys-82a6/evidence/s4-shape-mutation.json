@@ -1,0 +1,164 @@
+{
+  "baseline": {
+    "phase": "baseline",
+    "exit": 0,
+    "stdout": "C13 PASS S4: approved paths/ownership/dependencies; baseline=0a2753d50dd8fb335660b247c00e0efa355a8fcc; upstream=refs/remotes/origin/main\n",
+    "stderr": ""
+  },
+  "mutation": {
+    "phase": "C13-omit-source-selection-caller-owner",
+    "exit": 1,
+    "stdout": "C13 src/unused_imports.rs: production path outside approved ledger\n",
+    "stderr": ""
+  },
+  "restored": {
+    "phase": "restored",
+    "exit": 0,
+    "stdout": "C13 PASS S4: approved paths/ownership/dependencies; baseline=0a2753d50dd8fb335660b247c00e0efa355a8fcc; upstream=refs/remotes/origin/main\n",
+    "stderr": ""
+  },
+  "ledger_sha256": "aed5bae68ddcf7c350eef5d24d342b0373799e31ca52cca2b71cb29142fa7217",
+  "restored_exactly": true,
+  "sources": [
+    {
+      "path": "src/lib.rs",
+      "sha256": "110e058305a1d3083f25352d749386edf3b3217b99dfb47ae04e638e8cc04de4"
+    },
+    {
+      "path": "src/indexing.rs",
+      "sha256": "c230151c3a1da819850900e893862b77a4b677c5cef678324bc7ace412a24b15"
+    },
+    {
+      "path": "src/reindex.rs",
+      "sha256": "ad7b75d37fced6858903f69f28560b4e1d0cd0a6b20dda87c7e28a34f495993c"
+    },
+    {
+      "path": "src/batch_writer.rs",
+      "sha256": "8a6087493be65e66e1157a4f23d601377dccb2da0f7c9216eb31af3417849c69"
+    },
+    {
+      "path": "src/cargo.rs",
+      "sha256": "b8bfa5c27b45f14ecce705ef8d90469d3bff984711a2cdcc9a6c7f57ef10cd2a"
+    },
+    {
+      "path": "src/languages/module_resolver.rs",
+      "sha256": "700afe2293598bcb756a064a7ac5f1dea63c1c6f1196a957eb2a0680a5f63b85"
+    },
+    {
+      "path": "src/resolve.rs",
+      "sha256": "eb6bf6faed6352a1c24a9393ff85838aab20d383abd745236d4d1538576367f9"
+    },
+    {
+      "path": "src/unused_imports.rs",
+      "sha256": "b54f061395bde52641b6fe537733e13b59f978713e00a0c3e409953b4f0180a5"
+    },
+    {
+      "path": "src/db/mod.rs",
+      "sha256": "5f55d380bf0fc72063fcccec32f867765e7d21b5285d90c125f8aba52c3791fc"
+    },
+    {
+      "path": "src/db/revision.rs",
+      "sha256": "05c3e7f308d5064bc1906934cf4b6a5265eb8dbcb0b866bff36f6446559093a0"
+    },
+    {
+      "path": "src/db/files.rs",
+      "sha256": "24fc5bdc4f0046894e3ddb38d7b5def3a8d56a8f95ea3175cd77f11914d83b1a"
+    },
+    {
+      "path": "src/db/references.rs",
+      "sha256": "f31db0dffb7b5b52e8b52459de9d0bcb3216dfae135b4194ab5a093fef24e707"
+    },
+    {
+      "path": "src/db/call_edges.rs",
+      "sha256": "16cc2d93ccb219b4542a0d3da01c4a761da139a7355114a33d107c8c06a687fb"
+    },
+    {
+      "path": "src/db/schema.rs",
+      "sha256": "b423d11465a5732f076725bec9e9ecf777da3a6daf1903dfe7350691d6088f15"
+    },
+    {
+      "path": "src/db/discovery.rs",
+      "sha256": "9e5886439976766ddc41a23396451a3390723123870fa9b23f975240deb97c4e"
+    },
+    {
+      "path": "src/db/architecture.rs",
+      "sha256": "d72932e69f957ea0dcb90ab93286ee6888e0f17f91c2726984a1082cc62b0fa6"
+    },
+    {
+      "path": "src/types.rs",
+      "sha256": "1dcd46fbca4f7fbcfb856d8f9b4f787d82e859361b153b60769eb3a1c2045a72"
+    },
+    {
+      "path": "src/main.rs",
+      "sha256": "ccc78468dfe5dd661a3a5ace87bc5b938199bb18ed07a464f161a2a6ba3239a1"
+    },
+    {
+      "path": "src/cli/index.rs",
+      "sha256": "1ad06671dbecfad76f8837aaeb99915a23f4a0ea54b4d1d56c45277e7241b11d"
+    },
+    {
+      "path": "src/cli/coupling.rs",
+      "sha256": "70552e759f2abf4ad93dfd7f0f000b98abfc8725c7b0a6c7a685a0f101480982"
+    },
+    {
+      "path": "src/cli/mod.rs",
+      "sha256": "800df0c2441de84649c9f9471cf03136ff0e085a2fdc6bd2d5b515dcec8ab6eb"
+    },
+    {
+      "path": "src/error.rs",
+      "sha256": "cbb6ae2f34f7ad8b9e76f936d998638287203337b228582af45e2361813de475"
+    },
+    {
+      "path": "src/discovery/mod.rs",
+      "sha256": "9c3d959f20d5aa5d0234601ce9d9a3c1a98fa7e1b2581fe77cc31804dbbe8f12"
+    },
+    {
+      "path": "src/discovery/types.rs",
+      "sha256": "89537883d602f660442be2d04081e7c3c69a76dbbd95335dffd9f29db8e7c1ad"
+    },
+    {
+      "path": "src/discovery/msbuild/mod.rs",
+      "sha256": "24c725d1ebd85e454cf7a6c2645a1881435f0fb38ce7af52b9a9e4cce2bbf77e"
+    },
+    {
+      "path": "src/discovery/msbuild/candidates.rs",
+      "sha256": "3a69b08a77b2d4074d834bf9e2d433ae8ef9b27b67dc845a43fd822518f3c907"
+    },
+    {
+      "path": "src/discovery/msbuild/host.rs",
+      "sha256": "ed6c480ace7653ccb4a5156d149f11ac4f058a3492f308ad7853d85b56d5fd05"
+    },
+    {
+      "path": "src/discovery/msbuild/cache.rs",
+      "sha256": "7c8c2fe73659880a4307603448c2ead3e8759b78f7d01024cfc8cd05bf720d55"
+    },
+    {
+      "path": "src/discovery/msbuild/restore.rs",
+      "sha256": "3b6f5c432cc57aea2b6eb8fe0a94429117fac2e71d6301095ea8d9ebc5bfa211"
+    },
+    {
+      "path": "tools/tethys-msbuild-evaluate/Program.cs",
+      "sha256": "eb045b8ad41e6e33a50de0fad1e58468567e7fed485f5d65f4f4c6646dac4d49"
+    },
+    {
+      "path": "tools/tethys-msbuild-evaluate/Evaluation.cs",
+      "sha256": "78ab44df3de2df75a50ca4d6084ecc6fd292e99e6b02315cc4f6dd281d1748d2"
+    },
+    {
+      "path": "tools/tethys-msbuild-evaluate/Contract.cs",
+      "sha256": "6bee1b0eab8b4724e8e3b1f2a27007de93e079bf6ac09202d8f56c8ad3a3d7b1"
+    },
+    {
+      "path": "tools/tethys-msbuild-evaluate/Tethys.MSBuild.Evaluate.csproj",
+      "sha256": "123978ca297106082d193d5686e20bedeb27e2af79791044a99eb7f0ab75fe0b"
+    },
+    {
+      "path": ".tethys-82a6/oracles/ledger.json",
+      "sha256": "aed5bae68ddcf7c350eef5d24d342b0373799e31ca52cca2b71cb29142fa7217"
+    },
+    {
+      "path": ".tethys-82a6/oracles/module_shape.py",
+      "sha256": "e9668566b6fc2565a0af0be34984cf3c4548ccc0bb670f476b63dfcabdb268cb"
+    }
+  ]
+}

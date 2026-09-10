@@ -36,14 +36,30 @@ impl Tethys {
     /// Incrementally update index for changed files.
     ///
     /// **Note:** Currently performs a full re-index. Incremental update is tracked as a future enhancement.
+    ///
+    /// Uses [`IndexOptions::default`], which grants no `MSBuild` evaluation. A
+    /// trusted publication must be refreshed with
+    /// [`Self::update_with_options`] or it is replaced by source-only coverage.
     pub fn update(&mut self) -> Result<IndexUpdate> {
+        self.update_with_options(IndexOptions::default())
+    }
+
+    /// Incrementally update index for changed files with explicit options.
+    ///
+    /// **Note:** Currently performs a full re-index. Incremental update is tracked as a future enhancement.
+    ///
+    /// This is the only way to update while keeping a granted discovery
+    /// authority: [`IndexOptions`] carries the `MSBuild` trust and restore
+    /// permissions that [`Self::update`] omits.
+    pub fn update_with_options(&mut self, options: IndexOptions) -> Result<IndexUpdate> {
         // For now, just re-index everything
-        let stats = self.index()?;
+        let stats = self.index_with_options(options)?;
         Ok(IndexUpdate {
             files_changed: stats.files_indexed,
             files_unchanged: 0, // Always 0 until incremental change detection is implemented
             duration: stats.duration,
             errors: stats.errors,
+            discovery: stats.discovery,
         })
     }
 
@@ -68,9 +84,14 @@ impl Tethys {
         // discover_files already emits warn! for each skipped directory; this
         // sink Vec is required by the API but its contents are unused.
         let mut skipped_dirs = Vec::new();
-        let disk_files = self.discover_files(&mut skipped_dirs)?;
+        let mut source_errors = Vec::new();
+        let (disk_files, _) = self.discover_files(
+            indexed_map.keys().map(Path::new),
+            &mut skipped_dirs,
+            &mut source_errors,
+        )?;
 
-        for file_path in disk_files {
+        for (file_path, _) in disk_files {
             let lookup = self.lookup_key(&file_path);
             match indexed_map.remove(&lookup) {
                 None => return Ok(true),
@@ -113,9 +134,14 @@ impl Tethys {
         // discover_files already emits warn! for each skipped directory; this
         // sink Vec is required by the API but its contents are unused.
         let mut skipped_dirs = Vec::new();
-        let disk_files = self.discover_files(&mut skipped_dirs)?;
+        let mut source_errors = Vec::new();
+        let (disk_files, _) = self.discover_files(
+            indexed_map.keys().map(Path::new),
+            &mut skipped_dirs,
+            &mut source_errors,
+        )?;
 
-        for file_path in disk_files {
+        for (file_path, _) in disk_files {
             let lookup = self.lookup_key(&file_path);
 
             if let Some((indexed_mtime, indexed_size)) = indexed_map.remove(&lookup) {

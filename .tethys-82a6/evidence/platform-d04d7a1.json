@@ -1,0 +1,566 @@
+{
+  "commit": "d04d7a19eaea827d6f238dac002e0084b1ae41aa",
+  "run": 34156691733,
+  "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733",
+  "jobs": [
+    {
+      "id": 101849891548,
+      "name": "Managed Worker (ubuntu-latest)",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891548"
+    },
+    {
+      "id": 101849891729,
+      "name": "Build (ubuntu-latest, stable)",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891729"
+    },
+    {
+      "id": 101849891736,
+      "name": "Code Coverage",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891736"
+    },
+    {
+      "id": 101849891792,
+      "name": "Format",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891792"
+    },
+    {
+      "id": 101849891804,
+      "name": "Cargo Deny",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891804"
+    },
+    {
+      "id": 101849891809,
+      "name": "Test (windows-latest, stable)",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891809"
+    },
+    {
+      "id": 101849891833,
+      "name": "Lint",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891833"
+    },
+    {
+      "id": 101849891847,
+      "name": "Build (windows-latest, stable)",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891847"
+    },
+    {
+      "id": 101849891884,
+      "name": "Changelog Fragment",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891884"
+    },
+    {
+      "id": 101849891892,
+      "name": "Managed Worker (windows-2022)",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891892"
+    },
+    {
+      "id": 101849891904,
+      "name": "Managed Worker (macos-latest)",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891904"
+    },
+    {
+      "id": 101849891915,
+      "name": "Test (ubuntu-latest, beta)",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891915"
+    },
+    {
+      "id": 101849891939,
+      "name": "Validate Commits",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891939"
+    },
+    {
+      "id": 101849891946,
+      "name": "Test (ubuntu-latest, stable)",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891946"
+    },
+    {
+      "id": 101849891954,
+      "name": "Test (macos-latest, stable)",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891954"
+    },
+    {
+      "id": 101849891986,
+      "name": "Build (macos-latest, stable)",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101849891986"
+    },
+    {
+      "id": 101852682099,
+      "name": "CI Success",
+      "conclusion": "success",
+      "url": "https://github.com/dwalleck/tethys/actions/runs/34156691733/job/101852682099"
+    }
+  ],
+  "native": [
+    {
+      "job": 101849891904,
+      "name": "Managed Worker (macos-latest)",
+      "log_sha256": "a53c27ca580b22351ad796e6cbec5b50aa9f81f5a6a9f03acec13fdbd9586651",
+      "summaries": [
+        "     Summary [ 265.432s] 674 tests run: 674 passed (2 slow), 2 skipped",
+        "C6-reject-zombie-group-reaping: FALSIFIED: discovery::msbuild::host::tests::already_exited_process_group_is_reaped",
+        "C6-reject-zombie-group-reaping-restored: RESTORED_PASS: discovery::msbuild::host::tests::already_exited_process_group_is_reaped",
+        "PASS: 1 named mutations, 1 behavioral falsifier cases; evidence /Users/runner/work/tethys/tethys/.tethys-82a6/evidence/discovery-mutations-wnrdt_oa",
+        "C3 PASS: pre-adapter canonical Rust output unchanged",
+        "C6/C7/C9 PASS: real public seam, no unauthorized process, native metadata, zero-evaluation hit, glob/project mutations, cached/forced equivalence"
+      ],
+      "steps": [
+        {
+          "name": "Qualify native zombie-group mutation",
+          "conclusion": "success",
+          "started_at": "2026-09-07T19:52:05Z",
+          "completed_at": "2026-09-07T19:54:55Z"
+        },
+        {
+          "name": "Retain native cleanup mutation evidence",
+          "conclusion": "success",
+          "started_at": "2026-09-07T19:54:55Z",
+          "completed_at": "2026-09-07T19:54:57Z"
+        },
+        {
+          "name": "Prove native cache launches and frozen Cargo output",
+          "conclusion": "success",
+          "started_at": "2026-09-07T19:56:13Z",
+          "completed_at": "2026-09-07T19:58:14Z"
+        },
+        {
+          "name": "Prove published discovery through packaged CLI",
+          "conclusion": "success",
+          "started_at": "2026-09-07T19:58:14Z",
+          "completed_at": "2026-09-07T19:58:48Z"
+        }
+      ],
+      "publication": {
+        "claim": "C8",
+        "mode": "index",
+        "result": "PASS",
+        "runs": [
+          {
+            "command": [
+              "/var/folders/d8/hvxvltxn0fl4rmnd52sncbth0000gn/T/tethys-index-discovery-3vs_ualy/package/tethys",
+              "-w",
+              "/var/folders/d8/hvxvltxn0fl4rmnd52sncbth0000gn/T/tethys-index-discovery-3vs_ualy/workspace",
+              "index",
+              "--msbuild-path",
+              "/Users/runner/.dotnet/sdk/8.0.424"
+            ],
+            "exit": 1,
+            "wall_seconds": 0.33780554099996607,
+            "wait4_maxrss_native_units": 8716288,
+            "wait4_status": "measured; KiB on Linux, bytes on macOS",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 616472,
+            "index_and_sidecar_bytes": 266240,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "no-trust",
+            "native_worker_launches": 0
+          },
+          {
+            "command": [
+              "/var/folders/d8/hvxvltxn0fl4rmnd52sncbth0000gn/T/tethys-index-discovery-3vs_ualy/package/tethys",
+              "-w",
+              "/var/folders/d8/hvxvltxn0fl4rmnd52sncbth0000gn/T/tethys-index-discovery-3vs_ualy/workspace",
+              "index",
+              "--trust-msbuild",
+              "--msbuild-path",
+              "/Users/runner/.dotnet/sdk/8.0.424"
+            ],
+            "exit": 0,
+            "wall_seconds": 16.847239207999905,
+            "wait4_maxrss_native_units": 91750400,
+            "wait4_status": "measured; KiB on Linux, bytes on macOS",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 299008,
+            "index_and_sidecar_bytes": 274432,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "trusted",
+            "native_worker_launches": 4
+          },
+          {
+            "command": [
+              "/var/folders/d8/hvxvltxn0fl4rmnd52sncbth0000gn/T/tethys-index-discovery-3vs_ualy/package/tethys",
+              "-w",
+              "/var/folders/d8/hvxvltxn0fl4rmnd52sncbth0000gn/T/tethys-index-discovery-3vs_ualy/workspace",
+              "index",
+              "--trust-msbuild",
+              "--msbuild-path",
+              "/Users/runner/.dotnet/sdk/8.0.424"
+            ],
+            "exit": 0,
+            "wall_seconds": 15.980998874999955,
+            "wait4_maxrss_native_units": 91652096,
+            "wait4_status": "measured; KiB on Linux, bytes on macOS",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 307200,
+            "index_and_sidecar_bytes": 274432,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "metadata-only-replacement",
+            "native_worker_launches": 4
+          },
+          {
+            "command": [
+              "/var/folders/d8/hvxvltxn0fl4rmnd52sncbth0000gn/T/tethys-index-discovery-3vs_ualy/package/tethys",
+              "-w",
+              "/var/folders/d8/hvxvltxn0fl4rmnd52sncbth0000gn/T/tethys-index-discovery-3vs_ualy/workspace",
+              "search",
+              "Source"
+            ],
+            "exit": 0,
+            "wall_seconds": 0.018589625000004162,
+            "wait4_maxrss_native_units": 6307840,
+            "wait4_status": "measured; KiB on Linux, bytes on macOS",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 307200,
+            "index_and_sidecar_bytes": 274432,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "persisted-query-Source",
+            "native_worker_launches": 0
+          },
+          {
+            "command": [
+              "/var/folders/d8/hvxvltxn0fl4rmnd52sncbth0000gn/T/tethys-index-discovery-3vs_ualy/package/tethys",
+              "-w",
+              "/var/folders/d8/hvxvltxn0fl4rmnd52sncbth0000gn/T/tethys-index-discovery-3vs_ualy/workspace",
+              "search",
+              "Second"
+            ],
+            "exit": 0,
+            "wall_seconds": 0.01860541600012766,
+            "wait4_maxrss_native_units": 6340608,
+            "wait4_status": "measured; KiB on Linux, bytes on macOS",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 274432,
+            "index_and_sidecar_bytes": 274432,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "persisted-query-Second",
+            "native_worker_launches": 0
+          }
+        ]
+      }
+    },
+    {
+      "job": 101849891548,
+      "name": "Managed Worker (ubuntu-latest)",
+      "log_sha256": "ea085229ac1b3d1f0f77847c39f8d3955bba1d60d66149dd349f58f0a9ca1ecf",
+      "summaries": [
+        "     Summary [  89.439s] 674 tests run: 674 passed, 2 skipped",
+        "C3 PASS: pre-adapter canonical Rust output unchanged",
+        "C6/C7/C9 PASS: real public seam, no unauthorized process, native metadata, zero-evaluation hit, glob/project mutations, cached/forced equivalence"
+      ],
+      "steps": [
+        {
+          "name": "Qualify native zombie-group mutation",
+          "conclusion": "skipped",
+          "started_at": "2026-09-07T19:47:10Z",
+          "completed_at": "2026-09-07T19:47:10Z"
+        },
+        {
+          "name": "Retain native cleanup mutation evidence",
+          "conclusion": "skipped",
+          "started_at": "2026-09-07T19:47:10Z",
+          "completed_at": "2026-09-07T19:47:10Z"
+        },
+        {
+          "name": "Prove native cache launches and frozen Cargo output",
+          "conclusion": "success",
+          "started_at": "2026-09-07T19:47:39Z",
+          "completed_at": "2026-09-07T19:48:15Z"
+        },
+        {
+          "name": "Prove published discovery through packaged CLI",
+          "conclusion": "success",
+          "started_at": "2026-09-07T19:48:15Z",
+          "completed_at": "2026-09-07T19:48:21Z"
+        }
+      ],
+      "publication": {
+        "claim": "C8",
+        "mode": "index",
+        "result": "PASS",
+        "runs": [
+          {
+            "command": [
+              "/tmp/tethys-index-discovery-zjlxoe17/package/tethys",
+              "-w",
+              "/tmp/tethys-index-discovery-zjlxoe17/workspace",
+              "index",
+              "--msbuild-path",
+              "/usr/share/dotnet/sdk/8.0.424"
+            ],
+            "exit": 1,
+            "wall_seconds": 0.01178642200000013,
+            "wait4_maxrss_native_units": 17552,
+            "wait4_status": "measured; KiB on Linux, bytes on macOS",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 266240,
+            "index_and_sidecar_bytes": 266240,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "no-trust",
+            "native_worker_launches": 0
+          },
+          {
+            "command": [
+              "/tmp/tethys-index-discovery-zjlxoe17/package/tethys",
+              "-w",
+              "/tmp/tethys-index-discovery-zjlxoe17/workspace",
+              "index",
+              "--trust-msbuild",
+              "--msbuild-path",
+              "/usr/share/dotnet/sdk/8.0.424"
+            ],
+            "exit": 0,
+            "wall_seconds": 2.8323480679999875,
+            "wait4_maxrss_native_units": 65208,
+            "wait4_status": "measured; KiB on Linux, bytes on macOS",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 299008,
+            "index_and_sidecar_bytes": 274432,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "trusted",
+            "native_worker_launches": 4
+          },
+          {
+            "command": [
+              "/tmp/tethys-index-discovery-zjlxoe17/package/tethys",
+              "-w",
+              "/tmp/tethys-index-discovery-zjlxoe17/workspace",
+              "index",
+              "--trust-msbuild",
+              "--msbuild-path",
+              "/usr/share/dotnet/sdk/8.0.424"
+            ],
+            "exit": 0,
+            "wall_seconds": 2.8332604219999666,
+            "wait4_maxrss_native_units": 65432,
+            "wait4_status": "measured; KiB on Linux, bytes on macOS",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 434952,
+            "index_and_sidecar_bytes": 274432,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "metadata-only-replacement",
+            "native_worker_launches": 4
+          },
+          {
+            "command": [
+              "/tmp/tethys-index-discovery-zjlxoe17/package/tethys",
+              "-w",
+              "/tmp/tethys-index-discovery-zjlxoe17/workspace",
+              "search",
+              "Source"
+            ],
+            "exit": 0,
+            "wall_seconds": 0.010907689999953618,
+            "wait4_maxrss_native_units": 22184,
+            "wait4_status": "measured; KiB on Linux, bytes on macOS",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 307200,
+            "index_and_sidecar_bytes": 274432,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "persisted-query-Source",
+            "native_worker_launches": 0
+          },
+          {
+            "command": [
+              "/tmp/tethys-index-discovery-zjlxoe17/package/tethys",
+              "-w",
+              "/tmp/tethys-index-discovery-zjlxoe17/workspace",
+              "search",
+              "Second"
+            ],
+            "exit": 0,
+            "wall_seconds": 0.010880828999916048,
+            "wait4_maxrss_native_units": 22184,
+            "wait4_status": "measured; KiB on Linux, bytes on macOS",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 274432,
+            "index_and_sidecar_bytes": 274432,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "persisted-query-Second",
+            "native_worker_launches": 0
+          }
+        ]
+      }
+    },
+    {
+      "job": 101849891892,
+      "name": "Managed Worker (windows-2022)",
+      "log_sha256": "6af79d626309bfe71e469df2abf4919df7177572d22b650a2c9f31fca393d201",
+      "summaries": [
+        "     Summary [ 474.399s] 661 tests run: 661 passed (4 slow), 2 skipped"
+      ],
+      "steps": [
+        {
+          "name": "Qualify native zombie-group mutation",
+          "conclusion": "skipped",
+          "started_at": "2026-09-07T19:55:54Z",
+          "completed_at": "2026-09-07T19:55:54Z"
+        },
+        {
+          "name": "Retain native cleanup mutation evidence",
+          "conclusion": "skipped",
+          "started_at": "2026-09-07T19:55:54Z",
+          "completed_at": "2026-09-07T19:55:54Z"
+        },
+        {
+          "name": "Prove native cache launches and frozen Cargo output",
+          "conclusion": "skipped",
+          "started_at": "2026-09-07T19:56:31Z",
+          "completed_at": "2026-09-07T19:56:31Z"
+        },
+        {
+          "name": "Prove published discovery through packaged CLI",
+          "conclusion": "success",
+          "started_at": "2026-09-07T19:56:31Z",
+          "completed_at": "2026-09-07T19:56:44Z"
+        }
+      ],
+      "publication": {
+        "claim": "C8",
+        "mode": "index",
+        "result": "PASS",
+        "runs": [
+          {
+            "command": [
+              "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tethys-index-discovery-ykkeikan\\package\\tethys.exe",
+              "-w",
+              "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tethys-index-discovery-ykkeikan\\workspace",
+              "index",
+              "--msbuild-path",
+              "C:\\Program Files\\dotnet\\sdk\\8.0.424"
+            ],
+            "exit": 1,
+            "wall_seconds": 0.46900000000005093,
+            "wait4_maxrss_native_units": null,
+            "wait4_status": "unavailable on this platform",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 649240,
+            "index_and_sidecar_bytes": 266240,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "no-trust",
+            "native_worker_launches": 0
+          },
+          {
+            "command": [
+              "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tethys-index-discovery-ykkeikan\\package\\tethys.exe",
+              "-w",
+              "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tethys-index-discovery-ykkeikan\\workspace",
+              "index",
+              "--trust-msbuild",
+              "--msbuild-path",
+              "C:\\Program Files\\dotnet\\sdk\\8.0.424"
+            ],
+            "exit": 0,
+            "wall_seconds": 6.0620000000001255,
+            "wait4_maxrss_native_units": null,
+            "wait4_status": "unavailable on this platform",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 434952,
+            "index_and_sidecar_bytes": 274432,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "trusted",
+            "native_worker_launches": 4
+          },
+          {
+            "command": [
+              "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tethys-index-discovery-ykkeikan\\package\\tethys.exe",
+              "-w",
+              "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tethys-index-discovery-ykkeikan\\workspace",
+              "index",
+              "--trust-msbuild",
+              "--msbuild-path",
+              "C:\\Program Files\\dotnet\\sdk\\8.0.424"
+            ],
+            "exit": 0,
+            "wall_seconds": 5.984000000000151,
+            "wait4_maxrss_native_units": null,
+            "wait4_status": "unavailable on this platform",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 434952,
+            "index_and_sidecar_bytes": 274432,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "metadata-only-replacement",
+            "native_worker_launches": 4
+          },
+          {
+            "command": [
+              "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tethys-index-discovery-ykkeikan\\package\\tethys.exe",
+              "-w",
+              "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tethys-index-discovery-ykkeikan\\workspace",
+              "search",
+              "Source"
+            ],
+            "exit": 0,
+            "wall_seconds": 0.016000000000076398,
+            "wait4_maxrss_native_units": null,
+            "wait4_status": "unavailable on this platform",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 307200,
+            "index_and_sidecar_bytes": 274432,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "persisted-query-Source",
+            "native_worker_launches": 0
+          },
+          {
+            "command": [
+              "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tethys-index-discovery-ykkeikan\\package\\tethys.exe",
+              "-w",
+              "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\tethys-index-discovery-ykkeikan\\workspace",
+              "search",
+              "Second"
+            ],
+            "exit": 0,
+            "wall_seconds": 0.015000000000100044,
+            "wait4_maxrss_native_units": null,
+            "wait4_status": "unavailable on this platform",
+            "process_tree_sampled_peak_rss_bytes": null,
+            "process_tree_rss_status": "unavailable: optional psutil is not installed",
+            "index_and_sidecar_sampled_peak_bytes": 274432,
+            "index_and_sidecar_bytes": 274432,
+            "index_and_sidecar_status": "measured: DB/WAL/SHM sum sampled every 10ms plus after exit; not an exact high-water mark",
+            "phase": "persisted-query-Second",
+            "native_worker_launches": 0
+          }
+        ]
+      }
+    },
+    {
+      "job": 101849891954,
+      "name": "Test (macos-latest, stable)",
+      "log_sha256": "d8f201c8a201ae81235cb459d7e347e4fad53c7e4cc35b6e2f116cc3c9f2adcc",
+      "summaries": [
+        "     Summary [  11.497s] 1167 tests run: 1167 passed, 40 skipped"
+      ],
+      "steps": [],
+      "overflow_passes": 100
+    }
+  ]
+}

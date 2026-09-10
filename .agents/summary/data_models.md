@@ -2,13 +2,18 @@
 
 tethys has two model layers:
 
-1. **Domain model** (`src/types.rs`) — Rust structs/enums used across the API.
+1. **Domain model** (`src/types.rs`, `src/discovery/types.rs`) — Rust structs/enums used across the API.
 2. **Persistence model** (`src/db/schema.rs`) — the SQLite schema.
 
 Extraction also uses **intermediate DTOs** (`languages/common.rs`) that sit
 between tree-sitter and the domain model.
 
 ## Database Schema
+
+Schema **2** publishes discovery and source facts under one `index_revision`.
+Incompatible schemas require a transactional `index --rebuild`; ordinary open
+refuses them without mutation. The discovery tables hold one active result, not
+a revision history.
 
 ```mermaid
 erDiagram
@@ -24,6 +29,84 @@ erDiagram
     files ||--o| arch_file_packages : "file_id"
     arch_packages ||--o{ arch_file_packages : "package_id"
     arch_packages ||--o{ arch_package_deps : "source/target_pkg"
+    projects ||--o{ evaluation_units : "project_key"
+    projects ||--o{ evaluation_inputs : "project_key"
+    evaluation_units ||--o{ file_participation : "unit_key"
+    files |o--o{ file_participation : "nullable file_id"
+    evaluation_units ||--o{ declared_project_references : "unit_key"
+    evaluation_units ||--o{ declared_assembly_references : "unit_key"
+
+    index_revision {
+        int singleton PK
+        int schema_version
+        int revision
+    }
+    evaluation_context {
+        int singleton PK
+        text crates_json
+        text context_json
+        text grants_json
+        text cache_observations_json
+    }
+    projects {
+        text project_key PK
+        int ordinal UK
+        text containers_json
+        text standing_json
+    }
+    evaluation_units {
+        text unit_key PK
+        text project_key FK
+        int ordinal UK
+        text target_framework
+        text framework_json
+        text standing_json
+        text properties_json
+        text host_json
+        text restore_json
+    }
+    file_participation {
+        text unit_key PK,FK
+        text path PK
+        int file_id FK "nullable"
+        int ordinal
+        text link
+        text metadata_json
+    }
+    declared_project_references {
+        text unit_key PK,FK
+        int ordinal PK
+        text target_project_key
+        text include
+        text metadata_json
+    }
+    declared_assembly_references {
+        text unit_key PK,FK
+        int ordinal PK
+        text include
+        text metadata_json
+    }
+    evaluation_inputs {
+        int ordinal PK
+        text project_key FK
+        text inputs_json
+    }
+    evaluation_cache {
+        int ordinal PK
+        text cache_key
+        text payload
+    }
+    discovery_issues {
+        int ordinal PK
+        text path
+        text failure_json
+    }
+    source_diagnostics {
+        int ordinal PK
+        text path
+        text error_json
+        text directory_reason
+    }
 
     files {
         int id PK
@@ -103,10 +186,36 @@ erDiagram
 ### Table notes
 
 - **index_revision** — singleton schema currency and published revision identity.
-  Updated with all source/resolution/architecture facts at publication; failed
-  runs leave the previous identity and facts visible (`db/revision.rs`, tethys-82a6).
-- **files** — one row per indexed source file. `mtime_ns` drives staleness
-  detection during reindex; `content_hash` supports change detection.
+  Updated with all discovery/source/resolution/architecture facts at publication;
+  failed runs leave the previous identity and facts visible (`db/revision.rs`,
+  tethys-82a6).
+- **evaluation_context** — singleton Cargo attribution, requested context,
+  recorded invocation grants and cache observations. Persisted grants never
+  authorize another discovery invocation.
+- **projects / evaluation_units** — stable project and project/framework/context
+  identities, ordered outcomes and explicit standing. Units retain complete
+  framework identity, evaluated properties and host/restore provenance.
+- **file_participation** — many-to-many physical C# file membership across units.
+  `(unit_key, path)` uses the canonical source path; `file_id` is optional because evaluation
+  membership survives missing or unindexable syntax (`ON DELETE SET NULL`).
+  Authored link and item metadata are retained. Conversely, removing membership
+  does not delete independent source facts.
+- **declared_project_references / declared_assembly_references** — evaluated
+  declarations, not selected target-unit edges or compiler-resolved assemblies.
+  `target_project_key` is not a foreign key: a declaration can name a project
+  whose metadata is unavailable.
+- **evaluation_inputs** — ordered captured input scopes per project observation,
+  not a deduplicated path-stamp set or proof of currentness.
+- **evaluation_cache** — opaque acceleration receipts validated on the next
+  discovery invocation; separate from semantic metadata and captured input scopes.
+- **discovery_issues / source_diagnostics** — candidate failures and source-file
+  or skipped-directory diagnostics. Project/unit failures live in their standing
+  records. Source diagnostic rows contain exactly one error or directory reason.
+- **files** — one row per indexed source identity: logical paths for Rust
+  (distinct aliases, including external targets), contained canonical physical
+  paths for C# (deduplicated aliases). C# membership records do not impose a
+  physical-identity rule on Rust. `mtime_ns` drives staleness detection during
+  reindex; `content_hash` supports change detection.
 - **symbols** — definitions. `module_path` + `name` form `qualified_name`.
   `parent_symbol_id` is self-referential (e.g. methods → impl/struct, nested
   types). `is_test` flags test functions (indexed via language-specific test
@@ -167,7 +276,7 @@ erDiagram
 
 | Type | Description |
 |------|-------------|
-| `IndexStats` | Per-run counts: files indexed/skipped, symbols, references, errors, LSP session results, arch phase result. `total_lsp_resolved` sums sessions. |
+| `IndexStats` | Per-run counts: files indexed/skipped, symbols, references, errors, LSP session results, arch phase result, and immutable discovery snapshot. `total_lsp_resolved` sums sessions. |
 | `DatabaseStats` | Aggregate index state (counts by language/kind). |
 | `ReachabilityResult` / `ReachablePath` | Reachable symbols and paths, with depth filtering. |
 | `Cycle` | A detected circular dependency (normalized rotation). |
@@ -190,6 +299,22 @@ builder methods `with_lsp`, `with_streaming`), `LspSessionResult`,
 
 Per-crate discovery result: name, path, lib/bin entry points, `src_root`,
 `entry_point_file`.
+
+### Discovery records (`src/discovery/types.rs`)
+
+`DiscoverySnapshot` contains Cargo crates, requested `EvaluationContext`,
+`DiscoveryGrants`, `ProjectDiscovery` outcomes, `EvaluationUnit` outcomes,
+`DiscoveryInputScope` observations, cache entries/observations and candidate issues.
+`Tethys::discovery_snapshot` exposes the immutable published context; opening an
+index hydrates it without MSBuild evaluation.
+
+`ProjectKey` identifies a workspace-relative project file; `EvaluationUnitKey`
+identifies a project/framework/context, never an assembly name.
+`SourceMembership`, `DeclaredProjectReference` and `DeclaredAssemblyReference`
+retain evaluated declarations separately from syntax and compiler bindings.
+`DiscoveryStanding` is confirmed or indeterminate with a typed failure.
+`IndexOptions::with_discovery` supplies fresh `DiscoveryOptions` for indexing and
+updates; context and cache policy do not confer execution authority.
 
 ## Graph DTOs (`src/graph/types.rs`)
 
