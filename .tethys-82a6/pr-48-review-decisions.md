@@ -214,7 +214,12 @@ now reports C13 PASS at the pinned baseline `0a2753d`.
 | F1 mutation | CASCADE → FAIL (arch_packages 1), SET NULL → PASS, restore byte-identical |
 | F8 mutation attempt | **removing the language guard changed no asserted behaviour** in any fixture I could build: `file_deps` outcomes and Cargo file attribution were identical, and the fixture's discovered crate list is empty. The reviewer's "dropped edges" harm is therefore **unverified**, the guard stays on semantic grounds, and no fence was added because none I could construct would fail on removal. |
 
-## Deferred (tracker issues filed)
+## Deferred (proposed tracker issues — not yet filed)
+
+Publication of the tracker is a direct commit to `main`, and the working
+checkout's `.rivets/issues.jsonl` carries uncommitted local drift; filing was
+left to the maintainer rather than performed unilaterally. The decision log above
+carries the scope for each item.
 
 - MSBuild file attribution (F2's second half): `arch_file_packages.file_id` is a
   primary key, so a C# file claimed by two evaluation units needs a

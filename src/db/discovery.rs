@@ -757,11 +757,19 @@ mod tests {
         let packages: i64 = conn
             .query_row("SELECT COUNT(*) FROM arch_packages", [], |row| row.get(0))
             .expect("packages");
-        assert_eq!(packages, 2, "architecture nodes survive a metadata replacement");
+        assert_eq!(
+            packages, 2,
+            "architecture nodes survive a metadata replacement"
+        );
         let edges: i64 = conn
-            .query_row("SELECT COUNT(*) FROM arch_package_deps", [], |row| row.get(0))
+            .query_row("SELECT COUNT(*) FROM arch_package_deps", [], |row| {
+                row.get(0)
+            })
             .expect("edges");
-        assert_eq!(edges, 1, "a metadata replacement must not delete architecture edges");
+        assert_eq!(
+            edges, 1,
+            "a metadata replacement must not delete architecture edges"
+        );
         let detached: Option<String> = conn
             .query_row(
                 "SELECT evaluation_unit_key FROM arch_packages WHERE id = 1",
