@@ -90,7 +90,10 @@ def assert_units(report, classic=False):
         require(unit["standing"]["standing"] == "confirmed", f"Native unit unavailable: {unit}")
         require(row["name"] == f"msbuild:{unit['project']}:{unit['key']}", "Unit detail selector lost identity")
         identities.add(row["name"])
-        for field, want in zip(("afferent", "efferent", "instability"), expected_evidence[identity]):
+        # `None` stands for "any indeterminate reason" on a host this oracle
+        # cannot reproduce; the values are still pinned to unknown above.
+        want_list = expected_evidence[identity] or [None, None, None]
+        for field, want in zip(("afferent", "efferent", "instability"), want_list):
             evidence = row["metric_evidence"][field]
             if want is None:
                 require(evidence["standing"] == "indeterminate",
