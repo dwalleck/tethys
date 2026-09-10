@@ -1,0 +1,5 @@
+- `tethys coupling` reports an evaluation unit with no file attribution as unknown (`?`) instead of a confident `0`, and names why each count is unavailable.
+- A contributing assembly reference, or a project reference with no selected target, now withholds the outgoing count instead of publishing a fabricated zero.
+- Incomplete discovery withholds both counts together, so no row mixes a measured number with an unavailable one.
+- The coupling table keeps its columns aligned and prints evaluation-unit evidence below the table rather than between rows.
+- Declared reference metadata no longer carries the indexing machine's absolute paths, and C# package paths use one separator spelling on Windows.
