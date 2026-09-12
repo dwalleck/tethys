@@ -48,8 +48,30 @@ discover on its own:
   regression fence (name it after the bug class, not the issue number).
 - **Impact analysis with tethys**: if the fix changes a function's
   signature/name/semantics, enumerate callers with
-  `tethys callers <sym> --exclude-speculative` (run `tethys index` first)
-  before editing — it bounds what the fix must touch; `grep` is the recall net.
+  `tethys callers <Type::method|fn> --lsp` (run `tethys index` first; add
+  `--rebuild` if it reports a stale schema) before editing — it bounds what the
+  fix must touch; `grep` is the recall net.
+  - Use **QUALIFIED** names: `tethys callers show_picker` errors
+    `not found: symbol`, `tethys callers "UiState::show_picker"` resolves.
+  - Use `--lsp`. It is mutually exclusive with `--exclude-speculative`, and it
+    is the only tier that finds cross-module callers. Measured on cyril
+    2026-08-02, all three tiers side by side:
+
+        symbol                  bare    --exclude-speculative   --lsp
+        UiState::show_picker    12/3f   12/3f                   14/4f
+        parse_options_response  11/1f   11/1f                   12/2f
+        NotificationRoute        1/1f    1/1f                    3/1f
+
+    Bare and `--exclude-speculative` are IDENTICAL here — the documented
+    "recall net" bare invocation recovers nothing extra. Only `--lsp` surfaced
+    `App::handle_notification` + `App::handle_command_result` (the ONLY two
+    production callers of `show_picker`; the other 12 are tests) and `run_loop`
+    in `bridge.rs` (the ONLY production caller of `parse_options_response`).
+    Blast radius is a RECALL question — a false positive costs a minute of
+    reading, a false negative ships a bug.
+  - If tethys contradicts `grep`, `grep` wins. Also sanity-check the binary is
+    current (`tethys --version` is a frozen `0.1.0` and cannot signal
+    staleness); rebuild from `~/repos/tethys` if results look impossible.
   TRAP: if the bug is IN tethys's own resolver/call-edge logic, tethys cannot
   analyze its own change — use `grep`. Callers you surface but don't fix go in
   the report (escape hatch), not silently dropped.
