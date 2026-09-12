@@ -222,6 +222,7 @@ mod tests {
                 column: 1,
                 span: None,
                 signature: Some("fn process() -> Result<()>"),
+                return_type: Some("Result<()>"),
                 visibility: Visibility::Public,
                 parent_symbol_id: None,
                 is_test: false,
@@ -231,6 +232,7 @@ mod tests {
         // Create a test function
         let test_fn_id = index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id,
                 name: "test_process",
                 module_path: "crate",
@@ -462,6 +464,7 @@ mod tests {
             .expect("should create file");
         let prod_fn = index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id,
                 name: "qualified_zone",
                 module_path: "crate",

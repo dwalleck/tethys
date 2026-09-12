@@ -20,7 +20,7 @@ pub(crate) const FILES_COLUMNS: &str =
 ///
 /// Use with `row_to_symbol` for consistent column ordering.
 pub(crate) const SYMBOLS_COLUMNS: &str = "id, file_id, name, module_path, qualified_name, kind, line, column, \
-     end_line, end_column, signature, visibility, parent_symbol_id, is_test";
+     end_line, end_column, signature, return_type, visibility, parent_symbol_id, is_test";
 
 /// SQL column list for refs table.
 ///
@@ -163,10 +163,11 @@ pub(crate) fn row_to_symbol(row: &rusqlite::Row) -> rusqlite::Result<Symbol> {
         column,
         span: build_span(line, column, end_line, end_column),
         signature: row.get(10)?,
+        return_type: row.get(11)?,
         signature_details: None, // Not persisted to database; populated by parsers only
-        visibility: parse_visibility(&row.get::<_, String>(11)?)?,
-        parent_symbol_id: row.get::<_, Option<i64>>(12)?.map(SymbolId::from),
-        is_test: row.get(13)?,
+        visibility: parse_visibility(&row.get::<_, String>(12)?)?,
+        parent_symbol_id: row.get::<_, Option<i64>>(13)?.map(SymbolId::from),
+        is_test: row.get(14)?,
     })
 }
 

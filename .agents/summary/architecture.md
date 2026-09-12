@@ -142,8 +142,8 @@ the published context from SQLite without probing MSBuild or running evaluation.
 One revision transaction publishes discovery metadata, memberships, input scopes,
 cache evidence and diagnostics with source, resolution and architecture facts.
 Failure restores both the previous database revision and in-memory context.
-Schema 3 rebuild uses that same transaction, preserving the previous schema on
-failure rather than deleting the index before opening it.
+A schema-upgrade rebuild uses that same transaction, preserving the previous
+schema on failure rather than deleting the index before opening it.
 
 Source selection merges walked sources, retained indexed sources still on disk,
 and current evaluated sources under the resolver's identity policy. Rust keeps

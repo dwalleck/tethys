@@ -20,7 +20,10 @@ pub(crate) fn install_schema(conn: &Connection) -> Result<()> {
 }
 
 /// Explicit cache schema identity; older layouts require a transactional rebuild.
-pub(crate) const SCHEMA_VERSION: i64 = 3;
+///
+/// Version 4 adds `symbols.return_type`, so a v3 cache is refused and rebuilt
+/// rather than read with a missing column.
+pub(crate) const SCHEMA_VERSION: i64 = 4;
 
 /// Child-first replacement keeps foreign-key enforcement enabled during rebuild.
 pub(crate) const DROP_SCHEMA: &str = r"
@@ -162,6 +165,7 @@ CREATE TABLE IF NOT EXISTS symbols (
     end_line INTEGER,
     end_column INTEGER,
     signature TEXT,
+    return_type TEXT,
     visibility TEXT NOT NULL,
     parent_symbol_id INTEGER REFERENCES symbols(id) ON DELETE CASCADE,
     is_test INTEGER NOT NULL DEFAULT 0

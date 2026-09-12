@@ -716,6 +716,10 @@ impl Tethys {
                     column: sym.column,
                     span: sym.span,
                     signature: sym.signature,
+                    return_type: sym
+                        .signature_details
+                        .as_ref()
+                        .and_then(|fs| fs.return_type.clone()),
                     visibility: sym.visibility,
                     parent_symbol_id: None,
                     // Linked to an id against same-file containers during

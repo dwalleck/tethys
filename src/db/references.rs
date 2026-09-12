@@ -282,6 +282,7 @@ mod apply_resolutions_tests {
             .expect("file");
         let sym_id = index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id,
                 name: "target",
                 module_path: "",

@@ -14,13 +14,10 @@ pub struct ExtractedSymbol {
     pub column: u32,
     pub span: Option<Span>,
     pub signature: Option<String>,
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "populated by parsers, will be read when signature queries are added"
-        )
-    )]
+    /// Structured signature details for programmatic access (functions/methods only).
+    ///
+    /// `signature_details.return_type` is read by `indexing.rs` and persisted to
+    /// `symbols.return_type`, so this field needs no dead-code expectation.
     pub signature_details: Option<FunctionSignature>,
     pub visibility: Visibility,
     pub parent_name: Option<String>,

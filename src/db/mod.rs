@@ -92,6 +92,13 @@ pub struct SymbolData<'a> {
     pub column: u32,
     pub span: Option<Span>,
     pub signature: Option<&'a str>,
+    /// Bare return type of the function/method (the text after `->`, unwrapped).
+    ///
+    /// Extracted from [`crate::types::FunctionSignature::return_type`] and
+    /// persisted to `symbols.return_type` so the overview query layer can filter
+    /// by structured fallibility shapes (Result/Option/OneOf/Task) without
+    /// substring-matching the full signature.
+    pub return_type: Option<&'a str>,
     pub visibility: Visibility,
     pub parent_symbol_id: Option<crate::types::SymbolId>,
     /// Name of the enclosing container as extracted (impl's implementing
@@ -384,6 +391,7 @@ mod tests {
 
         index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id,
                 name: "foo",
                 module_path: "crate",
@@ -401,6 +409,7 @@ mod tests {
 
         index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id,
                 name: "bar",
                 module_path: "crate",
@@ -433,6 +442,7 @@ mod tests {
 
         index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id,
                 name: "authenticate",
                 module_path: "crate::auth",
@@ -450,6 +460,7 @@ mod tests {
 
         index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id,
                 name: "authorize",
                 module_path: "crate::auth",

@@ -120,7 +120,7 @@ For "what is X / how do I call X / how does process Y work", route via
 - The index is a SQLite DB at **`.rivets/index/tethys.db`** under the workspace
   root (created by `Tethys::new`). Incompatible schemas are refused without
   mutation; recover with `index --rebuild` (tethys-82a6).
-- Schema **3** is the source of truth in `src/db/schema.rs`; the ER diagram and table
+- Schema **4** is the source of truth in `src/db/schema.rs`; the ER diagram and table
   semantics are documented in `.agents/summary/data_models.md`.
 - **Publication is whole-run atomic** (`src/db/revision.rs`, tethys-82a6).
   Batch and scoped streaming writers share one transaction, including discovery

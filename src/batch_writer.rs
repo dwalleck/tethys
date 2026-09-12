@@ -279,6 +279,7 @@ mod tests {
             mtime_ns: 1_234_567_890,
             size_bytes: 100,
             symbols: vec![OwnedSymbolData {
+                return_type: None,
                 name: "main".to_string(),
                 module_path: "crate".to_string(),
                 qualified_name: "crate::main".to_string(),
@@ -367,6 +368,7 @@ mod tests {
             mtime_ns: 1,
             size_bytes: 1,
             symbols: vec![OwnedSymbolData {
+                return_type: None,
                 name: name.to_string(),
                 module_path: String::new(),
                 qualified_name: name.to_string(),

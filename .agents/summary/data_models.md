@@ -130,6 +130,7 @@ erDiagram
         int end_line
         int end_column
         text signature
+        text return_type
         text visibility
         int parent_symbol_id FK
         int is_test
@@ -221,7 +222,10 @@ erDiagram
 - **symbols** — definitions. `module_path` + `name` form `qualified_name`.
   `parent_symbol_id` is self-referential (e.g. methods → impl/struct, nested
   types). `is_test` flags test functions (indexed via language-specific test
-  attributes). All FKs cascade on delete.
+  attributes). `return_type` is the bare return type of a function/method (the
+  text after `->`, unwrapped — e.g. `Result<()>`, `Task<OneOf<A, B>>`), so
+  fallibility can be filtered by shape instead of substring-matching
+  `signature`. All FKs cascade on delete.
 - **refs** — usages. `symbol_id` is **NULL until resolved** in Pass 2;
   `reference_name` carries the unresolved name. `in_symbol_id` is the
   containing (calling) symbol, enabling "who calls X?".
@@ -252,7 +256,7 @@ erDiagram
 
 | Type | Description |
 |------|-------------|
-| `Symbol` | A definition: name, kind, span, visibility, module/qualified path, optional signature, parent, `is_test`. `full_path` joins module + name. |
+| `Symbol` | A definition: name, kind, span, visibility, module/qualified path, optional signature and return type, parent, `is_test`. `full_path` joins module + name. |
 | `Reference` | A usage: kind, span, target/containing symbol, reference name. |
 | `Import` | A resolved import statement. |
 | `IndexedFile` | File record (path, language, mtime, size, hashes). |
