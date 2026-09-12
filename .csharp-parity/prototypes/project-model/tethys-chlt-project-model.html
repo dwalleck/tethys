@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>C# project model — throwaway prototype</title>
+<style>body{font:16px/1.5 system-ui;max-width:1100px;margin:40px auto;padding:0 24px;background:#f5f6f8;color:#182334}h1{line-height:1.2}h2{font-size:20px}section{background:white;padding:20px;margin:20px 0;border:1px solid #d5dce5;border-radius:8px}button{font:inherit;background:#fff;border:1px solid #8296b0;border-radius:5px;padding:8px 12px;margin:4px;cursor:pointer}button:hover,button[aria-selected=true]{background:#e4efff}button:disabled{opacity:.5;cursor:default}table{border-collapse:collapse;width:100%;font-size:14px}th,td{text-align:left;vertical-align:top;padding:10px;border-bottom:1px solid #ddd;overflow-wrap:anywhere}code{font-size:13px}small{color:#4d6078}.notice{border-left:4px solid #2463ad;padding-left:16px}#change{font-weight:600}dl{display:grid;grid-template-columns:180px 1fr;gap:8px}dt{font-weight:600}dd{margin:0}</style>
+<h1>C# project and evaluation-unit explorer</h1>
+<p class="notice"><strong>Throwaway decision prototype — not tethys behavior.</strong> Does separating a physical indexed file from its participation in each project × target framework preserve distinct bindings and partial evaluation evidence? This uses invented fixture facts, not MSBuild or Roslyn results.</p>
+<p class="notice"><strong>Day-one release gate:</strong> SDK-style and classic non-SDK .NET Framework projects must both work. The framework identity is not restricted to the SDK's TargetFramework property: classic projects use evaluated identifier/version/profile or moniker. Real Windows MSBuild success is required; this browser fixture is not host qualification.</p>
+<p><strong>Approved:</strong> one active evaluation context; projects keyed by workspace-relative path; moves remove the old project identity; an evaluation unit is project × framework; semantic facts belong to that unit, while physical file identity is shared. Assemblies are metadata, never keys. Actions illustrate approved outcomes; this fixture does not implement transactional publication or a discovery provider.</p>
+<section><h2>Current state</h2><p id="change" role="status"></p><dl id="summary"></dl><h3>Project × framework evaluation units</h3><table><thead><tr><th>Project identity</th><th>Framework</th><th>Assembly</th><th>Evaluation evidence</th><th>Effective symbol in Shared/Api.cs</th></tr></thead><tbody id="units"></tbody></table><h3>Physical indexed files and participation</h3><table><thead><tr><th>Physical file</th><th>Participates in</th><th>Source-only status</th></tr></thead><tbody id="files"></tbody></table><p><small>Source-only indexing can retain syntax without claiming confirmed project-scoped semantics. The binding labels shown here are fixture inputs; the discovery provider does not generate symbol bindings.</small></p></section>
+<section><h2>Free play</h2><div id="actions"></div></section>
+<section><h2>Guided walkthroughs</h2><div id="tabs" role="tablist"></div><p id="scenario"></p><div id="steps"></div></section>
+<section><h2>Approved discovery seam</h2><p><strong>Approved flow:</strong> language-neutral discovery request → Cargo/MSBuild discovery adapters → metadata snapshot → index writer and context-aware extraction/reference resolution.</p><p>The snapshot describes project identities, evaluation units, source membership, evaluated references, assembly metadata, recorded context, and typed evaluation failures. It does not contain resolved symbol bindings. MSBuild execution stays outside ModuleResolver; ModuleResolver remains database-free. Successful and failed units publish as one coherent revision; concrete Rust types and persistence machinery are implementation work.</p><p><strong>Rejected placement:</strong> attach discovery to LanguageSupport. Fewer registration points, but syntax extraction would share an interface and lifecycle with trusted external-process evaluation.</p></section>
+<script>
+// Pure, in-memory illustrative model. No DOM or external evaluation.
+const Model = (() => {
+ const unit = (project,tfm) => ({project,tfm,standing:'Indeterminate',reason:'not-evaluated',assembly:null,files:[],symbol:null});
+ const initial = () => ({context:'Debug',files:['Shared/Api.cs'],units:[unit('src/Core/Core.csproj','net8.0')],change:'Reset to one source-only file and one unevaluated project × framework.'});
+ const evaluate = u => ({...u,standing:'Confirmed',reason:null,assembly:'Company.Core',files:['Shared/Api.cs'],symbol:u.tfm.startsWith('.NETFramework')?'Api.Framework()':u.tfm==='net8.0'?'Api.Legacy()':'Api.Modern()'});
+ function reduce(state,action){
+  const s=structuredClone(state);
+  if(action==='reset') return initial();
+  if(action==='target'){
+   if(!s.units.some(u=>u.project==='src/Core/Core.csproj'&&u.tfm==='net9.0')) s.units.push(unit('src/Core/Core.csproj','net9.0'));
+   s.change='Added a target framework; it has no confirmed evaluation evidence yet.';
+  }
+  if(action==='classic'){
+   if(!s.units.some(u=>u.project==='legacy/Classic/Classic.csproj')) s.units.push(unit('legacy/Classic/Classic.csproj','.NETFramework,Version=v4.0,Profile=Client'));
+   s.change='Discovered a classic non-SDK project with no SDK TargetFramework property. Its evaluated framework moniker supplies the target identity; Client profile is preserved.';
+  }
+  if(action==='linked'){
+   if(!s.units.some(u=>u.project==='tools/Tool/Tool.csproj')) s.units.push(unit('tools/Tool/Tool.csproj','net8.0'));
+   s.change='Added a second project candidate. Evaluating it will link the same physical file; no second physical file is created.';
+  }
+  if(action==='evaluate') {s.units=s.units.map(evaluate);s.change='Fixture evaluation confirmed every unit. All intentionally share AssemblyName; their project/framework identities remain distinct.';}
+  if(action==='fail'){
+   const u=s.units.find(u=>u.tfm==='net9.0');
+   if(u){Object.assign(u,{standing:'Indeterminate',reason:'evaluation-failed',assembly:null,files:[],symbol:null});s.change='net9.0 evaluation failed. Its previous semantic evidence is no longer current; successful units remain available.';}
+   else s.change='No net9.0 unit exists. Add a target framework first.';
+  }
+  if(action==='context') {s.context=s.context==='Debug'?'Release':'Debug';s.units=s.units.map(u=>unit(u.project,u.tfm));s.change='Replaced the active context. This small fixture conservatively invalidates all evaluated units; physical files remain.';}
+  if(action==='move') {s.units=s.units.map(u=>u.project==='src/Core/Core.csproj'?unit('src/Renamed/Renamed.csproj',u.tfm):u);s.change='Removed Core project identities and discovered Renamed project identities. No evaluation facts are transferred; independent Tool units remain.';}
+  return s;
+ }
+ return {initial,reduce};
+})();
+const labels={reset:'Reset',target:'Add net9.0 target',classic:'Add classic .NET Framework project',linked:'Add linked-file project',evaluate:'Apply successful fixture evaluation',fail:'Fail net9.0 evaluation',context:'Switch Debug / Release',move:'Move Core project'};
+const scenarios=[
+ {name:'Classic .NET Framework',text:'Day-one support includes a non-SDK project whose TargetFramework and TargetFrameworks properties are empty. Preserve the evaluated framework version and profile instead of rejecting it or inventing an SDK TFM. This is a model fixture, not proof of Windows host support.',steps:['classic','evaluate']},
+ {name:'Two target frameworks',text:'The same file supplies different effective symbols per framework. A physical-file-only symbol owner would merge these contexts.',steps:['target','evaluate']},
+ {name:'Linked file and assembly collision',text:'Two projects compile one physical file and use the same assembly name. Neither the file path nor the assembly name can select one semantic owner.',steps:['linked','evaluate']},
+ {name:'Partial failure',text:'A failed target does not erase successful evidence or inherit stale facts from its own previous evaluation.',steps:['target','evaluate','fail']},
+ {name:'Context replacement',text:'Changing configuration leaves the source file unchanged, but invalidates evaluated facts. The old context is not query-selectable.',steps:['target','evaluate','context','evaluate']},
+ {name:'Project move',text:'A project move creates new identities. An independently evaluated linked-file project retains its evidence.',steps:['linked','evaluate','move']}
+];
+let state=Model.initial(),selected=0,step=0;
+const esc=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const key=u=>u.project+' × '+u.tfm;
+function act(action){state=Model.reduce(state,action);render();}
+function render(){
+ document.querySelector('#change').textContent=state.change;
+ const confirmed=state.units.filter(u=>u.standing==='Confirmed').length;
+ document.querySelector('#summary').innerHTML=`<dt>Active context</dt><dd>${state.context}</dd><dt>Evaluation summary</dt><dd>${confirmed} confirmed / ${state.units.length} expected units</dd><dt>Workspace evidence</dt><dd>${confirmed===state.units.length?'Confirmed for these fixture evaluation units':'Indeterminate — required evaluation evidence is missing'}</dd>`;
+ document.querySelector('#units').innerHTML=state.units.map(u=>`<tr><td>${esc(u.project)}</td><td>${esc(u.tfm)}</td><td>${esc(u.assembly??'Unknown')}</td><td>${esc(u.standing)}${u.reason?' — '+esc(u.reason):''}</td><td>${esc(u.symbol??'No current semantic facts')}</td></tr>`).join('');
+ document.querySelector('#files').innerHTML=state.files.map(f=>{const owners=state.units.filter(u=>u.files.includes(f));return `<tr><td>${esc(f)}</td><td>${owners.map(u=>esc(key(u))).join('<br>')||'No confirmed membership'}</td><td>${owners.length?'Physical file shared; semantic facts scoped by unit':'Syntax retained; project membership unconfirmed'}</td></tr>`;}).join('');
+ document.querySelector('#scenario').textContent=scenarios[selected].text;
+ document.querySelector('#tabs').replaceChildren(...scenarios.map((s,i)=>{const b=document.createElement('button');b.textContent=s.name;b.setAttribute('role','tab');b.setAttribute('aria-selected',String(i===selected));b.onclick=()=>{selected=i;step=0;state=Model.initial();render();};return b;}));
+ document.querySelector('#steps').replaceChildren(...scenarios[selected].steps.map((a,i)=>{const b=document.createElement('button');b.textContent=`${i+1}. ${labels[a]}`;b.disabled=i!==step;b.onclick=()=>{step++;act(a);};return b;}));
+}
+for(const [action,label] of Object.entries(labels)){const b=document.createElement('button');b.textContent=label;b.onclick=()=>{step=0;act(action);};document.querySelector('#actions').append(b);}
+render();
+</script></html>

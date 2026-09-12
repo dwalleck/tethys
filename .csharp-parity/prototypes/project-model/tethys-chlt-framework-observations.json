@@ -1,0 +1,10 @@
+{
+  "host": "dotnet SDK 10.0.102 / MSBuild 18.0.7 on Linux",
+  "repetitions_per_project": 5,
+  "results": [
+    {"TargetFramework": "", "TargetFrameworks": "", "TargetFrameworkIdentifier": ".NETFramework", "TargetFrameworkVersion": "v4.0", "TargetFrameworkProfile": "Client", "TargetFrameworkMoniker": ".NETFramework,Version=v4.0,Profile=Client", "compile_items": ["Imported.cs", "Own.cs", "../Shared.cs"], "median_seconds": 0.22713375200692099},
+    {"TargetFramework": "", "TargetFrameworks": "", "TargetFrameworkIdentifier": ".NETFramework", "TargetFrameworkVersion": "v4.7.2", "TargetFrameworkProfile": "", "TargetFrameworkMoniker": ".NETFramework,Version=v4.7.2", "compile_items": ["Imported.cs", "Own.cs", "../Shared.cs"], "median_seconds": 0.17684741599077825},
+    {"TargetFramework": "", "TargetFrameworks": "", "TargetFrameworkIdentifier": ".NETFramework", "TargetFrameworkVersion": "v4.8", "TargetFrameworkProfile": "", "TargetFrameworkMoniker": ".NETFramework,Version=v4.8", "compile_items": ["Imported.cs", "Own.cs", "../Shared.cs"], "median_seconds": 0.18372792500304058}
+  ],
+  "limits": "Generated non-SDK projects only; no Windows/Mono host, packages.config restore, proprietary imports, framework reference-assembly resolution, build or tethys indexing. Not legacy release qualification."
+}

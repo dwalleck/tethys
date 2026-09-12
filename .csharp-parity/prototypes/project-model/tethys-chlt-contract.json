@@ -1,0 +1,46 @@
+{
+  "title": "Choose the C# project/assembly model and discovery seam",
+  "ticket": "tethys-chlt",
+  "status": "Approved by the maintainer on 2026-09-06; planning decision, not production implementation",
+  "production_implementation": false,
+  "approved_decisions": [
+    "One active recorded evaluation context per index; all applicable target frameworks coexist within it.",
+    "Project identity follows the workspace-relative project path; a move is removal plus discovery.",
+    "Semantic facts are scoped by project and target framework; physical indexed-file identity is shared.",
+    "Assembly metadata is associated with the evaluation unit, not used as the project identity.",
+    "A separate language-neutral discovery interface has Cargo and MSBuild adapters producing a metadata snapshot.",
+    "ModuleResolver consumes precomputed context, remains database-free, and never launches MSBuild.",
+    "Publish one coherent index revision; bounded partial coverage contains successes and explicit failures, not mixed old/new facts.",
+    "Reevaluate metadata on every index/reindex invocation and measure impact; queries do not evaluate projects.",
+    "Preserve current Rust discovery and attribution behavior behind the Cargo adapter; do not introduce Rust target/feature modeling here.",
+    "Source-only syntax has explicit physical-file ownership without a fabricated project or target framework; it cannot establish confirmed project-scoped semantics or be accidentally double-counted.",
+    "The ownership/schema cutover requires explicit index --rebuild; no guessed migration or query-triggered rebuild.",
+    ".NET Framework projects, including classic non-SDK projects, must work from day one. No SDK-only first release."
+  ],
+  "derived_model_constraints": {
+    "logical_identity": "Provider/language-discriminated workspace-relative project identity plus an adapter-normalized framework identity for an evaluation unit. Cache row IDs are not durable external identities.",
+    "framework_identity": "Framework identity cannot require the SDK TargetFramework property. Preserve evaluated identifier, version, profile and applicable platform qualifiers; classic .NET Framework projects may have empty TargetFramework and TargetFrameworks. Do not conflate profiles or OS-qualified frameworks.",
+    "unavailable_identity": "If framework enumeration or project evaluation fails, retain a project-level failure with explicit incomplete enumeration rather than fabricate an evaluation unit or call the empty set complete.",
+    "snapshot_contents": ["Recorded evaluation context and exact toolchain/restore provenance", "Discovered project identities and enumeration completeness", "Evaluation-unit identities and typed success/failure evidence", "Effective source membership and physical versus logical Link paths", "Evaluated parse-relevant properties including conditional symbols", "Assembly and root-namespace metadata", "Evaluated project/reference declarations and their metadata", "Relevant evaluation-input provenance for invalidation"],
+    "reference_evidence": "A declared ProjectReference is not proof of a selected target-framework binding, resolved assembly path, or transitive semantic dependency. Preserve metadata and unresolved target selection explicitly; do not guess from assembly name, namespace, or matching TFM text.",
+    "source_containment": "Only physical inputs inside the canonical workspace are indexed. Link is not physical identity. Outside-workspace inputs make the affected evidence Indeterminate under the approved rvr5 contract.",
+    "reevaluation": "Changed metadata, membership or parse context invalidates affected unit facts and dependent analysis even when source bytes are unchanged. This does not claim a complete metadata-staleness detector or authorize static fallback to Confirmed.",
+    "authority": "Retain rvr5 evaluation-only, explicit trust, separate restore permission, exact compatible-host selection, and typed failure rules. LSP is non-authoritative. No design-time/build targets are silently introduced."
+  },
+  "day_one_framework_gate": {
+    "required_success_evidence": ["Classic non-SDK .NET Framework projects on compatible Windows MSBuild", "Legacy framework version/profile without SDK TargetFramework", "Explicit, imported and linked Compile items", "Restored packages.config and PackageReference project shapes as applicable", "Project references and assembly-name collisions", "Mixed SDK/classic solutions and solution configuration provenance", "Project changes with unchanged C# source", "Real legacy-host timing and resource measurements"],
+    "negative_evidence_separate": ["Unavailable host/toolchain", "Trust or restore permission missing", "Missing imports/packages/targeting prerequisites", "Partial discovery/evaluation", "Timeout and interrupted publication"],
+    "release_rule": "Indeterminate for every legacy input is not support. Successful real legacy cases and the approved semantic oracles are mandatory before first release; failure-only fixtures cannot substitute.",
+    "host_transport": "Do not make dotnet msbuild or the MSBuild 17.8+ getProperty/getItem switches the discovery interface contract. The adapter must use an evaluation-only mechanism supported by the compatible host without relaxing trust or toolchain provenance.",
+    "local_proof_limit": "This session has only the dotnet SDK host. Generated non-SDK evaluation on Linux does not qualify Windows MSBuild, Mono, packages.config restore, framework reference resolution, WPF/WinForms generated inputs, or real-repository semantic parity."
+  },
+  "downstream_owners": {
+    "tethys-07eh": "Binding rules, evaluated reference-target selection, conditional-source semantics and symbol identity details; no unscoped candidate leakage.",
+    "tethys-rduz": "Project-aware architecture and analysis aggregation, including Framework-specific project-reference behavior.",
+    "tethys-a75r": "Mixed-language invariants and non-vacuous Rust/C# isolation proof.",
+    "tethys-ff9k": "Unused-using semantics over evaluated context and source-only evidence.",
+    "tethys-jp80": "Implementation slices, day-one SDK and .NET Framework exit gates, old-index cutover, and performance qualification under umjq."
+  },
+  "evidence": ["tethys-chlt-project-model.html: interactive invented state fixtures", "tethys-chlt-evaluation-probe.py and tethys-chlt-evaluation-timings.json: generated SDK evaluation overhead", "tethys-chlt-framework-probe.py: generated classic Framework metadata evaluation", "Prior MSBuild survey at research/csharp-parity-msbuild@7477c36, .csharp-parity/research/msbuild-discovery.md"],
+  "sources": ["https://learn.microsoft.com/en-us/dotnet/api/microsoft.codeanalysis.compilation", "https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/work-with-workspace", "https://learn.microsoft.com/en-us/visualstudio/msbuild/evaluate-items-and-properties", "https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-msbuild"]
+}

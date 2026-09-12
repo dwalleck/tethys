@@ -1,0 +1,249 @@
+{
+  "kind": "DOM-driven illustrative prototype; not compiler qualification",
+  "guided": [
+    {
+      "scenario": "Partial symbols",
+      "step": "Show both declarations",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: Customer\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nReference has established compile-time selection."
+    },
+    {
+      "scenario": "Partial symbols",
+      "step": "Remove evaluation-unit ownership",
+      "outcome": "Indeterminate reference",
+      "results": "Member/reference target: None\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nSource-only scope does not establish this evaluation-unit semantic identity."
+    },
+    {
+      "scenario": "Partial symbols",
+      "step": "Restore verified unit",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: Customer\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nReference has established compile-time selection."
+    },
+    {
+      "scenario": "Overloads and generics",
+      "step": "Show selected generic overload",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: Send<T>(T)\n\nDirect call effects: Send<T>(T)\n\nPossible dispatch only: None\n\nReference has established compile-time selection."
+    },
+    {
+      "scenario": "Overloads and generics",
+      "step": "Keep one name, remove proof",
+      "outcome": "Indeterminate reference",
+      "results": "Member/reference target: None\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nNo uniquely selected applicable target is established."
+    },
+    {
+      "scenario": "Overloads and generics",
+      "step": "Restore compiler selection",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: Send<T>(T)\n\nDirect call effects: Send<T>(T)\n\nPossible dispatch only: None\n\nReference has established compile-time selection."
+    },
+    {
+      "scenario": "Interface dispatch",
+      "step": "Show direct and possible targets",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: IWriter.Write()\n\nDirect call effects: IWriter.Write()\n\nPossible dispatch only: FileWriter.Write() · ConsoleWriter.Write()\n\nReference has established compile-time selection.\nPossible dispatch supports conservative reachability, not proof of execution or test coverage."
+    },
+    {
+      "scenario": "Interface dispatch",
+      "step": "Make dispatch coverage incomplete",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: IWriter.Write()\n\nDirect call effects: IWriter.Write()\n\nPossible dispatch only: FileWriter.Write() · ConsoleWriter.Write()\n\nReference has established compile-time selection.\nPossible dispatch supports conservative reachability, not proof of execution or test coverage.\nDispatch-dependent analysis is Indeterminate; unrelated reference evidence is retained."
+    },
+    {
+      "scenario": "Interface dispatch",
+      "step": "Add unknown runtime path",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: IWriter.Write()\n\nDirect call effects: IWriter.Write()\n\nPossible dispatch only: FileWriter.Write() · ConsoleWriter.Write()\n\nReference has established compile-time selection.\nPossible dispatch supports conservative reachability, not proof of execution or test coverage.\nDispatch-dependent analysis is Indeterminate; unrelated reference evidence is retained.\nRuntime target unknown: dependent execution analysis cannot claim complete coverage."
+    },
+    {
+      "scenario": "Conditional sources",
+      "step": "Active Framework branch",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: LegacyStore.Save()\n\nDirect call effects: LegacyStore.Save()\n\nPossible dispatch only: None\n\nReference has established compile-time selection."
+    },
+    {
+      "scenario": "Conditional sources",
+      "step": "Switch to unit where branch is inactive",
+      "outcome": "Inactive syntax only",
+      "results": "Member/reference target: None\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nNot part of this evaluation unit’s active semantic source."
+    },
+    {
+      "scenario": "Conditional sources",
+      "step": "Select active modern branch",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: ModernStore.Save()\n\nDirect call effects: ModernStore.Save()\n\nPossible dispatch only: None\n\nReference has established compile-time selection."
+    },
+    {
+      "scenario": "Constructors",
+      "step": "Select explicit constructor",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: Widget..ctor(string)\n\nDirect call effects: Widget..ctor(string)\n\nPossible dispatch only: None\n\nReference has established compile-time selection.\nSeparate type reference retained; the type is not a construction call target."
+    },
+    {
+      "scenario": "Constructors",
+      "step": "Select implicit constructor",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: Gadget..ctor()\n\nDirect call effects: Gadget..ctor()\n\nPossible dispatch only: None\n\nReference has established compile-time selection.\nSeparate type reference retained; the type is not a construction call target."
+    },
+    {
+      "scenario": "Constructors",
+      "step": "Lose overload selection",
+      "outcome": "Indeterminate reference",
+      "results": "Member/reference target: None\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nNo uniquely selected applicable target is established."
+    },
+    {
+      "scenario": "Accessor effects",
+      "step": "Read and write the property",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: Counter.Value\n\nDirect call effects: Counter.Value · getter · Counter.Value · setter/init as selected\n\nPossible dispatch only: None\n\nReference has established compile-time selection."
+    },
+    {
+      "scenario": "Accessor effects",
+      "step": "Use nameof instead",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: Counter.Value\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nReference has established compile-time selection.\nNon-executing member reference: no accessor call."
+    },
+    {
+      "scenario": "Accessor effects",
+      "step": "Read a field",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: Counter._value\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nReference has established compile-time selection."
+    },
+    {
+      "scenario": "External references",
+      "step": "Show proven external endpoint",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: Dependency.Writer.Write()\n\nDirect call effects: Dependency.Writer.Write()\n\nPossible dispatch only: None\n\nReference has established compile-time selection.\nExternal endpoint; no invented source body. Traversal beyond unavailable body is bounded."
+    },
+    {
+      "scenario": "External references",
+      "step": "Remove selected-reference proof",
+      "outcome": "Indeterminate reference",
+      "results": "Member/reference target: None\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nExternal assembly/reference identity is not proven."
+    },
+    {
+      "scenario": "External references",
+      "step": "Try a Rust candidate",
+      "outcome": "Indeterminate reference",
+      "results": "Member/reference target: None\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nCross-language binding is prohibited."
+    },
+    {
+      "scenario": "Host consent",
+      "step": "Missing target permission",
+      "outcome": "Indeterminate reference",
+      "results": "Member/reference target: None\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nRequired compiler-input acquisition needs a project-target grant."
+    },
+    {
+      "scenario": "Host consent",
+      "step": "Grant required target execution",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: App::Run()\n\nDirect call effects: App::Run()\n\nPossible dispatch only: None\n\nReference has established compile-time selection."
+    },
+    {
+      "scenario": "Host consent",
+      "step": "Require separately denied restore",
+      "outcome": "Indeterminate reference",
+      "results": "Member/reference target: None\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nRequired restore is not authorized."
+    },
+    {
+      "scenario": "Host consent",
+      "step": "Grant restore; generator remains separate",
+      "outcome": "Indeterminate reference",
+      "results": "Member/reference target: None\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nRequired generated evidence unavailable without generator grant."
+    },
+    {
+      "scenario": "Host consent",
+      "step": "Grant required generator execution",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: App::Run()\n\nDirect call effects: App::Run()\n\nPossible dispatch only: None\n\nReference has established compile-time selection."
+    },
+    {
+      "scenario": "Inputs and diagnostics",
+      "step": "Show provenanced derived input",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: App::Run()\n\nDirect call effects: App::Run()\n\nPossible dispatch only: None\n\nReference has established compile-time selection."
+    },
+    {
+      "scenario": "Inputs and diagnostics",
+      "step": "Mismatch acquisition context",
+      "outcome": "Indeterminate reference",
+      "results": "Member/reference target: None\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nCompiler inputs disagree with the requested evaluation context."
+    },
+    {
+      "scenario": "Inputs and diagnostics",
+      "step": "Restore context, unrelated error",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: App::Run()\n\nDirect call effects: App::Run()\n\nPossible dispatch only: None\n\nReference has established compile-time selection.\nUnrelated compiler error retained; this reference’s evidence remains established."
+    },
+    {
+      "scenario": "Inputs and diagnostics",
+      "step": "Make error affect selection",
+      "outcome": "Indeterminate reference",
+      "results": "Member/reference target: None\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nCompiler error invalidates this reference’s required evidence."
+    },
+    {
+      "scenario": "Native mode",
+      "step": "No supported native selection",
+      "outcome": "Indeterminate reference",
+      "results": "Member/reference target: None\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nNative mode has no supported proof for this illustrated selection."
+    },
+    {
+      "scenario": "Native mode",
+      "step": "Supply bounded native proof",
+      "outcome": "Confirmed reference in illustrated scope",
+      "results": "Member/reference target: App::Run()\n\nDirect call effects: App::Run()\n\nPossible dispatch only: None\n\nReference has established compile-time selection."
+    },
+    {
+      "scenario": "Native mode",
+      "step": "Request unavailable semantic mode",
+      "outcome": "Indeterminate reference",
+      "results": "Member/reference target: None\n\nDirect call effects: None\n\nPossible dispatch only: None\n\nRequested semantic host unavailable; no silent downgrade."
+    }
+  ],
+  "freePlay": [
+    {
+      "action": "Toggle active branch",
+      "outcome": "Inactive syntax only"
+    },
+    {
+      "action": "Toggle selection proof",
+      "outcome": "Inactive syntax only"
+    },
+    {
+      "action": "Toggle semantic consent",
+      "outcome": "Inactive syntax only"
+    },
+    {
+      "action": "Toggle target grant",
+      "outcome": "Inactive syntax only"
+    },
+    {
+      "action": "Toggle restore grant",
+      "outcome": "Inactive syntax only"
+    },
+    {
+      "action": "Toggle generator grant",
+      "outcome": "Inactive syntax only"
+    },
+    {
+      "action": "Toggle input match",
+      "outcome": "Inactive syntax only"
+    },
+    {
+      "action": "Toggle host availability",
+      "outcome": "Inactive syntax only"
+    },
+    {
+      "action": "Toggle dispatch completeness",
+      "outcome": "Inactive syntax only"
+    },
+    {
+      "action": "Toggle derived provenance",
+      "outcome": "Inactive syntax only"
+    },
+    {
+      "action": "Reset current scenario",
+      "outcome": "Indeterminate reference"
+    }
+  ]
+}
