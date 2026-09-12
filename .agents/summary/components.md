@@ -64,6 +64,13 @@ It assembles the architecture phase through Cargo/MSBuild attribution adapters;
 SQLite projection and snapshot reads remain in `db/architecture.rs`.
 Public records are re-exported from the library root.
 
+### `overview` (`src/overview.rs`)
+Records for the budget-aware `overview` command: `FallibleFunction` and
+`Fallibility` (Result / Option / OneOf / Task). Only the error-flow layer is
+implemented so far; the remaining layers and the aggregate `Overview` record
+land with their own queries in `db/overview.rs`. Public records are re-exported
+from the library root.
+
 ### `error` (`src/error.rs`)
 `Error` (top-level, re-exported), `IndexError`, and `IndexErrorKind`. Distinguishes
 input errors (unsupported language, parse failure, encoding, I/O) from internal
@@ -153,6 +160,7 @@ Shared extraction DTOs (`ExtractedSymbol`, `ExtractedReference`,
 | `graph.rs` | Recursive-CTE implementations of graph traversal + cycle detection |
 | `architecture.rs` | Repopulate packages/deps, coupling metrics, neighbor drill-down |
 | `panic_points.rs` | Query `.unwrap()`/`.expect()` occurrences |
+| `overview.rs` | Overview layer queries; currently the error-flow layer (`query_error_flow`) |
 | `files.rs` | Upsert/list files, language filters, path normalization |
 | `helpers.rs` | Row → domain mapping + enum parsing |
 

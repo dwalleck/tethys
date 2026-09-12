@@ -31,7 +31,8 @@ start there (especially `index.md`) for anything this file does not cover.
   `hierarchy`.
 - **Domain model**: `src/types.rs` — core shared records, IDs, and enums.
   Analysis-specific records live beside their analysis (e.g. `src/unused_imports.rs`,
-  `src/db/deprecated.rs`, `src/graph/types.rs`) and are re-exported from `src/lib.rs`.
+  `src/overview.rs`, `src/db/deprecated.rs`, `src/graph/types.rs`) and are re-exported
+  from `src/lib.rs`.
 - **Domain vocabulary**: `CONTEXT.md` — the canonical glossary. Use these terms
   (and honor the `_Avoid_` lists) in issue titles, PRs, and code; `docs/adr/`
   records *why* the load-bearing decisions were made.

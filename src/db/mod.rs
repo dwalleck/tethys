@@ -31,6 +31,7 @@ mod graph;
 mod helpers;
 mod hierarchy;
 mod imports;
+mod overview;
 mod panic_points;
 mod references;
 mod revision;

@@ -44,6 +44,7 @@ mod graph;
 mod indexing;
 mod languages;
 pub mod lsp;
+mod overview;
 mod parallel;
 mod reindex;
 mod resolve;
@@ -64,6 +65,7 @@ pub use db::{
 pub use dead_code::{DeadCodeFinding, DeadCodeReport, DeadCodeSummary};
 pub use error::{Error, IndexError, IndexErrorKind, Result};
 pub use graph::{FileImpact, FileImpactDependent, SymbolImpact, SymbolImpactCaller};
+pub use overview::{Fallibility, FallibleFunction};
 pub use types::{
     AffectedTestsReport, CallEdgeSelection, Caller, CallerMode, CrateInfo, Cycle, DatabaseStats,
     FileAnalysis, FileId, FunctionSignature, Import, IndexOptions, IndexStats, IndexUpdate,
@@ -1048,6 +1050,21 @@ impl Tethys {
     /// ```
     pub fn get_deprecated_callers(&self) -> Result<Vec<DeprecatedFinding>> {
         self.db.get_deprecated_callers()
+    }
+
+    /// Layer 5 of the `overview` command: public functions and methods whose
+    /// return type is structurally fallible — `Result`, `Option`, `OneOf`, or
+    /// the C# async `Task<...>` convention.
+    ///
+    /// Selection reads the persisted `symbols.return_type` column, so a function
+    /// whose *parameter* is typed `Result`/`Option` is not reported as one that
+    /// returns it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database cannot be read.
+    pub fn query_error_flow(&self) -> Result<Vec<FallibleFunction>> {
+        self.db.query_error_flow()
     }
 
     /// Pub Rust items whose observed use is consistent with `pub(crate)`,
