@@ -190,10 +190,18 @@ jobs:
   build:
     name: Build
     runs-on: ${{ matrix.os }}
+    # No macOS leg. macOS runners are capped at 5 concurrent *per account*,
+    # shared across every repository, and this job was spending one of them
+    # per push on a throwaway artifact. It costs no coverage: tethys gates
+    # every platform difference on `unix`/`windows`, never on
+    # `target_os = "macos"`, so this compiles the same lines the Ubuntu leg
+    # does. The macOS `test` job still runs, and release.yml builds and
+    # packages a *complete* macOS distribution on a `v*` tag -- strictly more
+    # than the bare binary this uploaded.
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest]
         rust: [stable]
 
     steps:
@@ -216,13 +224,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tethys-linux
-          path: target/release/tethys
-
-      - name: Upload binary (macOS)
-        if: matrix.os == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: tethys-macos
           path: target/release/tethys
 
       - name: Upload binary (Windows)
