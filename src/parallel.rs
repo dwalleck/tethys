@@ -77,6 +77,11 @@ pub struct OwnedSymbolData {
     pub column: u32,
     pub span: Option<Span>,
     pub signature: Option<String>,
+    /// Bare return type of a function/method (the type after `->`, unwrapped).
+    ///
+    /// Extracted from `FunctionSignature::return_type` during parsing and
+    /// persisted into the `symbols.return_type` column at insert time.
+    pub return_type: Option<String>,
     pub visibility: Visibility,
     pub parent_symbol_id: Option<SymbolId>,
     /// Extracted container name, linked to `parent_symbol_id` at insert
@@ -139,6 +144,7 @@ impl OwnedSymbolData {
             column: self.column,
             span: self.span,
             signature: self.signature.as_deref(),
+            return_type: self.return_type.as_deref(),
             visibility: self.visibility,
             parent_symbol_id: self.parent_symbol_id,
             parent_name: self.parent_name.as_deref(),
@@ -155,6 +161,7 @@ mod tests {
     #[test]
     fn owned_symbol_data_converts_to_symbol_data() {
         let owned = OwnedSymbolData {
+            return_type: None,
             name: "foo".to_string(),
             module_path: "crate::bar".to_string(),
             qualified_name: "crate::bar::foo".to_string(),
@@ -199,6 +206,7 @@ mod tests {
     #[test]
     fn owned_symbol_data_struct_literal_construction() {
         let owned = OwnedSymbolData {
+            return_type: None,
             name: "test_fn".to_string(),
             module_path: "crate::module".to_string(),
             qualified_name: "crate::module::test_fn".to_string(),

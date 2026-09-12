@@ -262,8 +262,8 @@ impl Index {
         {
             let mut insert_symbol_stmt = tx.prepare_cached(
                 "INSERT INTO symbols (file_id, name, module_path, qualified_name, kind, line, column,
-                 end_line, end_column, signature, visibility, parent_symbol_id, is_test)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                 end_line, end_column, signature, return_type, visibility, parent_symbol_id, is_test)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             )?;
             let mut insert_attribute_stmt = tx.prepare_cached(
                 "INSERT INTO attributes (symbol_id, name, args, line)
@@ -282,6 +282,7 @@ impl Index {
                     sym.span.map(|s| s.end_line()),
                     sym.span.map(|s| s.end_column()),
                     sym.signature,
+                    sym.return_type,
                     sym.visibility.as_str(),
                     sym.parent_symbol_id.map(SymbolId::as_i64),
                     sym.is_test
@@ -612,6 +613,7 @@ mod index_parsed_file_atomic_tests {
 
     fn sym(name: &str, line: u32, span: Option<Span>) -> SymbolData<'_> {
         SymbolData {
+            return_type: None,
             name,
             module_path: "",
             qualified_name: name,
@@ -637,6 +639,85 @@ mod index_parsed_file_atomic_tests {
             path: None,
             containing_symbol_span: containing,
         }
+    }
+
+    /// `symbols.return_type` must survive the production atomic insert and must
+    /// not be confused with the adjacent `signature` column.
+    ///
+    /// Distinct values are deliberate: `signature` and `return_type` are
+    /// adjacent TEXT columns, so a copy/paste or off-by-one would satisfy any
+    /// assertion that reused one string for both. Read back through
+    /// `list_symbols_in_file`, which uses the same `SYMBOLS_COLUMNS` /
+    /// `row_to_symbol` contract production reads use.
+    #[test]
+    fn return_type_survives_atomic_insert_and_is_distinct_from_signature() {
+        let (_dir, index) = temp_index();
+
+        let signature = "fn do_thing(a: Alpha) -> Beta";
+        let return_type = "Gamma<Delta>";
+
+        let mut symbol = sym("do_thing", 1, None);
+        symbol.signature = Some(signature);
+        symbol.return_type = Some(return_type);
+
+        let (file_id, _ids, _refs) = index
+            .index_parsed_file_atomic(
+                Path::new("src/lib.rs"),
+                Language::Rust,
+                0,
+                0,
+                None,
+                &[symbol],
+                &[],
+                &[],
+            )
+            .expect("atomic write");
+
+        let stored = index.list_symbols_in_file(file_id).expect("list symbols");
+        assert_eq!(stored.len(), 1, "one symbol written");
+        assert_eq!(
+            stored[0].return_type.as_deref(),
+            Some(return_type),
+            "return_type must persist through the production atomic insert"
+        );
+        assert_eq!(
+            stored[0].signature.as_deref(),
+            Some(signature),
+            "signature must be unaffected by the new adjacent column"
+        );
+        assert_eq!(
+            stored[0].visibility,
+            Visibility::Public,
+            "columns after return_type must not shift"
+        );
+    }
+
+    /// A symbol with no return type stores NULL and reads back as `None`
+    /// (not as the empty string, and not as the neighbouring signature).
+    #[test]
+    fn absent_return_type_round_trips_as_none() {
+        let (_dir, index) = temp_index();
+
+        let mut symbol = sym("plain", 1, None);
+        symbol.signature = Some("fn plain()");
+
+        let (file_id, _ids, _refs) = index
+            .index_parsed_file_atomic(
+                Path::new("src/lib.rs"),
+                Language::Rust,
+                0,
+                0,
+                None,
+                &[symbol],
+                &[],
+                &[],
+            )
+            .expect("atomic write");
+
+        let stored = index.list_symbols_in_file(file_id).expect("list symbols");
+        assert_eq!(stored.len(), 1);
+        assert_eq!(stored[0].return_type, None);
+        assert_eq!(stored[0].signature.as_deref(), Some("fn plain()"));
     }
 
     /// Shape-complete fixture (plan slice 1): duplicate symbol names,

@@ -69,6 +69,7 @@ classDiagram
         +get_coupling_metrics() Result~Vec~CouplingMetrics~~
         +get_package_coupling(name) Result~Option~CouplingDetail~~
         +get_panic_points(...) Result~Vec~PanicPoint~~
+        +query_error_flow() Result~Vec~FallibleFunction~~
         +get_affected_tests(files) Result
         +get_stats() Result~DatabaseStats~
         +vacuum() Result

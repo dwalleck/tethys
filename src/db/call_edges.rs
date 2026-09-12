@@ -366,6 +366,7 @@ mod k_hybrid_filter_tests {
     fn insert_sym(index: &mut Index, file_id: FileId, name: &str, kind: SymbolKind) -> SymbolId {
         index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id,
                 name,
                 module_path: "",

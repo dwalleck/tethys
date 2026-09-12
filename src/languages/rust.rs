@@ -2316,6 +2316,42 @@ mod tests {
         assert_eq!(symbols[0].visibility, Visibility::Public);
     }
 
+    /// The overview's error-flow layer filters on a structured *bare* return
+    /// type, so the parser must surface `FunctionSignature::return_type` rather
+    /// than leaving callers to substring-match the whole signature string.
+    #[rstest]
+    #[case::plain("fn f() -> u32 {}", Some("u32"))]
+    #[case::unit_result("fn f() -> Result<(), String> {}", Some("Result<(), String>"))]
+    #[case::option("fn f() -> Option<u32> {}", Some("Option<u32>"))]
+    #[case::qualified("fn f() -> std::io::Result<()> {}", Some("std::io::Result<()>"))]
+    #[case::no_arrow("fn f() {}", None)]
+    fn extracts_bare_return_type(#[case] code: &str, #[case] expected: Option<&str>) {
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let return_type = symbols[0]
+            .signature_details
+            .as_ref()
+            .and_then(|details| details.return_type.as_deref());
+        assert_eq!(return_type, expected, "code: {code}");
+    }
+
+    /// A closure *parameter* that returns `Result` must not be read as the
+    /// function's own return type. The fallibility filter keys off the bare
+    /// outer type, so this is the false-positive the structured field prevents.
+    #[test]
+    fn closure_parameter_return_type_is_not_the_function_return_type() {
+        let code = "fn takes<F: Fn() -> Result<(), String>>(f: F) -> u32 { 1 }";
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let return_type = symbols[0]
+            .signature_details
+            .as_ref()
+            .and_then(|details| details.return_type.as_deref());
+        assert_eq!(return_type, Some("u32"));
+    }
+
     #[test]
     fn extracts_struct() {
         let code = "pub struct User { name: String }";

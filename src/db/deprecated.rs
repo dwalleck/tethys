@@ -577,6 +577,7 @@ mod tests {
             .iter()
             .enumerate()
             .map(|(i, (name, attrs))| SymbolData {
+                return_type: None,
                 name,
                 module_path: "",
                 qualified_name: name,
@@ -607,6 +608,7 @@ mod tests {
 
         let rust_attrs = attr("deprecated", Some(r#"since = "1.0", note = "n""#), 1);
         let rust_sym = SymbolData {
+            return_type: None,
             name: "rs_old",
             module_path: "",
             qualified_name: "rs_old",

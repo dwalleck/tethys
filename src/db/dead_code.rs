@@ -359,6 +359,7 @@ mod tests {
     fn add_symbol(index: &Index, sym: &Sym<'_>) -> SymbolId {
         index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id: sym.file,
                 name: sym.name,
                 module_path: "crate",

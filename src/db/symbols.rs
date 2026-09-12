@@ -20,6 +20,8 @@ pub(crate) struct InsertSymbolParams<'a> {
     pub column: u32,
     pub span: Option<crate::types::Span>,
     pub signature: Option<&'a str>,
+    /// Bare return type of the function/method (the text after `->`, unwrapped).
+    pub return_type: Option<&'a str>,
     pub visibility: crate::types::Visibility,
     pub parent_symbol_id: Option<SymbolId>,
     pub is_test: bool,
@@ -33,8 +35,8 @@ impl Index {
 
         conn.execute(
             "INSERT INTO symbols (file_id, name, module_path, qualified_name, kind, line, column,
-             end_line, end_column, signature, visibility, parent_symbol_id, is_test)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+             end_line, end_column, signature, return_type, visibility, parent_symbol_id, is_test)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
                 params.file_id.as_i64(),
                 params.name,
@@ -46,6 +48,7 @@ impl Index {
                 params.span.map(|s| s.end_line()),
                 params.span.map(|s| s.end_column()),
                 params.signature,
+                params.return_type,
                 params.visibility.as_str(),
                 params.parent_symbol_id.map(SymbolId::as_i64),
                 params.is_test
@@ -543,6 +546,7 @@ mod search_in_prefix_tests {
 
         let foo_in_a = index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id: file_a,
                 name: "Foo",
                 module_path: "crate",
@@ -559,6 +563,7 @@ mod search_in_prefix_tests {
             .expect("foo in a");
         let foo_in_b = index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id: file_b,
                 name: "Foo",
                 module_path: "crate",
@@ -659,6 +664,7 @@ mod search_in_prefix_tests {
             .expect("file ab");
         let foo_in_ab = index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id: file_ab,
                 name: "Foo",
                 module_path: "crate",
@@ -702,6 +708,7 @@ mod search_in_prefix_tests {
                 .expect("file");
             index
                 .insert_symbol(&InsertSymbolParams {
+                    return_type: None,
                     file_id,
                     name: "Foo",
                     module_path: "crate",
@@ -741,6 +748,7 @@ mod search_by_name_ambiguity_tests {
             .expect("file");
         index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id,
                 name: "Bar",
                 module_path: "crate",
@@ -828,6 +836,7 @@ mod search_by_name_ambiguity_tests {
             .expect("file");
         index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id,
                 name,
                 module_path: "",
@@ -860,6 +869,7 @@ mod search_by_name_ambiguity_tests {
         let insert = |name: &str, kind: SymbolKind| {
             index
                 .insert_symbol(&InsertSymbolParams {
+                    return_type: None,
                     file_id,
                     name,
                     module_path: "",
@@ -973,6 +983,7 @@ mod search_by_name_ambiguity_tests {
             .map(|(type_name, name, kind)| {
                 index
                     .insert_symbol(&InsertSymbolParams {
+                        return_type: None,
                         file_id,
                         name,
                         module_path: "",

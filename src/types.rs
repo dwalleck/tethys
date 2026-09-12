@@ -1001,6 +1001,14 @@ pub struct Symbol {
     pub span: Option<Span>,
     /// Function/method signature as string (e.g., "fn save(&self, issue: &Issue) -> Result<()>")
     pub signature: Option<String>,
+    /// Bare return type of a function/method — the text after `->`, without the
+    /// wrapping `->` and without the rest of the signature (e.g. `Result<()>`,
+    /// `OneOf<Success, Error>`). `None` for non-callable symbols.
+    ///
+    /// Persisted to `symbols.return_type` so the overview query layer can filter
+    /// by structured fallibility shape instead of substring-matching the full
+    /// signature string.
+    pub return_type: Option<String>,
     /// Structured signature details for programmatic access (functions/methods only)
     pub signature_details: Option<FunctionSignature>,
     /// Visibility level
@@ -1839,6 +1847,7 @@ mod tests {
     #[test]
     fn symbol_full_path_with_module() {
         let symbol = Symbol {
+            return_type: None,
             id: SymbolId::from(1),
             file_id: FileId::from(1),
             name: "save".to_string(),
@@ -1864,6 +1873,7 @@ mod tests {
     #[test]
     fn symbol_full_path_without_module() {
         let symbol = Symbol {
+            return_type: None,
             id: SymbolId::from(1),
             file_id: FileId::from(1),
             name: "main".to_string(),

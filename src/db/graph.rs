@@ -52,7 +52,7 @@ impl Index {
             &"SELECT
                 s.id, s.file_id, s.name, s.module_path, s.qualified_name,
                 s.kind, s.line, s.column, s.end_line, s.end_column,
-                s.signature, s.visibility, s.parent_symbol_id, s.is_test,
+                s.signature, s.return_type, s.visibility, s.parent_symbol_id, s.is_test,
                 f.path
              FROM call_edges ce
              JOIN symbols s ON s.id = ce.caller_symbol_id
@@ -67,7 +67,7 @@ impl Index {
                 let symbol = row_to_symbol(row)?;
                 Ok(Caller {
                     symbol,
-                    file: row.get::<_, String>(14)?.into(),
+                    file: row.get::<_, String>(15)?.into(),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -84,7 +84,7 @@ impl Index {
             "SELECT
                 s.id, s.file_id, s.name, s.module_path, s.qualified_name,
                 s.kind, s.line, s.column, s.end_line, s.end_column,
-                s.signature, s.visibility, s.parent_symbol_id,
+                s.signature, s.return_type, s.visibility, s.parent_symbol_id, s.is_test,
                 ce.call_count
              FROM call_edges ce
              JOIN symbols s ON s.id = ce.callee_symbol_id
@@ -127,7 +127,7 @@ impl Index {
             SELECT
                 s.id, s.file_id, s.name, s.module_path, s.qualified_name,
                 s.kind, s.line, s.column, s.end_line, s.end_column,
-                s.signature, s.visibility, s.parent_symbol_id, s.is_test,
+                s.signature, s.return_type, s.visibility, s.parent_symbol_id, s.is_test,
                 f.path, MIN(ct.depth) as min_depth
             FROM caller_tree ct
             JOIN symbols s ON s.id = ct.symbol_id
@@ -140,8 +140,8 @@ impl Index {
         let callers = stmt
             .query_map(rusqlite::params![symbol_id.as_i64(), max_depth], |row| {
                 let symbol = row_to_symbol(row)?;
-                let file = row.get::<_, String>(14)?.into();
-                let depth = row.get::<_, usize>(15)?;
+                let file = row.get::<_, String>(15)?.into();
+                let depth = row.get::<_, usize>(16)?;
                 Ok(SymbolImpactCaller {
                     symbol,
                     file,
@@ -2289,6 +2289,7 @@ mod reachability_snapshot_fences {
     fn symbol(index: &Index, file_id: crate::types::FileId, name: &str) -> SymbolId {
         index
             .insert_symbol(&InsertSymbolParams {
+                return_type: None,
                 file_id,
                 name,
                 module_path: "",
