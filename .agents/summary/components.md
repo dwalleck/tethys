@@ -131,7 +131,8 @@ five-step procedure for adding a new language.
 
 ### `rust.rs` / `csharp.rs`
 `RustLanguage` and `CSharpLanguage` implementations: symbol extraction (incl.
-nested types, impl methods, attributes, test detection), reference extraction
+nested types, trait methods, impl methods, attributes, test detection), reference
+extraction
 (calls, constructors, type annotations), and import extraction (`use` /
 `using`). Each defines an intermediate import type (`UseStatement`,
 `UsingDirective`).

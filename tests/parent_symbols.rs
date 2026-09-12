@@ -35,6 +35,25 @@ fn parent_of(conn: &Connection, child: &str) -> Option<String> {
     .ok()
 }
 
+/// Every row named `name`, as `(qualified_name, parent_name)`, ordered by
+/// qualified name. Used where more than one symbol legitimately shares a name —
+/// a trait's declaration and an impl's method, for instance — so a test can pin
+/// all of them rather than pick whichever the query happens to return first.
+fn qualified_parents(conn: &Connection, name: &str) -> Vec<(String, Option<String>)> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT s.qualified_name, p.name FROM symbols s
+             LEFT JOIN symbols p ON s.parent_symbol_id = p.id
+             WHERE s.name = ?1
+             ORDER BY s.qualified_name",
+        )
+        .expect("prep");
+    stmt.query_map([name], |r| Ok((r.get(0)?, r.get(1)?)))
+        .expect("query")
+        .collect::<Result<_, _>>()
+        .expect("collect")
+}
+
 /// F-P1 (claims C3, C4): fields → struct, variants → enum, inherent-impl
 /// methods → type — including an impl block ABOVE the type declaration
 /// (S5, the file-order class the two-phase linkage exists for).
@@ -78,19 +97,20 @@ fn trait_impl_method_links_to_implementing_type() {
     )]);
     tethys.index().expect("index");
     let conn = open_db(&tethys);
+
+    // The trait declaration and the impl method are two distinct rows. Asserting
+    // the whole set pins both, instead of selecting one by the very property
+    // under test: the trait's own `hold` links to the trait, the impl's to the
+    // type.
     assert_eq!(
-        parent_of(&conn, "hold").as_deref(),
-        Some("Widget"),
-        "parent is the implementing TYPE, not the trait"
+        qualified_parents(&conn, "hold"),
+        vec![
+            ("Anchor::hold".to_string(), Some("Anchor".to_string())),
+            ("Widget::hold".to_string(), Some("Widget".to_string())),
+        ],
+        "trait-impl method parent is the implementing TYPE, not the trait, \
+         and the trait's own declaration is a separate row"
     );
-    let qn: String = conn
-        .query_row(
-            "SELECT qualified_name FROM symbols WHERE name = 'hold'",
-            [],
-            |r| r.get(0),
-        )
-        .expect("hold");
-    assert_eq!(qn, "Widget::hold", "qualified by the type (approved D-B)");
 }
 
 /// F-P3 (claim C2): dl7l heals qualified_exact — a receiver-typed call to

@@ -22,6 +22,7 @@ use std::collections::{HashMap, HashSet};
 mod node_kinds {
     // Item declarations
     pub const FUNCTION_ITEM: &str = "function_item";
+    pub const FUNCTION_SIGNATURE_ITEM: &str = "function_signature_item";
     pub const STRUCT_ITEM: &str = "struct_item";
     pub const ENUM_ITEM: &str = "enum_item";
     pub const TRAIT_ITEM: &str = "trait_item";
@@ -1496,7 +1497,9 @@ fn extract_symbols_recursive(
         }
         TRAIT_ITEM => {
             if let Some(sym) = extract_simple_definition(node, content, SymbolKind::Trait) {
+                let parent = sym.name.clone();
                 symbols.push(sym);
+                symbols.extend(extract_trait_methods(node, &parent, content));
             }
         }
         IMPL_ITEM => {
@@ -1567,6 +1570,48 @@ fn extract_symbols_recursive(
             }
         }
     }
+}
+
+/// Harvest a trait's declared methods as `Method` symbols parented to the trait.
+///
+/// Without this a trait's own method list does not exist in the index at all —
+/// only the trait symbol is emitted — so consumers that ask what a trait
+/// declares read nothing. The overview trait map joins methods on
+/// `parent_symbol_id`, so an unpopulated body makes every trait look methodless.
+///
+/// Both declaration forms are methods: `function_item` carries a default body,
+/// `function_signature_item` is a required method ending in `;`. Parent linkage
+/// is deliberately not set here; it is resolved against same-file containers
+/// during the insert transaction.
+///
+/// Asymmetry note: the C# parser already indexes interface members via
+/// `extract_class_members`, so this brings Rust traits to parity.
+fn extract_trait_methods(
+    node: &tree_sitter::Node,
+    trait_name: &str,
+    content: &[u8],
+) -> Vec<ExtractedSymbol> {
+    use node_kinds::{DECLARATION_LIST, FUNCTION_ITEM, FUNCTION_SIGNATURE_ITEM};
+
+    let mut methods = Vec::new();
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() != DECLARATION_LIST {
+            continue;
+        }
+        let mut inner_cursor = child.walk();
+        for item in child.children(&mut inner_cursor) {
+            let kind = item.kind();
+            if kind != FUNCTION_ITEM && kind != FUNCTION_SIGNATURE_ITEM {
+                continue;
+            }
+            if let Some(mut sym) = extract_function(&item, content, Some(trait_name)) {
+                sym.kind = SymbolKind::Method;
+                methods.push(sym);
+            }
+        }
+    }
+    methods
 }
 
 fn extract_function(
@@ -2352,6 +2397,109 @@ mod tests {
         assert_eq!(return_type, Some("u32"));
     }
 
+    /// A trait's declared methods must be extracted, not just the trait symbol.
+    /// The overview trait map joins methods on `parent_symbol_id`, so without
+    /// these rows a trait reads as having no methods.
+    #[test]
+    fn extracts_trait_methods_as_methods_parented_to_the_trait() {
+        let code = r"
+pub trait Repo {
+    fn find(&self, id: u32) -> Result<String, String>;
+    fn count(&self) -> usize { 0 }
+}
+";
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let trait_sym = symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Trait)
+            .expect("trait should be extracted");
+        assert_eq!(trait_sym.name, "Repo");
+
+        let mut methods: Vec<(&str, &Option<String>)> = symbols
+            .iter()
+            .filter(|s| s.kind == SymbolKind::Method)
+            .map(|s| (s.name.as_str(), &s.parent_name))
+            .collect();
+        methods.sort();
+
+        assert_eq!(
+            methods,
+            vec![
+                ("count", &Some("Repo".to_string())),
+                ("find", &Some("Repo".to_string()))
+            ],
+            "both the required and the default method should be extracted and parented to the trait"
+        );
+    }
+
+    /// A required method has no body, so the structured signature must still be
+    /// captured — the overview error-flow layer reads `return_type` from it.
+    #[rstest]
+    #[case::required(
+        "pub trait T { fn f(&self) -> Result<(), String>; }",
+        Some("Result<(), String>")
+    )]
+    #[case::default(
+        "pub trait T { fn f(&self) -> Option<u32> { None } }",
+        Some("Option<u32>")
+    )]
+    #[case::no_return("pub trait T { fn f(&self); }", None)]
+    fn trait_method_signature_details_are_captured(
+        #[case] code: &str,
+        #[case] expected_return: Option<&str>,
+    ) {
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        let method = symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Method)
+            .expect("trait method should be extracted");
+        let return_type = method
+            .signature_details
+            .as_ref()
+            .and_then(|details| details.return_type.as_deref());
+        assert_eq!(return_type, expected_return, "code: {code}");
+    }
+
+    /// Free functions must not be swept up as trait methods, and a trait with an
+    /// empty body must not panic or emit anything beyond the trait itself.
+    #[test]
+    fn trait_extraction_does_not_capture_unrelated_items() {
+        let code = r"
+pub fn free() -> u32 { 1 }
+pub trait Empty {}
+";
+        let tree = parse_rust(code);
+        let symbols = extract_symbols(&tree, code.as_bytes());
+
+        assert_eq!(
+            symbols
+                .iter()
+                .filter(|s| s.kind == SymbolKind::Method)
+                .count(),
+            0,
+            "no methods should be extracted"
+        );
+        assert_eq!(
+            symbols
+                .iter()
+                .filter(|s| s.kind == SymbolKind::Trait)
+                .count(),
+            1
+        );
+        assert_eq!(
+            symbols
+                .iter()
+                .filter(|s| s.kind == SymbolKind::Function)
+                .count(),
+            1,
+            "the free function stays a function"
+        );
+    }
+
     #[test]
     fn extracts_struct() {
         let code = "pub struct User { name: String }";
@@ -2384,9 +2532,20 @@ mod tests {
         let tree = parse_rust(code);
         let symbols = extract_symbols(&tree, code.as_bytes());
 
-        assert_eq!(symbols.len(), 1);
-        assert_eq!(symbols[0].name, "Display");
-        assert_eq!(symbols[0].kind, SymbolKind::Trait);
+        let trait_sym = symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Trait)
+            .expect("trait should be extracted");
+        assert_eq!(trait_sym.name, "Display");
+        // The trait's declared method is a symbol of its own, parented to the
+        // trait — the overview trait map has nothing to read without it.
+        let method = symbols
+            .iter()
+            .find(|s| s.kind == SymbolKind::Method)
+            .expect("declared method should be extracted");
+        assert_eq!(method.name, "display");
+        assert_eq!(method.parent_name.as_deref(), Some("Display"));
+        assert_eq!(symbols.len(), 2, "trait plus its declared method");
     }
 
     #[test]
@@ -2433,7 +2592,11 @@ impl<T> From<T> for Widget {
         let tree = parse_rust(code);
         let symbols = extract_symbols(&tree, code.as_bytes());
 
-        let hold = symbols.iter().find(|s| s.name == "hold").unwrap();
+        // `Anchor` declares `hold` too; select the impl-side row.
+        let hold = symbols
+            .iter()
+            .find(|s| s.name == "hold" && s.parent_name.as_deref() != Some("Anchor"))
+            .expect("impl-side hold");
         assert_eq!(
             hold.parent_name.as_deref(),
             Some("Widget"),
@@ -2467,13 +2630,21 @@ impl Anchor for (i32, i32) {
 ";
         let tree = parse_rust(code);
         let symbols = extract_symbols(&tree, code.as_bytes());
-        let hold = symbols.iter().find(|s| s.name == "hold").unwrap();
+        // `Anchor` declares hold/grip too, so select the impl-side rows: the
+        // ones not parented to the trait.
+        let hold = symbols
+            .iter()
+            .find(|s| s.name == "hold" && s.parent_name.as_deref() != Some("Anchor"))
+            .expect("impl-side hold");
         assert_eq!(
             hold.parent_name.as_deref(),
             Some("Foo"),
             "reference-typed impl target strips to its referent"
         );
-        let grip = symbols.iter().find(|s| s.name == "grip").unwrap();
+        let grip = symbols
+            .iter()
+            .find(|s| s.name == "grip" && s.parent_name.as_deref() != Some("Anchor"))
+            .expect("impl-side grip");
         assert_eq!(
             grip.parent_name, None,
             "tuple impl target has no nominal base — no fabricated parent"
