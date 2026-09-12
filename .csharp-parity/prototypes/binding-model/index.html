@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>C# binding model — throwaway decision explorer</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#202c3a;background:#f3f5f8;line-height:1.5}body{max-width:1120px;margin:32px auto;padding:0 24px}h1{font-size:28px;margin-bottom:6px}h2{font-size:19px}h3{font-size:15px;margin:0 0 8px}p{margin:8px 0 16px}.notice{border-left:4px solid #386ac8;padding:12px 18px;background:white}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}.card{background:white;border:1px solid #d6dfeb;border-radius:8px;padding:18px}.wide{grid-column:1/-1}dl{margin:0}dt{color:#57667b;font-size:12px;text-transform:uppercase;margin-top:12px}dd{margin:3px 0;overflow-wrap:anywhere}button{background:white;color:#234c91;border:1px solid #94acd1;border-radius:5px;padding:9px 12px;margin:4px;cursor:pointer;font:inherit;font-size:13px}button:hover,button[aria-selected=true]{background:#234c91;color:white}button:focus-visible{outline:3px solid #daa336}code{background:#eaf0f8;padding:2px 5px}#outcome{font-size:20px;font-weight:650;color:#234c91}ul{padding-left:20px}small{color:#57667b}#tabs{display:flex;flex-wrap:wrap}#last{min-height:24px}footer{margin:28px 0;color:#57667b}
+</style>
+<h1>C# binding model</h1>
+<p>Throwaway decision explorer · Choose C# reference and binding semantics for parity</p>
+<div class="notice"><strong>Question:</strong> Does the approved model preserve one selected compile-time target while keeping declaration locations, possible dispatch, generated inputs and missing evidence distinct?<br><strong>Illustration only:</strong> invented in-memory evidence, not a C# parser, Roslyn host, MSBuild evaluation, real framework qualification, performance measurement or production resolver. “Confirmed” below applies only to the illustrated reference—not an entire analysis.</div>
+<h2>Current state</h2><p id="last" aria-live="polite"></p>
+<div class="grid">
+<section class="card"><h3>Ownership and compiler inputs</h3><dl id="ownership"></dl></section>
+<section class="card"><h3>Symbol and reference</h3><dl id="symbol"></dl></section>
+<section class="card"><h3>Execution permissions</h3><dl id="permissions"></dl></section>
+<section class="card wide"><div id="outcome" aria-live="polite"></div><div id="results"></div></section>
+</div>
+<h2>Free play</h2><p>Change one boundary at a time. Buttons change illustrative evidence, not real permissions or files.</p><div id="free"></div>
+<h2>Guided walkthroughs</h2><div id="tabs" role="tablist" aria-label="Binding scenarios"></div>
+<section class="card"><h3 id="scenarioTitle"></h3><p id="scenarioDescription"></p><div id="steps"></div></section>
+<footer>All state is in memory. Reload resets it. Semantic identity is not a display name or source location. Separate process execution is not a security sandbox.</footer>
+<script>
+// Pure illustrative model. Fixture evidence stands in for a qualified compiler/input producer.
+const initial = () => ({unit:'App.csproj · .NETFramework,Version=v4.8', scope:'evaluated', language:'C#', active:true, mode:'semantic', semanticGrant:true, targetRequired:false, targetGrant:false, restoreRequired:false, restoreGrant:false, generatorRequired:false, generatorGrant:false, analyzerGrant:false, hostAvailable:true, inputsMatch:true, context:'Debug · AnyCPU · recorded host/toolchain', evaluatedSources:['App.cs'], derivedSources:[], derivedProvenance:true, symbol:'App::Run()', declarations:['App.cs:10'], candidates:['App::Run()'], selected:'App::Run()', selectedProof:true, nativeProof:false, operation:'call', genericContext:'none', targetKind:'source', referenceProof:true, dispatch:[], dispatchComplete:true, diagnostic:'none', effectDependent:true, runtimeUnknown:false});
+function reduce(state, action){return {...state,...action.patch};}
+function assess(s){
+ const reasons=[];
+ if(!s.active)return {standing:'Inactive syntax only',reasons:['Not part of this evaluation unit’s active semantic source.'],direct:[],member:[],possible:[]};
+ if(s.language!=='C#')reasons.push('Cross-language binding is prohibited.');
+ if(s.scope!=='evaluated')reasons.push('Source-only scope does not establish this evaluation-unit semantic identity.');
+ if(!s.inputsMatch)reasons.push('Compiler inputs disagree with the requested evaluation context.');
+ if(s.derivedSources.length&&!s.derivedProvenance)reasons.push('Derived compiler sources lack verified origin/context.');
+ if(s.mode==='semantic'){
+  if(!s.semanticGrant)reasons.push('Semantic mode requested without semantic consent.');
+  if(!s.hostAvailable)reasons.push('Requested semantic host unavailable; no silent downgrade.');
+  if(s.targetRequired&&!s.targetGrant)reasons.push('Required compiler-input acquisition needs a project-target grant.');
+  if(s.restoreRequired&&!s.restoreGrant)reasons.push('Required restore is not authorized.');
+  if(s.generatorRequired&&!s.generatorGrant)reasons.push('Required generated evidence unavailable without generator grant.');
+ } else if(!s.nativeProof)reasons.push('Native mode has no supported proof for this illustrated selection.');
+ if(s.diagnostic==='dependent')reasons.push('Compiler error invalidates this reference’s required evidence.');
+ if(!s.selected||!s.selectedProof||!s.candidates.includes(s.selected))reasons.push('No uniquely selected applicable target is established.');
+ if(s.targetKind==='external'&&!s.referenceProof)reasons.push('External assembly/reference identity is not proven.');
+ if(reasons.length)return {standing:'Indeterminate reference',reasons,direct:[],member:[],possible:[]};
+ const member=[s.selected], direct=[];
+ if(s.operation==='call'||s.operation==='construct')direct.push(s.selected);
+ if(s.operation==='read'||s.operation==='read-write')direct.push(s.selected+' · getter');
+ if(s.operation==='write'||s.operation==='read-write')direct.push(s.selected+' · setter/init as selected');
+ if(s.operation==='event-add')direct.push(s.selected+' · add accessor');
+ const notes=['Reference has established compile-time selection.'];
+ if(s.operation==='construct')notes.push('Separate type reference retained; the type is not a construction call target.');
+ if(s.operation==='nameof')notes.push('Non-executing member reference: no accessor call.');
+ if(s.targetKind==='external')notes.push('External endpoint; no invented source body. Traversal beyond unavailable body is bounded.');
+ if(s.dispatch.length)notes.push('Possible dispatch supports conservative reachability, not proof of execution or test coverage.');
+ if(!s.dispatchComplete)notes.push('Dispatch-dependent analysis is Indeterminate; unrelated reference evidence is retained.');
+ if(s.runtimeUnknown)notes.push('Runtime target unknown: dependent execution analysis cannot claim complete coverage.');
+ if(s.diagnostic==='unrelated')notes.push('Unrelated compiler error retained; this reference’s evidence remains established.');
+ return {standing:'Confirmed reference in illustrated scope',reasons:notes,direct,member,possible:s.dispatch};
+}
+const scenarios=[
+ {name:'Partial symbols',description:'One logical symbol retains multiple declarations inside one evaluation unit. Source-only locations cannot prove the merge.',base:{symbol:'Customer',selected:'Customer',candidates:['Customer'],operation:'type',declarations:['Customer.cs:1','Customer.Validation.cs:1'],evaluatedSources:['Customer.cs','Customer.Validation.cs']},steps:[['Show both declarations',{}],['Remove evaluation-unit ownership',{scope:'source-only'}],['Restore verified unit',{scope:'evaluated'}]]},
+ {name:'Overloads and generics',description:'Two declarations may have a compiler-selected winner. Conversely, one indexed name without selection proof is insufficient. Constructed context does not create another declaration.',base:{symbol:'Send<T>(T)',declarations:['Sender.cs:4'],candidates:['Send(object)','Send<T>(T)'],selected:'Send<T>(T)',genericContext:'T = string; selected declaration Send<T>(T)'},steps:[['Show selected generic overload',{}],['Keep one name, remove proof',{candidates:['Send<T>(T)'],selectedProof:false}],['Restore compiler selection',{selectedProof:true}]]},
+ {name:'Interface dispatch',description:'The direct reference selects IWriter.Write. FileWriter.Write and ConsoleWriter.Write remain separate possible-dispatch relationships, not extra direct callees.',base:{symbol:'IWriter.Write()',selected:'IWriter.Write()',candidates:['IWriter.Write()'],declarations:['IWriter.cs:2'],dispatch:['FileWriter.Write()','ConsoleWriter.Write()']},steps:[['Show direct and possible targets',{}],['Make dispatch coverage incomplete',{dispatchComplete:false}],['Add unknown runtime path',{runtimeUnknown:true}]]},
+ {name:'Conditional sources',description:'Classic Framework and modern units can select different branches of the same physical file. No TFM is fabricated from SDK shorthand.',base:{symbol:'LegacyStore.Save()',selected:'LegacyStore.Save()',candidates:['LegacyStore.Save()'],evaluatedSources:['Shared.cs'],declarations:['LegacyStore.cs:3']},steps:[['Active Framework branch',{}],['Switch to unit where branch is inactive',{unit:'App.csproj · .NETCoreApp,Version=v8.0',active:false}],['Select active modern branch',{active:true,symbol:'ModernStore.Save()',selected:'ModernStore.Save()',candidates:['ModernStore.Save()'],declarations:['ModernStore.cs:3']}]]},
+ {name:'Constructors',description:'A construction site has distinct type and constructor references. Implicit constructors have synthesized origin, not a fabricated source declaration.',base:{symbol:'Widget..ctor(string)',selected:'Widget..ctor(string)',candidates:['Widget..ctor()','Widget..ctor(string)'],operation:'construct',declarations:['Widget.cs:6']},steps:[['Select explicit constructor',{}],['Select implicit constructor',{symbol:'Gadget..ctor()',selected:'Gadget..ctor()',candidates:['Gadget..ctor()'],declarations:[]}],['Lose overload selection',{selectedProof:false}]]},
+ {name:'Accessor effects',description:'Property references remain distinct from getter/setter effects. Non-executing nameof does not imply an accessor call; fields have no accessor effects.',base:{symbol:'Counter.Value',selected:'Counter.Value',candidates:['Counter.Value'],operation:'read-write',declarations:['Counter.cs:3']},steps:[['Read and write the property',{}],['Use nameof instead',{operation:'nameof'}],['Read a field',{symbol:'Counter._value',selected:'Counter._value',candidates:['Counter._value'],operation:'field-read'}]]},
+ {name:'External references',description:'An external assembly member is not a same-named local source symbol. AssemblyName or a matching TFM string alone does not prove reference selection.',base:{symbol:'Dependency.Writer.Write()',selected:'Dependency.Writer.Write()',candidates:['Dependency.Writer.Write()'],targetKind:'external',declarations:[]},steps:[['Show proven external endpoint',{}],['Remove selected-reference proof',{referenceProof:false}],['Try a Rust candidate',{language:'Rust',referenceProof:true}]]},
+ {name:'Host consent',description:'Explicit semantic mode never silently acquires project-target, restore, or generator permission. This models consent policy, not a security sandbox.',base:{targetRequired:true},steps:[['Missing target permission',{}],['Grant required target execution',{targetGrant:true}],['Require separately denied restore',{restoreRequired:true}],['Grant restore; generator remains separate',{restoreGrant:true,generatorRequired:true}],['Grant required generator execution',{generatorGrant:true}]]},
+ {name:'Inputs and diagnostics',description:'Derived sources are distinct from evaluated membership. Context mismatches block confirmation; errors affect the evidence they invalidate.',base:{derivedSources:['generated/Widget.g.cs'],derivedProvenance:true},steps:[['Show provenanced derived input',{}],['Mismatch acquisition context',{inputsMatch:false}],['Restore context, unrelated error',{inputsMatch:true,diagnostic:'unrelated'}],['Make error affect selection',{diagnostic:'dependent'}]]},
+ {name:'Native mode',description:'No-host mode remains useful but is not a substitute for compiler-backed parity. A native proof must satisfy its supported rule, not just index uniqueness.',base:{mode:'native',nativeProof:false},steps:[['No supported native selection',{}],['Supply bounded native proof',{nativeProof:true}],['Request unavailable semantic mode',{mode:'semantic',hostAvailable:false}]]}
+];
+let state=initial(), chosen=0, step=-1;
+const text=(tag,value)=>{const e=document.createElement(tag);e.textContent=value;return e};
+const show=(id,fields)=>{const el=document.getElementById(id);el.replaceChildren();for(const [key,value]of fields){el.append(text('dt',key),text('dd',Array.isArray(value)?value.join(' · ')||'None':String(value)));}};
+function render(){const r=assess(state);
+ show('ownership',[['Evaluation unit',state.scope==='evaluated'?state.unit:'None — source-only scope'],['Recorded context',state.context],['Language',state.language],['Branch active',state.active],['Evaluated sources',state.evaluatedSources],['Derived compiler sources',state.derivedSources],['Derived provenance verified',state.derivedProvenance],['Input context matches',state.inputsMatch]]);
+ show('symbol',[['Semantic entity',state.symbol],['Declaration locations',state.declarations.length?state.declarations:state.targetKind==='external'?'None — external':'None — synthesized origin'],['Candidate declarations',state.candidates],['Selected target',state.selected||'None'],['Selection proof',state.selectedProof],['Constructed context',state.genericContext],['Operation',state.operation],['Target origin',state.targetKind],['External reference proof',state.referenceProof],['Compiler diagnostic',state.diagnostic],['Dispatch complete',state.dispatchComplete],['Runtime target unknown',state.runtimeUnknown]]);
+ show('permissions',[['Requested mode',state.mode],['Host available',state.hostAvailable],['Semantic grant',state.semanticGrant],['Project targets required / granted',state.targetRequired+' / '+state.targetGrant],['Restore required / granted',state.restoreRequired+' / '+state.restoreGrant],['Generators required / granted',state.generatorRequired+' / '+state.generatorGrant],['Analyzers granted',state.analyzerGrant],['Supported native proof',state.nativeProof]]);
+ document.getElementById('outcome').textContent=r.standing;
+ const out=document.getElementById('results');out.replaceChildren();for(const [label,values] of [['Member/reference target',r.member],['Direct call effects',r.direct],['Possible dispatch only',r.possible]])out.append(text('p',label+': '+(values.join(' · ')||'None')));const ul=document.createElement('ul');r.reasons.forEach(reason=>ul.append(text('li',reason)));out.append(ul);
+ document.querySelectorAll('#tabs button').forEach((b,i)=>b.setAttribute('aria-selected',i===chosen));
+ document.getElementById('scenarioTitle').textContent=scenarios[chosen].name;
+ document.getElementById('scenarioDescription').textContent=scenarios[chosen].description;
+ const steps=document.getElementById('steps');steps.replaceChildren();scenarios[chosen].steps.forEach(([label,patch],i)=>{const b=text('button',(i===step?'Current: ':'')+(i+1)+'. '+label);b.onclick=()=>{state={...initial(),...scenarios[chosen].base};for(let j=0;j<=i;j++)state=reduce(state,{patch:scenarios[chosen].steps[j][1]});step=i;document.getElementById('last').textContent=label;render()};steps.append(b)});
+}
+function selectScenario(i){chosen=i;step=-1;state={...initial(),...scenarios[i].base};document.getElementById('last').textContent='Reset to '+scenarios[i].name;render();}
+scenarios.forEach((s,i)=>{const b=text('button',s.name);b.setAttribute('role','tab');b.onclick=()=>selectScenario(i);document.getElementById('tabs').append(b)});
+const actions=[['Toggle active branch','active'],['Toggle selection proof','selectedProof'],['Toggle semantic consent','semanticGrant'],['Toggle target grant','targetGrant'],['Toggle restore grant','restoreGrant'],['Toggle generator grant','generatorGrant'],['Toggle input match','inputsMatch'],['Toggle host availability','hostAvailable'],['Toggle dispatch completeness','dispatchComplete'],['Toggle derived provenance','derivedProvenance']];
+actions.forEach(([label,key])=>{const b=text('button',label);b.onclick=()=>{state=reduce(state,{patch:{[key]:!state[key]}});document.getElementById('last').textContent=label;render()};document.getElementById('free').append(b)});
+const reset=text('button','Reset current scenario');reset.onclick=()=>selectScenario(chosen);document.getElementById('free').append(reset);selectScenario(0);
+</script></html>

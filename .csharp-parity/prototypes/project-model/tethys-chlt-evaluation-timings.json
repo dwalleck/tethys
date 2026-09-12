@@ -1,0 +1,14 @@
+{
+  "prototype_only": true,
+  "sdk": "10.0.102",
+  "msbuild": "18.0.7",
+  "repetitions": 5,
+  "process_model": "Fresh serial processes, potentially warm OS/SDK caches; one outer discovery evaluation per project plus selected per-TFM evaluations",
+  "first_observed_inner_seconds": 0.35164994999649934,
+  "measurements": [
+    {"projects": 1, "units": 1, "processes": 2, "median_total_seconds": 0.459022516006371, "min_total_seconds": 0.43914772900461685, "max_total_seconds": 0.5242578720062738, "median_inner_seconds": 0.2586653250036761},
+    {"projects": 1, "units": 2, "processes": 3, "median_total_seconds": 0.7805276040016906, "min_total_seconds": 0.7178938649885822, "max_total_seconds": 0.7947869099880336, "median_inner_seconds": 0.2653465125040384},
+    {"projects": 2, "units": 4, "processes": 6, "median_total_seconds": 1.4702588900108822, "min_total_seconds": 1.4430625189852435, "max_total_seconds": 1.6040677890123334, "median_inner_seconds": 0.26121225449605845}
+  ],
+  "limitations": ["Generated SDK projects only", "No restore or targets", "No tethys indexing or RSS measurement", "No reference target selection proof", "Single-TFM row selects one framework from a multi-target project", "No cold-cache guarantee"]
+}
