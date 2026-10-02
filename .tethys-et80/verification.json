@@ -1,0 +1,110 @@
+{
+  "scope": "Local tethys-et80 correction; not full S6 or performance qualification.",
+  "source_head": "0179b50c22eb008d095b29c744247d25827f1969",
+  "branch": "fix/tethys-et80-canonical-transparency",
+  "mutation": {
+    "file": "src/db/symbols.rs",
+    "change": "Replace `if rows.next()?.is_some()` with `if rows.next()?.is_some() && false`, restoring arbitrary first-match selection.",
+    "command": "env -u CARGO_TARGET_DIR cargo nextest run --test method_calls --no-fail-fast -E 'test(qualified_fallback)'",
+    "observed": "2 tests run; both fail: duplicate Helper::Ping and Helper::ping bound instead of remaining unresolved.",
+    "output": "artifact://189",
+    "restoration": "Original guarded source restored byte-exactly before subsequent tests.",
+    "restored_source_sha256": "b28d1a732674c10a87e51fc09b7013da8288b934adf4a588b6bc40e6b33f5d09"
+  },
+  "focused": {
+    "command": "env -u CARGO_TARGET_DIR cargo nextest run --test method_calls --test graph --test pass2_crate_root_paths --no-fail-fast",
+    "passed": 84,
+    "failed": 0,
+    "skipped": 0,
+    "output": "artifact://192"
+  },
+  "repository_gates": {
+    "command": "env -u CARGO_TARGET_DIR cargo clippy --all-targets --all-features -- -D warnings && env -u CARGO_TARGET_DIR cargo nextest run --all-features --no-fail-fast && env -u CARGO_TARGET_DIR cargo test --doc --all-features && env -u CARGO_TARGET_DIR cargo fmt --all -- --check",
+    "exit_code": 0,
+    "clippy": "pass",
+    "format": "pass",
+    "nextest": {
+      "passed": 1241,
+      "failed": 0,
+      "skipped": 49
+    },
+    "doctests": {
+      "passed": 18,
+      "failed": 0,
+      "ignored": 2
+    },
+    "output": "artifact://197",
+    "qualification_caller_scope": "These Rust targets do not compile or execute the standalone qualification caller; current-source pair preparation and corpus replay verify that caller separately."
+  },
+  "review": {
+    "reviewer": "QualifiedLookupReview",
+    "finding": "Existing graph test inserted a duplicate source qualified name yet asserted arbitrary first-match selection.",
+    "disposition": "Removed obsolete duplicate-row setup; retained source identity, dangling-edge omission, and invalid-row decode assertions.",
+    "follow_up": "Correct / no findings.",
+    "lint_correction": "Renamed Rust test caller bindings to incoming/incoming_names after clippy::similar_names; no lint suppression."
+  },
+  "projection_identity": {
+    "before_runtime_sha256": "789aeffe204ad51ba59bbdd54d659ab02fd18c93bd8413aabef32d57223f6b2b",
+    "after_runtime_sha256": "944ece271ad1fc377ab01d0d073665f1842665c9b256ce824ae84648569b4276",
+    "canonical_snapshot_before_sha256": "101bbe5a42d9cca33be839b269a1c220cbfa7fb4a0fa058c55e81c30cd832e2d",
+    "canonical_snapshot_after_sha256": "101bbe5a42d9cca33be839b269a1c220cbfa7fb4a0fa058c55e81c30cd832e2d",
+    "unchanged": true,
+    "runtime_delta": "Only literal evaluation/restore instrumentation match and replacement strings migrated to the current multiline environment-argument syntax; timer spans/cardinality/phase names unchanged."
+  },
+  "preparation": {
+    "command": "env -u CARGO_TARGET_DIR python3 .tethys-et80/prepare.py --output target/qualification/tethys-et80-current-v3",
+    "exit_code": 0,
+    "receipt": "preparation.json",
+    "receipt_sha256": "90ca35a53978caea97341a2255c6c7ab66b98b0e8cf1fdaa19861ab041d68b34",
+    "built_symbols_sha256": "b28d1a732674c10a87e51fc09b7013da8288b934adf4a588b6bc40e6b33f5d09"
+  },
+  "compatibility_review": {
+    "reviewer": "QualifiedLookupReview",
+    "verdict": "correct / no findings",
+    "scope": "Explicit inherited environment captures the controlled driver environment; evaluation/restore literal anchor migrations retain exact-one cardinality, phase names, deadlines and process-call-only RAII spans. Projection and normalization unchanged."
+  },
+  "checked_test_sources": {
+    "tests/method_calls.rs": "7851e0d84e1450576797f7916e614b1348b7d27be5911f51345dc73bbeaa4d7b",
+    "tests/graph.rs": "50606c6accf3a7309fbbef906698c0a936d13b4cf8b2a73ff4cf4b04c7f26294",
+    "tests/pass2_crate_root_paths.rs": "49baf39101c6884fbdfba896922a9d599ca89e68add53f1ca6f4baf121a156c9"
+  },
+  "corpus": {
+    "command": "python3 .tethys-et80/replay.py --output target/qualification/tethys-et80-after --instrumentation target/qualification/tethys-et80-current-v3/instrumentation",
+    "exit_code": 0,
+    "receipt": "after.json",
+    "same_request_root_and_frozen_environment_as_before": true,
+    "projects": 104,
+    "evaluation_units": 159,
+    "canonical_equal": true,
+    "stdout_equal": true,
+    "differing_tables": [],
+    "previously_divergent_sites": {
+      "source": "diagnosis.json#/references/instrumented",
+      "query": "SELECT r.symbol_id, r.strategy, r.reference_name\nFROM refs r JOIN files f ON f.id=r.file_id\nJOIN symbols enclosing ON enclosing.id=r.in_symbol_id\nLEFT JOIN symbols target ON target.id=r.symbol_id\nWHERE f.path IN (?, ?) AND r.kind=? AND r.line=? AND r.column=?\nAND enclosing.qualified_name=? AND (r.reference_name=? OR target.qualified_name=?)",
+      "selection_note": "Chained C# calls can share start coordinates and have unset end spans; reference/target name disambiguates the witness from unrelated calls at that position.",
+      "results": {
+        "instrumented": {
+          "retained_rows": 15,
+          "unbound_without_strategy": 15,
+          "reference_names": [
+            "App::BuildAvaloniaApp",
+            "ClipboardDataFormatHelper::ToDataFormat",
+            "Command::Execute",
+            "VulkanSupport::TryInitialize"
+          ]
+        },
+        "control": {
+          "retained_rows": 15,
+          "unbound_without_strategy": 15,
+          "reference_names": [
+            "App::BuildAvaloniaApp",
+            "ClipboardDataFormatHelper::ToDataFormat",
+            "Command::Execute",
+            "VulkanSupport::TryInitialize"
+          ]
+        }
+      }
+    },
+    "original_database_restored_byte_exactly": true
+  }
+}

@@ -51,6 +51,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     DiscoveryCachePolicy::Enabled
                 },
                 timeout: Duration::from_secs(60),
+                environment: tethys::discovery::EvaluationEnvironment::inherited(),
             };
             tethys
                 .index_with_options(options.with_discovery(discovery))?

@@ -1,5 +1,5 @@
-//! Integration tests for receiver-gated Rust method-call resolution
-//! (tethys-53iv).
+//! Integration tests for qualified and receiver-gated method-call resolution
+//! (tethys-et80, tethys-53iv).
 //!
 //! Asserts happen against `refs` columns directly (`symbol_id`, `strategy`,
 //! `reference_name`), never `refs_named` — resolved refs null their
@@ -38,6 +38,148 @@ fn method_ref_at(tethys: &tethys::Tethys, file: &str, line: u32) -> RefRow {
         "expected exactly one call ref at {file}:{line}, got {rows:?}"
     );
     rows.into_iter().next().expect("len checked")
+}
+
+/// A workspace-wide qualified fallback must not choose between duplicate
+/// declarations, but a unique method on the same type must still bind.
+#[test]
+fn csharp_qualified_fallback_declines_duplicate_methods() {
+    for (mode, options) in [
+        ("batch", tethys::IndexOptions::default()),
+        (
+            "streaming",
+            tethys::IndexOptions::with_streaming_batch_size(1),
+        ),
+    ] {
+        let (_dir, mut tethys) = workspace_with_files(&[
+            (
+                "Helper.cs",
+                "namespace First { public class Helper {\n\
+                 \x20   public static void Ping() {}\n\
+                 \x20   public static void Solo() {}\n\
+                 } }\n",
+            ),
+            (
+                "Twin.cs",
+                "namespace Second { public class Helper {\n    public static void Ping() {}\n} }\n",
+            ),
+            (
+                "Caller.cs",
+                "namespace First { public class Caller {\n\
+                 \x20   public static void Run() {\n\
+                 \x20       Helper.Ping();\n\
+                 \x20       Helper.Solo();\n\
+                 \x20   }\n\
+                 } }\n",
+            ),
+        ]);
+        tethys.index_with_options(options).expect("index failed");
+
+        let (strategy, target, name) = method_ref_at(&tethys, "Caller.cs", 3);
+        assert_eq!(target, None, "{mode}: duplicate Helper::Ping must not bind");
+        assert_eq!(strategy, None, "{mode}: unresolved ref has no strategy");
+        assert_eq!(name.as_deref(), Some("Helper::Ping"));
+
+        let (strategy, target, _) = method_ref_at(&tethys, "Caller.cs", 4);
+        assert_eq!(target.as_deref(), Some("Helper::Solo"));
+        assert_eq!(strategy.as_deref(), Some("qualified_exact"));
+
+        let callees = tethys
+            .get_symbol_dependencies("Caller::Run")
+            .expect("callees query");
+        let callee_names: Vec<_> = callees
+            .iter()
+            .map(|symbol| symbol.qualified_name.as_str())
+            .collect();
+        assert_eq!(
+            callee_names,
+            ["Helper::Solo"],
+            "{mode}: retain only the unique method's call edge"
+        );
+    }
+}
+
+/// Rust's receiver-derived qualified names share the same conservative
+/// lookup contract as C# static calls and public exact-name selectors.
+#[test]
+fn rust_qualified_fallback_and_selectors_decline_duplicate_methods() {
+    let (_dir, mut tethys) = workspace_with_files(&[
+        ("src/lib.rs", "pub mod first;\npub mod second;\n"),
+        (
+            "src/first.rs",
+            "pub struct Helper;\n\
+             impl Helper {\n\
+             \x20   pub fn ping(&self) {}\n\
+             \x20   pub fn solo(&self) {}\n\
+             \x20   pub fn run(&self) {\n\
+             \x20       self.ping();\n\
+             \x20       self.solo();\n\
+             \x20   }\n\
+             }\n",
+        ),
+        (
+            "src/second.rs",
+            "pub struct Helper;\nimpl Helper {\n    pub fn ping(&self) {}\n}\n",
+        ),
+    ]);
+    tethys.index().expect("index failed");
+
+    let (strategy, target, name) = method_ref_at(&tethys, "src/first.rs", 6);
+    assert_eq!(target, None, "duplicate Helper::ping must not bind");
+    assert_eq!(strategy, None);
+    assert_eq!(name.as_deref(), Some("Helper::ping"));
+
+    let (strategy, target, _) = method_ref_at(&tethys, "src/first.rs", 7);
+    assert_eq!(target.as_deref(), Some("Helper::solo"));
+    assert_eq!(strategy.as_deref(), Some("qualified_exact"));
+
+    for selector in ["Helper::ping", "Helper::missing"] {
+        assert!(
+            tethys.get_symbol(selector).expect("symbol query").is_none(),
+            "ambiguous or absent exact selector must decline: {selector}"
+        );
+        assert!(
+            matches!(
+                tethys.get_callers(
+                    selector,
+                    tethys::CallerMode::Indexed {
+                        call_edges: tethys::CallEdgeSelection::All,
+                    },
+                ),
+                Err(tethys::Error::NotFound(_))
+            ),
+            "ambiguous or absent caller selector must report NotFound: {selector}"
+        );
+    }
+
+    let unique = tethys
+        .get_symbol("Helper::solo")
+        .expect("symbol query")
+        .expect("unique exact selector");
+    assert_eq!(unique.qualified_name, "Helper::solo");
+
+    let callees = tethys
+        .get_symbol_dependencies("Helper::run")
+        .expect("callees query");
+    let callee_names: Vec<_> = callees
+        .iter()
+        .map(|symbol| symbol.qualified_name.as_str())
+        .collect();
+    assert_eq!(callee_names, ["Helper::solo"]);
+
+    let incoming = tethys
+        .get_callers(
+            "Helper::solo",
+            tethys::CallerMode::Indexed {
+                call_edges: tethys::CallEdgeSelection::All,
+            },
+        )
+        .expect("unique caller selector");
+    let incoming_names: Vec<_> = incoming
+        .iter()
+        .map(|caller| caller.symbol.qualified_name.as_str())
+        .collect();
+    assert_eq!(incoming_names, ["Helper::run"]);
 }
 
 /// xebx-style name-arm tier: the two unique-or-decline arms an

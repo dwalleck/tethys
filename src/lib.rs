@@ -372,7 +372,10 @@ impl Tethys {
         self.db.list_symbols_in_file(file_id)
     }
 
-    /// Get a symbol by its qualified name (exact match).
+    /// Get the unique symbol whose qualified name matches exactly.
+    ///
+    /// Returns `None` for missing or ambiguous names. Qualified names can repeat
+    /// across files; this lookup never selects an arbitrary matching declaration.
     pub fn get_symbol(&self, qualified_name: &str) -> Result<Option<Symbol>> {
         self.db.get_symbol_by_qualified_name(qualified_name)
     }

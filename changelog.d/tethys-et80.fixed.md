@@ -1,0 +1,2 @@
+- Rust and C# indexing no longer binds ambiguous qualified references to whichever declaration was indexed first, preventing order-dependent callers and dependencies.
+- Symbol queries decline ambiguous exact names instead of silently selecting one declaration; name-based callers, callees, impact, and reachability queries report not found for those names.
