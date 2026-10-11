@@ -8,6 +8,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import time
 
 REPOSITORY = Path(__file__).resolve().parents[1]
@@ -22,15 +23,18 @@ def digest(path):
 
 
 @contextmanager
-def preserved_workspace(root, backup):
-    """Restore the untouched retained directory even when a diagnostic run fails."""
+def preserved_workspace(root):
+    """Keep the backup beside root so output may live on another filesystem."""
+    backup_directory = Path(tempfile.mkdtemp(prefix=f".{root.name}-backup-", dir=root.parent))
+    backup = backup_directory / "untouched-workspace"
     root.rename(backup)
     try:
-        yield
+        yield backup
     finally:
         if root.exists():
             shutil.rmtree(root)  # Only the diagnostic copy, never the retained tree.
         backup.rename(root)
+        backup_directory.rmdir()
 
 
 def main():
@@ -49,18 +53,18 @@ def main():
     environment = controlled_environment(frozen, request["host"])
     authority = verify_environment(frozen)
     root = retained / "work/corpus/corpus-avalonia"
-    backup = output / "untouched-workspace"
     receipt = {
         "source_head": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=REPOSITORY, text=True).strip(),
         "retained_run": str(retained), "shared_root": str(root),
-        "preserved_workspace": str(backup), "path_isolation": "rename and finally restore",
+        "path_isolation": "rename and finally restore",
         "replay_sha256": digest(Path(__file__)),
         "projection_sha256": digest(REPOSITORY / ".tethys-82a6/oracles/qualification_runtime.py"),
         "pristine": str(pristine), "request": request,
         "frozen_environment": authority, "runs": {},
     }
-    with preserved_workspace(root, backup):
+    with preserved_workspace(root) as backup:
+        receipt["preserved_workspace"] = str(backup)
         for label in ("instrumented", "control"):
             if root.exists():
                 shutil.rmtree(root)  # Only the disposable copy created below.

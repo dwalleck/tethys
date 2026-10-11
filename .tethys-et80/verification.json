@@ -106,5 +106,66 @@
       }
     },
     "original_database_restored_byte_exactly": true
+  },
+  "review_repair_f1": {
+    "scope": "PR #58 cross-filesystem replay output; no production lookup, driver, instrumentation or projection changes.",
+    "base_head": "f0936378d1943525457ede2212fe16efe00fa35e",
+    "checked_replay_sha256": "bba0c711c907aa35990868ecbb9e810b4420b2f423b292912659142b18d154bd",
+    "baseline": {
+      "source": "PR #58 original review, preservation-context probe",
+      "observed": "Moving the retained root beneath output on another device raised OSError errno 18 (EXDEV) before entering the replay body; the original remained unmoved."
+    },
+    "repair": "preserved_workspace reserves a unique backup directory beside the retained root and yields its path to the receipt; output remains independent. Empty backup storage is removed only after restoration succeeds.",
+    "lifecycle_smoke": {
+      "method": "Imported the repaired replay module; exercised preserved_workspace with real temporary directories on distinct devices, once with a successful body and once with a raised RuntimeError.",
+      "cases_passed": 2,
+      "assertions": [
+        "Original directory inode and file bytes restored",
+        "Disposable workspace removed",
+        "Evidence files on the other filesystem retained",
+        "Temporary backup directory removed after restoration"
+      ]
+    },
+    "corpus_smoke": {
+      "command": "python3 .tethys-et80/replay.py --output /dev/shm/tethys-et80-review-f1-20261010 --instrumentation target/qualification/tethys-et80-current-v3/instrumentation",
+      "exit_code": 0,
+      "retained_receipt": "target/qualification/tethys-et80-review-f1-20261010/receipt.json",
+      "receipt_sha256": "1291772ae0a594b2b4fa0acebefb7316c53d03b86b50abb2408c7d0cabdff436",
+      "evidence_retention": "All output files copied byte-exactly from tmpfs to the retained directory after completion; temporary tmpfs output removed.",
+      "workspace_device": 51,
+      "output_device": 32,
+      "backup_directory_removed": true,
+      "projects": 104,
+      "evaluation_units": 159,
+      "canonical_equal": true,
+      "stdout_equal": true,
+      "differing_tables": [],
+      "canonical_sha256": "9f7ea33d38d61333de4541ac65bd7cf41efe87d1eea2ed6ab9924f4629d883a3",
+      "stdout_sha256": "f502f0e5b10f3c7dc4a90f962d1990e4b5c98deda91e97b6806c9df353928f1b",
+      "instrumented": {
+        "binary_sha256": "571e34d4ff2318a69e38b3a0cce4e78bd8ab241ca5303a75094d920d085dcea6",
+        "database_sha256": "d9395ff41565291748b43b9021cd4d8630165a4774f77ad91f752eed2297e33e",
+        "seconds": 332.7584881350049,
+        "exit_code": 0,
+        "frozen_environment_unchanged": true
+      },
+      "control": {
+        "binary_sha256": "b5501e90fac6c715ffd0420fb510049fcb9beb1c60970d7295a53b1663c798ae",
+        "database_sha256": "9b2a77703101f17b25070a7f2262669069a3266492142231084633d48247b122",
+        "seconds": 321.1307480329997,
+        "exit_code": 0,
+        "frozen_environment_unchanged": true
+      },
+      "original_database_before_sha256": "939a0232628d2d07142c2f084f050fa19d9c8fcdd0603858b05859b480e12691",
+      "original_database_after_sha256": "939a0232628d2d07142c2f084f050fa19d9c8fcdd0603858b05859b480e12691"
+    },
+    "independent_review": {
+      "reviewer": "ReplayRepairReview",
+      "scope": "Backup placement, unique allocation, receipt path, sole caller migration, restoration and preservation on failure",
+      "checked_replay_sha256": "bba0c711c907aa35990868ecbb9e810b4420b2f423b292912659142b18d154bd",
+      "verdict": "correct; no findings"
+    },
+    "retained_evidence": "Earlier Rust gates and lookup regressions remain applicable: no Rust sources, tests, dependencies or configuration changed. Historical after.json remains the receipt for its original replay revision; this section owns the repaired script's new consumer proof.",
+    "unresolved_failures": []
   }
 }
