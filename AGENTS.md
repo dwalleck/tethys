@@ -100,6 +100,10 @@ For "what is X / how do I call X / how does process Y work", route via
   supported only by speculative references; `CallerMode::LspRefined` augments
   all indexed callers and is direct-only. The CLI rejects `--lsp` with
   `--exclude-speculative` or `--transitive` rather than ignoring either flag.
+- **Exact qualified lookup is unique-or-decline** (tethys-et80).
+  `Index::get_symbol_by_qualified_name` returns `None` for absent or duplicate
+  names. Pass-2 fallback and name-based query entry points share this rule;
+  row IDs and streaming insertion order never break ties.
 - **Coupling evidence belongs to `src/architecture.rs`.** The SQL view yields
   indexed Ca/Ce; `CouplingMetrics::instability` owns the formula. Evaluated-unit
   counts use `MetricEvidence`: unselected project declarations withhold source Ce

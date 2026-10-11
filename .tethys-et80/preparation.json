@@ -1,0 +1,580 @@
+{
+  "status": "prepared; transparency required for every index invocation",
+  "controls": [],
+  "sampler": {
+    "name": "psutil",
+    "version": "7.2.2"
+  },
+  "rustc": {
+    "commit-hash": "4a4ef493e3a1488c6e321570238084b38948f6db",
+    "commit-date": "2026-03-02",
+    "host": "x86_64-unknown-linux-gnu",
+    "release": "1.94.0",
+    "LLVM version": "21.1.8",
+    "launcher_sha256": "4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10"
+  },
+  "build_profile": {
+    "name": "release",
+    "offline": true
+  },
+  "build_environment_policy": "ambient snapshot used only for preparation; values not recorded",
+  "evaluation_environment_policy": "supplied environment used exactly, without ambient merging",
+  "source_manifest_sha256": "58af8dcde55b8d0dfd04e654896765b001a48d5794c8d3ceb108e7a6fb33a222",
+  "driver_sha256": "988385e4ff5647ae3ce1c808a4d161824054308d38a2252bde343024bd235efc",
+  "cli_sha256": "9a1ef7ea1cc8cc18d0fcb65ea6cdf507365318832bb81167283b075343a3d23b",
+  "implementation_sha256": "972c24bd226cf3371f0e27cc78bb3f1d10d5f413ec6526e22331bdaf53d0bae4",
+  "implementation_inputs": {
+    "schema": 1,
+    "rust_inputs": [
+      {
+        "path": "Cargo.lock",
+        "sha256": "18d483ed3ac639f99dc7613c514ab99f9cdfdc3e7436ee5911cfca9f15426f41"
+      },
+      {
+        "path": "Cargo.toml",
+        "sha256": "b88098ec767c4b889b36a6d87e82f78d333510f4d01f5793068f2d33ff41dfec"
+      },
+      {
+        "path": "rust-toolchain.toml",
+        "sha256": "474342a18df37f923f59df43b1b90e6c0b0d6758612462bbc0dadbe37fe2cadf"
+      },
+      {
+        "path": "src/architecture.rs",
+        "sha256": "5c308855e213cbe12a2b111d5063e264998e3a736e093b4e3fc3908e74a4302c"
+      },
+      {
+        "path": "src/batch_writer.rs",
+        "sha256": "87800512adfe250b88caadbd8d7362ffabe42ccec7b874141b6b8f72a21b9b87"
+      },
+      {
+        "path": "src/cargo.rs",
+        "sha256": "069e44cbee231c3a4c767c63d08b854ee35f29809aabf12693ab3f48a89bb0f9"
+      },
+      {
+        "path": "src/cli/affected_tests.rs",
+        "sha256": "215d12dad6caefee957d7baeb6d0860047ad223afa08e59d2ff33b1c4b313e6b"
+      },
+      {
+        "path": "src/cli/callers.rs",
+        "sha256": "55d86d5a7feab69bfe37a2ad1c4d310be378dda9058510a94ef24fc565e9fa55"
+      },
+      {
+        "path": "src/cli/coupling.rs",
+        "sha256": "77dca6bf4cfbb29630e03f90f514f5d840b6aeeed3ca79a2ec967aca4c24e0b7"
+      },
+      {
+        "path": "src/cli/cycles.rs",
+        "sha256": "7fb681f023b612a9156ed2d987ecb7027de254f908893e428f6872b2e7dc2fc0"
+      },
+      {
+        "path": "src/cli/dead_code.rs",
+        "sha256": "95cb5f0f0b790d9f68698b278dc70f922634761905feac0928b0bdb7f60ea7c0"
+      },
+      {
+        "path": "src/cli/deprecated_callers.rs",
+        "sha256": "b121387bc2aa7fd5d365fd1aa3bfbbba7237fab5780c5a59824477e3df8afde0"
+      },
+      {
+        "path": "src/cli/display.rs",
+        "sha256": "19c65675beb6151468b9ed2bc670279c8ce63717d3918213d1127557ec19db39"
+      },
+      {
+        "path": "src/cli/hierarchy.rs",
+        "sha256": "902409aba3ab67b40d284c98f35951f7ffa5e0eee43abbeafb1681add7762970"
+      },
+      {
+        "path": "src/cli/impact.rs",
+        "sha256": "b61630a0e1477cae8ea049fe15403029553a42fbbb97c39c1b61190a6c24bc8e"
+      },
+      {
+        "path": "src/cli/index.rs",
+        "sha256": "b5d80dc2106624d821701ed00db47b7080db6a79521e36d075b0b0e0b2213672"
+      },
+      {
+        "path": "src/cli/mod.rs",
+        "sha256": "800df0c2441de84649c9f9471cf03136ff0e085a2fdc6bd2d5b515dcec8ab6eb"
+      },
+      {
+        "path": "src/cli/panic_points.rs",
+        "sha256": "39bac72c1e2e5a1f36f20d7e33a55f5de0ffc1e66eb40f45c62e6e3b3dfa58bf"
+      },
+      {
+        "path": "src/cli/reachable.rs",
+        "sha256": "d0c6fa3f07539c089241a2d04b3fd13eec87eafbf053bcf4766483966a05cbc1"
+      },
+      {
+        "path": "src/cli/search.rs",
+        "sha256": "c2c753e753b40ee5bf22c51ec837d5b9252b1861316eadc046ad458069227337"
+      },
+      {
+        "path": "src/cli/stats.rs",
+        "sha256": "13878386f90c83615820dcb3b2e75b53b3e047035bfcd0b8d6dbd3063078635e"
+      },
+      {
+        "path": "src/cli/untested_code.rs",
+        "sha256": "c5f0e93f2d32fa6017be30bef01cf702dfe57ea9082f12921ca5b3b9c1d77455"
+      },
+      {
+        "path": "src/cli/unused_imports.rs",
+        "sha256": "edd0cb9df187fc1f900c70b1e986a8cf0dc4909a4a48f3dd5f4932bf7a1b9b14"
+      },
+      {
+        "path": "src/cli/visibility_tightening.rs",
+        "sha256": "f4a242e7822ac57164e4300eff4b01645be0f78ad1c188d9e2c8e629af265910"
+      },
+      {
+        "path": "src/db/architecture.rs",
+        "sha256": "32d334ad4cfd8a1e123ac0a9a454e0af43a5f8af9dc2dfbf813b728752d689de"
+      },
+      {
+        "path": "src/db/call_edges.rs",
+        "sha256": "fa3c2ba0defd95f08dab66d2084e3154976d12e61b4f8242c0454cb3fa0b541a"
+      },
+      {
+        "path": "src/db/dead_code.rs",
+        "sha256": "089d364998469d6e12e2e7e0139411fe156847933076988a4eeb8c1e843d2951"
+      },
+      {
+        "path": "src/db/deprecated.rs",
+        "sha256": "8eb89f2164ba35a61920dbce09f808d4473e2fdfa227b2c753b1d3501f9c61b7"
+      },
+      {
+        "path": "src/db/discovery.rs",
+        "sha256": "92b3cd65fd5dfa7a5347b380dcd35bf1531bba6e7ead86ab82e82a8913d62829"
+      },
+      {
+        "path": "src/db/file_deps.rs",
+        "sha256": "ecdebd1d3aab5b7b933f34594579ca0906d8796dcb5db3e1dcccc746fb1696fd"
+      },
+      {
+        "path": "src/db/files.rs",
+        "sha256": "ab15ecefc88fb2bd0f29ec2af5812a957a3ee20bb672019608ecc813b8a43a42"
+      },
+      {
+        "path": "src/db/graph.rs",
+        "sha256": "cd8e284b93b775a98a347f110d39f010a68480229770d45349a7c92cf177f911"
+      },
+      {
+        "path": "src/db/helpers.rs",
+        "sha256": "76bdc05425139dcce00dcce0fb89c6255548534377f6e0665899ce0b2c97f51f"
+      },
+      {
+        "path": "src/db/hierarchy.rs",
+        "sha256": "7866032802335306f45477def1086b912330e83f5665a1e447bd17642a56c4e2"
+      },
+      {
+        "path": "src/db/imports.rs",
+        "sha256": "b374d82467878ba4babf47ce36a614132bf761c0e682035aa5ea9edb4b9d0dfb"
+      },
+      {
+        "path": "src/db/mod.rs",
+        "sha256": "e98a30ddcb271ba9a36e04e75cdc1a44656773a4ca6920acc0cc7022a93d92fd"
+      },
+      {
+        "path": "src/db/overview.rs",
+        "sha256": "cbb23e856e628c0a147782a6c2d48c9f9da892feb576dadadac9b02c51b864ed"
+      },
+      {
+        "path": "src/db/panic_points.rs",
+        "sha256": "09d23a92041a8e4fda716e6a5a624f72ab73233019e39ac6868379f7b68fdb71"
+      },
+      {
+        "path": "src/db/references.rs",
+        "sha256": "9d9260be4b552da1d53e7a91d2b8340e8c1a40d5a0cdf54773e85c3f0cdfa242"
+      },
+      {
+        "path": "src/db/revision.rs",
+        "sha256": "f092efaf9c6695cc7e128d58cb3f64a44e69163b3174efdb0a0f787662b0d3ea"
+      },
+      {
+        "path": "src/db/schema.rs",
+        "sha256": "864b233048acb3caab61f5e951b85f19b4c2b697637c0ecfac9d1a27f2ddad53"
+      },
+      {
+        "path": "src/db/symbols.rs",
+        "sha256": "b28d1a732674c10a87e51fc09b7013da8288b934adf4a588b6bc40e6b33f5d09"
+      },
+      {
+        "path": "src/db/untested.rs",
+        "sha256": "23068b53d8506ed8b72df80509d78ebd10688bd207a298c73a093ccfdb3d44b0"
+      },
+      {
+        "path": "src/db/visibility.rs",
+        "sha256": "bfda90acde74e05389a5f127616ed2f9a028f8b0273e9eed2d0ca95962721edb"
+      },
+      {
+        "path": "src/dead_code.rs",
+        "sha256": "97a333bba75f20bab196228570fd92d005d19c5e32b26e2edcaa47c7f7ac9b81"
+      },
+      {
+        "path": "src/discovery/mod.rs",
+        "sha256": "d15e80c2a407e1300c52c134441126d4966d4a67b1e8a7c151d78652d6462fa2"
+      },
+      {
+        "path": "src/discovery/msbuild/cache.rs",
+        "sha256": "df4ae7a303369c9c9de38ebc1a8722218b0f81a22d0c8977c16263ca57a6fede"
+      },
+      {
+        "path": "src/discovery/msbuild/candidates.rs",
+        "sha256": "9a5e4c31ecfdc17892c4b89f7090d609d56c7fb451593dce5b1d7a6a13e91a1a"
+      },
+      {
+        "path": "src/discovery/msbuild/host.rs",
+        "sha256": "ffe91e01ba0a5d105051a03db2d353925e03c7eee2125664a1c4a0bc48093834"
+      },
+      {
+        "path": "src/discovery/msbuild/input.rs",
+        "sha256": "c2e5ebe579605836026b52d3dd330eebd74930d117530bef0a6b6e59a69c7a1e"
+      },
+      {
+        "path": "src/discovery/msbuild/mod.rs",
+        "sha256": "bfeed55bd046bc9f0cae2f7b4896c8778200c2e87cf0ac0d0d9b2e3cc85bed4e"
+      },
+      {
+        "path": "src/discovery/msbuild/restore/graph/dependencies.rs",
+        "sha256": "4c2c62bd0f020801a07e6fe2e73c48a1d1c11102913293bf90537e4dac4ddffa"
+      },
+      {
+        "path": "src/discovery/msbuild/restore/graph.rs",
+        "sha256": "454b6c883c36938ea20e3ecb97b5e92ce3a9a413aa7e5897d8ebd483f8bd8c90"
+      },
+      {
+        "path": "src/discovery/msbuild/restore.rs",
+        "sha256": "c4cedc40e84d1ffbe3010be0aa9ace97da6dc4cbd8cb1e0f6eb3ed4437c240fe"
+      },
+      {
+        "path": "src/discovery/types.rs",
+        "sha256": "21aec8df3bae2c3abeaf919bea340f13607673ca874166758ddc56a26a388b39"
+      },
+      {
+        "path": "src/error.rs",
+        "sha256": "59fd3a3eb892ea75f66657b66f676442b4fa7a2724b611aa23b70a72f7fe8495"
+      },
+      {
+        "path": "src/graph/mod.rs",
+        "sha256": "7df903ac9ab49640a2362511f28c6ff34f5e3f872becbc6c4b2183aa807f4589"
+      },
+      {
+        "path": "src/graph/types.rs",
+        "sha256": "bacf10a2f040299cdfcc92ae82e95f2370dfd6d61f99df7a94b578ee48e6de69"
+      },
+      {
+        "path": "src/indexing.rs",
+        "sha256": "058443d61c2825f07dc7eb554f163de9f818e5c85034d7b474c3e07024a587e8"
+      },
+      {
+        "path": "src/languages/common.rs",
+        "sha256": "7404ba0675047dd31828a802bd04e3835353c5b020e0c85ab7f786d76c4123cb"
+      },
+      {
+        "path": "src/languages/csharp.rs",
+        "sha256": "ebbf0958e71e61327abdd12807b5067bb246f463076dce6182b8d341c2dbe52e"
+      },
+      {
+        "path": "src/languages/mod.rs",
+        "sha256": "215e750c30db85812d5a41cf8bec84648af5ba219972d87e76a4d4baa30c7c62"
+      },
+      {
+        "path": "src/languages/module_resolver.rs",
+        "sha256": "6fc7d6d2d477589f28c196cf64f727171fd83a2b76a1b11912957d5f382dca9c"
+      },
+      {
+        "path": "src/languages/rust.rs",
+        "sha256": "e3896b066dd9f0560e98c07b454fc39c881669cc8b6997d6bacb6325d4d6531c"
+      },
+      {
+        "path": "src/languages/tree_sitter_utils.rs",
+        "sha256": "ed24b130984ec9590559f8519354184025dae2c035669e63fa6a276b52457c91"
+      },
+      {
+        "path": "src/lib.rs",
+        "sha256": "869fe9b8716b7b165ad2bcfdf912c69fb6f63cd7262486318409b1747484f4da"
+      },
+      {
+        "path": "src/lsp/encoding.rs",
+        "sha256": "4875b24c13c49b08971c9e9de8d03df4266a20c16968b1d398e83d0ba4f169ce"
+      },
+      {
+        "path": "src/lsp/error.rs",
+        "sha256": "09b6cd0f531efe4655e16f0ba52dda63f1665cd2c6a0819f593087a7c8d5a9ad"
+      },
+      {
+        "path": "src/lsp/mod.rs",
+        "sha256": "75694c9e7e903191ffb1c91b031870a60fdb255de22164c2dd23297b52519c53"
+      },
+      {
+        "path": "src/lsp/provider.rs",
+        "sha256": "3b0cb7d3b836664de2f97853cd3f23be6f2ed88b437f712da6b9788c8015ede2"
+      },
+      {
+        "path": "src/lsp/status.rs",
+        "sha256": "7c52179cab6a19791437f79f031e880508bcfb849167a1abb0c04c24d633b0bf"
+      },
+      {
+        "path": "src/lsp/transport.rs",
+        "sha256": "19673625858c5d204cff908e9819f10d274223ab294ab6c10ce73bdb760c67a0"
+      },
+      {
+        "path": "src/main.rs",
+        "sha256": "ccc78468dfe5dd661a3a5ace87bc5b938199bb18ed07a464f161a2a6ba3239a1"
+      },
+      {
+        "path": "src/overview.rs",
+        "sha256": "24c642c3aed3e7ff4aa98a3192898726970f773b77e8e752d951a0962f9a2ed4"
+      },
+      {
+        "path": "src/parallel.rs",
+        "sha256": "df1b88de8b2f4e0094f4c8f8745f06cb48f0ff598843b4e5721e58930b58c99c"
+      },
+      {
+        "path": "src/reindex.rs",
+        "sha256": "bfa825a1c14dbde3ecafce6212e3de3745f349ba96f0141cea205ba1fa28cb38"
+      },
+      {
+        "path": "src/resolve.rs",
+        "sha256": "19927e7f79dc71e3c40799394a5fe218dfb679d8ba39c7c98f3c1da28ab4b878"
+      },
+      {
+        "path": "src/resolver.rs",
+        "sha256": "690c7127e0851d8709f1cd4dd1a9aadb60d8c2ede453fef3fcc2aeaa00c51aa4"
+      },
+      {
+        "path": "src/types.rs",
+        "sha256": "753a3f46811351f6f5e00b6795f34b2f0ae465fa44438faa4c992bf17088c75c"
+      },
+      {
+        "path": "src/unused_imports.rs",
+        "sha256": "c331c8009a8b0caeea5aa3be9a1607cec6f16b34ff61d918b48e9e7565705bf7"
+      }
+    ],
+    "driver": {
+      "path": "qualification_driver.rs",
+      "sha256": "988385e4ff5647ae3ce1c808a4d161824054308d38a2252bde343024bd235efc"
+    },
+    "caller_manifest": {
+      "package": {
+        "name": "tethys-qualification-driver",
+        "version": "0.0.0",
+        "edition": "2024"
+      },
+      "workspace": {},
+      "dependencies": {
+        "tethys": {
+          "path": "$IMPLEMENTATION"
+        },
+        "serde": {
+          "version": "1",
+          "features": [
+            "derive"
+          ]
+        },
+        "serde_json": "1"
+      }
+    },
+    "build_contract": {
+      "driver": [
+        "cargo",
+        "build",
+        "--offline",
+        "--release",
+        "--manifest-path",
+        "$CALLER/Cargo.toml",
+        "--target-dir",
+        "$BUILD"
+      ],
+      "cli": [
+        "cargo",
+        "build",
+        "--offline",
+        "--release",
+        "--bin",
+        "tethys",
+        "--manifest-path",
+        "$IMPLEMENTATION/Cargo.toml",
+        "--target-dir",
+        "$BUILD"
+      ]
+    },
+    "companion": {
+      "files": 7,
+      "bytes": 836575,
+      "sha256": "f6e1fb837b44fa3ed46cd5706e64f79190db0a71c1db62a1c991e01b77e2bb97"
+    },
+    "scope": "Uninstrumented copied Rust build inputs, public caller/build contract and supplied companion bytes; top-level tests/fixtures/benches/docs and temporary build paths excluded"
+  },
+  "identity_inputs": {
+    "toolchain": {
+      "dotnet": {
+        "selected_sdk": "10.0.102",
+        "closures": {
+          "selected-sdk": {
+            "files": 3668,
+            "bytes": 410481152,
+            "sha256": "b966dca18450214aecb0c9c4e8c1d773b0a0129260d4580841c95bd6786d4d8f"
+          },
+          "muxer": {
+            "files": 1,
+            "bytes": 71808,
+            "sha256": "6dec3b3c7d24b280495f71a81fb19e39551d50c9cab4509e4d0322d27341af76"
+          },
+          "shared": {
+            "files": 989,
+            "bytes": 307545729,
+            "sha256": "0fe70bdce21674398dc353cdff1ea5392c379aaf11053536f0dc5f44fba5806c"
+          },
+          "host": {
+            "files": 3,
+            "bytes": 906608,
+            "sha256": "b804a682b92a7fa58d2b952d428f7fc56404c9ffb68c67a86b6f9d3965642e53"
+          },
+          "packs": {
+            "files": 2263,
+            "bytes": 269113537,
+            "sha256": "9b20c1d494552c8df7a1ae98edf08102902882c4d5d342a3a98ab217d8f651c4"
+          },
+          "sdk-manifests": {
+            "files": 384,
+            "bytes": 708016,
+            "sha256": "2046fb0a3d1203c87da04fb28296e0d61b21c10ad9fef1d00c2302bb9060239a"
+          },
+          "metadata": {
+            "files": 19,
+            "bytes": 2739,
+            "sha256": "fade09fbabed574c9cc8e0a170886d901dc737d5f288d218bed617417388ffd9"
+          }
+        }
+      },
+      "rust": {
+        "compiler": {
+          "commit-hash": "4a4ef493e3a1488c6e321570238084b38948f6db",
+          "commit-date": "2026-03-02",
+          "host": "x86_64-unknown-linux-gnu",
+          "release": "1.94.0",
+          "LLVM version": "21.1.8",
+          "launcher_sha256": "4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10"
+        },
+        "target": "x86_64-unknown-linux-gnu",
+        "installed_closures": {
+          "compiler": {
+            "files": 1,
+            "bytes": 656616,
+            "sha256": "700b80e1c8c7507e76837f7808d1a97c75f0e367cb24bb955be8a9dc0c0ac850"
+          },
+          "compiler_support": {
+            "lib/libLLVM-21-rust-1.94.0-stable.so": {
+              "files": 1,
+              "bytes": 42,
+              "sha256": "137cebc43a8c60f0bb6d1843eedc8df2d17fb1b300576dcfa99dfb0866150fd1"
+            },
+            "lib/libLLVM.so.21.1-rust-1.94.0-stable": {
+              "files": 1,
+              "bytes": 186846192,
+              "sha256": "181cfff6c575ad706c1c04e7960786e42a75d3c0c14fd70666379249afa2b820"
+            },
+            "lib/librustc_driver-24b10b5e3eb5af70.so": {
+              "files": 1,
+              "bytes": 153848688,
+              "sha256": "b9e64a7bab85d53a813603b3f23c3857aebe589a0856c39bb550d308d3c79f78"
+            }
+          },
+          "host_libraries": {
+            "files": 62,
+            "bytes": 164360922,
+            "sha256": "622eab1edfaf106da589d75a83f161fcd7a047c803fbafbacd3434df9093c27c"
+          },
+          "target_libraries": {
+            "files": 62,
+            "bytes": 164360922,
+            "sha256": "622eab1edfaf106da589d75a83f161fcd7a047c803fbafbacd3434df9093c27c"
+          }
+        },
+        "profile": {
+          "name": "release",
+          "offline": true,
+          "driver_manifest": {},
+          "cli_manifest": {
+            "lto": "fat",
+            "codegen-units": 1,
+            "strip": "symbols"
+          }
+        },
+        "cargo_configuration": [
+          {
+            "name": "config.toml",
+            "sha256": "da245b7ce1e884f2631aa3da41a2c06b53a85739e1b7d72c32e50e6c7a452e04"
+          },
+          {
+            "name": "config.toml",
+            "sha256": "da245b7ce1e884f2631aa3da41a2c06b53a85739e1b7d72c32e50e6c7a452e04"
+          }
+        ],
+        "build_override_value_hashes": {}
+      },
+      "resolver_state": {
+        "schema": 1,
+        "scope": "package-content-and-isolated-home-config; excludes HTTP cache, temporary files and mtimes",
+        "files": 35302,
+        "bytes": 7287392495,
+        "sha256": "a0514bbd921a74ec91b00eb55f387e0e9d3c0df939f70bd44d86478c88a7fce8",
+        "preflight": {
+          "platform": "linux",
+          "authority": "https://github.com/NuGet/NuGet.Client/tree/5fe0c128b2d58335a60161c5141064be42dd8a6b/src/NuGet.Core",
+          "safe_configs": [],
+          "ancestor_configs": [],
+          "plugins": "explicit empty protocol-plugin lists; Windows actual-profile plugin preflight"
+        }
+      },
+      "boundary": "Observed selected installation subtrees and frozen resolver bytes; arbitrary external custom-resolver inputs, OS native-library closure and compiler-wrapper behavior are not attested"
+    },
+    "runner": {
+      "os": "Linux",
+      "architecture": "x86_64",
+      "os_release": {
+        "ID": "cachyos",
+        "BUILD_ID": "rolling"
+      },
+      "os_release_status": "observed",
+      "kernel_release": "7.2.8-1-cachyos",
+      "kernel_version": "#1 SMP PREEMPT_DYNAMIC Sat, 26 Sep 2026 15:14:17 +0000",
+      "cpu_model": "AMD RYZEN AI MAX+ PRO 395 w/ Radeon 8060S",
+      "cpu_model_status": "observed: /proc/cpuinfo",
+      "logical_cpus": 32,
+      "physical_cpus": 16,
+      "total_ram_bytes": 134287577088,
+      "runner_image": null,
+      "runner_image_status": "unavailable",
+      "resource_observer": {
+        "name": "psutil",
+        "version": "7.2.2"
+      },
+      "boundary": "OS-reported hardware/resources; no cloud image or hardware attestation"
+    }
+  },
+  "control_binary_sha256": "b5501e90fac6c715ffd0420fb510049fcb9beb1c60970d7295a53b1663c798ae",
+  "patch_sha256": "c229a31a0d92d4ba05e4ba6dadaec68de338bdaddec4541bed333cbda032edf8",
+  "instrumented_binary_sha256": "571e34d4ff2318a69e38b3a0cce4e78bd8ab241ca5303a75094d920d085dcea6",
+  "instrumented_cli_sha256": "78ad0069c605c153bc8dd5e483e00e74a0bdb7e984da98c3cb4859c742068718",
+  "cli_build_command": [
+    "cargo",
+    "build",
+    "--offline",
+    "--release",
+    "--bin",
+    "tethys",
+    "--manifest-path",
+    "/home/dwalleck/repos/tethys/target/qualification/tethys-et80-current-v3/runtime-e74i8_xr/source/Cargo.toml",
+    "--target-dir",
+    "/home/dwalleck/repos/tethys/target/qualification/tethys-et80-current-v3/runtime-e74i8_xr/target"
+  ],
+  "build_command": [
+    "cargo",
+    "build",
+    "--offline",
+    "--release",
+    "--manifest-path",
+    "/home/dwalleck/repos/tethys/target/qualification/tethys-et80-current-v3/runtime-e74i8_xr/caller/Cargo.toml",
+    "--target-dir",
+    "/home/dwalleck/repos/tethys/target/qualification/tethys-et80-current-v3/runtime-e74i8_xr/target"
+  ],
+  "provenance": "/home/dwalleck/repos/tethys/target/qualification/tethys-et80-current-v3/instrumentation"
+}

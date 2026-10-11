@@ -110,18 +110,30 @@ impl Index {
         .map_err(Into::into)
     }
 
-    /// Get a symbol by its qualified name (exact match).
+    /// Get the unique symbol whose qualified name matches exactly.
+    ///
+    /// Returns `None` when there are zero or multiple matching declarations.
     pub fn get_symbol_by_qualified_name(&self, qualified_name: &str) -> Result<Option<Symbol>> {
         trace!(qualified_name = %qualified_name, "Looking up symbol by qualified name");
         let conn = self.connection()?;
 
-        conn.query_row(
-            &format!("SELECT {SYMBOLS_COLUMNS} FROM symbols WHERE qualified_name = ?1"),
-            [qualified_name],
-            row_to_symbol,
-        )
-        .optional()
-        .map_err(Into::into)
+        let mut stmt = conn.prepare(&format!(
+            "SELECT {SYMBOLS_COLUMNS} FROM symbols WHERE qualified_name = ?1 LIMIT 2"
+        ))?;
+        let mut rows = stmt.query([qualified_name])?;
+        let Some(row) = rows.next()? else {
+            return Ok(None);
+        };
+        let first = row_to_symbol(row)?;
+        if rows.next()?.is_some() {
+            debug!(
+                qualified_name = %qualified_name,
+                first_match_file_id = %first.file_id,
+                "Refusing ambiguous qualified name match (multiple candidates)"
+            );
+            return Ok(None);
+        }
+        Ok(Some(first))
     }
 
     /// Search symbols by their kind (e.g., `SymbolKind::Module` for namespaces).

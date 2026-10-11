@@ -1,0 +1,493 @@
+{
+  "scope": "Retained-driver transparency diagnosis at the original shared absolute workspace root; not full S6 acceptance.",
+  "receipt_path": "target/qualification/tethys-et80-original-root-before/receipt.json",
+  "retained_run": "/home/dwalleck/repos/tethys/target/qualification/corpus-qualification-5",
+  "shared_root": "/home/dwalleck/repos/tethys/target/qualification/corpus-qualification-5/work/corpus/corpus-avalonia",
+  "request": {
+    "allow_restore": true,
+    "bypass_cache": true,
+    "companion": "/home/dwalleck/repos/tethys/target/worker-dist/msbuild-evaluate",
+    "host": "/home/dwalleck/.local-dotnet/sdk/10.0.102",
+    "mode": "stream",
+    "operation": "index",
+    "properties": {
+      "Configuration": "Debug",
+      "Platform": "AnyCPU",
+      "VSToolsPath": ""
+    }
+  },
+  "frozen_environment": {
+    "schema": 1,
+    "scope": "package-content-and-isolated-home-config; excludes HTTP cache, temporary files and mtimes",
+    "sdk_bootstrap_sha256": "138676af0ad4ca974067750aec894f1de25865492e88a30106860b1ab513081e",
+    "files": 35302,
+    "bytes": 7287392495,
+    "sha256": "a0514bbd921a74ec91b00eb55f387e0e9d3c0df939f70bd44d86478c88a7fce8",
+    "preflight": {
+      "platform": "linux",
+      "authority": "https://github.com/NuGet/NuGet.Client/tree/5fe0c128b2d58335a60161c5141064be42dd8a6b/src/NuGet.Core",
+      "safe_configs": [],
+      "ancestor_configs": [],
+      "plugins": "explicit empty protocol-plugin lists; Windows actual-profile plugin preflight"
+    }
+  },
+  "original_workspace_restored": true,
+  "original_database_sha256": "939a0232628d2d07142c2f084f050fa19d9c8fcdd0603858b05859b480e12691",
+  "canonical_equal": false,
+  "stdout_equal": true,
+  "differing_tables": [
+    "call_edges",
+    "file_deps",
+    "refs"
+  ],
+  "replay_sha256": "12e553ab622d23f04bd37b4be36c979b1f699f2957c100d78655b2a5af916e50",
+  "projection_sha256": "789aeffe204ad51ba59bbdd54d659ab02fd18c93bd8413aabef32d57223f6b2b",
+  "runs": {
+    "instrumented": {
+      "command": [
+        "/home/dwalleck/repos/tethys/target/qualification/corpus-qualification-5/runtime/instrumentation/instrumented-tethys-qualification-driver",
+        "-w",
+        "/home/dwalleck/repos/tethys/target/qualification/corpus-qualification-5/work/corpus/corpus-avalonia"
+      ],
+      "binary_sha256": "544cbb643e4251f28fcbd6f6de54f0b1e7e19347189beff262d8fd688eb400df",
+      "seconds": 387.833195791005,
+      "exit_code": 0,
+      "stdout_sha256": "73e3731de4270a3e931ec084be1022dd116c46650871c8c7156c5213275ffc1d",
+      "database_sha256": "f29b87ef281ded3252024c24075392e1e68d109f46904dc957c331fad0f168e3",
+      "frozen_environment_unchanged": true,
+      "canonical": {
+        "policy": "natural-keys-workspace-paths-and-documented-volatiles-v1",
+        "tables": {
+          "arch_file_packages": {
+            "columns": [
+              "file_id",
+              "package_id"
+            ],
+            "count": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "arch_package_deps": {
+            "columns": [
+              "source_pkg",
+              "target_pkg",
+              "dep_count"
+            ],
+            "count": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "arch_packages": {
+            "columns": [
+              "name",
+              "path",
+              "source",
+              "evaluation_unit_key"
+            ],
+            "count": 159,
+            "sha256": "86f3018243aea3d97afb98f7904b1df8bd35e98dad33020c3425451c79ea6f5d"
+          },
+          "attributes": {
+            "columns": [
+              "symbol_id",
+              "name",
+              "args",
+              "line"
+            ],
+            "count": 9002,
+            "sha256": "3020c420a8076b557af6aceb14e592ae1ce95ddaaa2dc33c12106c015caaa93e"
+          },
+          "call_edges": {
+            "columns": [
+              "caller_symbol_id",
+              "callee_symbol_id",
+              "call_count"
+            ],
+            "count": 28631,
+            "sha256": "c0fdf120cdb03ac167884ca9d638cd28e30b034df9a1b09f42595af62fa9d1cb"
+          },
+          "declared_assembly_references": {
+            "columns": [
+              "unit_key",
+              "include",
+              "metadata_json"
+            ],
+            "count": 4941,
+            "sha256": "7c719794d74616bef64b0dc2489baccdc2009cb6f393ece60fbfe2b4ebd32f61"
+          },
+          "declared_project_references": {
+            "columns": [
+              "unit_key",
+              "target_project_key",
+              "include",
+              "metadata_json"
+            ],
+            "count": 749,
+            "sha256": "28ae73b5bd1314058f405751f2fbb93c0ee5eee581fe9970b86d1abdb2387124"
+          },
+          "discovery_issues": {
+            "columns": [
+              "path",
+              "failure_json"
+            ],
+            "count": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "evaluation_context": {
+            "columns": [
+              "crates_json",
+              "context_json",
+              "grants_json"
+            ],
+            "count": 1,
+            "sha256": "629f42d3373dbe145f6fef899118691acced9ec9a85a7d8ef0f96e295f4b6f29"
+          },
+          "evaluation_inputs": {
+            "columns": [
+              "project_key",
+              "inputs_json"
+            ],
+            "count": 198,
+            "sha256": "392085fcc2d036f11468650f01d32791f4e4b0b6793a5494a164b7470935f9e9"
+          },
+          "evaluation_units": {
+            "columns": [
+              "unit_key",
+              "project_key",
+              "target_framework",
+              "framework_json",
+              "standing_json",
+              "properties_json",
+              "host_json",
+              "restore_json"
+            ],
+            "count": 159,
+            "sha256": "3a8ea7619da8e6709184493844ff6427886d8b40c3c3de5ca59ee481fda112ae"
+          },
+          "file_deps": {
+            "columns": [
+              "from_file_id",
+              "to_file_id",
+              "ref_count"
+            ],
+            "count": 5132,
+            "sha256": "5a8476afc8e010c1f3588a9f8116e7dbc5838be0be1ac328aea34218f3088461"
+          },
+          "file_participation": {
+            "columns": [
+              "unit_key",
+              "path",
+              "file_id",
+              "link",
+              "metadata_json"
+            ],
+            "count": 8869,
+            "sha256": "435d1365d21ddfe5da37668a532777afa5c7832960f7c50174ed07cb90c7bd33"
+          },
+          "files": {
+            "columns": [
+              "path",
+              "language",
+              "size_bytes",
+              "content_hash"
+            ],
+            "count": 3571,
+            "sha256": "734104b4258af17cce9402fb7d4b01c60b2455eaa24d14645302790faf2e0152"
+          },
+          "imports": {
+            "columns": [
+              "file_id",
+              "symbol_name",
+              "source_module",
+              "alias"
+            ],
+            "count": 15831,
+            "sha256": "5fc6e36cdd0de7dce54a632e25602e4fe7aff8bb8fc2f521370e58c2af170c28"
+          },
+          "index_revision": {
+            "columns": [
+              "schema_version"
+            ],
+            "count": 1,
+            "sha256": "b130d086e945005dccde9902a4f20b8c7c70a680a2d019523a5102dd7d031dfa"
+          },
+          "projects": {
+            "columns": [
+              "project_key",
+              "containers_json",
+              "standing_json"
+            ],
+            "count": 104,
+            "sha256": "a06a2b4676bf7e5c04eb9e571d5138efacd175b8361b5dd9fb72ecf904fef623"
+          },
+          "refs": {
+            "columns": [
+              "symbol_id",
+              "file_id",
+              "kind",
+              "line",
+              "column",
+              "end_line",
+              "end_column",
+              "in_symbol_id",
+              "reference_name",
+              "strategy"
+            ],
+            "count": 179668,
+            "sha256": "9f31c6db3929a8225b903490c393a978293d26cd6f3c7c634ebf49a69ff034bf"
+          },
+          "source_diagnostics": {
+            "columns": [
+              "path",
+              "error_json",
+              "directory_reason"
+            ],
+            "count": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "symbols": {
+            "columns": [
+              "file_id",
+              "name",
+              "module_path",
+              "qualified_name",
+              "kind",
+              "line",
+              "column",
+              "end_line",
+              "end_column",
+              "signature",
+              "visibility",
+              "parent_symbol_id",
+              "is_test"
+            ],
+            "count": 53531,
+            "sha256": "ab1f054462450c8f43acd2d5e6dc68a14fd28ee57b900f9a08dd9614d174ffbd"
+          }
+        },
+        "sha256": "e04b7c1420f1ee0e542c19833f4698ee3a8c3e7aca52355119e185ccb88dda59"
+      }
+    },
+    "control": {
+      "command": [
+        "/home/dwalleck/repos/tethys/target/qualification/corpus-qualification-5/runtime/instrumentation/control-tethys-qualification-driver",
+        "-w",
+        "/home/dwalleck/repos/tethys/target/qualification/corpus-qualification-5/work/corpus/corpus-avalonia"
+      ],
+      "binary_sha256": "951abb7e477cc0639cc693923acf54f4fe95768d196e36b41bbde11f15647816",
+      "seconds": 345.6022032019973,
+      "exit_code": 0,
+      "stdout_sha256": "73e3731de4270a3e931ec084be1022dd116c46650871c8c7156c5213275ffc1d",
+      "database_sha256": "6aadf34d3dcc264a73491c97829041d87a8a5fdd5d7206e000b02dd217458c1e",
+      "frozen_environment_unchanged": true,
+      "canonical": {
+        "policy": "natural-keys-workspace-paths-and-documented-volatiles-v1",
+        "tables": {
+          "arch_file_packages": {
+            "columns": [
+              "file_id",
+              "package_id"
+            ],
+            "count": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "arch_package_deps": {
+            "columns": [
+              "source_pkg",
+              "target_pkg",
+              "dep_count"
+            ],
+            "count": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "arch_packages": {
+            "columns": [
+              "name",
+              "path",
+              "source",
+              "evaluation_unit_key"
+            ],
+            "count": 159,
+            "sha256": "86f3018243aea3d97afb98f7904b1df8bd35e98dad33020c3425451c79ea6f5d"
+          },
+          "attributes": {
+            "columns": [
+              "symbol_id",
+              "name",
+              "args",
+              "line"
+            ],
+            "count": 9002,
+            "sha256": "3020c420a8076b557af6aceb14e592ae1ce95ddaaa2dc33c12106c015caaa93e"
+          },
+          "call_edges": {
+            "columns": [
+              "caller_symbol_id",
+              "callee_symbol_id",
+              "call_count"
+            ],
+            "count": 28631,
+            "sha256": "bf6afc8259fcfb78dd6af496c76848d264350f3bbb00d2b84c62685e4719e563"
+          },
+          "declared_assembly_references": {
+            "columns": [
+              "unit_key",
+              "include",
+              "metadata_json"
+            ],
+            "count": 4941,
+            "sha256": "7c719794d74616bef64b0dc2489baccdc2009cb6f393ece60fbfe2b4ebd32f61"
+          },
+          "declared_project_references": {
+            "columns": [
+              "unit_key",
+              "target_project_key",
+              "include",
+              "metadata_json"
+            ],
+            "count": 749,
+            "sha256": "28ae73b5bd1314058f405751f2fbb93c0ee5eee581fe9970b86d1abdb2387124"
+          },
+          "discovery_issues": {
+            "columns": [
+              "path",
+              "failure_json"
+            ],
+            "count": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "evaluation_context": {
+            "columns": [
+              "crates_json",
+              "context_json",
+              "grants_json"
+            ],
+            "count": 1,
+            "sha256": "629f42d3373dbe145f6fef899118691acced9ec9a85a7d8ef0f96e295f4b6f29"
+          },
+          "evaluation_inputs": {
+            "columns": [
+              "project_key",
+              "inputs_json"
+            ],
+            "count": 198,
+            "sha256": "392085fcc2d036f11468650f01d32791f4e4b0b6793a5494a164b7470935f9e9"
+          },
+          "evaluation_units": {
+            "columns": [
+              "unit_key",
+              "project_key",
+              "target_framework",
+              "framework_json",
+              "standing_json",
+              "properties_json",
+              "host_json",
+              "restore_json"
+            ],
+            "count": 159,
+            "sha256": "3a8ea7619da8e6709184493844ff6427886d8b40c3c3de5ca59ee481fda112ae"
+          },
+          "file_deps": {
+            "columns": [
+              "from_file_id",
+              "to_file_id",
+              "ref_count"
+            ],
+            "count": 5130,
+            "sha256": "49b9b537491248cce801a8b8c0accbf16ab220076184c6e3c07191cd950fb5b0"
+          },
+          "file_participation": {
+            "columns": [
+              "unit_key",
+              "path",
+              "file_id",
+              "link",
+              "metadata_json"
+            ],
+            "count": 8869,
+            "sha256": "435d1365d21ddfe5da37668a532777afa5c7832960f7c50174ed07cb90c7bd33"
+          },
+          "files": {
+            "columns": [
+              "path",
+              "language",
+              "size_bytes",
+              "content_hash"
+            ],
+            "count": 3571,
+            "sha256": "734104b4258af17cce9402fb7d4b01c60b2455eaa24d14645302790faf2e0152"
+          },
+          "imports": {
+            "columns": [
+              "file_id",
+              "symbol_name",
+              "source_module",
+              "alias"
+            ],
+            "count": 15831,
+            "sha256": "5fc6e36cdd0de7dce54a632e25602e4fe7aff8bb8fc2f521370e58c2af170c28"
+          },
+          "index_revision": {
+            "columns": [
+              "schema_version"
+            ],
+            "count": 1,
+            "sha256": "b130d086e945005dccde9902a4f20b8c7c70a680a2d019523a5102dd7d031dfa"
+          },
+          "projects": {
+            "columns": [
+              "project_key",
+              "containers_json",
+              "standing_json"
+            ],
+            "count": 104,
+            "sha256": "a06a2b4676bf7e5c04eb9e571d5138efacd175b8361b5dd9fb72ecf904fef623"
+          },
+          "refs": {
+            "columns": [
+              "symbol_id",
+              "file_id",
+              "kind",
+              "line",
+              "column",
+              "end_line",
+              "end_column",
+              "in_symbol_id",
+              "reference_name",
+              "strategy"
+            ],
+            "count": 179668,
+            "sha256": "f321023ee710fc4b088328a1d7c5a4797f3ceba83fb40fa95a36ee34760c041e"
+          },
+          "source_diagnostics": {
+            "columns": [
+              "path",
+              "error_json",
+              "directory_reason"
+            ],
+            "count": 0,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "symbols": {
+            "columns": [
+              "file_id",
+              "name",
+              "module_path",
+              "qualified_name",
+              "kind",
+              "line",
+              "column",
+              "end_line",
+              "end_column",
+              "signature",
+              "visibility",
+              "parent_symbol_id",
+              "is_test"
+            ],
+            "count": 53531,
+            "sha256": "ab1f054462450c8f43acd2d5e6dc68a14fd28ee57b900f9a08dd9614d174ffbd"
+          }
+        },
+        "sha256": "12a7fdfcb40df6f3ce847eb800f1b159854d146f814ee25f59a183508458f381"
+      }
+    }
+  }
+}

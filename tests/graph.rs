@@ -2293,19 +2293,6 @@ fn canonical_reachability_preserves_source_and_dangling_posture() {
         .expect("source id");
     connection
         .execute(
-            "INSERT INTO symbols (
-                file_id, name, module_path, qualified_name, kind, line, column,
-                end_line, end_column, signature, visibility, parent_symbol_id, is_test
-             )
-             SELECT
-                file_id, name, module_path, qualified_name, kind, line, column,
-                end_line, end_column, signature, visibility, parent_symbol_id, is_test
-             FROM symbols WHERE id = ?1",
-            [source_id],
-        )
-        .expect("insert duplicate source");
-    connection
-        .execute(
             "INSERT INTO call_edges (caller_symbol_id, callee_symbol_id, call_count)
              VALUES (?1, 999999, 1)",
             [source_id],

@@ -185,6 +185,8 @@ types and scopes, but not the module. For a method in `impl Trait for Type`,
 the qualifier is the IMPLEMENTING TYPE (`Type::method`, never `Trait::method`)
 — the same identity the reference side derives for receivers, so
 receiver-typed references can bind exactly.
+Equal qualified names can belong to distinct symbols in different files;
+the name alone is not a workspace-wide symbol identity (tethys-et80).
 
 **Hierarchy edge / inherit reference**:
 The `inherit` reference kind (tethys-j2r1), emitted at TWO granularities:

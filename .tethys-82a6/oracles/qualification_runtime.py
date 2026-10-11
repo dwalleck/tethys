@@ -170,12 +170,12 @@ ANCHORS = {
          '        let mut stats = {\n            let _qualification_timer = QualificationTimer::new("reindex", None);\n            run.owner.index_discovered_revision(&options, start)?\n        };'),
     ],
     "src/discovery/msbuild/host.rs": [
-        ("    let output = match run(&mut command, payload, request.options.timeout) {",
-         '    let output = match {\n        let _qualification_timer = QualificationTimer::new("evaluation", Some(request.options.timeout.as_secs_f64()));\n        run(&mut command, payload, request.options.timeout)\n    } {'),
+        ("    let output = match run(\n        &mut command,\n        payload,\n        request.options.timeout,\n        &request.options.environment,\n    ) {",
+         '    let output = match {\n        let _qualification_timer = QualificationTimer::new("evaluation", Some(request.options.timeout.as_secs_f64()));\n        run(\n            &mut command,\n            payload,\n            request.options.timeout,\n            &request.options.environment,\n        )\n    } {'),
     ],
     "src/discovery/msbuild/restore.rs": [
-        ("    let output = match host::run(&mut command, Vec::new(), request.options.timeout) {",
-         '    let output = match {\n        let _qualification_timer = QualificationTimer::new("restore", Some(request.options.timeout.as_secs_f64()));\n        host::run(&mut command, Vec::new(), request.options.timeout)\n    } {'),
+        ("    let output = match host::run(\n        &mut command,\n        Vec::new(),\n        request.options.timeout,\n        &request.options.environment,\n    ) {",
+         '    let output = match {\n        let _qualification_timer = QualificationTimer::new("restore", Some(request.options.timeout.as_secs_f64()));\n        host::run(\n            &mut command,\n            Vec::new(),\n            request.options.timeout,\n            &request.options.environment,\n        )\n    } {'),
     ],
 }
 
